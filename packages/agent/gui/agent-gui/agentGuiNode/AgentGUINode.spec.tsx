@@ -2785,6 +2785,90 @@ describe("AgentGUINode", () => {
     expect(mockSubmitPrompt).not.toHaveBeenCalled();
   });
 
+  it("does not keep completed conversations busy when old transcript rows still contain running calls", () => {
+    const completedConversation = {
+      id: "session-1",
+      provider: "codex" as const,
+      title: "Session 1",
+      status: "completed" as const,
+      cwd: "/workspace",
+      updatedAtUnixMs: 1
+    };
+    const completedDetail = detailViewModel({
+      activity: {
+        ...detailViewModel().activity,
+        status: "completed" as const
+      },
+      session: {
+        ...detailViewModel().session,
+        lifecycleStatus: "ended",
+        turnPhase: "idle",
+        effectiveStatus: "completed"
+      }
+    });
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      activeConversation: completedConversation,
+      conversations: [completedConversation],
+      conversationDetail: completedDetail,
+      conversation: {
+        activity: completedDetail.activity,
+        workspaceRoot: "/workspace",
+        sourceDetail: completedDetail,
+        rows: [
+          {
+            kind: "tool-group",
+            id: "tools-running",
+            turnId: "turn-1",
+            grouped: true,
+            calls: [
+              {
+                kind: "tool-call",
+                id: "call-running",
+                turnId: "turn-1",
+                name: "Read file",
+                toolName: "read_file",
+                callType: "tool",
+                status: "Running",
+                statusKind: "working",
+                summary: "/workspace/README.md",
+                compactSummary: null,
+                payload: null,
+                toolState: null,
+                input: null,
+                output: null,
+                error: null,
+                metadata: null,
+                content: null,
+                locations: null,
+                rendererKind: "default",
+                approval: null,
+                planMode: null,
+                askUserQuestion: null,
+                task: null,
+                occurredAtUnixMs: 1
+              }
+            ],
+            entries: [],
+            occurredAtUnixMs: 1
+          }
+        ],
+        pendingApproval: null,
+        pendingInteractivePrompt: null
+      },
+      canSubmit: false,
+      draftPrompt: "hello"
+    });
+    renderAgentGUINode();
+
+    expect(
+      screen.getAllByText("agentHost.workspaceAgentStatusCompleted").length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "agentHost.agentGui.stop" })
+    ).toBeNull();
+  });
+
   it("keeps the send button in a loading state before switching to Stop", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",

@@ -585,6 +585,15 @@ function conversationHasActiveWork(
   );
 }
 
+function isSettledConversationStatus(
+  status:
+    | AgentGUINodeViewModel["conversations"][number]["status"]
+    | null
+    | undefined
+): boolean {
+  return status === "completed" || status === "failed" || status === "canceled";
+}
+
 function resolveActiveConversationBusyStatus(input: {
   conversationStatus:
     | AgentGUINodeViewModel["conversations"][number]["status"]
@@ -603,6 +612,12 @@ function resolveActiveConversationBusyStatus(input: {
     input.detailStatus === "working"
   ) {
     return "working";
+  }
+  if (
+    isSettledConversationStatus(input.conversationStatus) ||
+    isSettledConversationStatus(input.detailStatus)
+  ) {
+    return null;
   }
   if (conversationHasActiveWork(input.conversation)) {
     return "working";
