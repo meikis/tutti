@@ -614,6 +614,9 @@ export const AgentGUINode = memo(function AgentGUINode({
           provider: displayProviderLabel
         }
       ),
+      collaboratorSessionReadOnlyPlaceholder: t(
+        "agentHost.agentGui.collaboratorSessionReadOnlyPlaceholder"
+      ),
       send: t("agentHost.agentGui.send"),
       modelLabel: t("agentHost.agentGui.modelLabel"),
       modelSelectionLabel: t("agentHost.agentGui.modelSelectionLabel"),

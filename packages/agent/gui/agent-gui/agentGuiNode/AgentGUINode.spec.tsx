@@ -68,13 +68,13 @@ function promptBlocks(text: string) {
 
 function getComposerEditor(): HTMLElement {
   return screen.getByRole("textbox", {
-    name: /agentHost\.agentGui\.(initial|followup|installRequired)Placeholder/
+    name: /agentHost\.agentGui\.(initial|followup|installRequired|collaboratorSessionReadOnly)Placeholder/
   });
 }
 
 function queryComposerEditor(): HTMLElement | null {
   return screen.queryByRole("textbox", {
-    name: /agentHost\.agentGui\.(initial|followup|installRequired)Placeholder/
+    name: /agentHost\.agentGui\.(initial|followup|installRequired|collaboratorSessionReadOnly)Placeholder/
   });
 }
 
@@ -525,6 +525,8 @@ vi.mock("../../i18n/index", () => ({
           "Context usage unavailable",
         "agentHost.agentGui.slashStatusLimitsUnavailable":
           "Rate limits unavailable",
+        "agentHost.agentGui.collaboratorSessionReadOnlyPlaceholder":
+          "非当前用户会话，不可直接对话",
         "agentHost.agentGui.promptTipsPrefix": "Tips：",
         "agentHost.agentGui.promptTips.setWorkspace.label": "指定工作区",
         "agentHost.agentGui.promptTips.setWorkspace.prompt":
@@ -2017,6 +2019,75 @@ describe("AgentGUINode", () => {
     fireEvent.click(sendButton);
 
     expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("hello world"));
+  });
+
+  it("disables direct replies for another user's conversation", () => {
+    const conversation = {
+      id: "session-1",
+      userId: "user-2",
+      provider: "codex" as const,
+      title: "Session 1",
+      status: "ready" as const,
+      cwd: "/workspace",
+      updatedAtUnixMs: 1
+    };
+    mockViewModel = createViewModel({
+      currentUserId: "user-1",
+      activeConversation: conversation,
+      activeConversationId: conversation.id,
+      conversations: [conversation],
+      draftPrompt: "hello",
+      canQueueWhileBusy: true
+    });
+    renderAgentGUINode();
+
+    const editor = screen.getByRole("textbox", {
+      name: "非当前用户会话，不可直接对话"
+    });
+    expect(editor).toHaveAttribute("aria-disabled", "true");
+    expect(
+      editor.closest(".agent-gui-node__composer-input-shell")
+    ).toHaveAttribute("data-input-disabled", "true");
+    expect(
+      editor.closest(".agent-gui-node__composer-input-shell")
+    ).toHaveAttribute("title", "非当前用户会话，不可直接对话");
+    const sendButton = screen.getByRole("button", {
+      name: "agentHost.agentGui.send"
+    });
+    expect(sendButton).toBeDisabled();
+    expect(sendButton).toHaveAttribute("data-state", "send");
+  });
+
+  it("keeps the composer enabled for the current user's conversation", () => {
+    const conversation = {
+      id: "session-1",
+      userId: "user-1",
+      provider: "codex" as const,
+      title: "Session 1",
+      status: "ready" as const,
+      cwd: "/workspace",
+      updatedAtUnixMs: 1
+    };
+    mockViewModel = createViewModel({
+      currentUserId: "user-1",
+      activeConversation: conversation,
+      activeConversationId: conversation.id,
+      conversations: [conversation],
+      draftPrompt: "hello"
+    });
+    renderAgentGUINode();
+
+    const editor = getComposerEditor();
+    expect(editor).not.toHaveAttribute("aria-disabled", "true");
+    expect(
+      editor.closest(".agent-gui-node__composer-input-shell")
+    ).not.toHaveAttribute("data-input-disabled");
+    expect(
+      editor.closest(".agent-gui-node__composer-input-shell")
+    ).not.toHaveAttribute("title");
+    expect(
+      screen.getByRole("button", { name: "agentHost.agentGui.send" })
+    ).not.toBeDisabled();
   });
 
   it("disables the composer when the current user has not installed the active Agent GUI provider", () => {

@@ -1861,6 +1861,9 @@ export function AgentComposer({
           ref={inputShellRef}
           className={cn(inputShellClassName, "relative")}
           data-input-disabled={inputDisabled ? "true" : undefined}
+          title={
+            inputDisabled && disabledReasonText ? disabledReasonText : undefined
+          }
           style={inputShellStyle}
         >
           <Popover

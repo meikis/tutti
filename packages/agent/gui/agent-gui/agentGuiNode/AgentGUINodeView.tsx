@@ -140,10 +140,28 @@ function roundAgentGuiPerfMs(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function isDifferentKnownConversationOwner(input: {
+  conversationUserId?: string | null;
+  currentUserId?: string | null;
+}): boolean {
+  const conversationUserId = input.conversationUserId?.trim() ?? "";
+  const currentUserId = input.currentUserId?.trim() ?? "";
+  if (
+    !conversationUserId ||
+    !currentUserId ||
+    conversationUserId === "local" ||
+    currentUserId === "local"
+  ) {
+    return false;
+  }
+  return conversationUserId !== currentUserId;
+}
+
 export interface AgentGUIViewLabels {
   initialPlaceholder: string;
   followupPlaceholder: string;
   installRequiredPlaceholder: string;
+  collaboratorSessionReadOnlyPlaceholder: string;
   send: string;
   modelLabel: string;
   modelSelectionLabel: string;
@@ -1140,11 +1158,21 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     viewModel.isSubmitting ||
     activeConversationTurnBusy ||
     (!hasActiveConversation && viewModel.isCreatingConversation);
-  const canQueueWhileBusy = viewModel.canQueueWhileBusy && isAgentProviderReady;
-  const composerDisabledReason = isAgentProviderReady
-    ? null
-    : labels.installRequiredPlaceholder;
+  const isCollaboratorConversation = isDifferentKnownConversationOwner({
+    conversationUserId: viewModel.activeConversation?.userId,
+    currentUserId: viewModel.currentUserId
+  });
+  const canQueueWhileBusy =
+    viewModel.canQueueWhileBusy &&
+    isAgentProviderReady &&
+    !isCollaboratorConversation;
+  const composerDisabledReason = isCollaboratorConversation
+    ? labels.collaboratorSessionReadOnlyPlaceholder
+    : isAgentProviderReady
+      ? null
+      : labels.installRequiredPlaceholder;
   const submitDisabled =
+    isCollaboratorConversation ||
     !isAgentProviderReady ||
     (!viewModel.canSubmit && !canQueueWhileBusy) ||
     viewModel.draftPrompt.trim() === "";
@@ -1153,6 +1181,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     sessionChrome.recovery.canRetry === false;
   const composerDisabled =
     hasNonRetryableRecoveryFailure ||
+    isCollaboratorConversation ||
     !isAgentProviderReady ||
     (!canQueueWhileBusy &&
       (viewModel.pendingApproval !== null ||

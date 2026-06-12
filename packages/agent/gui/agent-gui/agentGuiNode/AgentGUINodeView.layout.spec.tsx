@@ -917,6 +917,8 @@ function createLabels(): AgentGUIViewLabels {
     initialPlaceholder: "initialPlaceholder",
     followupPlaceholder: "followupPlaceholder",
     installRequiredPlaceholder: "installRequiredPlaceholder",
+    collaboratorSessionReadOnlyPlaceholder:
+      "collaboratorSessionReadOnlyPlaceholder",
     send: "send",
     modelLabel: "model",
     modelSelectionLabel: "modelSelectionLabel",
