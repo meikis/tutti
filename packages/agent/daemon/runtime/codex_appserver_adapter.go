@@ -93,8 +93,25 @@ type codexAppServerSession struct {
 	authState    string
 	authMessage  string
 	activeTurnID string
+	activeTurn   *codexAppServerActiveTurn
 	acpLiveState
 	pendingRequests map[string]*pendingACPRequest
+}
+
+// codexAppServerActiveTurn carries the streaming context of an in-flight
+// turn. The app-server `turn/start` RPC responds immediately with the
+// inProgress turn; all output arrives as notifications afterwards, so the
+// session-level message handler resolves this context to keep translating
+// notifications into activity events after the RPC has returned. The turn
+// finishes when the `turn/completed` notification delivers the final turn
+// payload through done.
+type codexAppServerActiveTurn struct {
+	turnID       string
+	session      Session
+	normalizer   *acpTurnNormalizer
+	emit         func([]activityshared.Event)
+	emitCommands CommandSnapshotSink
+	done         chan map[string]any
 }
 
 func NewCodexAppServerAdapter(transport ProcessTransport) *CodexAppServerAdapter {
@@ -374,8 +391,28 @@ func (a *CodexAppServerAdapter) startInitializedClient(
 		return nil, nil, err
 	}
 	client := newAppServerJSONRPCClient(conn)
+	// The session-level handler receives every message that arrives outside
+	// an in-flight RPC. Because turn/start responds immediately while the
+	// turn keeps streaming, this is the main delivery path for turn output:
+	// resolve the active turn context so notifications keep producing
+	// activity events after the RPC has returned.
 	client.SetMessageHandler(func(ctx context.Context, message acpMessage) error {
-		_, err := a.handleAppServerMessage(ctx, client, session, "", message, nil, nil, nil)
+		turnSession := session
+		turnID := ""
+		var normalizer *acpTurnNormalizer
+		var turnEmit func([]activityshared.Event)
+		var turnEmitCommands CommandSnapshotSink
+		if activeTurn := a.sessionActiveTurn(session.AgentSessionID); activeTurn != nil {
+			turnSession = activeTurn.session
+			turnID = activeTurn.turnID
+			normalizer = activeTurn.normalizer
+			turnEmit = activeTurn.emit
+			turnEmitCommands = activeTurn.emitCommands
+		}
+		events, err := a.handleAppServerMessage(ctx, client, turnSession, turnID, message, normalizer, turnEmit, turnEmitCommands)
+		if turnEmit != nil {
+			turnEmit(events)
+		}
 		return err
 	})
 	started := false
@@ -503,15 +540,47 @@ func (a *CodexAppServerAdapter) Exec(
 	}
 
 	normalizer := newACPTurnNormalizer()
+	// The emit mutex is held across the sink callback: after `turn/start`
+	// responds, streaming notifications are emitted from the client read
+	// loop while this goroutine waits, so emissions must be serialized.
+	// Terminal events close the turn: anything a handler emits afterwards
+	// (for example a rejected approval resolving during cancel) is dropped,
+	// so the turn outcome event is always the last one the controller sees.
+	var eventsMu sync.Mutex
 	var events []activityshared.Event
-	emitEvents := func(next []activityshared.Event) {
-		if len(next) == 0 {
-			return
-		}
+	turnClosed := false
+	emitLocked := func(next []activityshared.Event) {
 		events = append(events, next...)
 		if emit != nil {
 			emit(next)
 		}
+	}
+	emitEvents := func(next []activityshared.Event) {
+		if len(next) == 0 {
+			return
+		}
+		eventsMu.Lock()
+		defer eventsMu.Unlock()
+		if turnClosed {
+			return
+		}
+		emitLocked(next)
+	}
+	emitTerminal := func(next []activityshared.Event) {
+		eventsMu.Lock()
+		defer eventsMu.Unlock()
+		if turnClosed {
+			return
+		}
+		turnClosed = true
+		if len(next) > 0 {
+			emitLocked(next)
+		}
+	}
+	snapshotEvents := func() []activityshared.Event {
+		eventsMu.Lock()
+		defer eventsMu.Unlock()
+		return append([]activityshared.Event(nil), events...)
 	}
 	startEvents := make([]activityshared.Event, 0, 3)
 	if fallbackTitle := fallbackACPFamilySessionTitle(session.Title, trimmedDisplayPrompt, "", ProviderCodex); fallbackTitle != "" {
@@ -526,8 +595,21 @@ func (a *CodexAppServerAdapter) Exec(
 	)
 	emitEvents(startEvents)
 
-	if handled, err := a.execSlashCommand(ctx, appSession, session, trimmedDisplayPrompt, turnID, normalizer, emitEvents, emitCommands); handled {
-		return events, err
+	appTurn := &codexAppServerActiveTurn{
+		turnID:       turnID,
+		session:      session,
+		normalizer:   normalizer,
+		emit:         emitEvents,
+		emitCommands: emitCommands,
+		done:         make(chan map[string]any, 1),
+	}
+	if !a.beginActiveTurn(session.AgentSessionID, appTurn) {
+		return nil, ErrSessionActiveTurn
+	}
+	defer a.endActiveTurn(session.AgentSessionID, appTurn)
+
+	if handled, err := a.execSlashCommand(ctx, appSession, session, trimmedDisplayPrompt, turnID, appTurn, normalizer, emitEvents, emitTerminal, emitCommands); handled {
+		return snapshotEvents(), err
 	}
 
 	result, err := appSession.client.Call(ctx, appServerMethodTurnStart, appServerTurnStartParams(session, appSession.threadID, content),
@@ -536,26 +618,115 @@ func (a *CodexAppServerAdapter) Exec(
 			emitEvents(next)
 			return err
 		})
-	a.setSessionActiveTurnID(session.AgentSessionID, "")
 	if err != nil {
+		a.endActiveTurn(session.AgentSessionID, appTurn)
 		if errors.Is(err, context.Canceled) || errors.Is(err, errPermissionRequestCanceled) {
-			terminalEvents := normalizer.FinishInterrupted(session, turnID, "interrupted")
+			terminalEvents := a.pendingRequestFailureEvents(session, turnID, errPermissionRequestCanceled)
+			terminalEvents = append(terminalEvents, normalizer.FinishInterrupted(session, turnID, "interrupted")...)
 			terminalEvents = append(terminalEvents, newTurnActivityEvent(session, EventTurnCanceled, turnID, SessionStatusCanceled, "", "", map[string]any{
 				"error": err.Error(),
 			}))
-			emitEvents(terminalEvents)
+			emitTerminal(terminalEvents)
 		} else {
 			terminalEvents := normalizer.FinishFailed(session, turnID)
 			terminalEvents = append(terminalEvents, newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(err)))
-			emitEvents(terminalEvents)
+			emitTerminal(terminalEvents)
 		}
-		return events, nil
+		return snapshotEvents(), nil
 	}
 
-	turn := appServerTurnFromResult(result)
-	normalizer.ApplyAssistantFinalText(appServerTurnFinalAssistantText(turn))
-	emitEvents(appServerTurnTerminalEvents(session, turnID, turn, normalizer))
-	return events, nil
+	// The app-server responds to turn/start immediately with the inProgress
+	// turn; the real output streams as notifications and the final turn
+	// arrives with the turn/completed notification.
+	initialTurn := appServerTurnFromResult(result)
+	if providerTurnID := asString(initialTurn["id"]); providerTurnID != "" {
+		a.setSessionActiveTurnID(session.AgentSessionID, providerTurnID)
+	}
+	finalTurn, finishErr := a.awaitTurnCompletion(ctx, appSession, appTurn, initialTurn)
+	a.endActiveTurn(session.AgentSessionID, appTurn)
+	if finishErr != nil {
+		if errors.Is(finishErr, context.Canceled) || errors.Is(finishErr, errPermissionRequestCanceled) {
+			terminalEvents := a.pendingRequestFailureEvents(session, turnID, errPermissionRequestCanceled)
+			terminalEvents = append(terminalEvents, normalizer.FinishInterrupted(session, turnID, "interrupted")...)
+			terminalEvents = append(terminalEvents, newTurnActivityEvent(session, EventTurnCanceled, turnID, SessionStatusCanceled, "", "", map[string]any{
+				"error": finishErr.Error(),
+			}))
+			emitTerminal(terminalEvents)
+		} else {
+			terminalEvents := normalizer.FinishFailed(session, turnID)
+			terminalEvents = append(terminalEvents, newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(finishErr)))
+			emitTerminal(terminalEvents)
+		}
+		return snapshotEvents(), nil
+	}
+	normalizer.ApplyAssistantFinalText(appServerTurnFinalAssistantText(finalTurn))
+	emitTerminal(appServerTurnTerminalEvents(session, turnID, finalTurn, normalizer))
+	return snapshotEvents(), nil
+}
+
+// pendingRequestFailureEvents resolves any still-pending approval or
+// interactive requests as failed, so a canceled turn does not leave
+// dangling approval cards. The handlers waiting on those requests emit
+// their own resolution later, but the turn is closed by then and the
+// duplicate emission is dropped.
+func (a *CodexAppServerAdapter) pendingRequestFailureEvents(
+	session Session,
+	turnID string,
+	cause error,
+) []activityshared.Event {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	appSession := a.sessions[strings.TrimSpace(session.AgentSessionID)]
+	pendings := make([]*pendingACPRequest, 0)
+	if appSession != nil {
+		for _, pending := range appSession.pendingRequests {
+			pendings = append(pendings, pending)
+		}
+	}
+	a.mu.Unlock()
+	var events []activityshared.Event
+	for _, pending := range pendings {
+		events = append(events, acpPermissionResolvedEvents(session, turnID, pending, pendingACPResponse{}, cause)...)
+	}
+	return events
+}
+
+// awaitTurnCompletion blocks until the turn finishes. When the turn/start
+// (or review/start) response already reports a terminal status it is used
+// directly; otherwise the final turn payload comes from the turn/completed
+// notification via the active turn context.
+func (a *CodexAppServerAdapter) awaitTurnCompletion(
+	ctx context.Context,
+	appSession *codexAppServerSession,
+	appTurn *codexAppServerActiveTurn,
+	initialTurn map[string]any,
+) (map[string]any, error) {
+	if appServerTurnStatusTerminal(initialTurn) {
+		return initialTurn, nil
+	}
+	select {
+	case finalTurn := <-appTurn.done:
+		return finalTurn, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-appSession.client.Done():
+		err := appSession.client.Err()
+		if err == nil {
+			err = ErrSessionDisconnected
+		}
+		return nil, err
+	}
+}
+
+func appServerTurnStatusTerminal(turn map[string]any) bool {
+	switch asString(turn["status"]) {
+	case "completed", "failed", "interrupted":
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *CodexAppServerAdapter) steerActiveTurn(
@@ -594,8 +765,10 @@ func (a *CodexAppServerAdapter) execSlashCommand(
 	session Session,
 	displayPrompt string,
 	turnID string,
+	appTurn *codexAppServerActiveTurn,
 	normalizer *acpTurnNormalizer,
 	emitEvents func([]activityshared.Event),
+	emitTerminal func([]activityshared.Event),
 	emitCommands CommandSnapshotSink,
 ) (bool, error) {
 	command, args := splitSlashCommand(displayPrompt)
@@ -609,10 +782,10 @@ func (a *CodexAppServerAdapter) execSlashCommand(
 			return err
 		})
 		if err != nil {
-			emitEvents([]activityshared.Event{newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(err))})
+			emitTerminal([]activityshared.Event{newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(err))})
 			return true, nil
 		}
-		emitEvents(append(
+		emitTerminal(append(
 			normalizer.FinishCompleted(session, turnID),
 			appServerSystemNoticeEvent(session, turnID, "system_notice", "Context compaction started.", ""),
 			newTurnActivityEvent(session, EventTurnCompleted, turnID, SessionStatusReady, "", "", map[string]any{
@@ -632,14 +805,23 @@ func (a *CodexAppServerAdapter) execSlashCommand(
 				emitEvents(next)
 				return err
 			})
-		a.setSessionActiveTurnID(session.AgentSessionID, "")
 		if err != nil {
-			emitEvents([]activityshared.Event{newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(err))})
+			emitTerminal([]activityshared.Event{newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(err))})
 			return true, nil
 		}
-		turn := appServerTurnFromResult(result)
-		normalizer.ApplyAssistantFinalText(appServerTurnFinalAssistantText(turn))
-		emitEvents(appServerTurnTerminalEvents(session, turnID, turn, normalizer))
+		initialTurn := appServerTurnFromResult(result)
+		if providerTurnID := asString(initialTurn["id"]); providerTurnID != "" {
+			a.setSessionActiveTurnID(session.AgentSessionID, providerTurnID)
+		}
+		finalTurn, finishErr := a.awaitTurnCompletion(ctx, appSession, appTurn, initialTurn)
+		if finishErr != nil {
+			terminalEvents := normalizer.FinishFailed(session, turnID)
+			terminalEvents = append(terminalEvents, newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(finishErr)))
+			emitTerminal(terminalEvents)
+			return true, nil
+		}
+		normalizer.ApplyAssistantFinalText(appServerTurnFinalAssistantText(finalTurn))
+		emitTerminal(appServerTurnTerminalEvents(session, turnID, finalTurn, normalizer))
 		return true, nil
 	case appServerSlashUndo:
 		_, err := appSession.client.Call(ctx, appServerMethodThreadRollback, map[string]any{
@@ -651,10 +833,10 @@ func (a *CodexAppServerAdapter) execSlashCommand(
 			return err
 		})
 		if err != nil {
-			emitEvents([]activityshared.Event{newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(err))})
+			emitTerminal([]activityshared.Event{newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", acpFailureMetadata(err))})
 			return true, nil
 		}
-		emitEvents([]activityshared.Event{
+		emitTerminal([]activityshared.Event{
 			appServerSystemNoticeEvent(session, turnID, "system_notice", "Removed the last turn from the conversation. Local file changes are not reverted.", ""),
 			newTurnActivityEvent(session, EventTurnCompleted, turnID, SessionStatusReady, "", "", map[string]any{
 				"stopReason": "end_turn",
@@ -961,6 +1143,73 @@ func (a *CodexAppServerAdapter) getSession(agentSessionID string) *codexAppServe
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.sessions[strings.TrimSpace(agentSessionID)]
+}
+
+func (a *CodexAppServerAdapter) beginActiveTurn(
+	agentSessionID string,
+	turn *codexAppServerActiveTurn,
+) bool {
+	if a == nil || turn == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	appSession := a.sessions[strings.TrimSpace(agentSessionID)]
+	if appSession == nil || appSession.activeTurn != nil {
+		return false
+	}
+	appSession.activeTurn = turn
+	return true
+}
+
+func (a *CodexAppServerAdapter) endActiveTurn(agentSessionID string, turn *codexAppServerActiveTurn) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	appSession := a.sessions[strings.TrimSpace(agentSessionID)]
+	if appSession == nil || appSession.activeTurn != turn {
+		return
+	}
+	appSession.activeTurn = nil
+	appSession.activeTurnID = ""
+}
+
+func (a *CodexAppServerAdapter) sessionActiveTurn(agentSessionID string) *codexAppServerActiveTurn {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	appSession := a.sessions[strings.TrimSpace(agentSessionID)]
+	if appSession == nil {
+		return nil
+	}
+	return appSession.activeTurn
+}
+
+// completeActiveTurn delivers the final turn payload from the
+// `turn/completed` notification to the goroutine waiting in Exec.
+func (a *CodexAppServerAdapter) completeActiveTurn(agentSessionID string, turn map[string]any) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	appSession := a.sessions[strings.TrimSpace(agentSessionID)]
+	var activeTurn *codexAppServerActiveTurn
+	if appSession != nil {
+		activeTurn = appSession.activeTurn
+		appSession.activeTurnID = ""
+	}
+	a.mu.Unlock()
+	if activeTurn == nil {
+		return
+	}
+	select {
+	case activeTurn.done <- turn:
+	default:
+	}
 }
 
 func (a *CodexAppServerAdapter) sessionActiveTurnID(agentSessionID string) string {

@@ -58,12 +58,18 @@ func (a *CodexAppServerAdapter) appServerNotificationEvents(
 	}
 	switch message.Method {
 	case appServerNotifyTurnStarted:
-		if turn := payloadObject(params["turn"]); turn != nil {
-			a.setSessionActiveTurnID(session.AgentSessionID, asString(turn["id"]))
+		// Record the provider turn id (needed for turn/interrupt and
+		// turn/steer) only while a turn context is registered, so stray
+		// turns (for example compaction) cannot block future prompts.
+		if a.sessionActiveTurn(session.AgentSessionID) != nil {
+			if turn := payloadObject(params["turn"]); turn != nil {
+				a.setSessionActiveTurnID(session.AgentSessionID, asString(turn["id"]))
+			}
 		}
 		return nil
 	case appServerNotifyTurnCompleted:
-		a.setSessionActiveTurnID(session.AgentSessionID, "")
+		// Deliver the final turn payload to the goroutine waiting in Exec.
+		a.completeActiveTurn(session.AgentSessionID, payloadObject(params["turn"]))
 		return nil
 	case appServerNotifyAgentMessageDelta:
 		if normalizer == nil {

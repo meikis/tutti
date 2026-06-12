@@ -131,6 +131,16 @@ func (c *acpClient) Close() error {
 	return c.conn.Close()
 }
 
+// Done is closed when the process connection terminates.
+func (c *acpClient) Done() <-chan struct{} {
+	return c.done
+}
+
+// Err reports why the connection terminated; valid after Done is closed.
+func (c *acpClient) Err() error {
+	return c.finishError()
+}
+
 func (c *acpClient) Notify(ctx context.Context, method string, params any) error {
 	if c == nil {
 		return errors.New("acp client is nil")

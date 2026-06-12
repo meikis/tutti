@@ -2708,7 +2708,6 @@ type scriptedACPConnection struct {
 	pendingPermissionPromptID  json.RawMessage
 	selectedPermissionOption   string
 	selectedInteractiveResult  map[string]any
-	appServerTurnRequestID     json.RawMessage
 	appServerTurnStatus        string
 }
 
@@ -3021,9 +3020,16 @@ func (c *scriptedACPConnection) handleAppServerMessage(line string, id json.RawM
 		return true
 	case appServerMethodTurnStart:
 		c.mu.Lock()
-		c.appServerTurnRequestID = append(json.RawMessage(nil), id...)
 		c.appServerTurnStatus = "completed"
 		c.mu.Unlock()
+		// Mirror the real app-server: respond immediately with the
+		// inProgress turn; output streams as notifications afterwards.
+		c.sendJSON(map[string]any{
+			"id": id,
+			"result": map[string]any{
+				"turn": map[string]any{"id": "turn-1", "status": "inProgress", "items": []any{}},
+			},
+		})
 		c.sendJSON(map[string]any{
 			"method": appServerNotifyTurnStarted,
 			"params": map[string]any{
@@ -3129,7 +3135,7 @@ func (c *scriptedACPConnection) handleAppServerMessage(line string, id json.RawM
 		}
 		_ = json.Unmarshal([]byte(line), &response)
 		if response.Result.Decision == "" {
-			if len(response.Error) > 0 && len(c.pendingAppServerTurnID()) > 0 {
+			if len(response.Error) > 0 {
 				// App-server approval rejected (for example on cancel); the
 				// turn finishes through turn/interrupt instead.
 				return true
@@ -3152,22 +3158,14 @@ func (c *scriptedACPConnection) handleAppServerMessage(line string, id json.RawM
 	}
 }
 
-func (c *scriptedACPConnection) pendingAppServerTurnID() json.RawMessage {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return append(json.RawMessage(nil), c.appServerTurnRequestID...)
-}
-
+// completeAppServerTurn finishes the in-flight app-server turn the way the
+// real server does: with a turn/completed notification (the turn/start RPC
+// already responded immediately).
 func (c *scriptedACPConnection) completeAppServerTurn() {
 	c.mu.Lock()
-	requestID := append(json.RawMessage(nil), c.appServerTurnRequestID...)
-	c.appServerTurnRequestID = nil
 	status := firstNonEmpty(c.appServerTurnStatus, "completed")
 	finalContent := firstNonEmpty(strings.TrimSpace(c.promptFinalContent), "I'll check the repo.")
 	c.mu.Unlock()
-	if len(requestID) == 0 {
-		return
-	}
 	c.sendJSON(map[string]any{
 		"method": appServerNotifyItemCompleted,
 		"params": map[string]any{
@@ -3180,8 +3178,9 @@ func (c *scriptedACPConnection) completeAppServerTurn() {
 		},
 	})
 	c.sendJSON(map[string]any{
-		"id": requestID,
-		"result": map[string]any{
+		"method": appServerNotifyTurnCompleted,
+		"params": map[string]any{
+			"threadId": "codex-thread-1",
 			"turn": map[string]any{
 				"id":     "turn-1",
 				"status": status,

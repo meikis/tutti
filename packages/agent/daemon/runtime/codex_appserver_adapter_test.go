@@ -52,16 +52,15 @@ type scriptedAppServerConnection struct {
 	sent [][]byte
 	recv chan ProcessFrame
 
-	requiresAuth         bool
-	accountReadError     bool
-	turnStatus           string // completed (default) | failed | interrupted
-	turnError            map[string]any
-	holdTurn             bool // do not answer turn/start until released
-	pendingTurnRequestID json.RawMessage
-	commandApproval      bool
-	userInputRequest     bool
-	approvalResponse     map[string]any
-	closeOnce            sync.Once
+	requiresAuth     bool
+	accountReadError bool
+	turnStatus       string // completed (default) | failed | interrupted
+	turnError        map[string]any
+	holdTurn         bool // do not finish the turn until released
+	commandApproval  bool
+	userInputRequest bool
+	approvalResponse map[string]any
+	closeOnce        sync.Once
 }
 
 func (c *scriptedAppServerConnection) sendJSON(value map[string]any) {
@@ -89,15 +88,14 @@ func (c *scriptedAppServerConnection) Close() error {
 	return nil
 }
 
+// completePendingTurn finishes the in-flight turn the way the real
+// app-server does: with a turn/completed notification carrying the final
+// turn payload (the turn/start RPC already responded immediately).
 func (c *scriptedAppServerConnection) completePendingTurn() {
 	c.mu.Lock()
-	requestID := append(json.RawMessage(nil), c.pendingTurnRequestID...)
 	status := firstNonEmpty(c.turnStatus, "completed")
 	turnError := c.turnError
 	c.mu.Unlock()
-	if len(requestID) == 0 {
-		return
-	}
 	turn := map[string]any{
 		"id":     "turn-1",
 		"status": status,
@@ -108,9 +106,9 @@ func (c *scriptedAppServerConnection) completePendingTurn() {
 	if turnError != nil {
 		turn["error"] = turnError
 	}
-	c.sendJSON(map[string]any{
-		"id":     requestID,
-		"result": map[string]any{"turn": turn},
+	c.notify(appServerNotifyTurnCompleted, map[string]any{
+		"threadId": "codex-thread-1",
+		"turn":     turn,
 	})
 }
 
@@ -225,11 +223,18 @@ func (c *scriptedAppServerConnection) Send(data []byte) error {
 			})
 		case appServerMethodTurnStart:
 			c.mu.Lock()
-			c.pendingTurnRequestID = append(json.RawMessage(nil), message.ID...)
 			hold := c.holdTurn
 			approval := c.commandApproval
 			userInput := c.userInputRequest
 			c.mu.Unlock()
+			// Mirror the real app-server: the RPC responds immediately with
+			// the inProgress turn; output streams as notifications.
+			c.sendJSON(map[string]any{
+				"id": message.ID,
+				"result": map[string]any{
+					"turn": map[string]any{"id": "turn-1", "status": "inProgress", "items": []any{}},
+				},
+			})
 			c.notify(appServerNotifyTurnStarted, map[string]any{
 				"threadId": "codex-thread-1",
 				"turn":     map[string]any{"id": "turn-1", "status": "inProgress", "items": []any{}},
@@ -335,17 +340,21 @@ func (c *scriptedAppServerConnection) Send(data []byte) error {
 				"result": map[string]any{"thread": map[string]any{"id": "codex-thread-1"}},
 			})
 		case appServerMethodReviewStart:
-			c.notify(appServerNotifyAgentMessageDelta, map[string]any{
-				"threadId": "codex-thread-1", "turnId": "turn-review", "itemId": "item-review", "delta": "Found one issue.",
-			})
 			c.sendJSON(map[string]any{
 				"id": message.ID,
 				"result": map[string]any{
 					"reviewThreadId": "codex-thread-1",
-					"turn": map[string]any{
-						"id": "turn-review", "status": "completed",
-						"items": []any{map[string]any{"type": "agentMessage", "id": "item-review", "text": "Found one issue."}},
-					},
+					"turn":           map[string]any{"id": "turn-review", "status": "inProgress", "items": []any{}},
+				},
+			})
+			c.notify(appServerNotifyAgentMessageDelta, map[string]any{
+				"threadId": "codex-thread-1", "turnId": "turn-review", "itemId": "item-review", "delta": "Found one issue.",
+			})
+			c.notify(appServerNotifyTurnCompleted, map[string]any{
+				"threadId": "codex-thread-1",
+				"turn": map[string]any{
+					"id": "turn-review", "status": "completed",
+					"items": []any{map[string]any{"type": "agentMessage", "id": "item-review", "text": "Found one issue."}},
 				},
 			})
 		default:
