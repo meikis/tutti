@@ -455,7 +455,6 @@ describe("message center attention deck selection", () => {
   ): WorkspaceAgentMessageCenterItem {
     return {
       id: `message-center-${overrides.agentSessionId}`,
-      agentSessionId: overrides.agentSessionId,
       provider: "codex",
       title: "t",
       identity: null,
