@@ -11,6 +11,11 @@
     "node": ">=24",
     "pnpm": "10.11.0"
   },
+  "pnpm": {
+    "overrides": {
+      "@radix-ui/react-slot": "1.2.5"
+    }
+  },
   "scripts": {
     "build": "pnpm -r --if-present build && cd packages/workspace/files && go build ./... && cd ../../workbench/service && go build ./... && cd ../../../services/nextopd && go build ./... && cd ../../apps/cli && go build ./...",
     "build:go": "cd packages/workspace/files && go build ./... && cd ../../workbench/service && go build ./... && cd ../../../services/nextopd && go build ./... && cd ../../apps/cli && go build ./...",
