@@ -100,7 +100,7 @@ func TestServiceCreatePassesPlanModeToRuntime(t *testing.T) {
 		AgentSessionID: "11111111-1111-4111-8111-111111111111",
 		InitialContent: TextPromptContent("hello"),
 		PlanMode:       &planMode,
-		Provider:       "codex",
+		Provider:       "claude-code",
 	})
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
@@ -113,6 +113,31 @@ func TestServiceCreatePassesPlanModeToRuntime(t *testing.T) {
 	}
 	if session.Settings == nil || !session.Settings.PlanMode {
 		t.Fatalf("session settings = %#v, want plan mode true", session.Settings)
+	}
+}
+
+func TestServiceCreateClampsPlanModeForProvidersWithoutCapability(t *testing.T) {
+	runtime := newFakeRuntime()
+	service := NewService(runtime)
+	planMode := true
+
+	session, err := service.Create(context.Background(), "ws-1", CreateSessionInput{
+		AgentSessionID: "22222222-2222-4222-8222-222222222222",
+		InitialContent: TextPromptContent("hello"),
+		PlanMode:       &planMode,
+		Provider:       "codex",
+	})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if len(runtime.startCalls) != 1 {
+		t.Fatalf("start calls = %d, want 1", len(runtime.startCalls))
+	}
+	if runtime.startCalls[0].PlanMode {
+		t.Fatal("runtime start plan mode = true, want clamped to false for codex")
+	}
+	if session.Settings == nil || session.Settings.PlanMode {
+		t.Fatalf("session settings = %#v, want plan mode clamped to false", session.Settings)
 	}
 }
 

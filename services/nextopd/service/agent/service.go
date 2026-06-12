@@ -121,8 +121,8 @@ func (s *Service) Create(ctx context.Context, workspaceID string, input CreateSe
 		Env:              prepared.Env,
 		Title:            value(input.Title),
 		PermissionModeID: value(input.PermissionModeID),
-		Model:            value(input.Model),
-		PlanMode:         valueBool(input.PlanMode),
+		Model:            clampComposerModelForProvider(provider, value(input.Model)),
+		PlanMode:         clampComposerPlanModeForProvider(provider, valueBool(input.PlanMode)),
 		ReasoningEffort: normalizeReasoningEffortForProvider(
 			provider,
 			value(input.ReasoningEffort),
@@ -196,8 +196,8 @@ func (s *Service) prepareRuntime(ctx context.Context, workspaceID string, cwd st
 		Cwd:              cwd,
 		Title:            value(input.Title),
 		PermissionModeID: value(input.PermissionModeID),
-		PlanMode:         valueBool(input.PlanMode),
-		Model:            value(input.Model),
+		PlanMode:         clampComposerPlanModeForProvider(provider, valueBool(input.PlanMode)),
+		Model:            clampComposerModelForProvider(provider, value(input.Model)),
 		ReasoningEffort: normalizeReasoningEffortForProvider(
 			provider,
 			value(input.ReasoningEffort),

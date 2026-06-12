@@ -265,7 +265,35 @@ func normalizeComposerSettingsForProvider(provider string, settings ComposerSett
 	settings.Model = strings.TrimSpace(settings.Model)
 	settings.PermissionModeID = normalizePermissionModeIDForProvider(provider, settings.PermissionModeID)
 	settings.ReasoningEffort = normalizeReasoningEffortForProvider(provider, settings.ReasoningEffort)
+	settings.Model = clampComposerModelForProvider(provider, settings.Model)
+	settings.PlanMode = clampComposerPlanModeForProvider(provider, settings.PlanMode)
 	return settings
+}
+
+// clampComposerModelForProvider clears model overrides for providers without
+// composer settings support so stale persisted values never reach the runtime.
+func clampComposerModelForProvider(provider string, model string) string {
+	if !agentprovider.SupportsComposerSettings(agentprovider.Normalize(provider)) {
+		return ""
+	}
+	return strings.TrimSpace(model)
+}
+
+// clampComposerPlanModeForProvider forces plan mode off for providers whose
+// static capabilities never negotiate it.
+func clampComposerPlanModeForProvider(provider string, planMode bool) bool {
+	return planMode && composerProviderSupportsPlanMode(agentprovider.Normalize(provider))
+}
+
+// composerProviderSupportsPlanMode mirrors the static capability defaults so
+// the daemon clamps plan mode for providers that never negotiate it.
+func composerProviderSupportsPlanMode(provider string) bool {
+	for _, capability := range composerProviderCapabilities(provider) {
+		if capability == "planMode" {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeComposerSettingsPointerForProvider(provider string, settings *ComposerSettings) *ComposerSettings {
@@ -500,6 +528,10 @@ func reasoningEffortValuesForProvider(provider string) []string {
 }
 
 func normalizeReasoningEffortForProvider(provider string, value string) string {
+	provider = agentprovider.Normalize(provider)
+	if !agentprovider.SupportsComposerSettings(provider) {
+		return ""
+	}
 	normalized := strings.TrimSpace(value)
 	if (provider == agentprovider.Codex || provider == agentprovider.ClaudeCode) && normalized == "minimal" {
 		return "high"
