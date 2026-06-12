@@ -108,7 +108,8 @@ export function createAgentGuiWorkbenchContribution(
     dockEntries: agentGuiWorkbenchProviders.map((provider, index) =>
       createAgentGuiWorkbenchDockEntry({
         label: agentGuiWorkbenchProviderLabels[provider],
-        iconUrl: input.dockIconUrls?.[provider],
+        iconUrl:
+          input.dockIconUrls?.[provider] ?? agentGuiDockIconUrls[provider],
         order: index,
         provider,
         sectionId: input.dockSectionId ?? "agents",
@@ -337,7 +338,7 @@ function createAgentGuiWorkbenchDockEntry(input: {
     icon: createElement("img", {
       alt: "",
       draggable: false,
-      src: input.iconUrl ?? agentGuiDockIconUrls[input.provider]
+      src: input.iconUrl
     }),
     iconSize: "large",
     id: agentGuiWorkbenchDockEntryId(input.provider),
