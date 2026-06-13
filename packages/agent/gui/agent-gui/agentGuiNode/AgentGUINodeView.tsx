@@ -92,6 +92,7 @@ import {
 } from "./agentGuiNodeViewConversation";
 import PixelCard from "./PixelCard";
 import styles from "./AgentGUINode.styles";
+import conversationStyles from "./AgentGUIConversation.styles";
 import type { AgentRichTextAtProvider } from "./agentRichTextAtProvider";
 
 const AGENT_GUI_STICK_TO_BOTTOM_THRESHOLD_PX = 24;
@@ -288,6 +289,8 @@ export interface AgentGUIViewLabels {
   usageAlertDismiss: string;
   planImplementationLead: string;
   planImplementationConfirm: string;
+  planImplementationFeedbackPlaceholder: string;
+  planImplementationSend: string;
   planImplementationDismiss: string;
   fileMentionPalette: string;
   fileMentionLoading: string;
@@ -348,6 +351,7 @@ interface AgentGUINodeViewProps {
     submitPrompt: (content: AgentPromptContentBlock[]) => void;
     submitCompact: () => void;
     implementPlan: () => void;
+    submitPlanFeedback: (feedback: string) => void;
     dismissPlanImplementation: () => void;
     dismissUsageAlert: () => void;
     showPromptImagesUnsupported: () => void;
@@ -1694,7 +1698,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
           planImplementationPrompt={viewModel.planImplementationPrompt}
           planImplementationLabels={labels}
           onPlanImplement={actions.implementPlan}
-          onPlanImplementationDismiss={actions.dismissPlanImplementation}
+          onPlanImplementationFeedback={actions.submitPlanFeedback}
           composerProps={{
             workspaceId: viewModel.workspaceId,
             workspacePath: viewModel.workspacePath,
@@ -2222,6 +2226,8 @@ type AgentPlanImplementationLabels = Pick<
   AgentGUIViewLabels,
   | "planImplementationLead"
   | "planImplementationConfirm"
+  | "planImplementationFeedbackPlaceholder"
+  | "planImplementationSend"
   | "planImplementationDismiss"
 >;
 
@@ -2230,44 +2236,58 @@ type AgentPlanImplementationLabels = Pick<
 function AgentPlanImplementationBanner({
   labels,
   onImplement,
-  onDismiss
+  onFeedback
 }: {
   labels: AgentPlanImplementationLabels;
   onImplement: () => void;
-  onDismiss: () => void;
+  onFeedback: (feedback: string) => void;
 }): React.JSX.Element {
   "use memo";
 
+  const [feedback, setFeedback] = useState("");
+  const trimmed = feedback.trim();
+
   return (
     <div
-      className={styles.usageAlertBanner}
+      className={conversationStyles.interactivePromptCard}
       data-testid="agent-gui-plan-implementation"
       role="status"
     >
-      <span className={styles.usageAlertMessage}>
+      <div className={conversationStyles.interactivePromptLead}>
         {labels.planImplementationLead}
-      </span>
-      <span className={styles.usageAlertActions}>
-        <Button
+      </div>
+      <div className={conversationStyles.interactivePromptOptions}>
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
+          className={conversationStyles.interactiveOptionButton}
           data-testid="agent-gui-plan-implementation-confirm"
           onClick={onImplement}
         >
-          {labels.planImplementationConfirm}
-        </Button>
-        <button
-          type="button"
-          className={styles.usageAlertDismiss}
-          data-testid="agent-gui-plan-implementation-dismiss"
-          aria-label={labels.planImplementationDismiss}
-          title={labels.planImplementationDismiss}
-          onClick={onDismiss}
-        >
-          <X size={14} strokeWidth={2} aria-hidden="true" />
+          <span className={conversationStyles.interactiveOptionTitle}>
+            {labels.planImplementationConfirm}
+          </span>
         </button>
-      </span>
+      </div>
+      <div className={conversationStyles.interactivePromptFooter}>
+        <textarea
+          value={feedback}
+          placeholder={labels.planImplementationFeedbackPlaceholder}
+          className={conversationStyles.interactivePromptTextarea}
+          data-testid="agent-gui-plan-implementation-feedback"
+          onChange={(event) => setFeedback(event.currentTarget.value)}
+        />
+        <div className={conversationStyles.interactivePromptActions}>
+          <button
+            type="button"
+            data-testid="agent-gui-plan-implementation-dismiss"
+            onClick={() => onFeedback(feedback)}
+          >
+            {trimmed === ""
+              ? labels.planImplementationDismiss
+              : labels.planImplementationSend}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2293,7 +2313,7 @@ interface AgentGUIBottomDockPaneProps {
   planImplementationPrompt: boolean;
   planImplementationLabels: AgentPlanImplementationLabels;
   onPlanImplement: () => void;
-  onPlanImplementationDismiss: () => void;
+  onPlanImplementationFeedback: (feedback: string) => void;
   composerProps: AgentComposerProps;
   chromeLabels: ChromeLabels;
   promptLabels: InteractivePromptLabels;
@@ -2320,7 +2340,7 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
   planImplementationPrompt,
   planImplementationLabels,
   onPlanImplement,
-  onPlanImplementationDismiss,
+  onPlanImplementationFeedback,
   composerProps,
   chromeLabels,
   promptLabels,
@@ -2368,7 +2388,7 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
         <AgentPlanImplementationBanner
           labels={planImplementationLabels}
           onImplement={onPlanImplement}
-          onDismiss={onPlanImplementationDismiss}
+          onFeedback={onPlanImplementationFeedback}
         />
       ) : null}
       {inlineNoticeChrome ? (

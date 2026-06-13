@@ -1016,6 +1016,7 @@ function createActions(): AgentGUINodeViewProps["actions"] {
     submitPrompt: vi.fn(),
     submitCompact: vi.fn(),
     implementPlan: vi.fn(),
+    submitPlanFeedback: vi.fn(),
     dismissPlanImplementation: vi.fn(),
     dismissUsageAlert: vi.fn(),
     showPromptImagesUnsupported: vi.fn(),
@@ -1329,6 +1330,9 @@ function createLabels(): AgentGUIViewLabels {
     usageAlertDismiss: "usageAlertDismiss",
     planImplementationLead: "planImplementationLead",
     planImplementationConfirm: "planImplementationConfirm",
+    planImplementationFeedbackPlaceholder:
+      "planImplementationFeedbackPlaceholder",
+    planImplementationSend: "planImplementationSend",
     planImplementationDismiss: "planImplementationDismiss",
     fileMentionPalette: "fileMentionPalette",
     fileMentionLoading: "fileMentionLoading",

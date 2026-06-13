@@ -721,6 +721,10 @@ export const AgentGUINode = memo(function AgentGUINode({
       planImplementationConfirm: t(
         "agentHost.agentGui.planImplementationConfirm"
       ),
+      planImplementationFeedbackPlaceholder: t(
+        "agentHost.agentGui.planImplementationFeedbackPlaceholder"
+      ),
+      planImplementationSend: t("agentHost.agentGui.planImplementationSend"),
       planImplementationDismiss: t(
         "agentHost.agentGui.planImplementationDismiss"
       ),

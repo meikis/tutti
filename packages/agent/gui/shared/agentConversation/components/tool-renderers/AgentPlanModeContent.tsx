@@ -4,6 +4,7 @@ import {
   type AgentToolRendererProps
 } from "./agentToolContentShared";
 import { getPlanModeRenderData } from "./render-data/agentToolRenderData";
+import { AgentPlanCard } from "../AgentPlanCard";
 
 export function AgentPlanModeContent({
   call,
@@ -29,15 +30,11 @@ export function AgentPlanModeContent({
     return null;
   }
   return (
-    <div className="overflow-hidden rounded-[8px] border border-[var(--line-2)] bg-[var(--transparency-block)]">
-      {planMode.fileName ? (
-        <div className="border-b border-[var(--line-2)] px-3 py-2 font-[var(--tsh-font-mono)] text-[11px] text-[var(--text-tertiary)]">
-          {planMode.fileName}
-        </div>
-      ) : null}
-      <div className="workspace-agents-status-panel__detail-tool-body px-3 py-2">
-        <ToolMarkdownBlock content={planMode.plan} onLinkClick={onLinkClick} />
-      </div>
-    </div>
+    <AgentPlanCard
+      title={planMode.fileName ?? undefined}
+      copyText={planMode.plan}
+    >
+      <ToolMarkdownBlock content={planMode.plan} onLinkClick={onLinkClick} />
+    </AgentPlanCard>
   );
 }

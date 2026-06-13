@@ -6,8 +6,9 @@ import {
   useState,
   type JSX
 } from "react";
-import { AlertTriangle, ChevronRight, Info, ListChecks } from "lucide-react";
+import { AlertTriangle, ChevronRight, Info } from "lucide-react";
 import { Button } from "../../../app/renderer/components/ui/button";
+import { AgentPlanCard } from "./AgentPlanCard";
 import { translate } from "../../../i18n/index";
 import { getOptionalAgentActivityRuntime } from "../../../agentActivityRuntime";
 import { ZoomableImage } from "../../../app/renderer/components/ZoomableImage";
@@ -313,21 +314,7 @@ function AgentPlanCardMessage({
 }): JSX.Element {
   "use memo";
   return (
-    <section
-      data-testid="agent-plan-card"
-      className="box-border w-full min-w-0 rounded-[8px] border border-[var(--tutti-purple-border)] bg-[var(--tutti-purple-bg)] p-3"
-    >
-      <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-secondary)]">
-        <ListChecks
-          size={14}
-          strokeWidth={2}
-          aria-hidden="true"
-          className="shrink-0"
-        />
-        <span data-testid="agent-plan-card-title">
-          {translate("agentHost.agentGui.planCardTitle")}
-        </span>
-      </div>
+    <AgentPlanCard copyText={message.body}>
       <AgentMessageMarkdown
         content={message.body}
         className={styles.assistantMarkdown}
@@ -341,7 +328,7 @@ function AgentPlanCardMessage({
         deferLongContentRender
         enableImageZoom
       />
-    </section>
+    </AgentPlanCard>
   );
 }
 

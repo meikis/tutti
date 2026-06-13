@@ -34,6 +34,7 @@ const mockUpdateDraftPrompt = vi.fn();
 const mockUpdateComposerSettings = vi.fn();
 const mockImplementPlan = vi.fn();
 const mockDismissPlanImplementation = vi.fn();
+const mockSubmitPlanFeedback = vi.fn();
 const mockSendQueuedPromptNext = vi.fn();
 const mockRemoveQueuedPrompt = vi.fn();
 const mockEditQueuedPrompt = vi.fn();
@@ -590,6 +591,7 @@ vi.mock("./controller/useAgentGUINodeController", () => ({
       dismissUsageAlert: mockDismissUsageAlert,
       implementPlan: mockImplementPlan,
       dismissPlanImplementation: mockDismissPlanImplementation,
+      submitPlanFeedback: mockSubmitPlanFeedback,
       showPromptImagesUnsupported: mockShowPromptImagesUnsupported,
       submitApprovalOption: mockSubmitApprovalOption,
       submitInteractivePrompt: mockSubmitInteractivePrompt,
@@ -631,6 +633,7 @@ describe("AgentGUINode", () => {
     mockUpdateComposerSettings.mockClear();
     mockImplementPlan.mockClear();
     mockDismissPlanImplementation.mockClear();
+    mockSubmitPlanFeedback.mockClear();
     mockSendQueuedPromptNext.mockClear();
     mockRemoveQueuedPrompt.mockClear();
     mockEditQueuedPrompt.mockClear();
@@ -2414,10 +2417,21 @@ describe("AgentGUINode", () => {
     );
     expect(mockImplementPlan).toHaveBeenCalledTimes(1);
 
+    // Empty feedback button stays in plan mode; typing then submitting sends
+    // the adjustment back to the agent.
     fireEvent.click(
       screen.getByTestId("agent-gui-plan-implementation-dismiss")
     );
-    expect(mockDismissPlanImplementation).toHaveBeenCalledTimes(1);
+    expect(mockSubmitPlanFeedback).toHaveBeenCalledWith("");
+
+    fireEvent.change(
+      screen.getByTestId("agent-gui-plan-implementation-feedback"),
+      { target: { value: "focus on tests first" } }
+    );
+    fireEvent.click(
+      screen.getByTestId("agent-gui-plan-implementation-dismiss")
+    );
+    expect(mockSubmitPlanFeedback).toHaveBeenCalledWith("focus on tests first");
   });
 
   it("hides the plan implementation banner when not offered", () => {

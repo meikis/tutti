@@ -5344,6 +5344,20 @@ export function useAgentGUINodeController({
     workspaceId
   ]);
 
+  const submitPlanFeedback = useCallback(
+    (feedback: string) => {
+      dismissPlanImplementation();
+      const trimmed = feedback.trim();
+      if (!trimmed) {
+        return;
+      }
+      // Feedback keeps plan mode on so the agent refines the plan rather than
+      // implementing it (mirrors the codex TUI's "tell it how to adjust").
+      submitPrompt(textPromptContent(trimmed));
+    },
+    [dismissPlanImplementation, submitPrompt]
+  );
+
   useEffect(() => {
     if (!activeConversationId) {
       return;
@@ -6707,6 +6721,7 @@ export function useAgentGUINodeController({
         submitCompact,
         dismissUsageAlert,
         implementPlan,
+        submitPlanFeedback,
         dismissPlanImplementation,
         showPromptImagesUnsupported,
         submitApprovalOption,
@@ -6758,6 +6773,7 @@ export function useAgentGUINodeController({
       usageAlert,
       planImplementationPrompt,
       implementPlan,
+      submitPlanFeedback,
       dismissPlanImplementation,
       dismissUsageAlert,
       isInterrupting,
