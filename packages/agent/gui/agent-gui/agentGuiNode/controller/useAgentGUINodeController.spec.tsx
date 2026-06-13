@@ -5795,7 +5795,7 @@ describe("useAgentGUINodeController", () => {
           settings: {
             model: "gpt-5",
             reasoningEffort: "high",
-            // Sent as-is; nextopd clamps planMode for codex at session create.
+            // Sent as-is; tuttid clamps planMode for codex at session create.
             planMode: true,
             permissionModeId: "full-access"
           }

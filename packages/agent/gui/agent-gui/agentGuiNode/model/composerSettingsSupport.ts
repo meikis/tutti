@@ -14,7 +14,7 @@ export interface AgentComposerSettingsSupport {
  * Derives which composer settings the active provider supports from the
  * daemon-provided composer options and the live session capabilities. This is
  * the single GUI-side answer to "what does this provider's composer show" —
- * the backend (nextopd composer options + adapter capability reporting) is the
+ * the backend (tuttid composer options + adapter capability reporting) is the
  * source of truth, and the daemon clamps persisted values on its side.
  */
 export function composerSettingsSupportFromOptions(

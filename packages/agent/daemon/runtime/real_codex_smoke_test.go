@@ -14,8 +14,8 @@ import (
 // installed `codex app-server` binary. Gated behind an env var because it
 // needs codex credentials and spends real tokens.
 func TestRealCodexAppServerTurn(t *testing.T) {
-	if os.Getenv("NEXTOP_REAL_CODEX_TEST") == "" {
-		t.Skip("set NEXTOP_REAL_CODEX_TEST=1 to run against the real codex app-server")
+	if os.Getenv("TUTTI_REAL_CODEX_TEST") == "" {
+		t.Skip("set TUTTI_REAL_CODEX_TEST=1 to run against the real codex app-server")
 	}
 	workDir := t.TempDir()
 	adapter := NewCodexAppServerAdapter(NewLocalProcessTransport())

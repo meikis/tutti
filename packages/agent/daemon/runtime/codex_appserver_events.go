@@ -986,7 +986,7 @@ func splitSlashCommand(prompt string) (string, string) {
 	return strings.ToLower(strings.TrimSpace(command)), strings.TrimSpace(args)
 }
 
-// codexAppServerApprovalPolicy maps nextop permission modes onto the
+// codexAppServerApprovalPolicy maps Tutti permission modes onto the
 // app-server AskForApproval policy.
 func codexAppServerApprovalPolicy(modeID string) string {
 	switch codexACPModeID(modeID) {
