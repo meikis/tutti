@@ -16,4 +16,4 @@
   - `pnpm --filter @tutti-os/desktop build`
 - Browser verification: blocked because this issue is inside the Electron workspace task center and requires local app/runtime state rather than a browser-served route; verified by package tests, full TS checks, i18n, lint, and desktop production build.
 - Status: fixed
-- Commit: `7a56dc7c`
+- Commit: `79350fa0`
