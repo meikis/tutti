@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const defaultWorkspaceRoot = fileURLToPath(new URL("../..", import.meta.url));
 export const workspaceRoot =
-  process.env.NEXTOP_WORKSPACE_ROOT ?? defaultWorkspaceRoot;
+  process.env.TUTTI_WORKSPACE_ROOT ?? defaultWorkspaceRoot;
 
 export async function getNpmReleasePackages() {
   const packageMap = await discoverWorkspacePackages();

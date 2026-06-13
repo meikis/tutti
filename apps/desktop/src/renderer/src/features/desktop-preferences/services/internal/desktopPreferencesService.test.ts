@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type {
   DesktopPreferencesStateResponse,
-  NextopdEventStreamClient,
-  NextopdClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidEventStreamClient,
+  TuttidClient
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopLocale } from "@shared/i18n";
 import type { DesktopThemeSource, DesktopThemeState } from "@shared/theme";
 import type { DesktopPreferencesClient } from "./adapters/desktopPreferencesClient.ts";
@@ -411,7 +411,7 @@ test("DesktopPreferencesService publishes dock placement preference writes", asy
 });
 
 test("DesktopPreferencesService applies HTTP-confirmed authoritative preferences to store", async () => {
-  const nextopdClient = createSequentialNextopdClient([
+  const tuttidClient = createSequentialTuttidClient([
     {
       initialized: true,
       preferences: {
@@ -440,7 +440,7 @@ test("DesktopPreferencesService applies HTTP-confirmed authoritative preferences
     }
   ]);
   const client = createDesktopPreferencesFeatureClient(
-    nextopdClient,
+    tuttidClient,
     createFallbackConfirmingEventStreamClient(),
     {
       authoritativeEventTimeoutMs: 0
@@ -476,7 +476,7 @@ test("DesktopPreferencesService applies HTTP-confirmed authoritative preferences
   });
   assert.deepEqual(appliedLocales, ["zh-CN"]);
   assert.deepEqual(appliedThemes, []);
-  assert.equal(nextopdClient.getDesktopPreferencesCalls, 2);
+  assert.equal(tuttidClient.getDesktopPreferencesCalls, 2);
 
   service.dispose();
 });
@@ -634,14 +634,14 @@ function resolveTheme(source: DesktopThemeSource): DesktopThemeState {
   };
 }
 
-function createSequentialNextopdClient(
+function createSequentialTuttidClient(
   responses: DesktopPreferencesStateResponse[]
-): Pick<NextopdClient, "getDesktopPreferences"> & {
+): Pick<TuttidClient, "getDesktopPreferences"> & {
   getDesktopPreferencesCalls: number;
 } {
   assert.ok(
     responses.length > 0,
-    "createSequentialNextopdClient requires at least one response."
+    "createSequentialTuttidClient requires at least one response."
   );
   let getDesktopPreferencesCalls = 0;
   const fallbackResponse = responses[responses.length - 1]!;
@@ -657,7 +657,7 @@ function createSequentialNextopdClient(
   };
 }
 
-function createFallbackConfirmingEventStreamClient(): NextopdEventStreamClient {
+function createFallbackConfirmingEventStreamClient(): TuttidEventStreamClient {
   const listeners = new Set<
     (event: {
       emittedAt: string;

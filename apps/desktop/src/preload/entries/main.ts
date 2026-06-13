@@ -31,14 +31,14 @@ ipcRenderer.on(
   desktopIpcChannels.host.window.layout,
   (_event, payload: DesktopHostWindowLayoutPayload) => {
     if (payload.compactTitlebar) {
-      document.documentElement.dataset.nextopCompactTitlebar = "true";
+      document.documentElement.dataset.tuttiCompactTitlebar = "true";
     } else {
-      delete document.documentElement.dataset.nextopCompactTitlebar;
+      delete document.documentElement.dataset.tuttiCompactTitlebar;
     }
 
     window.dispatchEvent(
       new CustomEvent<DesktopHostWindowLayoutPayload>(
-        "nextop-host-window-layout",
+        "tutti-host-window-layout",
         {
           detail: payload
         }
@@ -47,7 +47,7 @@ ipcRenderer.on(
   }
 );
 
-contextBridge.exposeInMainWorld("nextop", desktopApi);
+contextBridge.exposeInMainWorld("tutti", desktopApi);
 
 function isWorkspaceWindowPreload(): boolean {
   return (

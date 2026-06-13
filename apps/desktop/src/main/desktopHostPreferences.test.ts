@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PutDesktopPreferencesRequest } from "@tutti-os/client-nextopd-ts";
+import type { PutDesktopPreferencesRequest } from "@tutti-os/client-tuttid-ts";
 import { createDesktopHostPreferencesState } from "./desktopHostPreferences.ts";
 import type { DesktopLogger } from "./logging.ts";
 
@@ -9,7 +9,7 @@ test("createDesktopHostPreferencesState initializes missing preferences with dar
   const state = await createDesktopHostPreferencesState({
     fallbackLocale: "zh-CN",
     logger: createLogger(),
-    nextopdClient: {
+    tuttidClient: {
       async getDesktopPreferences() {
         return {
           initialized: false,
@@ -62,7 +62,7 @@ test("createDesktopHostPreferencesState keeps initialized theme preferences", as
   const state = await createDesktopHostPreferencesState({
     fallbackLocale: "zh-CN",
     logger: createLogger(),
-    nextopdClient: {
+    tuttidClient: {
       async getDesktopPreferences() {
         return {
           initialized: true,
@@ -97,7 +97,7 @@ test("createDesktopHostPreferencesState notifies subscribers after sync changes"
   const state = await createDesktopHostPreferencesState({
     fallbackLocale: "en",
     logger: createLogger(),
-    nextopdClient: {
+    tuttidClient: {
       async getDesktopPreferences() {
         return {
           initialized: true,

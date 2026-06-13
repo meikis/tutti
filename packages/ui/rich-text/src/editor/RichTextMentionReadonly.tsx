@@ -44,31 +44,31 @@ const stateStyles: Record<RichTextResolvedMentionView["state"], CSSProperties> =
   {
     active: {
       background:
-        "var(--nextop-rich-text-mention-active-bg, color-mix(in srgb, currentColor 12%, transparent))",
-      color: "var(--nextop-rich-text-mention-active-fg, inherit)",
+        "var(--tutti-rich-text-mention-active-bg, color-mix(in srgb, currentColor 12%, transparent))",
+      color: "var(--tutti-rich-text-mention-active-fg, inherit)",
       cursor: "pointer"
     },
     missing: {
       background:
-        "var(--nextop-rich-text-mention-missing-bg, color-mix(in srgb, currentColor 6%, transparent))",
+        "var(--tutti-rich-text-mention-missing-bg, color-mix(in srgb, currentColor 6%, transparent))",
       color:
-        "var(--nextop-rich-text-mention-missing-fg, color-mix(in srgb, currentColor 48%, transparent))",
+        "var(--tutti-rich-text-mention-missing-fg, color-mix(in srgb, currentColor 48%, transparent))",
       cursor: "default",
       textDecoration: "line-through"
     },
     disabled: {
       background:
-        "var(--nextop-rich-text-mention-disabled-bg, color-mix(in srgb, currentColor 6%, transparent))",
+        "var(--tutti-rich-text-mention-disabled-bg, color-mix(in srgb, currentColor 6%, transparent))",
       color:
-        "var(--nextop-rich-text-mention-disabled-fg, color-mix(in srgb, currentColor 58%, transparent))",
+        "var(--tutti-rich-text-mention-disabled-fg, color-mix(in srgb, currentColor 58%, transparent))",
       cursor: "not-allowed",
       opacity: 0.88
     },
     loading: {
       background:
-        "var(--nextop-rich-text-mention-loading-bg, color-mix(in srgb, currentColor 8%, transparent))",
+        "var(--tutti-rich-text-mention-loading-bg, color-mix(in srgb, currentColor 8%, transparent))",
       color:
-        "var(--nextop-rich-text-mention-loading-fg, color-mix(in srgb, currentColor 82%, transparent))",
+        "var(--tutti-rich-text-mention-loading-fg, color-mix(in srgb, currentColor 82%, transparent))",
       cursor: "progress",
       opacity: 0.92
     }
@@ -113,8 +113,8 @@ export function RichTextMentionReadonly<TResolved = unknown>({
     "aria-busy": view.state === "loading" || undefined,
     "aria-disabled": !view.interactive || undefined,
     className: joinClassNames(
-      "nextop-rich-text-mention",
-      `nextop-rich-text-mention--${view.state}`,
+      "tutti-rich-text-mention",
+      `tutti-rich-text-mention--${view.state}`,
       className
     ),
     "data-plugin": mention.plugin,

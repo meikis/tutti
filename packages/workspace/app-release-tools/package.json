@@ -4,14 +4,16 @@
   "private": false,
   "type": "module",
   "bin": {
-    "build-nextop-app-release": "./bin/build-nextop-app-release.mjs",
-    "build-nextop-app-catalog": "./bin/build-nextop-app-catalog.mjs",
-    "verify-nextop-app-release-artifacts": "./bin/verify-nextop-app-release-artifacts.mjs"
+    "build-tutti-app-release": "./bin/build-tutti-app-release.mjs",
+    "build-tutti-app-catalog": "./bin/build-tutti-app-catalog.mjs",
+    "bump-tutti-app-version": "./bin/bump-tutti-app-version.mjs",
+    "verify-tutti-app-release-artifacts": "./bin/verify-tutti-app-release-artifacts.mjs"
   },
   "exports": {
-    "./build-nextop-app-release": "./bin/build-nextop-app-release.mjs",
-    "./build-nextop-app-catalog": "./bin/build-nextop-app-catalog.mjs",
-    "./verify-nextop-app-release-artifacts": "./bin/verify-nextop-app-release-artifacts.mjs"
+    "./build-tutti-app-release": "./bin/build-tutti-app-release.mjs",
+    "./build-tutti-app-catalog": "./bin/build-tutti-app-catalog.mjs",
+    "./bump-tutti-app-version": "./bin/bump-tutti-app-version.mjs",
+    "./verify-tutti-app-release-artifacts": "./bin/verify-tutti-app-release-artifacts.mjs"
   },
   "files": [
     "bin",
@@ -24,7 +26,7 @@
   },
   "scripts": {
     "build": "node -e \"\"",
-    "test": "node --test ../../../tools/scripts/build-nextop-app-release.test.mjs"
+    "test": "node --test ../../../tools/scripts/build-tutti-app-release.test.mjs"
   },
   "publishConfig": {
     "access": "public"

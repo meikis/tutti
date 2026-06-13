@@ -1,11 +1,15 @@
 import type * as React from "react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import type { WorkspaceSummary } from "@tutti-os/client-nextopd-ts";
+import type { WorkspaceSummary } from "@tutti-os/client-tuttid-ts";
 import {
+  AddIcon,
   Button,
   CloseIcon,
+  DeleteIcon,
+  EyeIcon,
   LoadingIcon,
+  RefreshIcon,
   Select,
   SelectContent,
   SelectItem,
@@ -21,6 +25,7 @@ import { cn } from "@renderer/lib/format";
 import { formatWorkspaceSettingsBytes } from "../services/workspaceSettingsFormat";
 import type { WorkspaceSettingsDeveloperLogsSnapshotState } from "../services/workspaceSettingsTypes";
 import type {
+  WorkspaceManagedModel,
   WorkspaceManagedModelProviderDraft,
   WorkspaceManagedModelProviderID,
   WorkspaceSettingsManagedModelsSnapshotState
@@ -60,9 +65,9 @@ import {
 } from "../services/workspaceWallpaper";
 
 const workspaceSettingsSelectTriggerClass =
-  "w-full h-8 rounded-[6px] border-0 bg-[var(--transparency-block)] px-3 text-sm font-normal text-[var(--text-primary)] !shadow-none !outline-none !ring-0 transition-colors duration-200 hover:bg-[var(--transparency-hover)] focus-visible:border-0 focus-visible:!ring-0";
+  "w-full h-8 rounded-[6px] border-0 bg-[var(--transparency-block)] px-3 text-[13px] font-normal text-[var(--text-primary)] !shadow-none !outline-none !ring-0 transition-colors duration-200 hover:bg-[var(--transparency-hover)] focus-visible:border-0 focus-visible:!ring-0";
 const workspaceSettingsSelectContentClass =
-  "w-[var(--radix-select-trigger-width)] rounded-[8px] border border-[var(--border-1)] bg-[var(--background-fronted)] px-1 text-[var(--text-primary)] shadow-[0_16px_40px_var(--shadow-elevated)] [--nextop-select-content-min-width:100%] !outline-none !ring-0";
+  "w-[var(--radix-select-trigger-width)] rounded-[8px] border border-[var(--border-1)] bg-[var(--background-fronted)] px-1 text-[var(--text-primary)] shadow-[0_16px_40px_var(--shadow-elevated)] [--tutti-select-content-min-width:100%] !outline-none !ring-0";
 const workspaceSettingsInputClass =
   "h-8 w-full rounded-[6px] border border-[var(--border-1)] bg-[var(--transparency-block)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-tertiary)] hover:bg-[var(--transparency-hover)] focus-visible:border-[var(--border-focus)]";
 
@@ -118,7 +123,7 @@ export function WorkspaceSettingsPanel({
         <div className="col-[1/-1] row-start-1 flex h-[54px] min-h-[54px] items-center justify-between border-b border-[var(--border-1)] px-[22px] py-[13px] max-[760px]:px-5">
           <h2
             id="workspace-settings-title"
-            className="m-0 text-[16px] font-semibold leading-[1.3] text-[var(--text-primary)]"
+            className="m-0 text-[15px] font-semibold leading-[1.3] text-[var(--text-primary)]"
           >
             {t("workspace.settings.title")}
           </h2>
@@ -168,7 +173,7 @@ export function WorkspaceSettingsPanel({
                 key={section.id}
                 aria-pressed={selected}
                 className={cn(
-                  "block w-full min-w-0 truncate whitespace-nowrap rounded-md border-0 px-2.5 py-1.5 text-left text-[14px] font-semibold leading-[1.35] outline-none transition-colors duration-150 hover:bg-[var(--transparency-block)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border-focus)]",
+                  "block w-full min-w-0 truncate whitespace-nowrap rounded-md border-0 px-2.5 py-1.5 text-left text-[13px] font-semibold leading-[1.35] outline-none transition-colors duration-150 hover:bg-[var(--transparency-block)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border-focus)]",
                   selected
                     ? "bg-[var(--transparency-block)] text-[var(--text-primary)]"
                     : "bg-transparent text-[var(--text-secondary)]"
@@ -238,6 +243,11 @@ export function WorkspaceSettingsPanel({
                 onDeleteProvider={(providerID) => {
                   void settingsService.removeManagedModelProvider(providerID);
                 }}
+                onDetectProviderModels={(providerID) => {
+                  void settingsService.detectManagedModelProviderModels(
+                    providerID
+                  );
+                }}
                 onSaveProvider={(provider) => {
                   void settingsService.saveManagedModelProvider(provider);
                 }}
@@ -294,7 +304,7 @@ function defaultManagedProviderBaseUrl(
     case "agnes":
       return "https://apihub.agnes-ai.com/v1";
     case "anthropic":
-      return "https://api.anthropic.com";
+      return "https://api.anthropic.com/v1";
     case "openai":
       return "https://api.openai.com/v1";
   }
@@ -313,15 +323,38 @@ function defaultManagedProviderModel(
   }
 }
 
+function normalizeWorkspaceManagedModelRows(
+  provider: WorkspaceManagedModelProviderID,
+  models: readonly WorkspaceManagedModel[]
+): WorkspaceManagedModel[] {
+  const seen = new Set<string>();
+  const normalized: WorkspaceManagedModel[] = [];
+  for (const model of models) {
+    const id = model.id.trim();
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    normalized.push({
+      id,
+      name: model.name.trim() || id,
+      provider
+    });
+  }
+  return normalized;
+}
+
 function WorkspaceAppsSettingsSection({
   managedModels,
   onDeleteProvider,
+  onDetectProviderModels,
   onSaveProvider,
   onTestProvider,
   onUpdateProvider
 }: {
   managedModels: WorkspaceSettingsManagedModelsSnapshotState;
   onDeleteProvider: (providerID: WorkspaceManagedModelProviderID) => void;
+  onDetectProviderModels: (providerID: WorkspaceManagedModelProviderID) => void;
   onSaveProvider: (provider: WorkspaceManagedModelProviderDraft) => void;
   onTestProvider: (providerID: WorkspaceManagedModelProviderID) => void;
   onUpdateProvider: (
@@ -336,6 +369,9 @@ function WorkspaceAppsSettingsSection({
         managedModels.providers[0]?.provider ??
         null
     );
+  const [visibleAPIKeyProviderID, setVisibleAPIKeyProviderID] =
+    useState<WorkspaceManagedModelProviderID | null>(null);
+  const [newModelID, setNewModelID] = useState("");
 
   useEffect(() => {
     const providerID = managedModels.focusedProvider;
@@ -376,11 +412,72 @@ function WorkspaceAppsSettingsSection({
     ) ??
     managedModels.providers[0] ??
     null;
+  const apiKeyVisible =
+    selectedProvider !== null &&
+    visibleAPIKeyProviderID === selectedProvider.provider;
+
+  useEffect(() => {
+    setNewModelID("");
+  }, [selectedProvider?.provider]);
+
+  const updateModels = (models: readonly WorkspaceManagedModel[]) => {
+    if (!selectedProvider) {
+      return;
+    }
+    onUpdateProvider(selectedProvider.provider, {
+      models: normalizeWorkspaceManagedModelRows(
+        selectedProvider.provider,
+        models
+      )
+    });
+  };
+  const updateModelAt = (index: number, id: string) => {
+    if (!selectedProvider) {
+      return;
+    }
+    updateModels(
+      selectedProvider.models.map((model, modelIndex) =>
+        modelIndex === index
+          ? {
+              ...model,
+              id,
+              name: id.trim() || model.name
+            }
+          : model
+      )
+    );
+  };
+  const removeModelAt = (index: number) => {
+    if (!selectedProvider) {
+      return;
+    }
+    updateModels(
+      selectedProvider.models.filter((_, modelIndex) => modelIndex !== index)
+    );
+  };
+  const addModel = () => {
+    if (!selectedProvider) {
+      return;
+    }
+    const id = newModelID.trim();
+    if (!id) {
+      return;
+    }
+    updateModels([
+      ...selectedProvider.models,
+      {
+        id,
+        name: id,
+        provider: selectedProvider.provider
+      }
+    ]);
+    setNewModelID("");
+  };
 
   return (
     <SettingsRows>
       <div className="flex w-full flex-col gap-2">
-        <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+        <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
           {t("workspace.settings.apps.managedModels.title")}
         </strong>
         <p className="m-0 text-[13px] leading-[1.35] text-[var(--text-secondary)]">
@@ -400,9 +497,9 @@ function WorkspaceAppsSettingsSection({
               key={provider.provider}
               aria-selected={selected}
               className={cn(
-                "inline-flex h-9 min-w-[96px] items-center justify-center rounded-full border px-4 text-[13px] font-medium transition-[background,border-color,color,box-shadow] duration-150",
+                "inline-flex h-9 min-w-[96px] items-center justify-center rounded-full border px-4 text-[13px] font-medium outline-none transition-[background,border-color,color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]",
                 selected
-                  ? "border-[var(--border-focus)] bg-[var(--background-fronted)] text-[var(--text-primary)] shadow-[0_6px_16px_var(--shadow-elevated)]"
+                  ? "border-[var(--border-1)] bg-[var(--transparency-block)] text-[var(--text-primary)] shadow-none"
                   : "border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover:bg-[var(--transparency-hover)] hover:text-[var(--text-primary)]"
               )}
               role="tab"
@@ -419,10 +516,10 @@ function WorkspaceAppsSettingsSection({
         <section className="flex w-full flex-col gap-4 rounded-[10px] border border-[var(--border-1)] bg-[var(--transparency-block)] p-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+              <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
                 {managedModelProviderLabels[selectedProvider.provider]}
               </strong>
-              <p className="m-0 mt-1 text-[12px] leading-[1.3] text-[var(--text-secondary)]">
+              <p className="m-0 mt-1 text-[11px] leading-[1.3] text-[var(--text-secondary)]">
                 {selectedProvider.hasApiKey
                   ? t("workspace.settings.apps.managedModels.keyConfigured")
                   : t("workspace.settings.apps.managedModels.keyMissing")}
@@ -441,28 +538,55 @@ function WorkspaceAppsSettingsSection({
 
           <div className="grid grid-cols-2 gap-3 max-[640px]:grid-cols-1">
             <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+              <span className="text-[11px] font-medium text-[var(--text-secondary)]">
                 {t("workspace.settings.apps.managedModels.apiKey")}
               </span>
-              <input
-                className={workspaceSettingsInputClass}
-                placeholder={
-                  selectedProvider.hasApiKey
-                    ? t("workspace.settings.apps.managedModels.keepExistingKey")
-                    : "sk-..."
-                }
-                type="password"
-                value={selectedProvider.apiKey}
-                onChange={(event) =>
-                  onUpdateProvider(selectedProvider.provider, {
-                    apiKey: event.currentTarget.value
-                  })
-                }
-              />
+              <div className="relative">
+                <input
+                  className={`${workspaceSettingsInputClass} pr-9`}
+                  placeholder={
+                    selectedProvider.hasApiKey
+                      ? t(
+                          "workspace.settings.apps.managedModels.keepExistingKey"
+                        )
+                      : "sk-..."
+                  }
+                  spellCheck={false}
+                  type={apiKeyVisible ? "text" : "password"}
+                  value={selectedProvider.apiKey}
+                  onChange={(event) =>
+                    onUpdateProvider(selectedProvider.provider, {
+                      apiKey: event.currentTarget.value
+                    })
+                  }
+                />
+                <button
+                  aria-label={t(
+                    apiKeyVisible
+                      ? "workspace.settings.apps.managedModels.hideApiKey"
+                      : "workspace.settings.apps.managedModels.showApiKey"
+                  )}
+                  aria-pressed={apiKeyVisible}
+                  className={cn(
+                    "absolute right-1 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-[5px] text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--transparency-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]",
+                    apiKeyVisible && "text-[var(--text-primary)]"
+                  )}
+                  type="button"
+                  onClick={() =>
+                    setVisibleAPIKeyProviderID((currentProviderID) =>
+                      currentProviderID === selectedProvider.provider
+                        ? null
+                        : selectedProvider.provider
+                    )
+                  }
+                >
+                  <EyeIcon aria-hidden="true" size={16} />
+                </button>
+              </div>
             </label>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+              <span className="text-[11px] font-medium text-[var(--text-secondary)]">
                 {t("workspace.settings.apps.managedModels.baseUrl")}
               </span>
               <input
@@ -481,23 +605,96 @@ function WorkspaceAppsSettingsSection({
             </label>
           </div>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[var(--text-secondary)]">
-              {t("workspace.settings.apps.managedModels.models")}
-            </span>
-            <textarea
-              className={`${workspaceSettingsInputClass} min-h-[82px] resize-y py-2 leading-[1.45]`}
-              placeholder={defaultManagedProviderModel(
-                selectedProvider.provider
-              )}
-              value={selectedProvider.modelsText}
-              onChange={(event) =>
-                onUpdateProvider(selectedProvider.provider, {
-                  modelsText: event.currentTarget.value
-                })
-              }
-            />
-          </label>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[11px] font-medium text-[var(--text-secondary)]">
+                {t("workspace.settings.apps.managedModels.models")}
+              </span>
+              <Button
+                disabled={
+                  managedModels.detectingProvider === selectedProvider.provider
+                }
+                size="sm"
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  onDetectProviderModels(selectedProvider.provider)
+                }
+              >
+                <RefreshIcon className="size-3.5" />
+                {managedModels.detectingProvider === selectedProvider.provider
+                  ? t("workspace.settings.apps.managedModels.detectingModels")
+                  : t("workspace.settings.apps.managedModels.detectModels")}
+              </Button>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {selectedProvider.models.map((model, index) => (
+                <div
+                  key={`${model.provider}:${model.id}:${index}`}
+                  className="grid grid-cols-[72px_minmax(0,1fr)_32px] items-center gap-1.5"
+                >
+                  <span className="flex h-8 items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--transparency-block)] px-2 text-[11px] text-[var(--text-secondary)]">
+                    {selectedProvider.provider}:
+                  </span>
+                  <input
+                    aria-label={t(
+                      "workspace.settings.apps.managedModels.modelId"
+                    )}
+                    className={workspaceSettingsInputClass}
+                    placeholder={defaultManagedProviderModel(
+                      selectedProvider.provider
+                    )}
+                    value={model.id}
+                    onChange={(event) =>
+                      updateModelAt(index, event.currentTarget.value)
+                    }
+                  />
+                  <button
+                    aria-label={t(
+                      "workspace.settings.apps.managedModels.removeModel"
+                    )}
+                    className="flex size-8 items-center justify-center rounded-[6px] text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--transparency-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
+                    type="button"
+                    onClick={() => removeModelAt(index)}
+                  >
+                    <DeleteIcon aria-hidden="true" size={15} />
+                  </button>
+                </div>
+              ))}
+              <div className="grid grid-cols-[72px_minmax(0,1fr)_72px] items-center gap-1.5">
+                <span className="flex h-8 items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--transparency-block)] px-2 text-[11px] text-[var(--text-secondary)]">
+                  {selectedProvider.provider}:
+                </span>
+                <input
+                  aria-label={t(
+                    "workspace.settings.apps.managedModels.modelId"
+                  )}
+                  className={workspaceSettingsInputClass}
+                  placeholder={t(
+                    "workspace.settings.apps.managedModels.modelIdPlaceholder"
+                  )}
+                  value={newModelID}
+                  onChange={(event) => setNewModelID(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addModel();
+                    }
+                  }}
+                />
+                <Button
+                  disabled={!newModelID.trim()}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  onClick={addModel}
+                >
+                  <AddIcon className="size-3.5" />
+                  {t("workspace.settings.apps.managedModels.addModel")}
+                </Button>
+              </div>
+            </div>
+          </div>
 
           <div className="flex flex-wrap justify-end gap-2">
             <Button
@@ -573,7 +770,7 @@ function WorkspaceDeveloperSettingsSection({
       {analyticsDebugAvailable ? (
         <div className="flex w-full items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
           <div className="flex min-w-0 flex-1 flex-col gap-1 max-[560px]:w-full">
-            <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+            <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
               {t("workspace.settings.developer.analyticsDebugLabel")}
             </strong>
             <p className="m-0 text-[13px] leading-[1.3] text-[var(--text-secondary)]">
@@ -685,7 +882,7 @@ function SettingsRow({
   return (
     <div className="flex w-full items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
       <div className="min-w-0">
-        <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+        <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
           {label}
         </strong>
       </div>
@@ -736,7 +933,7 @@ function WorkspaceGeneralSettingsSection({
     <div className="flex flex-col gap-8 pb-[22px] pt-5">
       <div className="flex w-full items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-1 max-[560px]:w-full">
-          <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+          <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
             {t("workspace.settings.general.languageLabel")}
           </strong>
           <p className="m-0 text-[13px] leading-[1.3] text-[var(--text-secondary)]">
@@ -773,7 +970,7 @@ function WorkspaceGeneralSettingsSection({
 
       <div className="flex w-full items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-1 max-[560px]:w-full">
-          <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+          <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
             {t("workspace.settings.general.defaultAgentProviderLabel")}
           </strong>
           <p className="m-0 text-[13px] leading-[1.3] text-[var(--text-secondary)]">
@@ -812,7 +1009,7 @@ function WorkspaceGeneralSettingsSection({
 
       <div className="flex w-full items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-1 max-[560px]:w-full">
-          <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+          <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
             {t("workspace.settings.general.preventSleepLabel")}
           </strong>
           <p className="m-0 text-[13px] leading-[1.3] text-[var(--text-secondary)]">
@@ -895,7 +1092,7 @@ function WorkspaceAppearanceSettingsSection({
     <div className="flex flex-col gap-8 pb-[22px] pt-5">
       <div className="flex w-full items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-1 max-[560px]:w-full">
-          <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+          <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
             {t("workspace.settings.appearance.themeLabel")}
           </strong>
           <p className="m-0 text-[13px] leading-[1.3] text-[var(--text-secondary)]">
@@ -936,7 +1133,7 @@ function WorkspaceAppearanceSettingsSection({
 
       <div className="flex w-full items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-1 max-[560px]:w-full">
-          <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+          <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
             {t("workspace.settings.appearance.dockPlacementLabel")}
           </strong>
           <p className="m-0 text-[13px] leading-[1.3] text-[var(--text-secondary)]">
@@ -982,7 +1179,7 @@ function WorkspaceAppearanceSettingsSection({
           className="flex min-w-0 flex-col gap-1"
           id="workspace-settings-wallpaper-heading"
         >
-          <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+          <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
             {t("workspace.settings.appearance.wallpaperLabel")}
           </strong>
         </div>
@@ -1153,7 +1350,7 @@ function WorkspaceWallpaperPicker({
           ) : (
             <UploadIcon className="size-4" />
           )}
-          <span className="max-w-full whitespace-normal text-[12px] font-medium leading-tight">
+          <span className="max-w-full whitespace-normal text-[11px] font-medium leading-tight">
             {isSaving
               ? t("workspace.settings.appearance.wallpaperUploading")
               : t("workspace.settings.appearance.wallpaperUpload")}
@@ -1174,7 +1371,7 @@ function WorkspaceWallpaperPicker({
       {customWallpaper.exists && customSelected ? (
         <div className="flex w-full items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
           <div className="min-w-0">
-            <strong className="text-[14px] font-semibold text-[var(--text-primary)]">
+            <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
               {t("workspace.settings.appearance.wallpaperDisplayModeLabel")}
             </strong>
           </div>
@@ -1211,7 +1408,7 @@ function WorkspaceWallpaperPicker({
       ) : null}
 
       {uploadError ? (
-        <p className="m-0 text-[12px] leading-[1.4] text-[var(--state-danger)]">
+        <p className="m-0 text-[11px] leading-[1.4] text-[var(--state-danger)]">
           {uploadError}
         </p>
       ) : null}

@@ -1,7 +1,7 @@
 import {
-  createNextopdEventStreamClient,
-  type NextopdEventStreamClient
-} from "@tutti-os/client-nextopd-ts";
+  createTuttidEventStreamClient,
+  type TuttidEventStreamClient
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopThemeSource } from "../shared/theme/index.ts";
 import type { DesktopHostPreferencesState } from "./desktopHostPreferences.ts";
 import type { DesktopLogger } from "./logging.ts";
@@ -16,7 +16,7 @@ export interface DesktopHostPreferencesEventStream {
 
 export interface DesktopHostPreferencesEventStreamDependencies {
   applyThemeSource: (source: DesktopThemeSource) => unknown;
-  eventStreamClient: NextopdEventStreamClient;
+  eventStreamClient: TuttidEventStreamClient;
   logger: DesktopLogger;
   preferences: DesktopHostPreferencesState;
   syncWindowBackgroundColors: () => void;
@@ -24,8 +24,8 @@ export interface DesktopHostPreferencesEventStreamDependencies {
 
 export function createDesktopHostPreferencesEventStreamClient(
   endpoint: DesktopDaemonEndpoint
-): NextopdEventStreamClient {
-  return createNextopdEventStreamClient({
+): TuttidEventStreamClient {
+  return createTuttidEventStreamClient({
     resolveUrl: () => resolveDesktopBusinessEventStreamUrl(endpoint)
   });
 }

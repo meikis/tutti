@@ -10,7 +10,7 @@ import { FileTextIcon, ImageFileIcon, LoadingIcon } from "@tutti-os/ui-system";
 import type { WorkspaceFileActivationTarget } from "@tutti-os/workspace-file-manager/services";
 import { WorkspaceFilePreviewSurface } from "@tutti-os/workspace-file-preview/react";
 import type { WorkbenchHostNodeBodyContext } from "@tutti-os/workbench-surface";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import type { WorkspaceWorkbenchDesktopI18nRuntime } from "@shared/i18n";
 import {
@@ -32,15 +32,15 @@ export function WorkspaceFilePreviewNodeBody({
   appI18n,
   context,
   i18n,
-  nextopdClient,
+  tuttidClient,
   saveRequestSource,
   workspaceID
 }: {
   appI18n: I18nRuntime<string>;
   context: WorkbenchHostNodeBodyContext;
   i18n: WorkspaceWorkbenchDesktopI18nRuntime;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     "readWorkspaceFilePreview" | "writeWorkspaceFileText"
   >;
   saveRequestSource: WorkspaceFilePreviewSaveRequestSource;
@@ -74,7 +74,7 @@ export function WorkspaceFilePreviewNodeBody({
         appI18n,
         i18n,
         initialFile: activeFile,
-        nextopdClient,
+        tuttidClient,
         onRuntimeStateChange: setNodeRuntimeState,
         onSnapshotStateChange: setSnapshotNodeState,
         workspaceID
@@ -82,7 +82,7 @@ export function WorkspaceFilePreviewNodeBody({
     [
       appI18n,
       i18n,
-      nextopdClient,
+      tuttidClient,
       setNodeRuntimeState,
       setSnapshotNodeState,
       workspaceID
@@ -163,7 +163,7 @@ export function WorkspaceFilePreviewNodeBody({
         )
       }
       state={state}
-      textClassName="m-0 h-full min-h-0 min-w-0 w-full overflow-auto whitespace-pre-wrap break-words p-3 font-[var(--tsh-font-mono)] text-[12px] leading-[18px] text-[var(--text-secondary)]"
+      textClassName="m-0 h-full min-h-0 min-w-0 w-full overflow-auto whitespace-pre-wrap break-words p-3 font-[var(--tsh-font-mono)] text-[11px] leading-[18px] text-[var(--text-secondary)]"
       textFrameClassName="items-stretch justify-stretch"
     />
   );
@@ -183,13 +183,13 @@ function WorkspaceTextFileEditor({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--surface-primary)]">
       {saveError ? (
-        <div className="shrink-0 border-b border-[color-mix(in_srgb,var(--state-danger)_28%,transparent)] bg-[color-mix(in_srgb,var(--state-danger)_10%,var(--surface-primary))] px-3 py-2 text-[12px] leading-[18px] text-[var(--state-danger)]">
+        <div className="shrink-0 border-b border-[color-mix(in_srgb,var(--state-danger)_28%,transparent)] bg-[color-mix(in_srgb,var(--state-danger)_10%,var(--surface-primary))] px-3 py-2 text-[11px] leading-[18px] text-[var(--state-danger)]">
           {saveError}
         </div>
       ) : null}
       <textarea
         aria-label={state.entry.name}
-        className="h-full min-h-0 min-w-0 resize-none overflow-auto border-0 bg-transparent p-3 font-[var(--tsh-font-mono)] text-[12px] leading-[18px] text-[var(--text-secondary)] outline-none"
+        className="h-full min-h-0 min-w-0 resize-none overflow-auto border-0 bg-transparent p-3 font-[var(--tsh-font-mono)] text-[11px] leading-[18px] text-[var(--text-secondary)] outline-none"
         disabled={isSaving}
         onChange={onChange}
         spellCheck={false}

@@ -289,7 +289,7 @@ function createAppServerToken(
   mac.update(workspaceID.trim());
   mac.update(Buffer.from([0]));
   mac.update(appID.trim());
-  return `nextop-app-v1.${mac.digest("base64url")}`;
+  return `tutti-app-v1.${mac.digest("base64url")}`;
 }
 
 function base64UrlEncode(value: string): string {
@@ -300,7 +300,7 @@ function readWorkspaceAppGuestContext(
   ownerWindow: BrowserWindow,
   partition: string | null | undefined
 ): WorkspaceAppGuestContext | null {
-  const prefix = "persist:nextop-app:";
+  const prefix = "persist:tutti-app:";
   if (!partition?.startsWith(prefix)) {
     return null;
   }

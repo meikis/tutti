@@ -1,19 +1,19 @@
 # Desktop Backend Access
 
-This document records the desktop backend access model for `nextop`.
+This document records the desktop backend access model for `tutti`.
 The planned shared business-stream protocol is documented in
 [Business Event Stream](./business-event-stream.md).
 
 ## Decision
 
-`nextopd` is the local product backend for `nextop`.
+`tuttid` is the local product backend for `tutti`.
 
 Desktop uses a dual-path model:
 
-- `renderer -> nextopd` for business capabilities and streaming transports
+- `renderer -> tuttid` for business capabilities and streaming transports
 - `renderer -> preload -> main` for Electron and OS capabilities
 
-`main -> nextopd` remains available for a small number of host-assisted flows,
+`main -> tuttid` remains available for a small number of host-assisted flows,
 but it is not the default business access path.
 
 ## Why
@@ -31,9 +31,9 @@ it as a broad business transport relay.
 
 ## Ownership Model
 
-### `nextopd`
+### `tuttid`
 
-`nextopd` owns:
+`tuttid` owns:
 
 - business rules
 - durable local state
@@ -78,10 +78,10 @@ It should not expose:
 
 - UI
 - view state
-- direct business calls to `nextopd`
+- direct business calls to `tuttid`
 - direct SSE / WebSocket consumption when the stream is business-facing
 
-Renderer should treat `nextopd` as the backend and `window.nextop` as the host
+Renderer should treat `tuttid` as the backend and `window.tutti` as the host
 capability surface.
 
 ## Default Routing Rule
@@ -89,7 +89,7 @@ capability surface.
 When adding or changing a desktop capability, choose the path by
 responsibility.
 
-### Direct `renderer -> nextopd`
+### Direct `renderer -> tuttid`
 
 Use for:
 
@@ -113,14 +113,14 @@ Use for:
 - menus, tray, clipboard, window lifecycle, updater
 - any capability that requires Electron or OS APIs
 
-### Host-assisted `renderer -> main -> nextopd`
+### Host-assisted `renderer -> main -> tuttid`
 
 Reserve for flows that require both native host authority and daemon authority
 in one operation.
 
 Examples:
 
-- choose an export destination, then ask `nextopd` to write backend-owned data
+- choose an export destination, then ask `tuttid` to write backend-owned data
 - open a file or resource whose resolution depends on daemon-owned metadata plus
   native shell behavior
 - choose a host directory, then pass that directory to a host capability that
@@ -132,7 +132,7 @@ These flows should stay explicit and few.
 
 Desktop transport follows these rules:
 
-- `nextopd` binds to loopback only
+- `tuttid` binds to loopback only
 - desktop prefers a managed random loopback port over a fixed public port
 - `main` discovers or allocates the endpoint, then provides renderer with
   runtime config
@@ -146,7 +146,7 @@ The desktop surface should be designed as three explicit capability groups.
 
 ### Backend Business Capabilities
 
-These belong on the direct `renderer -> nextopd` path:
+These belong on the direct `renderer -> tuttid` path:
 
 - health, availability, and backend bootstrap checks
 - workspace catalog queries and mutations
@@ -179,8 +179,8 @@ These belong on the direct `renderer -> main` path through preload:
 - notifications, menu actions, tray, clipboard, and similar Electron or OS APIs
 
 These capabilities should stay explicit on surfaces such as
-`window.nextop.host.*`, `window.nextop.update.*`, and
-`window.nextop.platform.*`.
+`window.tutti.host.*`, `window.tutti.update.*`, and
+`window.tutti.platform.*`.
 
 Host capability rules:
 
@@ -189,12 +189,12 @@ Host capability rules:
 
 Preference ownership rule:
 
-- renderer should read and write user desktop preferences through `nextopd`
+- renderer should read and write user desktop preferences through `tuttid`
 - `main` should stay limited to system-environment inputs and host-only effects such as theme application
 
 ### Host-assisted Compound Flows
 
-These belong on the `renderer -> main -> nextopd` path:
+These belong on the `renderer -> main -> tuttid` path:
 
 - resolve and open a local file whose authority crosses daemon metadata and host
   shell behavior
@@ -221,7 +221,7 @@ Moving business traffic to managed loopback requires explicit guardrails:
   renderer-visible backend access
 - keep untrusted content, external webviews, and arbitrary browser surfaces off
   the desktop backend path
-- keep preload surfaces narrow even when renderer can talk to `nextopd`
+- keep preload surfaces narrow even when renderer can talk to `tuttid`
 
 Renderer visibility of a local backend is acceptable only when the backend is
 treated as a real product surface, not as an unguarded internal helper.
@@ -230,7 +230,7 @@ treated as a real product surface, not as an unguarded internal helper.
 
 This model supports a cleaner CLI story:
 
-- CLI talks to `nextopd` as a client of the same local product backend
+- CLI talks to `tuttid` as a client of the same local product backend
 - desktop renderer talks to the same backend
 - `main` stays a host supervisor, not a CLI dependency
 

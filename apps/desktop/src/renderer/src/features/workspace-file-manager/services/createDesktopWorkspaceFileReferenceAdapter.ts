@@ -1,4 +1,4 @@
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type {
   WorkspaceFileReference,
   WorkspaceFileReferenceAdapter,
@@ -15,10 +15,10 @@ import type { DesktopHostFilesApi } from "@preload/types";
 
 export function createDesktopWorkspaceFileReferenceAdapter(input: {
   hostFilesApi: DesktopHostFilesApi;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   workspaceId: string;
 }): WorkspaceFileReferenceAdapter {
-  const { hostFilesApi, nextopdClient, workspaceId } = input;
+  const { hostFilesApi, tuttidClient, workspaceId } = input;
 
   return {
     async loadReferenceTree({
@@ -27,7 +27,7 @@ export function createDesktopWorkspaceFileReferenceAdapter(input: {
       prefetchDepth = 4,
       workspaceId
     }) {
-      const response = await nextopdClient.getWorkspaceFileTreeSnapshot(
+      const response = await tuttidClient.getWorkspaceFileTreeSnapshot(
         workspaceId,
         {
           path: path ?? undefined,
@@ -44,7 +44,7 @@ export function createDesktopWorkspaceFileReferenceAdapter(input: {
       } satisfies WorkspaceFileReferenceTreeSnapshot;
     },
     async listDirectory({ path, workspaceId }) {
-      const response = await nextopdClient.listWorkspaceFileDirectory(
+      const response = await tuttidClient.listWorkspaceFileDirectory(
         workspaceId,
         { path: path ?? undefined }
       );
@@ -85,7 +85,7 @@ export function createDesktopWorkspaceFileReferenceAdapter(input: {
       // The desktop host has no dedicated tree invalidation surface yet.
     },
     async searchReferences({ limit = 30, query, signal, workspaceId }) {
-      const response = await nextopdClient.searchWorkspaceFiles(
+      const response = await tuttidClient.searchWorkspaceFiles(
         workspaceId,
         {
           limit,

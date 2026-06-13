@@ -436,7 +436,7 @@ export function RichTextAtTextarea({
       {isMenuOpen && menuPoint ? (
         <ViewportMenuSurface
           open
-          className="nextop-rich-text-at-menu max-h-64 w-[min(28rem,calc(100vw-24px))] overflow-y-auto p-1"
+          className="tutti-rich-text-at-menu max-h-64 w-[min(28rem,calc(100vw-24px))] overflow-y-auto p-1"
           dismissIgnoreRefs={[textareaRef]}
           placement={{
             type: "point",
@@ -466,18 +466,18 @@ export function RichTextAtTextarea({
                   applyMatch(match);
                 }}
               >
-                <div className="text-sm leading-5 font-medium">
+                <div className="text-[13px] leading-5 font-medium">
                   {match.label}
                 </div>
                 {match.subtitle ? (
-                  <div className="text-xs leading-4 text-[var(--text-secondary)]">
+                  <div className="text-[11px] leading-4 text-[var(--text-secondary)]">
                     {match.subtitle}
                   </div>
                 ) : null}
               </button>
             ))
           ) : (
-            <div className="px-3 py-2 text-xs leading-4 text-[var(--text-secondary)]">
+            <div className="px-3 py-2 text-[11px] leading-4 text-[var(--text-secondary)]">
               {isLoading ? text.loadingLabel : text.noMatchesLabel}
             </div>
           )}

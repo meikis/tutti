@@ -8,7 +8,7 @@ const workspaceRoot = join(scriptDirectory, "..", "..");
 const searchRoots = ["apps", "packages", "tools"];
 const ignoredDirectories = new Set([
   ".git",
-  ".nextop-ui-system-dev",
+  ".tutti-ui-system-dev",
   ".turbo",
   "dist",
   "node_modules",
@@ -385,7 +385,7 @@ function isAllowedDevViteImporter(relativePath) {
     relativePath === "electron.vite.config.ts" ||
     relativePath.endsWith("/electron.vite.config.ts") ||
     relativePath.startsWith(
-      "packages/ui/system/agent/nextop-ui-system/scripts/"
+      "packages/ui/system/agent/tutti-ui-system/scripts/"
     ) ||
     relativePath.startsWith("tools/scripts/") ||
     relativePath.startsWith("scripts/")
@@ -474,7 +474,7 @@ async function walkPackageDirectory(directory, requirements) {
     const relativeManifestPath = normalizePosix(relative(workspaceRoot, path));
     const packageDirectoryPath = dirname(relativeManifestPath);
     const manifest = JSON.parse(await readFile(path, "utf8"));
-    const tailwindSourceRoot = manifest.nextop?.tailwindSourceRoot;
+    const tailwindSourceRoot = manifest.tutti?.tailwindSourceRoot;
 
     if (
       typeof manifest.name !== "string" ||

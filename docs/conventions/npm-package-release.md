@@ -333,7 +333,7 @@ source root in `package.json` so repository checks can enforce consumer setup:
 
 ```json
 {
-  "nextop": {
+  "tutti": {
     "tailwindSourceRoot": "src"
   }
 }

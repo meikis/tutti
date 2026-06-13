@@ -27,7 +27,7 @@ export async function ensureDesktopCliShim(
   const resourcesPath = options.resourcesPath ?? process.resourcesPath;
   const stateRootDir =
     options.stateRootDir ?? resolveDesktopDefaultsFromEnv().state.rootDir;
-  const binaryName = platform === "win32" ? "nextop.exe" : "nextop";
+  const binaryName = platform === "win32" ? "tutti.exe" : "tutti";
   const packagedCliPath = join(resourcesPath, "bin", binaryName);
   const shimPath = resolveUserShimPath(stateRootDir, platform, {
     development: !isPackaged
@@ -83,7 +83,7 @@ export function resolveUserShimPath(
   platform: NodeJS.Platform = process.platform,
   options: { development?: boolean } = {}
 ): string {
-  const commandName = options.development ? "nextop-dev" : "nextop";
+  const commandName = options.development ? "tutti-dev" : "tutti";
   return join(
     stateRootDir,
     "bin",
@@ -103,7 +103,7 @@ async function writeUnixShim(
     [
       "#!/usr/bin/env sh",
       options.development ? "# Tutti dev CLI shim" : "# Tutti CLI shim",
-      `if [ -z "\${NEXTOP_STATE_DIR:-}" ]; then export NEXTOP_STATE_DIR=${shellQuoteValue(stateRootDir)}; fi`,
+      `if [ -z "\${TUTTI_STATE_DIR:-}" ]; then export TUTTI_STATE_DIR=${shellQuoteValue(stateRootDir)}; fi`,
       `exec ${shellQuoteValue(packagedCliPath)} "$@"`,
       ""
     ].join("\n"),
@@ -121,7 +121,7 @@ async function writeWindowsShim(
   const body = [
     "@echo off",
     options.development ? "rem Tutti dev CLI shim" : "rem Tutti CLI shim",
-    `if "%NEXTOP_STATE_DIR%"=="" set "NEXTOP_STATE_DIR=${stateRootDir}"`,
+    `if "%TUTTI_STATE_DIR%"=="" set "TUTTI_STATE_DIR=${stateRootDir}"`,
     `"${packagedCliPath}" %*`,
     ""
   ].join("\r\n");
@@ -150,19 +150,19 @@ function ensureDevCliBinary(input: {
       input.goBin?.trim() || process.env.GO_BIN?.trim() || "go",
       input.platform
     ),
-    ["build", "-o", input.targetPath, "./cmd/nextop"],
+    ["build", "-o", input.targetPath, "./cmd/tutti"],
     {
       cwd: cliDir,
       env: {
         ...process.env,
-        NEXTOP_ENV: "development"
+        TUTTI_ENV: "development"
       },
       stdio: "inherit"
     }
   );
   if (result.status !== 0) {
     throw new Error(
-      `go build failed while installing nextop-dev with exit code ${
+      `go build failed while installing tutti-dev with exit code ${
         result.status ?? "unknown"
       }`
     );
@@ -182,7 +182,7 @@ function resolveRepoRoot(): string {
   for (;;) {
     if (
       existsSync(join(candidate, "pnpm-workspace.yaml")) &&
-      existsSync(join(candidate, "services", "nextopd"))
+      existsSync(join(candidate, "services", "tuttid"))
     ) {
       return candidate;
     }

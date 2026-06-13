@@ -1,5 +1,5 @@
-import { formatNextopShortDateTime } from "@tutti-os/ui-system/date-format";
-import type { NextopDateLocale } from "@tutti-os/ui-system/date-format";
+import { formatTuttiShortDateTime } from "@tutti-os/ui-system/date-format";
+import type { TuttiDateLocale } from "@tutti-os/ui-system/date-format";
 
 export function formatWorkspaceFileBytes(sizeBytes: number | null): string {
   if (sizeBytes === null || !Number.isFinite(sizeBytes)) {
@@ -20,12 +20,12 @@ export function formatWorkspaceFileBytes(sizeBytes: number | null): string {
 
 export function formatWorkspaceFileModifiedTime(
   mtimeMs: number | null,
-  locale?: NextopDateLocale
+  locale?: TuttiDateLocale
 ): string {
   if (mtimeMs === null || !Number.isFinite(mtimeMs) || mtimeMs <= 0) {
     return "--";
   }
-  return formatNextopShortDateTime(mtimeMs, locale);
+  return formatTuttiShortDateTime(mtimeMs, locale);
 }
 
 export function splitWorkspaceFileName(name: string): {

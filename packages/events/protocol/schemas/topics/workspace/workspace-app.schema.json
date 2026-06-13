@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nextop.dev/schemas/events/workspace/workspace-app.schema.json",
+  "$id": "https://tutti.dev/schemas/events/workspace/workspace-app.schema.json",
   "title": "WorkspaceApp",
   "type": "object",
   "additionalProperties": false,

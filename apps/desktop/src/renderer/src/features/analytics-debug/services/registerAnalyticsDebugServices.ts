@@ -1,5 +1,5 @@
 import type { ServiceRegistry } from "@zk-tech/bedrock/di";
-import type { NextopdEventStreamClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidEventStreamClient } from "@tutti-os/client-tuttid-ts";
 import { IAnalyticsDebugPreferenceService } from "./analyticsDebugPreferenceService.interface";
 import { IAnalyticsDebugEventService } from "./analyticsDebugEventService.interface";
 import { AnalyticsDebugEventService } from "./internal/analyticsDebugEventService";
@@ -7,7 +7,7 @@ import { AnalyticsDebugPreferenceService } from "./internal/analyticsDebugPrefer
 
 export interface AnalyticsDebugServicesRegistrationInput {
   available: boolean;
-  eventStreamClient: Pick<NextopdEventStreamClient, "connect" | "subscribe">;
+  eventStreamClient: Pick<TuttidEventStreamClient, "connect" | "subscribe">;
 }
 
 export function registerAnalyticsDebugServices(

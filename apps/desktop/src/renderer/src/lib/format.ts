@@ -1,5 +1,5 @@
 import { cn } from "@tutti-os/ui-system";
-import { formatNextopDateTime } from "@tutti-os/ui-system/date-format";
+import { formatTuttiDateTime } from "@tutti-os/ui-system/date-format";
 import { getActiveLocale, translate } from "@renderer/i18n";
 import { resolveDesktopErrorMessage } from "./desktopErrors";
 
@@ -19,5 +19,5 @@ export function formatTimestamp(value: string | null): string {
     return value;
   }
 
-  return formatNextopDateTime(date, getActiveLocale());
+  return formatTuttiDateTime(date, getActiveLocale());
 }

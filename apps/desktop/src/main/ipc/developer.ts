@@ -1,5 +1,5 @@
 import { ipcMain, shell } from "electron";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import {
   desktopIpcChannels,
   type DesktopDeveloperLogKind
@@ -15,8 +15,8 @@ import { toDesktopIpcResult } from "./result";
 
 export function registerDeveloperIpc(
   preferences: DesktopHostPreferencesState,
-  nextopdClient?: Pick<
-    NextopdClient,
+  tuttidClient?: Pick<
+    TuttidClient,
     | "listWorkspaceAgentSessionMessages"
     | "listWorkspaceAgentSessions"
     | "listWorkspaceAppFactoryJobs"
@@ -25,7 +25,7 @@ export function registerDeveloperIpc(
   >
 ): void {
   const defaults = resolveDesktopDefaultsFromEnv();
-  const service = createDesktopDeveloperLogsService(preferences, nextopdClient);
+  const service = createDesktopDeveloperLogsService(preferences, tuttidClient);
 
   ipcMain.handle(desktopIpcChannels.developer.getLogsState, () =>
     toDesktopIpcResult(() => service.getLogsState())
@@ -35,7 +35,7 @@ export function registerDeveloperIpc(
   );
   ipcMain.handle(desktopIpcChannels.developer.exportLogs, () =>
     toDesktopIpcResult(() =>
-      exportDesktopDeveloperLogsAndNotify(preferences, nextopdClient)
+      exportDesktopDeveloperLogsAndNotify(preferences, tuttidClient)
     )
   );
   ipcMain.handle(desktopIpcChannels.developer.openLogDirectory, () =>
@@ -58,7 +58,7 @@ function resolveLogFilePath(
   defaults: ReturnType<typeof resolveDesktopDefaultsFromEnv>
 ): string {
   return kind === "daemon"
-    ? defaults.state.nextopdLogPath
+    ? defaults.state.tuttidLogPath
     : defaults.state.desktopLogPath;
 }
 

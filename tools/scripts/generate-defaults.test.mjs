@@ -8,8 +8,8 @@ import prettierConfig from "../../packages/configs/prettier/base.mjs";
 test("renderTSDefaults produces prettier-stable TypeScript output", async () => {
   const rendered = await renderTSDefaults({
     state: {
-      productionDirName: ".nextop",
-      developmentDirName: ".nextop-dev"
+      productionDirName: ".tutti",
+      developmentDirName: ".tutti-dev"
     },
     transport: {
       defaultTCPAddr: "127.0.0.1:4545"
@@ -33,15 +33,15 @@ test("renderTSDefaults produces prettier-stable TypeScript output", async () => 
 test("renderGoDefaults produces gofmt-stable Go output", () => {
   const rendered = renderGoDefaults({
     state: {
-      productionDirName: ".nextop",
-      developmentDirName: ".nextop-dev",
+      productionDirName: ".tutti",
+      developmentDirName: ".tutti-dev",
       runDirName: "run",
       logsDirName: "logs",
-      dbFileName: "nextopd.db",
-      daemonLogFileName: "nextopd.log",
-      desktopLogFileName: "nextop-desktop.log",
-      listenerInfoFileName: "nextopd.listener.json",
-      pidFileName: "nextopd.pid"
+      dbFileName: "tuttid.db",
+      daemonLogFileName: "tuttid.log",
+      desktopLogFileName: "tutti-desktop.log",
+      listenerInfoFileName: "tuttid.listener.json",
+      pidFileName: "tuttid.pid"
     },
     transport: {
       defaultTCPAddr: "127.0.0.1:4545"
@@ -63,22 +63,22 @@ test("renderGoDefaults produces gofmt-stable Go output", () => {
     }
   });
 
-  assert.match(rendered, /\t\tProductionDirName:\s{4}".nextop",/);
+  assert.match(rendered, /\t\tProductionDirName:\s{4}".tutti",/);
   assert.match(rendered, /var generatedDefaults = generatedDefaultsSpec{/);
 });
 
 test("renderGoDefaults includes analytics defaults", () => {
   const rendered = renderGoDefaults({
     state: {
-      productionDirName: ".nextop",
-      developmentDirName: ".nextop-dev",
+      productionDirName: ".tutti",
+      developmentDirName: ".tutti-dev",
       runDirName: "run",
       logsDirName: "logs",
-      dbFileName: "nextopd.db",
-      daemonLogFileName: "nextopd.log",
-      desktopLogFileName: "nextop-desktop.log",
-      listenerInfoFileName: "nextopd.listener.json",
-      pidFileName: "nextopd.pid"
+      dbFileName: "tuttid.db",
+      daemonLogFileName: "tuttid.log",
+      desktopLogFileName: "tutti-desktop.log",
+      listenerInfoFileName: "tuttid.listener.json",
+      pidFileName: "tuttid.pid"
     },
     transport: {
       defaultTCPAddr: "127.0.0.1:4545"

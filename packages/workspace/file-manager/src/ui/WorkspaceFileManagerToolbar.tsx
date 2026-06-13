@@ -2,12 +2,23 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   Button,
+  ChevronDownIcon,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   LoadingIcon,
   RefreshIcon,
+  ViewGridLinedIcon,
+  ViewListLinedIcon,
   cn
 } from "@tutti-os/ui-system";
 import { useState, type ReactElement } from "react";
 import type { WorkspaceFileManagerI18nRuntime } from "../i18n/workspaceFileManagerI18n.ts";
+import type { WorkspaceFileManagerArrangeMode } from "./workspaceFileManagerArrangeMode.ts";
+import type { WorkspaceFileManagerLayoutMode } from "./workspaceFileManagerLayoutMode.ts";
 
 export function WorkspaceFileManagerToolbar({
   breadcrumbs,
@@ -18,8 +29,12 @@ export function WorkspaceFileManagerToolbar({
   isBusy,
   isLoading,
   isMutating,
+  arrangeMode,
+  layoutMode,
   onGoBack,
   onGoForward,
+  onArrangeModeChange,
+  onLayoutModeChange,
   onLoadDirectory,
   onRefresh
 }: {
@@ -31,8 +46,12 @@ export function WorkspaceFileManagerToolbar({
   isBusy: boolean;
   isLoading: boolean;
   isMutating: boolean;
+  arrangeMode: WorkspaceFileManagerArrangeMode;
+  layoutMode: WorkspaceFileManagerLayoutMode;
   onGoBack: () => void;
   onGoForward: () => void;
+  onArrangeModeChange: (arrangeMode: WorkspaceFileManagerArrangeMode) => void;
+  onLayoutModeChange: (layoutMode: WorkspaceFileManagerLayoutMode) => void;
   onLoadDirectory: (path: string) => void;
   onRefresh: () => void;
 }): ReactElement {
@@ -81,6 +100,13 @@ export function WorkspaceFileManagerToolbar({
         </ol>
       </nav>
       <div className="@max-[600px]/workspace-file-manager:justify-end flex flex-none items-center gap-1.5">
+        <LayoutModeToggle
+          arrangeMode={arrangeMode}
+          copy={copy}
+          layoutMode={layoutMode}
+          onArrangeModeChange={onArrangeModeChange}
+          onLayoutModeChange={onLayoutModeChange}
+        />
         <ToolbarActionButton
           disabled={isLoading || isMutating || isBusy}
           onClick={handleRefresh}
@@ -103,6 +129,132 @@ export function WorkspaceFileManagerToolbar({
         </ToolbarActionButton>
       </div>
     </header>
+  );
+}
+
+function LayoutModeToggle({
+  arrangeMode,
+  copy,
+  layoutMode,
+  onArrangeModeChange,
+  onLayoutModeChange
+}: {
+  arrangeMode: WorkspaceFileManagerArrangeMode;
+  copy: WorkspaceFileManagerI18nRuntime;
+  layoutMode: WorkspaceFileManagerLayoutMode;
+  onArrangeModeChange: (arrangeMode: WorkspaceFileManagerArrangeMode) => void;
+  onLayoutModeChange: (layoutMode: WorkspaceFileManagerLayoutMode) => void;
+}): ReactElement {
+  const arrangeOptions: Array<{
+    label: string;
+    mode: WorkspaceFileManagerArrangeMode;
+  }> = [
+    { label: copy.t("arrangeNoneLabel"), mode: "none" },
+    { label: copy.t("nameLabel"), mode: "name" },
+    { label: copy.t("arrangeKindLabel"), mode: "kind" },
+    { label: copy.t("arrangeApplicationLabel"), mode: "application" },
+    { label: copy.t("arrangeLastOpenedLabel"), mode: "lastOpened" },
+    { label: copy.t("arrangeDateAddedLabel"), mode: "dateAdded" },
+    { label: copy.t("modifiedLabel"), mode: "modified" },
+    { label: copy.t("arrangeCreatedLabel"), mode: "created" },
+    { label: copy.t("sizeLabel"), mode: "size" },
+    { label: copy.t("arrangeTagsLabel"), mode: "tags" }
+  ];
+
+  return (
+    <div
+      className="flex items-center rounded-md border border-[var(--border-1)] bg-[var(--transparency-block)] p-0.5"
+      role="group"
+    >
+      <LayoutModeButton
+        active={layoutMode === "icon"}
+        ariaLabel={copy.t("layoutIconViewLabel")}
+        onClick={() => {
+          onLayoutModeChange("icon");
+        }}
+      >
+        <ViewGridLinedIcon className="size-4" />
+      </LayoutModeButton>
+      <LayoutModeButton
+        active={layoutMode === "list"}
+        ariaLabel={copy.t("layoutListViewLabel")}
+        onClick={() => {
+          onLayoutModeChange("list");
+        }}
+      >
+        <ViewListLinedIcon className="size-4" />
+      </LayoutModeButton>
+      <span className="mx-0.5 h-4 w-px bg-[var(--border-1)]" aria-hidden />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            aria-label={copy.t("arrangeMenuLabel")}
+            className="size-6 min-w-6 rounded-[4px] p-0 text-[var(--text-secondary)] data-[state=open]:bg-[var(--background-fronted)] data-[state=open]:text-[var(--text-primary)] data-[state=open]:shadow-sm"
+            size="icon-sm"
+            title={copy.t("arrangeMenuLabel")}
+            type="button"
+            variant="ghost"
+          >
+            <ChevronDownIcon className="size-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="min-w-[236px] px-1 py-1"
+          sideOffset={7}
+        >
+          <DropdownMenuRadioGroup
+            value={arrangeMode}
+            onValueChange={(nextMode) => {
+              onArrangeModeChange(nextMode as WorkspaceFileManagerArrangeMode);
+            }}
+          >
+            {arrangeOptions.map((option, index) => (
+              <div key={option.mode}>
+                {index === 1 ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuRadioItem
+                  className="h-8 text-sm font-normal"
+                  value={option.mode}
+                >
+                  {option.label}
+                </DropdownMenuRadioItem>
+              </div>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function LayoutModeButton({
+  active,
+  ariaLabel,
+  children,
+  onClick
+}: {
+  active: boolean;
+  ariaLabel: string;
+  children: ReactElement;
+  onClick: () => void;
+}): ReactElement {
+  return (
+    <Button
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      className={cn(
+        "size-6 min-w-6 rounded-[4px] p-0 text-text-secondary",
+        active &&
+          "!bg-background-fronted text-foreground hover:!bg-background-fronted"
+      )}
+      size="icon-sm"
+      title={ariaLabel}
+      type="button"
+      variant="ghost"
+      onClick={onClick}
+    >
+      {children}
+    </Button>
   );
 }
 

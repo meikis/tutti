@@ -46,8 +46,8 @@ export interface DeveloperLogsAppCenterSnapshot {
   }>;
 }
 
-const managedDesktopLogPrefixes = ["nextop-desktop"];
-const managedDaemonLogPrefixes = ["nextopd"];
+const managedDesktopLogPrefixes = ["tutti-desktop"];
+const managedDaemonLogPrefixes = ["tuttid"];
 
 export function createDeveloperLogsService(
   deps: DeveloperLogsDependencies
@@ -65,7 +65,7 @@ export class DeveloperLogsService {
   async getLogsState(): Promise<DesktopDeveloperLogsState> {
     await this.deps.flushLogs?.();
     const files = await Promise.all([
-      summarizeLogFile("daemon", this.deps.defaults.state.nextopdLogPath),
+      summarizeLogFile("daemon", this.deps.defaults.state.tuttidLogPath),
       summarizeLogFile("desktop", this.deps.defaults.state.desktopLogPath)
     ]);
     const managed = await listManagedLogFiles(this.deps.defaults.state.logsDir);
@@ -87,7 +87,7 @@ export class DeveloperLogsService {
     let clearedSizeBytes = 0;
     const clearedPaths: string[] = [];
     const activePaths = new Set([
-      this.deps.defaults.state.nextopdLogPath,
+      this.deps.defaults.state.tuttidLogPath,
       this.deps.defaults.state.desktopLogPath
     ]);
 
@@ -306,7 +306,7 @@ export function createDefaultDeveloperLogsExportFileName(
   const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(
     now.getHours()
   )}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `nextop-logs-${stamp}.zip`;
+  return `tutti-logs-${stamp}.zip`;
 }
 
 interface BuildRuntimeContextInput {
@@ -346,7 +346,7 @@ function buildRuntimeContext(input: BuildRuntimeContextInput): {
   runtime: {
     desktopVersion: string;
     electron: string | undefined;
-    nextopEnv: string | undefined;
+    tuttiEnv: string | undefined;
     node: string | undefined;
     platform: NodeJS.Platform;
     release: string;
@@ -380,11 +380,11 @@ function buildRuntimeContext(input: BuildRuntimeContextInput): {
     runtime: {
       desktopVersion: input.desktopVersion,
       electron: process.versions.electron,
-      nextopEnv: process.env.NEXTOP_ENV,
+      tuttiEnv: process.env.TUTTI_ENV,
       node: process.versions.node,
       platform: process.platform,
       release: process.release.name,
-      sessionId: process.env.NEXTOP_SESSION_ID
+      sessionId: process.env.TUTTI_SESSION_ID
     },
     transport: input.transportSnapshot
   };
@@ -392,28 +392,28 @@ function buildRuntimeContext(input: BuildRuntimeContextInput): {
 
 function collectRuntimeOverrides(): Record<string, string> {
   const supported = [
-    "NEXTOP_ENV",
-    "NEXTOP_STATE_DIR",
-    "NEXTOP_LOG_DIR",
-    "NEXTOP_LOG_MAX_SIZE_MB",
-    "NEXTOP_LOG_MAX_BACKUPS",
-    "NEXTOP_LOG_MAX_AGE_DAYS",
-    "NEXTOP_LOG_MAX_TOTAL_MB",
-    "NEXTOPD_TRANSPORT",
-    "NEXTOPD_ADDR",
-    "NEXTOPD_SOCKET_PATH",
-    "NEXTOPD_PIPE_PATH",
-    "NEXTOPD_RUN_DIR",
-    "NEXTOPD_DB_PATH",
-    "NEXTOPD_PID_PATH",
-    "NEXTOPD_LOG_PATH",
-    "NEXTOPD_LOG_OUTPUT",
-    "NEXTOPD_LOG_LEVEL",
-    "NEXTOPD_FORWARD_STDIO",
-    "NEXTOP_DESKTOP_LOG_PATH",
-    "NEXTOP_DESKTOP_LOG_OUTPUT",
-    "NEXTOP_DESKTOP_LOG_LEVEL",
-    "NEXTOP_SESSION_ID"
+    "TUTTI_ENV",
+    "TUTTI_STATE_DIR",
+    "TUTTI_LOG_DIR",
+    "TUTTI_LOG_MAX_SIZE_MB",
+    "TUTTI_LOG_MAX_BACKUPS",
+    "TUTTI_LOG_MAX_AGE_DAYS",
+    "TUTTI_LOG_MAX_TOTAL_MB",
+    "TUTTID_TRANSPORT",
+    "TUTTID_ADDR",
+    "TUTTID_SOCKET_PATH",
+    "TUTTID_PIPE_PATH",
+    "TUTTID_RUN_DIR",
+    "TUTTID_DB_PATH",
+    "TUTTID_PID_PATH",
+    "TUTTID_LOG_PATH",
+    "TUTTID_LOG_OUTPUT",
+    "TUTTID_LOG_LEVEL",
+    "TUTTID_FORWARD_STDIO",
+    "TUTTI_DESKTOP_LOG_PATH",
+    "TUTTI_DESKTOP_LOG_OUTPUT",
+    "TUTTI_DESKTOP_LOG_LEVEL",
+    "TUTTI_SESSION_ID"
   ] as const;
 
   const entries = supported.flatMap((key) => {
@@ -455,7 +455,7 @@ async function listManagedLogFiles(logsDir: string): Promise<ManagedLogFile[]> {
   }
 
   const files = await Promise.all(
-    names.filter(isManagedNextopLogFileName).map(async (name) => {
+    names.filter(isManagedTuttiLogFileName).map(async (name) => {
       const path = join(logsDir, name);
       try {
         const info = await stat(path);
@@ -668,7 +668,7 @@ function joinZipPath(...parts: string[]): string {
     .join("/");
 }
 
-function isManagedNextopLogFileName(name: string): boolean {
+function isManagedTuttiLogFileName(name: string): boolean {
   const match = /^(.*)\.log$/i.exec(name);
   if (!match) {
     return false;

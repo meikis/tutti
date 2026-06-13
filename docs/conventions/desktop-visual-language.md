@@ -1,13 +1,13 @@
 # Desktop Visual Language
 
-This document defines the intended visual language for `nextop` desktop renderer surfaces.
+This document defines the intended visual language for `tutti` desktop renderer surfaces.
 
 It captures durable design rules for a disciplined desktop workbench language,
-adapted to `nextop`'s lighter current product shell.
+adapted to `tutti`'s lighter current product shell.
 
 ## Purpose
 
-`nextop` should not feel like a marketing site stitched together from pretty cards.
+`tutti` should not feel like a marketing site stitched together from pretty cards.
 
 It should feel like:
 
@@ -32,11 +32,11 @@ What should not be copied directly:
 
 - a brand-specific dark palette
 - another product's naming or token vocabulary
-- heavy adaptation of a deep-dark shell into places where `nextop` should stay lighter and calmer
+- heavy adaptation of a deep-dark shell into places where `tutti` should stay lighter and calmer
 
 ## Core Posture
 
-The desired `nextop` posture is:
+The desired `tutti` posture is:
 
 - `launcher`: light, breathable, welcoming, slightly editorial
 - `workspace`: sober, structured, workbench-like
@@ -71,7 +71,7 @@ If multiple elements on a screen are all trying to feel "featured", the hierarch
 
 ## Color Strategy
 
-`nextop` should remain light-first for now, but it should keep strong
+`tutti` should remain light-first for now, but it should keep strong
 discipline around color roles.
 
 Guidelines:
@@ -194,7 +194,7 @@ Use these rules:
 - use a `760px` desktop width cap, `500px` height cap, `16px` outer radius, and a `54px` title bar
 - use a fixed two-column structure on desktop: `160px` section navigation on the left, settings content on the right
 - keep navigation items compact and scannable, with selected state from the shared accent surface
-- align compact setting rows as label/content pairs; labels use semibold `14px`, values use `12px`
+- align compact setting rows as label/content pairs; labels use semibold `13px`, values use `11px`
 - keep routine select/input controls around `200px` wide on desktop and full-width only on narrow responsive layouts
 - keep routine controls at `32px` height with `6px` radius
 - use token-backed danger surfaces for destructive zones: `--state-danger`, `--on-danger`, and `--on-danger-hover`

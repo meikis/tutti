@@ -15,7 +15,7 @@ of the shared packages.
   clearer public package names.
 - Put reusable agent session state, event merging, and attention selectors
   behind a host-agnostic core package.
-- Keep `apps/desktop` responsible for `nextopd`, preload, Electron, local file,
+- Keep `apps/desktop` responsible for `tuttid`, preload, Electron, local file,
   and runtime integration.
 - Let Agent GUI and the future Agent Message Center consume one shared Agent
   Activity snapshot instead of building separate session caches.
@@ -45,7 +45,7 @@ header message UI is implemented.
 ### `@tutti-os/agent-activity-core`
 
 `agent-activity-core` is host-agnostic and must not import React, Electron,
-desktop preload APIs, or the generated `nextopd` client.
+desktop preload APIs, or the generated `tuttid` client.
 
 It owns:
 
@@ -65,7 +65,7 @@ It does not own:
 - HTTP path construction
 - authentication
 - `EventSource` or fetch implementation details
-- `nextopd` generated client usage
+- `tuttid` generated client usage
 - workspace file access
 - Electron IPC or preload APIs
 - React hooks or UI components
@@ -104,7 +104,7 @@ paths must not call `workspaceAgents.list`,
 host API contract, explicit projection helpers, and message merge/page-loading
 helpers that accept runtime-shaped adapters.
 
-It should not know how a host connects to `nextopd`, opens SSE streams, resolves
+It should not know how a host connects to `tuttid`, opens SSE streams, resolves
 workspace paths, or talks to Electron.
 
 ### `@tutti-os/agent-message-center`
@@ -124,12 +124,12 @@ message payloads directly.
 
 ### `apps/desktop`
 
-The desktop app owns the concrete adapter from `nextopd` and Electron runtime
+The desktop app owns the concrete adapter from `tuttid` and Electron runtime
 capabilities into `agent-activity-core`.
 
 It owns:
 
-- `nextopd` client calls
+- `tuttid` client calls
 - SSE connection implementation
 - backend base URL and authentication details
 - preload/runtime/file adapters
@@ -303,13 +303,13 @@ The package must typecheck without React or desktop dependencies.
 ### Step 3: Add the desktop adapter
 
 In `apps/desktop`, create a concrete adapter that wraps the generated
-`nextopd` client and event stream APIs.
+`tuttid` client and event stream APIs.
 
 Desktop keeps transport and host knowledge. Core receives normalized contracts.
 
 The first implementation routes desktop session-message cache merging and
 retained event stream lifecycle through `agent-activity-core`. The concrete
-desktop adapter owns the `nextopd` calls, SSE subscription, and host event
+desktop adapter owns the `tuttid` calls, SSE subscription, and host event
 normalization.
 
 `createDesktopAgentHostApi` remains the compatibility adapter from the shared
@@ -368,7 +368,7 @@ For `agent-activity-core`:
 For desktop adapter integration:
 
 - existing desktop workspace-agent tests
-- adapter tests for `nextopd` response normalization
+- adapter tests for `tuttid` response normalization
 - live event merge tests using a fake subscription adapter
 
 For Agent GUI behavior:
@@ -391,7 +391,7 @@ For runtime boundary enforcement:
 - Do not create an empty message-center package before there is UI behavior.
 - Do not rewrite all Agent GUI projection code in the first migration step.
 - Do not change daemon HTTP contracts without first updating
-  `services/nextopd/api/openapi/nextopd.v1.yaml`.
+  `services/tuttid/api/openapi/tuttid.v1.yaml`.
 
 ## Review Rules
 
@@ -401,7 +401,7 @@ For runtime boundary enforcement:
   consume it without knowing host details.
 - A React hook belongs in `agent-gui` or the future `agent-message-center`, not
   in core.
-- A `nextopd` mapping belongs in the desktop adapter unless it is a
+- A `tuttid` mapping belongs in the desktop adapter unless it is a
   host-agnostic contract type.
 - External repository adoption should require implementing the adapter, not
   copying session merge or needs-attention logic.

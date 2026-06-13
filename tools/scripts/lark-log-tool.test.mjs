@@ -14,11 +14,11 @@ import {
 test("parseMessageFileContent extracts Feishu message file metadata", () => {
   assert.deepEqual(
     parseMessageFileContent(
-      '<file key="file_v3_0012c_ac25e4a4-d2aa-4930-838d-4e5d763f198g" name="nextop-logs-20260605-201724.zip"/>'
+      '<file key="file_v3_0012c_ac25e4a4-d2aa-4930-838d-4e5d763f198g" name="tutti-logs-20260605-201724.zip"/>'
     ),
     {
       key: "file_v3_0012c_ac25e4a4-d2aa-4930-838d-4e5d763f198g",
-      name: "nextop-logs-20260605-201724.zip"
+      name: "tutti-logs-20260605-201724.zip"
     }
   );
 });
@@ -91,13 +91,13 @@ test("selectRecordAttachment prefers zip-like log attachments", () => {
     selectRecordAttachment({
       Screen: [{ file_token: "tok_png", name: "screenshot.png" }],
       日志: [
-        { file_token: "tok_txt", name: "nextop.log" },
-        { file_token: "tok_zip", name: "nextop-logs.zip" }
+        { file_token: "tok_txt", name: "tutti.log" },
+        { file_token: "tok_zip", name: "tutti-logs.zip" }
       ]
     }),
     {
       fieldName: "日志",
-      name: "nextop-logs.zip",
+      name: "tutti-logs.zip",
       token: "tok_zip"
     }
   );
@@ -135,10 +135,10 @@ test("applyBugRecordDefaults fills one-click Base record settings", () => {
 test("parseLogLine extracts structured log fields", () => {
   assert.deepEqual(
     parseLogLine(
-      'time=2026-06-05T12:16:34.148Z level=error component="nextop-desktop" msg="renderer diagnostic" renderer_details={"message":"interactive request is no longer live","name":"NextopdProtocolError"} renderer_event="renderer.unhandled_rejection"'
+      'time=2026-06-05T12:16:34.148Z level=error component="tutti-desktop" msg="renderer diagnostic" renderer_details={"message":"interactive request is no longer live","name":"TuttidProtocolError"} renderer_event="renderer.unhandled_rejection"'
     ),
     {
-      component: "nextop-desktop",
+      component: "tutti-desktop",
       detailError: null,
       level: "error",
       message: "renderer diagnostic",
@@ -151,9 +151,9 @@ test("parseLogLine extracts structured log fields", () => {
 
 test("summarizeLogLines groups levels, messages, and detail errors", () => {
   const summary = summarizeLogLines([
-    'time=2026-06-05T09:02:08.823Z level=warn component="nextop-desktop" msg="terminal diagnostic" details={"error":"Nextopd event stream catalog revision mismatch."}',
-    'time=2026-06-05T12:16:34.148Z level=error component="nextop-desktop" msg="renderer diagnostic" renderer_details={"message":"interactive request is no longer live"}',
-    'time=2026-06-05T12:16:37.680+08:00 level=INFO msg="agent session ACP stdout" component=nextopd'
+    'time=2026-06-05T09:02:08.823Z level=warn component="tutti-desktop" msg="terminal diagnostic" details={"error":"Tuttid event stream catalog revision mismatch."}',
+    'time=2026-06-05T12:16:34.148Z level=error component="tutti-desktop" msg="renderer diagnostic" renderer_details={"message":"interactive request is no longer live"}',
+    'time=2026-06-05T12:16:37.680+08:00 level=INFO msg="agent session ACP stdout" component=tuttid'
   ]);
 
   assert.equal(summary.levels.get("warn"), 1);
@@ -162,7 +162,7 @@ test("summarizeLogLines groups levels, messages, and detail errors", () => {
   assert.equal(summary.messageCounts.get("terminal diagnostic"), 1);
   assert.equal(
     summary.detailErrorCounts.get(
-      "Nextopd event stream catalog revision mismatch."
+      "Tuttid event stream catalog revision mismatch."
     ),
     1
   );

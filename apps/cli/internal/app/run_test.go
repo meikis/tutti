@@ -17,7 +17,7 @@ func TestRunHelpUsesDefaultCommandName(t *testing.T) {
 	if code := Run(t.Context(), []string{}, &stdout, &stderr); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Usage: nextop [--json] <command>") {
+	if !strings.Contains(stdout.String(), "Usage: tutti [--json] <command>") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -25,11 +25,11 @@ func TestRunHelpUsesDefaultCommandName(t *testing.T) {
 func TestRunWithProgramUsesDevCommandName(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := RunWithProgram(t.Context(), "/repo/apps/cli/build/dev/nextop", []string{"help"}, &stdout, &stderr)
+	code := RunWithProgram(t.Context(), "/repo/apps/cli/build/dev/tutti", []string{"help"}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Usage: nextop-dev [--json] <command>") {
+	if !strings.Contains(stdout.String(), "Usage: tutti-dev [--json] <command>") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -37,11 +37,11 @@ func TestRunWithProgramUsesDevCommandName(t *testing.T) {
 func TestRunWithProgramUsesDevCommandNameForRelativeDevBuild(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := RunWithProgram(t.Context(), "./build/dev/nextop", []string{"help"}, &stdout, &stderr)
+	code := RunWithProgram(t.Context(), "./build/dev/tutti", []string{"help"}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Usage: nextop-dev [--json] <command>") {
+	if !strings.Contains(stdout.String(), "Usage: tutti-dev [--json] <command>") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -49,11 +49,11 @@ func TestRunWithProgramUsesDevCommandNameForRelativeDevBuild(t *testing.T) {
 func TestRunWithProgramUsesCommandNameInSubcommandUsage(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := RunWithProgram(t.Context(), "nextop-dev", []string{"status", "extra"}, &stdout, &stderr)
+	code := RunWithProgram(t.Context(), "tutti-dev", []string{"status", "extra"}, &stdout, &stderr)
 	if code != 2 {
 		t.Fatalf("code = %d, want 2", code)
 	}
-	if !strings.Contains(stderr.String(), "usage: nextop-dev status [--json]") {
+	if !strings.Contains(stderr.String(), "usage: tutti-dev status [--json]") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
@@ -67,7 +67,7 @@ func TestRunStatusJSON(t *testing.T) {
 			t.Fatalf("authorization = %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"service":"nextopd","status":"ok"}`))
+		_, _ = w.Write([]byte(`{"service":"tuttid","status":"ok"}`))
 	}))
 	defer server.Close()
 
@@ -86,7 +86,7 @@ func TestRunStatusJSON(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal stdout: %v\n%s", err, stdout.String())
 	}
-	if payload.Service != "nextopd" || payload.Status != "ok" {
+	if payload.Service != "tuttid" || payload.Status != "ok" {
 		t.Fatalf("payload = %#v", payload)
 	}
 }
@@ -225,7 +225,7 @@ func TestRunDynamicCommandHelpRendersInputSchema(t *testing.T) {
 	}
 	output := stdout.String()
 	for _, expected := range []string{
-		"Usage: nextop issue task create [--json] --issue-id <value> --title <value>",
+		"Usage: tutti issue task create [--json] --issue-id <value> --title <value>",
 		"--issue-id",
 		"--title",
 		"--content",
@@ -249,9 +249,9 @@ func TestRunDynamicScopeHelpListsCommandsAndDocumentation(t *testing.T) {
 		switch r.URL.Path {
 		case "/v1/cli/capabilities":
 			_, _ = w.Write([]byte(`{"commands":[
-        {"id":"app.automation.automation.list","path":["automation","list"],"summary":"List automations","output":{"defaultMode":"table","json":true},"source":{"kind":"app","appId":"automation","appName":"Automation","documentationFile":"COMMANDS.md","documentationPath":"/tmp/nextop/apps/automation/COMMANDS.md"}},
-        {"id":"app.automation.automation.run","path":["automation","run"],"summary":"Run an automation","output":{"defaultMode":"json","json":true},"source":{"kind":"app","appId":"automation","appName":"Automation","documentationFile":"COMMANDS.md","documentationPath":"/tmp/nextop/apps/automation/COMMANDS.md"}},
-        {"id":"app.automation.automation.runs","path":["automation","runs"],"summary":"List automation runs","output":{"defaultMode":"table","json":true},"source":{"kind":"app","appId":"automation","appName":"Automation","documentationFile":"COMMANDS.md","documentationPath":"/tmp/nextop/apps/automation/COMMANDS.md"}}
+        {"id":"app.automation.automation.list","path":["automation","list"],"summary":"List automations","output":{"defaultMode":"table","json":true},"source":{"kind":"app","appId":"automation","appName":"Automation","documentationFile":"COMMANDS.md","documentationPath":"/tmp/tutti/apps/automation/COMMANDS.md"}},
+        {"id":"app.automation.automation.run","path":["automation","run"],"summary":"Run an automation","output":{"defaultMode":"json","json":true},"source":{"kind":"app","appId":"automation","appName":"Automation","documentationFile":"COMMANDS.md","documentationPath":"/tmp/tutti/apps/automation/COMMANDS.md"}},
+        {"id":"app.automation.automation.runs","path":["automation","runs"],"summary":"List automation runs","output":{"defaultMode":"table","json":true},"source":{"kind":"app","appId":"automation","appName":"Automation","documentationFile":"COMMANDS.md","documentationPath":"/tmp/tutti/apps/automation/COMMANDS.md"}}
       ]}`))
 		case "/v1/cli/commands/app.automation.automation.list/invoke":
 			invoked = true
@@ -275,13 +275,13 @@ func TestRunDynamicScopeHelpListsCommandsAndDocumentation(t *testing.T) {
 	}
 	output := stdout.String()
 	for _, expected := range []string{
-		"Usage: nextop automation <command> [--json]",
+		"Usage: tutti automation <command> [--json]",
 		"list  List automations",
 		"run   Run an automation",
 		"runs  List automation runs",
-		`Use "nextop automation <command> --help" for command details.`,
+		`Use "tutti automation <command> --help" for command details.`,
 		"More documentation:",
-		"/tmp/nextop/apps/automation/COMMANDS.md",
+		"/tmp/tutti/apps/automation/COMMANDS.md",
 	} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("stdout missing %q:\n%s", expected, output)
@@ -313,7 +313,7 @@ func TestRunRootHelpListsDynamicCommandScopes(t *testing.T) {
 	}
 	output := stdout.String()
 	for _, expected := range []string{
-		"status      Show local nextopd status",
+		"status      Show local tuttid status",
 		"agent       1 commands",
 		"automation  Manage automations.  1 commands",
 	} {
@@ -378,12 +378,12 @@ func TestRunDynamicCommandRejectsUnexpectedPositionalArgument(t *testing.T) {
 func writeEndpoint(t *testing.T, addr string, token string) {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "nextopd.listener.json")
+	path := filepath.Join(dir, "tuttid.listener.json")
 	body := `{"version":1,"addr":` + quoteJSON(addr) + `,"auth":{"scheme":"bearer","token":` + quoteJSON(token) + `}}`
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write endpoint: %v", err)
 	}
-	t.Setenv("NEXTOPD_LISTENER_INFO_PATH", path)
+	t.Setenv("TUTTID_LISTENER_INFO_PATH", path)
 }
 
 func quoteJSON(value string) string {

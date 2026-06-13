@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  NextopdProtocolError,
-  type NextopdClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidProtocolError,
+  type TuttidClient
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopHostFilesApi, DesktopRuntimeApi } from "@preload/types";
 import type {
   DesktopTerminalDiagnosticPayload,
@@ -20,7 +20,7 @@ test("desktop terminal adapter reloads session metadata before attach", async (t
     runtimeApi: createRuntimeApi({
       diagnostics
     }),
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async getWorkspaceTerminal(requestWorkspaceId, sessionId) {
         assert.equal(requestWorkspaceId, workspaceId);
         assert.equal(sessionId, "term-1");
@@ -64,7 +64,7 @@ test("desktop terminal adapter projects snapshot failures as failed terminal sta
     runtimeApi: createRuntimeApi({
       diagnostics
     }),
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async getWorkspaceTerminalSnapshot() {
         throw new Error("snapshot missing");
       }
@@ -401,9 +401,9 @@ test("desktop terminal adapter treats missing terminals as stale during close gu
   installFakeWebSocket(t);
   let resizeCalls = 0;
   const adapter = createAdapter({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async checkWorkspaceTerminalCloseGuard() {
-        throw new NextopdProtocolError({
+        throw new TuttidProtocolError({
           code: "workspace_terminal_not_found",
           reason: "workspace_terminal_not_found",
           statusCode: 404
@@ -411,7 +411,7 @@ test("desktop terminal adapter treats missing terminals as stale during close gu
       },
       async resizeWorkspaceTerminal() {
         resizeCalls += 1;
-        throw new NextopdProtocolError({
+        throw new TuttidProtocolError({
           code: "workspace_terminal_not_found",
           reason: "workspace_terminal_not_found",
           statusCode: 404
@@ -453,7 +453,7 @@ function createAdapter(
 ) {
   return createDesktopWorkspaceTerminalAdapter({
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: {
       resolveDroppedPaths() {
         return [];
@@ -510,7 +510,7 @@ function createHostFilesApi(
 ): DesktopHostFilesApi {
   return {
     async createUserDocumentsProjectDirectory(input) {
-      return { path: `/Users/local/Documents/nextop/${input.name}` };
+      return { path: `/Users/local/Documents/tutti/${input.name}` };
     },
     async openExternal() {},
     async openFile() {},
@@ -548,13 +548,16 @@ function createHostFilesApi(
     async resolveWorkspaceFileFileUrl() {
       return "file:///tmp/example.html";
     },
+    async resolveEntryIcon() {
+      return null;
+    },
     ...overrides
   };
 }
 
-function createNextopdClient(
-  overrides: Partial<NextopdClient> = {}
-): NextopdClient {
+function createTuttidClient(
+  overrides: Partial<TuttidClient> = {}
+): TuttidClient {
   return {
     async checkWorkspaceTerminalCloseGuard() {
       return {
@@ -597,14 +600,14 @@ function createNextopdClient(
       });
     },
     ...overrides
-  } as NextopdClient;
+  } as TuttidClient;
 }
 
 function createSession(
   overrides: Partial<
-    Awaited<ReturnType<NextopdClient["createWorkspaceTerminal"]>>
+    Awaited<ReturnType<TuttidClient["createWorkspaceTerminal"]>>
   > = {}
-): Awaited<ReturnType<NextopdClient["createWorkspaceTerminal"]>> {
+): Awaited<ReturnType<TuttidClient["createWorkspaceTerminal"]>> {
   return {
     cols: 80,
     createdAt: new Date(0).toISOString(),

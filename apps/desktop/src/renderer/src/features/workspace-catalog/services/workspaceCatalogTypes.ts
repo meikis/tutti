@@ -1,7 +1,7 @@
 import type {
   HealthStatusResponse,
   WorkspaceSummary
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 
 export type WorkspaceCatalogStatus =
   | "loading"

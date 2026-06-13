@@ -32,7 +32,9 @@ export {
 } from "./usage.ts";
 export type {
   AgentActivityDisplayStatus,
+  AgentActivityCancelReason,
   AgentActivityCancelSessionInput,
+  AgentActivityCancelSessionResult,
   AgentActivityComposerOptions,
   AgentActivityComposerPermissionConfig,
   AgentActivityComposerPermissionModeOption,

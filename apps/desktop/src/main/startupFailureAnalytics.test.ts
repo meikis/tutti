@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { TrackEvent } from "@tutti-os/client-nextopd-ts";
+import type { TrackEvent } from "@tutti-os/client-tuttid-ts";
 import {
   createStartupFailureEvent,
   flushStartupFailureEvents,
@@ -32,7 +32,7 @@ test("startup failure analytics creates safe app startup failed params", () => {
 });
 
 test("startup failure analytics records and flushes queued events", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "nextop-startup-analytics-"));
+  const dir = await mkdtemp(join(tmpdir(), "tutti-startup-analytics-"));
   const queuePath = join(dir, "startup-failures.jsonl");
   const events: TrackEvent[][] = [];
 
@@ -47,7 +47,7 @@ test("startup failure analytics records and flushes queued events", async () => 
   assert.match(queued, /"name":"daemon.startup_failed"/);
 
   await flushStartupFailureEvents({
-    nextopdClient: {
+    tuttidClient: {
       async trackEvents(nextEvents) {
         events.push(nextEvents);
       }

@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, appendFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { NextopdClient, TrackEvent } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient, TrackEvent } from "@tutti-os/client-tuttid-ts";
 import { resolveDesktopDefaultsFromEnv } from "./defaults.ts";
 import {
   classifyDesktopErrorCode,
@@ -20,7 +20,7 @@ export interface StartupFailureEventInput {
 }
 
 export interface FlushStartupFailureEventsInput {
-  nextopdClient: Pick<NextopdClient, "trackEvents">;
+  tuttidClient: Pick<TuttidClient, "trackEvents">;
   queuePath?: string;
 }
 
@@ -56,7 +56,7 @@ export async function flushStartupFailureEvents(
     return;
   }
 
-  await input.nextopdClient.trackEvents(events);
+  await input.tuttidClient.trackEvents(events);
   await rm(queuePath, { force: true });
 }
 

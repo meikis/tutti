@@ -8,7 +8,7 @@ import {
 
 type WorkbenchHostI18nLocale = "en" | "zh-CN";
 export const workbenchHostI18nNamespace = "workbenchHost";
-export const nextopI18nModule = createScopedLocaleObjectsI18nModuleManifest({
+export const tuttiI18nModule = createScopedLocaleObjectsI18nModuleManifest({
   localeObjectByLocale: {
     en: "workbenchHostEn",
     "zh-CN": "workbenchHostZhCN"

@@ -41,7 +41,7 @@ export async function main(argv) {
 
 async function runFetch(options) {
   options = await applyConfiguredDefaults(options);
-  const outputDir = resolve(options.outputDir ?? join(tmpdir(), "nextop-lark"));
+  const outputDir = resolve(options.outputDir ?? join(tmpdir(), "tutti-lark"));
   await mkdir(outputDir, { recursive: true });
 
   const directFile = directFileSelection(options);
@@ -131,13 +131,13 @@ async function loadFetcherConfig(explicitPath) {
   const paths = explicitPath
     ? [resolve(explicitPath)]
     : [
-        resolve(process.cwd(), ".nextop-logger-fetcher.json"),
-        join(homedir(), ".config", "nextop-logger-fetcher", "config.json"),
+        resolve(process.cwd(), ".tutti-logger-fetcher.json"),
+        join(homedir(), ".config", "tutti-logger-fetcher", "config.json"),
         join(
           homedir(),
           ".codex",
           "skills",
-          "nextop-logger-fetcher",
+          "tutti-logger-fetcher",
           "config.json"
         )
       ];
@@ -726,7 +726,7 @@ function compareRecordAttachments(left, right) {
 function recordAttachmentScore(attachment) {
   const name = attachment.name.toLowerCase();
   if (name.endsWith(".zip")) return 100;
-  if (name.includes("nextop") && name.includes("log")) return 80;
+  if (name.includes("tutti") && name.includes("log")) return 80;
   if (name.includes("diagnostic")) return 60;
   if (name.includes("log")) return 40;
   return 0;
@@ -736,7 +736,7 @@ function looksLikeLogAttachmentName(name) {
   const lower = String(name).toLowerCase();
   return (
     lower.endsWith(".zip") ||
-    lower.includes("nextop") ||
+    lower.includes("tutti") ||
     lower.includes("log") ||
     lower.includes("diagnostic")
   );
@@ -1215,7 +1215,7 @@ function printAnalysisReport(report) {
   }
   if (runtimeContext?.runtime) {
     console.log(
-      `Runtime: ${runtimeContext.runtime.platform ?? "unknown"} | Electron ${runtimeContext.runtime.electron ?? "unknown"} | Node ${runtimeContext.runtime.node ?? "unknown"} | env ${runtimeContext.runtime.nextopEnv ?? "unknown"}`
+      `Runtime: ${runtimeContext.runtime.platform ?? "unknown"} | Electron ${runtimeContext.runtime.electron ?? "unknown"} | Node ${runtimeContext.runtime.node ?? "unknown"} | env ${runtimeContext.runtime.tuttiEnv ?? "unknown"}`
     );
   }
   if (runtimeContext?.defaults?.state?.rootDir) {
@@ -1429,7 +1429,7 @@ Fetch options:
   --start/--end <time>     Restrict message search to an ISO local time range.
   --page-size <n>          Message search page size. Default: ${defaultPageSize}.
   --page-limit <n>         Ask lark-cli to auto-paginate up to n pages.
-  --output-dir <dir>       Download directory. Default: OS temp/nextop-lark.
+  --output-dir <dir>       Download directory. Default: OS temp/tutti-lark.
   --output <name>          Local output file name.
   --extract                Extract zip after download.
   --analyze                Analyze after download.

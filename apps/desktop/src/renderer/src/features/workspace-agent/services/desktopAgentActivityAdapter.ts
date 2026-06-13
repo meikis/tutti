@@ -8,35 +8,35 @@ import type {
   AgentActivitySession
 } from "@tutti-os/agent-activity-core";
 import type {
-  NextopdClient,
+  TuttidClient,
   WorkspaceAgentProvider,
   WorkspaceAgentSession,
   WorkspaceAgentSessionMessage
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopRuntimeApi } from "@preload/types";
 
 export interface CreateDesktopAgentActivityAdapterInput {
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   runtimeApi: Pick<DesktopRuntimeApi, "logTerminalDiagnostic">;
 }
 
 export function createDesktopAgentActivityAdapter({
-  nextopdClient,
+  tuttidClient,
   runtimeApi
 }: CreateDesktopAgentActivityAdapterInput): AgentActivityAdapter {
   return {
     async listSessions(input) {
-      const response = await nextopdClient.listWorkspaceAgentSessions(
+      const response = await tuttidClient.listWorkspaceAgentSessions(
         input.workspaceId
       );
       return {
         sessions: response.sessions.map((session) =>
-          agentActivitySessionFromNextopdSession(input.workspaceId, session)
+          agentActivitySessionFromTuttidSession(input.workspaceId, session)
         )
       };
     },
     async listSessionMessages(input) {
-      const response = await nextopdClient.listWorkspaceAgentSessionMessages(
+      const response = await tuttidClient.listWorkspaceAgentSessionMessages(
         input.workspaceId,
         input.agentSessionId,
         {
@@ -50,20 +50,20 @@ export function createDesktopAgentActivityAdapter({
         hasMore: response.hasMore,
         latestVersion: response.latestVersion,
         messages: response.messages.map((message) =>
-          agentActivityMessageFromNextopdMessage(input.workspaceId, message)
+          agentActivityMessageFromTuttidMessage(input.workspaceId, message)
         )
       };
     },
     async loadComposerOptions(input) {
       const cwd = input.cwd?.trim();
-      const result = await nextopdClient.getAgentProviderComposerOptions(
+      const result = await tuttidClient.getAgentProviderComposerOptions(
         workspaceAgentProvider(input.provider),
         {
           ...(cwd ? { cwd } : {}),
           settings: input.settings ?? {}
         }
       );
-      return agentActivityComposerOptionsFromNextopdResult(
+      return agentActivityComposerOptionsFromTuttidResult(
         input.provider,
         result
       );
@@ -82,7 +82,7 @@ export function createDesktopAgentActivityAdapter({
       );
     },
     async createSession(input) {
-      const session = await nextopdClient.createWorkspaceAgentSession(
+      const session = await tuttidClient.createWorkspaceAgentSession(
         input.workspaceId,
         {
           agentSessionId:
@@ -99,27 +99,34 @@ export function createDesktopAgentActivityAdapter({
           visible: input.visible ?? null
         }
       );
-      return agentActivitySessionFromNextopdSession(input.workspaceId, session);
+      return agentActivitySessionFromTuttidSession(input.workspaceId, session);
     },
     async sendInput(input) {
-      const session = await nextopdClient.sendWorkspaceAgentSessionInput(
+      const session = await tuttidClient.sendWorkspaceAgentSessionInput(
         input.workspaceId,
         input.agentSessionId,
         {
           content: input.content
         }
       );
-      return agentActivitySessionFromNextopdSession(input.workspaceId, session);
+      return agentActivitySessionFromTuttidSession(input.workspaceId, session);
     },
     async cancelSession(input) {
-      const session = await nextopdClient.cancelWorkspaceAgentSession(
+      const result = await tuttidClient.cancelWorkspaceAgentSessionWithResult(
         input.workspaceId,
         input.agentSessionId
       );
-      return agentActivitySessionFromNextopdSession(input.workspaceId, session);
+      return {
+        canceled: result.cancel.canceled,
+        reason: result.cancel.reason,
+        session: agentActivitySessionFromTuttidSession(
+          input.workspaceId,
+          result.session
+        )
+      };
     },
     async submitInteractive(input) {
-      return await nextopdClient.submitWorkspaceAgentInteractive(
+      return await tuttidClient.submitWorkspaceAgentInteractive(
         input.workspaceId,
         input.agentSessionId,
         input.requestId,
@@ -131,7 +138,7 @@ export function createDesktopAgentActivityAdapter({
       );
     },
     async deleteSession(input) {
-      return await nextopdClient.deleteWorkspaceAgentSession(
+      return await tuttidClient.deleteWorkspaceAgentSession(
         input.workspaceId,
         input.agentSessionId
       );
@@ -147,7 +154,7 @@ function createDesktopAgentActivitySessionId(): string {
   return `00000000-0000-4000-8000-${fallbackHex.slice(0, 12)}`;
 }
 
-export function agentActivitySessionFromNextopdSession(
+export function agentActivitySessionFromTuttidSession(
   workspaceId: string,
   session: WorkspaceAgentSession
 ): AgentActivitySession {
@@ -174,7 +181,7 @@ export function agentActivitySessionFromNextopdSession(
   };
 }
 
-export function agentActivityMessageFromNextopdMessage(
+export function agentActivityMessageFromTuttidMessage(
   workspaceId: string,
   message: WorkspaceAgentSessionMessage
 ): AgentActivityMessage {
@@ -218,7 +225,7 @@ function recordValue(value: unknown): Record<string, unknown> {
   return isRecord(value) ? { ...value } : {};
 }
 
-function agentActivityComposerOptionsFromNextopdResult(
+function agentActivityComposerOptionsFromTuttidResult(
   provider: string,
   value: unknown
 ): AgentActivityComposerOptions {
@@ -412,7 +419,7 @@ function normalizeSkillSourceKind(
     case "bundled":
     case "plugin":
     case "system":
-    case "nextop-injected":
+    case "tutti-injected":
       return normalized;
     default:
       return null;

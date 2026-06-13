@@ -12,7 +12,7 @@ export function DirectLinedIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
       fill="currentColor"
       aria-hidden
       data-nexight-chrome-glyph="fill"
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       {...props}
     >
       <path

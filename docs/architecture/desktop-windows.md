@@ -49,8 +49,8 @@ The current renderer content is intentionally minimal. The shell exists so the s
 
 Desktop startup currently follows this sequence:
 
-1. start or reconnect to `nextopd`
-2. ask `nextopd` for the daemon-selected startup workspace
+1. start or reconnect to `tuttid`
+2. ask `tuttid` for the daemon-selected startup workspace
 3. if a startup workspace exists, open the workspace window for it
 4. otherwise open the dashboard window
 
@@ -60,13 +60,13 @@ On macOS activation with no open windows, the app follows the same startup resol
 
 When a user opens a workspace from the dashboard:
 
-1. desktop asks `nextopd` to mark that workspace as opened
+1. desktop asks `tuttid` to mark that workspace as opened
 2. desktop creates the workspace window for that workspace
 3. desktop closes the dashboard window
 
 When a user creates a workspace from the dashboard:
 
-1. desktop asks `nextopd` to create a workspace record
+1. desktop asks `tuttid` to create a workspace record
 2. the resulting workspace is marked as opened
 3. desktop opens the workspace window
 4. desktop closes the dashboard window
@@ -103,10 +103,10 @@ Packaged builds intercept those shortcuts without reloading the product window.
 
 This window model follows the desktop layering rules:
 
-- `renderer` may use the preload-provided backend config to call `nextopd` for business APIs
+- `renderer` may use the preload-provided backend config to call `tuttid` for business APIs
 - `preload` exposes typed host capabilities and runtime bootstrap metadata
 - `main` owns daemon supervision, startup resolution, window creation, and native host capabilities
-- `nextopd` remains the source of truth for workspace catalog and recent-open semantics
+- `tuttid` remains the source of truth for workspace catalog and recent-open semantics
 
 ## Near-Term Deferrals
 

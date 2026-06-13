@@ -1588,7 +1588,7 @@ func TestClaudeCodeAdapterStartAppliesPlanMode(t *testing.T) {
 	}
 	instructions, ok := options["planModeInstructions"].(string)
 	if !ok || !strings.Contains(instructions, "do not edit files") || !strings.Contains(instructions, "implementation plan") {
-		t.Fatalf("planModeInstructions = %#v, want Nextop plan workflow instructions", options["planModeInstructions"])
+		t.Fatalf("planModeInstructions = %#v, want Tutti plan workflow instructions", options["planModeInstructions"])
 	}
 }
 
@@ -1766,10 +1766,10 @@ func TestClaudeCodeAdapterStartAppendsSessionScopedSystemPrompt(t *testing.T) {
 	t.Parallel()
 
 	systemPromptPath := filepath.Join(t.TempDir(), "claude-system-prompt.md")
-	if err := os.WriteFile(systemPromptPath, []byte("Use Nextop CLI for issue context."), 0o600); err != nil {
+	if err := os.WriteFile(systemPromptPath, []byte("Use Tutti CLI for issue context."), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	pluginDir := filepath.Join(t.TempDir(), "nextop-cli-plugin")
+	pluginDir := filepath.Join(t.TempDir(), "tutti-cli-plugin")
 	if err := os.MkdirAll(pluginDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -1800,7 +1800,7 @@ func TestClaudeCodeAdapterStartAppendsSessionScopedSystemPrompt(t *testing.T) {
 	if got, _ := systemPrompt["preset"].(string); got != "claude_code" {
 		t.Fatalf("systemPrompt.preset = %q, want claude_code", got)
 	}
-	if got, _ := systemPrompt["append"].(string); got != "Use Nextop CLI for issue context." {
+	if got, _ := systemPrompt["append"].(string); got != "Use Tutti CLI for issue context." {
 		t.Fatalf("systemPrompt.append = %q, want prompt file content", got)
 	}
 	claudeCode, ok := meta["claudeCode"].(map[string]any)
@@ -1835,7 +1835,7 @@ func TestClaudeCodeAdapterStartAppendsSessionScopedSystemPrompt(t *testing.T) {
 	}
 	instructions, ok := options["planModeInstructions"].(string)
 	if !ok || !strings.Contains(instructions, "do not edit files") || !strings.Contains(instructions, "implementation plan") {
-		t.Fatalf("planModeInstructions = %#v, want Nextop plan workflow instructions", options["planModeInstructions"])
+		t.Fatalf("planModeInstructions = %#v, want Tutti plan workflow instructions", options["planModeInstructions"])
 	}
 }
 

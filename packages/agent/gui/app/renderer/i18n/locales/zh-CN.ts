@@ -212,8 +212,8 @@ export const zhCN = {
     authenticating: "处理中…",
     loginTitle: "登录以继续",
     loginSectionTitle: "使用你的账号继续",
-    loginDescription: "选择一种登录方式，在浏览器完成登录后，再返回 Nextop。",
-    loginBrowserHint: "选择一种登录方式，在浏览器完成认证后，再返回 Nextop。",
+    loginDescription: "选择一种登录方式，在浏览器完成登录后，再返回 Tutti。",
+    loginBrowserHint: "选择一种登录方式，在浏览器完成认证后，再返回 Tutti。",
     loginOpeningBrowser: "正在打开浏览器...",
     loginContinueWithGoogle: "使用 Google 继续",
     loginContinueWithGitHub: "使用 GitHub 继续",
@@ -244,13 +244,13 @@ export const zhCN = {
     emailLoginCompleted: "邮箱登录完成。",
     emailRequired: "请输入邮箱地址。",
     emailCodeRequired: "请输入验证码。",
-    desktopAuthBridgeStale: "桌面端认证桥接已过期，请重启 Nextop 后重试。",
+    desktopAuthBridgeStale: "桌面端认证桥接已过期，请重启 Tutti 后重试。",
     desktopActionErrorGeneric: "出错了，请稍后重试。",
     desktopActionErrorGenericShort: "出错了",
     desktopActionErrorUnavailable: "该功能暂不可用。",
-    desktopActionErrorLoginTimedOut: "登录已超时，请返回 Nextop 后重试。",
+    desktopActionErrorLoginTimedOut: "登录已超时，请返回 Tutti 后重试。",
     desktopActionErrorDesktopApiUnavailable:
-      "桌面端服务正在更新，请重启 Nextop 后重试。",
+      "桌面端服务正在更新，请重启 Tutti 后重试。",
     desktopActionErrorPackageDownloadInterrupted:
       "智能体安装包下载中断。请检查网络后点击重试。",
     desktopActionErrorPackageDownloadHTTPStatus:
@@ -259,7 +259,7 @@ export const zhCN = {
       "下载的安装包未通过完整性校验。请重新下载。",
     desktopActionErrorPackageDownloadDisk:
       "无法写入安装包缓存。请检查磁盘空间和目录权限。",
-    productNameCanvas: "Nextop",
+    productNameCanvas: "Tutti",
     applications: {
       eyebrow: "Agent OS 应用",
       title: "应用中心",
@@ -328,6 +328,7 @@ export const zhCN = {
       followupPlaceholder: "要求 {{provider}} 继续后续变更",
       installRequiredPlaceholder:
         "请先从 Dock 安装 {{provider}}，然后再发送消息",
+      collaboratorSessionReadOnlyPlaceholder: "非当前用户会话，不可直接对话",
       send: "发送",
       modelLabel: "模型",
       modelSelectionLabel: "模型选择",
@@ -617,6 +618,7 @@ export const zhCN = {
       approvalUnavailable: "没有可用选项。",
       approvalOptions: {
         allowOnce: "允许执行",
+        allowForSession: "本次会话允许",
         allowAlways: "允许，并且不再询问",
         allowAlwaysForCommandPrefix:
           "允许，并且不再询问以 `{{command}}` 开头的命令",
@@ -738,26 +740,8 @@ export const zhCN = {
         selectedCount: "已选择 {{count}} 项",
         title: "选择工作区引用"
       },
-      projectLabel: "项目",
-      noProject: "不使用项目",
-      addProject: "添加新项目",
-      createProjectConfirm: "创建",
-      createProjectDocumentsUnavailable: "无法访问 Documents，请改用已有项目",
-      createProjectFailed: "无法创建项目",
-      createProjectNameConflict: "已存在同名项目，请换一个名称",
-      createProjectNameInvalid: "项目名称不能为空，也不能包含路径分隔符",
-      createProjectNameLabel:
-        "输入项目名称，将在 Documents/nextop 下创建文件夹",
-      createProjectNamePlaceholder: "项目名称",
-      createProjectNameRequired: "请输入项目名称",
-      createProjectPermissionDenied: "Nextop 没有权限在 Documents 下创建文件夹",
-      createProjectTitle: "添加新项目",
-      linkExistingProject: "使用已有项目",
       projectLocked: "会话开始后项目不可更改",
       projectMissingDescription: "此对话的工作目录已不存在",
-      projectMissingTitle: "当前工作目录缺失",
-      loadingProjects: "正在加载项目",
-      projectUnavailable: "项目不可用",
       fileMentionSwitchCategory: "切换分类",
       fileMentionSwitchSelection: "切换选中",
       mentionFilterAll: "全部",
@@ -801,7 +785,7 @@ export const zhCN = {
         requirementStayInWorkspace:
           "1. 在 {{workspaceRoot}} 下工作，不要切换到其他无关目录。",
         requirementSummaryOutput:
-          "2. 如果用户没有另行指定位置，至少输出 docs/nextop/issue_summary_{{issueId}}.md，说明处理结果、改动与结论。",
+          "2. 如果用户没有另行指定位置，至少输出 docs/tutti/issue_summary_{{issueId}}.md，说明处理结果、改动与结论。",
         taskContentLabel: "任务内容",
         taskTitleLabel: "任务标题"
       },
@@ -1001,11 +985,11 @@ export const zhCN = {
     workspaceParticipantsOverflowAria: "更多 Workspace 成员",
     workspaceXagentsCollab: "xagents 协同",
     workspaceThemeHint: "主题与外观",
-    loadingNextop: "正在加载 Nextop…",
+    loadingTutti: "正在加载 Tutti…",
     runtimeArtifactStatus: {
       startupTitle: "正在准备 Workspace 运行环境",
       startupDescription:
-        "Nextop 正在准备本机 Workspace 运行环境，完成后会进入登录页或首页。首次启动可能需要几分钟。",
+        "Tutti 正在准备本机 Workspace 运行环境，完成后会进入登录页或首页。首次启动可能需要几分钟。",
       startupProgressHint: "正在检查本地运行环境文件并准备下载。",
       downloadedOfTotal: "{{downloaded}} / {{total}}",
       progressAria: "Workspace 运行环境下载进度",
@@ -1506,7 +1490,7 @@ export const zhCN = {
       requesterFallback: "用户",
       agentCodex: "Codex",
       agentClaudeCode: "Claude Code",
-      agentNextop: "Nextop",
+      agentTutti: "Tutti",
       agentHermes: "Hermes",
       agentGemini: "Gemini",
       agentOpenClaw: "OpenClaw",
@@ -1535,6 +1519,7 @@ export const zhCN = {
       taskCompletedCount: "{{count}} 个已完成",
       issueStatusNotStarted: "未启动",
       issueStatusRunning: "执行中",
+      issueStatusInProgress: "已推进",
       issueStatusPendingAcceptance: "待验收",
       issueStatusCompleted: "已完成",
       issueStatusFailed: "失败",
@@ -1684,7 +1669,7 @@ export const zhCN = {
         agentNotSynced: "检测到本机配置，是否立即同步？"
       },
       manageAgentsGuideLead:
-        "同步或移除只影响 Nextop，不会改动你电脑上的智能体。",
+        "同步或移除只影响 Tutti，不会改动你电脑上的智能体。",
       manageAgentsColumnAgent: "智能体",
       manageAgentsColumnRun: "运行在",
       manageAgentsColumnInstallStatus: "同步状态",
@@ -1701,8 +1686,8 @@ export const zhCN = {
       manageAgentActionUninstalling: "正在移除…",
       manageAgentActionUninstallWaiting: "等待移除…",
       manageAgentUninstallConfirm:
-        "只会从 Nextop 中移除 {{name}}，不会影响 Nextop 以外的应用、登录状态或配置。",
-      manageAgentCellRunsLocal: "Nextop 本地",
+        "只会从 Tutti 中移除 {{name}}，不会影响 Tutti 以外的应用、登录状态或配置。",
+      manageAgentCellRunsLocal: "Tutti 本地",
       manageAgentCellInstalled: "已同步",
       manageAgentCellNotInstalled: "未同步",
       manageAgentUninstallWaiting: "等待移除",
@@ -1717,13 +1702,13 @@ export const zhCN = {
         "同步后会沿用 {{device}} 上的 {{agent}} 配置",
       manageAgentConfigSynced: "已同步 · {{time}}",
       manageAgentConfigSyncedNoTime: "已同步",
-      manageAgentConfigSyncedFrom: "已从 {{device}} 同步到 Nextop · {{time}}",
-      manageAgentConfigSyncedFromNoTime: "已从 {{device}} 同步到 Nextop",
+      manageAgentConfigSyncedFrom: "已从 {{device}} 同步到 Tutti · {{time}}",
+      manageAgentConfigSyncedFromNoTime: "已从 {{device}} 同步到 Tutti",
       manageAgentConfigNone: "未发现配置",
       manageAgentConfigNotDetected: "未检测到本机配置",
       manageAgentMissingHostConfigTooltip:
         "{{agent}} 依赖你的本地安装，请先完成本地安装再进行同步",
-      manageAgentNextopDefaultConfig: "Nextop 默认配置",
+      manageAgentTuttiDefaultConfig: "Tutti 默认配置",
       manageAgentHostDeviceFallback: "这台电脑",
       manageAgentSyncTimeJustNow: "刚刚",
       manageAgentSyncTimeMinutesAgo: "{{count}} 分钟前",
@@ -1731,7 +1716,7 @@ export const zhCN = {
       manageAgentSyncTimeDaysAgo: "{{count}} 天前",
       manageAgentsOpenclawHint:
         "若要在房间内使用 OpenClaw，请前往管理智能体同步 OpenClaw。",
-      kicker: "Nextop · 桌面工作台",
+      kicker: "Tutti · 桌面工作台",
       promoBadge: "你目前有 {{count}} 个可用 agents，可以在房间内使用它们。",
       promoBadgeNavigateAria:
         "前往管理智能体，你目前有 {{count}} 个可用 agents",
@@ -1744,7 +1729,7 @@ export const zhCN = {
       updateCardDownloadingTitle: "正在下载 {{version}}",
       updateCardDownloadingDetail: "更新包正在后台下载。",
       updateCardDownloadedTitle: "更新已准备就绪",
-      updateCardDownloadedDetail: "重启 Nextop 后即可完成 {{version}} 的安装。",
+      updateCardDownloadedDetail: "重启 Tutti 后即可完成 {{version}} 的安装。",
       updateCardDownloadAction: "下载更新",
       updateCardInstallAction: "重启并安装",
       sectionSpacesTitle: "房间",
@@ -1801,9 +1786,9 @@ export const zhCN = {
       sectionMoreAriaComingSoon: "更多，即将推出",
       sectionMoreComingSoonHint: "即将推出",
       betaGateCheckingTitle: "正在检查内测权限",
-      betaGateCheckingBody: "我们正在确认当前账号是否已经拥有 Nextop 内测资格",
+      betaGateCheckingBody: "我们正在确认当前账号是否已经拥有 Tutti 内测资格",
       betaGateBlockedTitle: "当前账号暂未获得内测资格",
-      betaGateBlockedBody: "输入邀请码以解锁 Nextop 桌面端内测",
+      betaGateBlockedBody: "输入邀请码以解锁 Tutti 桌面端内测",
       betaGateInviteCodeLabel: "邀请码",
       betaGateInviteCodePlaceholder: "输入邀请码",
       betaGateInviteCodeRequired: "请先输入邀请码。",
@@ -2120,7 +2105,7 @@ export const zhCN = {
       openclaw: "OpenClaw",
       claudeCode: "Claude",
       codex: "Codex",
-      nexightAgent: "Nextop 智能体"
+      nexightAgent: "Tutti 智能体"
     },
     dockPopupAgentAvailabilitySectionAria: "{{name}} 的可用性状态",
     nodeDockContextNew: {

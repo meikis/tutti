@@ -58,8 +58,8 @@ type standardACPSession struct {
 type pendingACPApproval = pendingACPRequest
 
 const acpMethodSetConfigOption = "session/set_config_option"
-const claudeSystemPromptFileEnv = "NEXTOP_CLAUDE_SYSTEM_PROMPT_FILE"
-const claudePluginDirEnv = "NEXTOP_CLAUDE_PLUGIN_DIR"
+const claudeSystemPromptFileEnv = "TUTTI_CLAUDE_SYSTEM_PROMPT_FILE"
+const claudePluginDirEnv = "TUTTI_CLAUDE_PLUGIN_DIR"
 const claudeSDKMessageMethod = "_claude/sdkMessage"
 const claudePlanModeInstructions = "You are in plan mode. Inspect files and gather context as needed, but do not edit files, run mutation commands, or make external changes. Produce a concrete implementation plan first. If the user gives feedback, refine the plan. Only after the user approves leaving plan mode may you implement changes."
 

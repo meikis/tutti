@@ -3,7 +3,7 @@ import test from "node:test";
 import type {
   HealthStatusResponse,
   WorkspaceSummary
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { ReporterEventInput } from "../../../analytics/services/reporterService.interface.ts";
 import type { DesktopWorkspaceCatalogGateway } from "./adapters/desktopWorkspaceCatalogGateway";
 import { WorkspaceCatalogService } from "./workspaceCatalogService.ts";
@@ -23,7 +23,7 @@ function createHealthStatus(
   overrides: Partial<HealthStatusResponse> = {}
 ): HealthStatusResponse {
   return {
-    service: "nextopd",
+    service: "tuttid",
     status: "ok",
     ...overrides
   };
@@ -126,7 +126,7 @@ test("WorkspaceCatalogService loads workspace window data and health", async () 
 
   assert.equal(service.store.status, "ready");
   assert.equal(service.store.workspace?.id, "workspace-9");
-  assert.equal(service.store.health?.service, "nextopd");
+  assert.equal(service.store.health?.service, "tuttid");
   assert.deepEqual(reporterCalls, [
     [
       {
@@ -243,7 +243,7 @@ test("WorkspaceCatalogService ignores stale workspace-window loads", async () =>
   const secondLoad = service.loadWorkspaceWindow("workspace-new", "workspace");
   await secondLoad;
 
-  firstHealth.resolve(createHealthStatus({ service: "stale-nextopd" }));
+  firstHealth.resolve(createHealthStatus({ service: "stale-tuttid" }));
   firstWorkspace.resolve(
     createWorkspaceSummary({
       id: "workspace-old",
@@ -255,7 +255,7 @@ test("WorkspaceCatalogService ignores stale workspace-window loads", async () =>
   assert.equal(service.store.workspaceID, "workspace-new");
   assert.equal(service.store.workspace?.id, "workspace-new");
   assert.equal(service.store.workspace?.name, "Newest Workspace");
-  assert.equal(service.store.health?.service, "nextopd");
+  assert.equal(service.store.health?.service, "tuttid");
 });
 
 test("WorkspaceCatalogService rename updates current workspace", async () => {

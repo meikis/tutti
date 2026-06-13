@@ -1,19 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {
-  NextopdClient,
+  TuttidClient,
   PermissionModeSemantic,
   WorkspaceAgentSession,
   WorkspaceAgentSessionMessage
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import { createDesktopAgentActivityAdapter } from "./desktopAgentActivityAdapter.ts";
 
 const workspaceId = "workspace-1";
 
-test("desktop agent activity adapter maps nextopd sessions and messages", async () => {
+test("desktop agent activity adapter maps tuttid sessions and messages", async () => {
   const calls: Array<{ method: string; args: unknown[] }> = [];
   const adapter = createDesktopAgentActivityAdapter({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async listWorkspaceAgentSessions(requestWorkspaceId: string) {
         calls.push({
           args: [requestWorkspaceId],
@@ -138,10 +138,54 @@ test("desktop agent activity adapter maps nextopd sessions and messages", async 
   });
 });
 
+test("desktop agent activity adapter returns cancel result metadata", async () => {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  const adapter = createDesktopAgentActivityAdapter({
+    tuttidClient: createTuttidClient({
+      async cancelWorkspaceAgentSessionWithResult(
+        requestWorkspaceId: string,
+        agentSessionId: string
+      ) {
+        calls.push({
+          args: [requestWorkspaceId, agentSessionId],
+          method: "cancelWithResult"
+        });
+        return {
+          cancel: {
+            canceled: false,
+            reason: "no_active_turn"
+          },
+          session: createSession({
+            id: agentSessionId,
+            status: "created"
+          })
+        };
+      }
+    }),
+    runtimeApi: createRuntimeApi()
+  });
+
+  const result = await adapter.cancelSession({
+    workspaceId,
+    agentSessionId: "agent-session-1"
+  });
+
+  assert.deepEqual(calls, [
+    {
+      args: [workspaceId, "agent-session-1"],
+      method: "cancelWithResult"
+    }
+  ]);
+  assert.equal(result.canceled, false);
+  assert.equal(result.reason, "no_active_turn");
+  assert.equal(result.session.agentSessionId, "agent-session-1");
+  assert.equal(result.session.status, "created");
+});
+
 test("desktop agent activity adapter requires an injected session event subscription", async () => {
   const diagnostics: unknown[] = [];
   const adapter = createDesktopAgentActivityAdapter({
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     runtimeApi: createRuntimeApi(diagnostics)
   });
 
@@ -167,10 +211,10 @@ test("desktop agent activity adapter requires an injected session event subscrip
   ]);
 });
 
-test("desktop agent activity adapter submits interactive responses through nextopd", async () => {
+test("desktop agent activity adapter submits interactive responses through tuttid", async () => {
   const calls: unknown[] = [];
   const adapter = createDesktopAgentActivityAdapter({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async submitWorkspaceAgentInteractive(
         requestWorkspaceId,
         agentSessionId,
@@ -209,7 +253,7 @@ test("desktop agent activity adapter submits interactive responses through nexto
 test("desktop agent activity adapter normalizes provider composer options", async () => {
   const calls: unknown[] = [];
   const adapter = createDesktopAgentActivityAdapter({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async getAgentProviderComposerOptions(provider, request) {
         calls.push([provider, request]);
         return {
@@ -321,7 +365,7 @@ test("desktop agent activity adapter normalizes provider composer options", asyn
 test("desktop agent activity adapter sends plan mode when creating sessions", async () => {
   const calls: unknown[] = [];
   const adapter = createDesktopAgentActivityAdapter({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async createWorkspaceAgentSession(requestWorkspaceId, request) {
         calls.push([requestWorkspaceId, request]);
         return createSession({
@@ -368,7 +412,7 @@ test("desktop agent activity adapter sends plan mode when creating sessions", as
 
 test("desktop agent activity adapter normalizes legacy runtime config options", async () => {
   const adapter = createDesktopAgentActivityAdapter({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async getAgentProviderComposerOptions(provider) {
         return {
           provider,
@@ -421,12 +465,21 @@ test("desktop agent activity adapter normalizes legacy runtime config options", 
   ]);
 });
 
-function createNextopdClient(
-  overrides: Partial<NextopdClient> = {}
-): NextopdClient {
+function createTuttidClient(
+  overrides: Partial<TuttidClient> = {}
+): TuttidClient {
   return {
     async cancelWorkspaceAgentSession() {
       return createSession({ status: "canceled" });
+    },
+    async cancelWorkspaceAgentSessionWithResult() {
+      return {
+        cancel: {
+          canceled: true,
+          reason: "active_turn_canceled"
+        },
+        session: createSession({ status: "canceled" })
+      };
     },
     async createWorkspaceAgentSession() {
       return createSession();
@@ -472,7 +525,7 @@ function createNextopdClient(
       return createSession({ status: "running" });
     },
     ...overrides
-  } as unknown as NextopdClient;
+  } as unknown as TuttidClient;
 }
 
 function createRuntimeApi(diagnostics: unknown[] = []) {

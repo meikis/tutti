@@ -1,0 +1,57 @@
+package agentprovider
+
+import "strings"
+
+const (
+	ClaudeCode = "claude-code"
+	Codex      = "codex"
+	Gemini     = "gemini"
+	Hermes     = "hermes"
+	Nexight    = "nexight"
+	OpenClaw   = "openclaw"
+)
+
+var allProviders = []string{
+	ClaudeCode,
+	Codex,
+	Nexight,
+	Gemini,
+	Hermes,
+	OpenClaw,
+}
+
+func All() []string {
+	return append([]string(nil), allProviders...)
+}
+
+func Normalize(provider string) string {
+	switch strings.TrimSpace(strings.ToLower(provider)) {
+	case "claude", ClaudeCode:
+		return ClaudeCode
+	case Codex:
+		return Codex
+	case "gemini-cli", Gemini:
+		return Gemini
+	case "hermes-agent", Hermes:
+		return Hermes
+	case "tutti", Nexight:
+		return Nexight
+	case "open-claw", OpenClaw:
+		return OpenClaw
+	default:
+		return ""
+	}
+}
+
+func IsSupported(provider string) bool {
+	return Normalize(provider) != ""
+}
+
+func SupportsComposerSettings(provider string) bool {
+	switch Normalize(provider) {
+	case ClaudeCode, Codex, Gemini:
+		return true
+	default:
+		return false
+	}
+}

@@ -33,11 +33,11 @@ const workspaceUserProjectEn = {
     createProjectNameInvalid:
       "Project names cannot contain path separators or empty values.",
     createProjectNameLabel:
-      "Enter a project name. A folder will be created in Documents/nextop",
+      "Enter a project name. A folder will be created in Documents/tutti",
     createProjectNamePlaceholder: "Project name",
     createProjectNameRequired: "Project name is required",
     createProjectPermissionDenied:
-      "Nextop does not have permission to create folders in Documents.",
+      "Tutti does not have permission to create folders in Documents.",
     createProjectTitle: "Add project",
     linkExistingProject: "Use existing project",
     loadingProjects: "Loading projects",
@@ -60,14 +60,14 @@ const workspaceUserProjectZhCN = {
     createProjectNameConflict: "同名项目已存在，请换一个名称。",
     createProjectNameInvalid: "项目名称不能包含路径分隔符或为空。",
     createProjectNameLabel:
-      "输入项目名称。系统会在 Documents/nextop 中创建文件夹",
+      "输入项目名称。系统会在 Documents/tutti 中创建文件夹",
     createProjectNamePlaceholder: "项目名称",
     createProjectNameRequired: "请输入项目名称",
-    createProjectPermissionDenied: "Nextop 没有权限在 Documents 中创建文件夹。",
+    createProjectPermissionDenied: "Tutti 没有权限在 Documents 中创建文件夹。",
     createProjectTitle: "添加项目",
     linkExistingProject: "使用已有项目",
     loadingProjects: "正在加载项目",
-    noProject: "无项目",
+    noProject: "不使用项目",
     projectLabel: "项目",
     projectLocked: "项目已锁定",
     projectMissingTitle: "当前工作目录不存在",

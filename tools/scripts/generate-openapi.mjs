@@ -19,28 +19,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../..");
 const specPath = resolve(
   repoRoot,
-  "services/nextopd/api/openapi/nextopd.v1.yaml"
+  "services/tuttid/api/openapi/tuttid.v1.yaml"
 );
-const fragmentExtensionKey = "x-nextop-openapi-fragments";
+const fragmentExtensionKey = "x-tutti-openapi-fragments";
 const goTypesConfigPath = resolve(
   repoRoot,
-  "services/nextopd/api/openapi/oapi-codegen.types.yaml"
+  "services/tuttid/api/openapi/oapi-codegen.types.yaml"
 );
 const goServerConfigPath = resolve(
   repoRoot,
-  "services/nextopd/api/openapi/oapi-codegen.server.yaml"
+  "services/tuttid/api/openapi/oapi-codegen.server.yaml"
 );
 const goTypesOutputPath = resolve(
   repoRoot,
-  "services/nextopd/api/generated/types.gen.go"
+  "services/tuttid/api/generated/types.gen.go"
 );
 const goServerOutputPath = resolve(
   repoRoot,
-  "services/nextopd/api/generated/server.gen.go"
+  "services/tuttid/api/generated/server.gen.go"
 );
 const tsOutputDir = resolve(
   repoRoot,
-  "packages/clients/nextopd-ts/src/generated"
+  "packages/clients/tuttid-ts/src/generated"
 );
 const prettierConfigPath = resolve(
   repoRoot,
@@ -50,14 +50,14 @@ const checkOnly = process.argv.includes("--check");
 
 syncWorkbenchOpenApiSchema();
 
-const scratchRoot = mkdtempSync(join(tmpdir(), "nextop-openapi-"));
+const scratchRoot = mkdtempSync(join(tmpdir(), "tutti-openapi-"));
 
 try {
-  const composedSpecPath = resolve(scratchRoot, "nextopd.v1.composed.yaml");
+  const composedSpecPath = resolve(scratchRoot, "tuttid.v1.composed.yaml");
   const goTypesScratchPath = resolve(scratchRoot, "go/types.gen.go");
   const goServerScratchPath = resolve(scratchRoot, "go/server.gen.go");
   const tsScratchDir = resolve(scratchRoot, "ts");
-  const tsSpecPath = resolve(scratchRoot, "ts/nextopd-ts-spec.yaml");
+  const tsSpecPath = resolve(scratchRoot, "ts/tuttid-ts-spec.yaml");
 
   writeComposedOpenAPISpec(composedSpecPath);
   generateGo(goTypesConfigPath, goTypesScratchPath, composedSpecPath);
@@ -93,7 +93,7 @@ function generateGo(configPath, outputPath, inputPath) {
       inputPath
     ],
     {
-      cwd: resolve(repoRoot, "services/nextopd"),
+      cwd: resolve(repoRoot, "services/tuttid"),
       stdio: "inherit"
     }
   );

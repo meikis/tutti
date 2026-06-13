@@ -1,7 +1,7 @@
 import type {
   AgentProviderAction,
   AgentProviderStatus
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { WorkbenchHostDockEntry } from "@tutti-os/workbench-surface";
 
 export interface WorkspaceAgentProviderDockStatusCopy {

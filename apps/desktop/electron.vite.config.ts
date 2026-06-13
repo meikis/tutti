@@ -35,7 +35,7 @@ const aliases = {
 
 const externalizeRuntimeDeps = externalizeDepsPlugin({
   exclude: [
-    "@tutti-os/client-nextopd-ts",
+    "@tutti-os/client-tuttid-ts",
     "@tutti-os/browser-node",
     "@tutti-os/event-protocol",
     "@tutti-os/agent-gui",
@@ -50,6 +50,13 @@ const externalizeRuntimeDeps = externalizeDepsPlugin({
 const bundledWsDefines = {
   "process.env.WS_NO_BUFFER_UTIL": '"true"',
   "process.env.WS_NO_UTF_8_VALIDATE": '"true"'
+};
+
+const devServer = {
+  host: "127.0.0.1",
+  hmr: {
+    host: "127.0.0.1"
+  }
 };
 
 const webkitBackdropFilterPattern =
@@ -143,6 +150,7 @@ export default defineConfig({
     }
   },
   renderer: {
+    server: devServer,
     plugins: [
       react({
         babel: {

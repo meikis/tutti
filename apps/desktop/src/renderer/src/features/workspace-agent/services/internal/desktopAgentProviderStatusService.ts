@@ -2,9 +2,9 @@ import type {
   AgentProviderActionRunResponse,
   AgentProviderStatus,
   AgentProviderStatusListResponse,
-  NextopdClient,
+  TuttidClient,
   WorkspaceAgentProvider
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import { AgentProviderLoginInitiatedReporter } from "../../../analytics/reporters/agent-provider-login-initiated/agentProviderLoginInitiatedReporter.ts";
 import { AgentProviderLoginResultReporter } from "../../../analytics/reporters/agent-provider-login-result/agentProviderLoginResultReporter.ts";
 import type { IReporterService } from "../../../analytics/services/reporterService.interface.ts";
@@ -23,7 +23,7 @@ import { getActiveLocale } from "../../../../i18n/runtime.ts";
 import { resolveDesktopErrorMessage } from "../../../../lib/desktopErrors.ts";
 
 export interface DesktopAgentProviderStatusServiceDependencies {
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   reporterNow?: () => number;
   reporterService?: Pick<IReporterService, "trackEvents">;
   requestTimeoutMs?: number;
@@ -121,7 +121,7 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
     const requestId = this.requestSequence + 1;
     this.requestSequence = requestId;
     const request = withTimeout(
-      this.dependencies.nextopdClient.getAgentProviderStatuses(input),
+      this.dependencies.tuttidClient.getAgentProviderStatuses(input),
       this.dependencies.requestTimeoutMs ?? defaultRequestTimeoutMs
     )
       .then((response) => {
@@ -199,7 +199,7 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
     try {
       if (action.id === "install") {
         await runInstalledProviderAction(
-          this.dependencies.nextopdClient,
+          this.dependencies.tuttidClient,
           provider
         );
         await this.refresh([provider]);
@@ -464,13 +464,10 @@ class AgentProviderInstallActionFailedError extends Error {
 }
 
 async function runInstalledProviderAction(
-  nextopdClient: NextopdClient,
+  tuttidClient: TuttidClient,
   provider: WorkspaceAgentProvider
 ): Promise<void> {
-  const result = await nextopdClient.runAgentProviderAction(
-    provider,
-    "install"
-  );
+  const result = await tuttidClient.runAgentProviderAction(provider, "install");
   if (result.status !== "failed") {
     return;
   }

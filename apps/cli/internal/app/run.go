@@ -19,7 +19,7 @@ type options struct {
 }
 
 func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer) int {
-	return RunWithProgram(ctx, "nextop", args, stdout, stderr)
+	return RunWithProgram(ctx, "tutti", args, stdout, stderr)
 }
 
 func RunWithProgram(ctx context.Context, program string, args []string, stdout io.Writer, stderr io.Writer) int {
@@ -48,10 +48,10 @@ func RunWithProgram(ctx context.Context, program string, args []string, stdout i
 func displayCommandName(program string) string {
 	name := filepath.Base(strings.TrimSpace(program))
 	if name == "." || name == "" {
-		name = "nextop"
+		name = "tutti"
 	}
-	if strings.EqualFold(name, "nextop") && isDevelopmentCLI(program) {
-		return "nextop-dev"
+	if strings.EqualFold(name, "tutti") && isDevelopmentCLI(program) {
+		return "tutti-dev"
 	}
 	return name
 }
@@ -170,8 +170,8 @@ func runHelp(ctx context.Context, commandName string, stdout io.Writer) int {
 func cliInvokeContextFromEnv() daemon.InvokeContext {
 	return daemon.InvokeContext{
 		Source:          "cli",
-		WorkspaceID:     strings.TrimSpace(os.Getenv("NEXTOP_WORKSPACE_ID")),
-		ParentCommandID: strings.TrimSpace(os.Getenv("NEXTOP_APP_CLI_PARENT_COMMAND_ID")),
+		WorkspaceID:     strings.TrimSpace(os.Getenv("TUTTI_WORKSPACE_ID")),
+		ParentCommandID: strings.TrimSpace(os.Getenv("TUTTI_APP_CLI_PARENT_COMMAND_ID")),
 	}
 }
 
@@ -381,7 +381,7 @@ func printHelp(stdout io.Writer, commandName string, commands []daemon.Capabilit
 	fmt.Fprintf(stdout, "Usage: %s [--json] <command>\n", commandName)
 	fmt.Fprintln(stdout)
 	fmt.Fprintln(stdout, "Commands:")
-	rows := []helpCommandRow{{Name: "status", Summary: "Show local nextopd status"}}
+	rows := []helpCommandRow{{Name: "status", Summary: "Show local tuttid status"}}
 	rows = append(rows, rootHelpRows(commands)...)
 	printHelpRows(stdout, rows)
 }

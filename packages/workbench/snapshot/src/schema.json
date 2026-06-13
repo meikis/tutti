@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nextop.local/schemas/workbench-snapshot.v1.json",
+  "$id": "https://tutti.local/schemas/workbench-snapshot.v1.json",
   "title": "WorkbenchSnapshotV1",
   "type": "object",
   "additionalProperties": false,

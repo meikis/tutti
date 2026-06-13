@@ -26,7 +26,7 @@ export const en = {
     createWorkspace: "Create workspace",
     creatingWorkspace: "Creating...",
     desktopFirstWorkflowDescription:
-      "Renderer state stays presentation-only. Workspace lifecycle still flows through preload and nextopd.",
+      "Renderer state stays presentation-only. Workspace lifecycle still flows through preload and tuttid.",
     desktopFirstWorkflowTitle: "Desktop-first workflow",
     emptyDescription: "Create a workspace and Tutti will open it right away.",
     emptyTitle: "No workspaces yet",
@@ -171,7 +171,7 @@ export const en = {
       lastOpenedDescription: "Last time this workspace was restored or opened.",
       lastOpenedLabel: "Last opened",
       rendererRoleDescription:
-        "Desktop UI remains presentation-only while nextopd owns durable state.",
+        "Desktop UI remains presentation-only while tuttid owns durable state.",
       rendererRoleLabel: "Renderer role",
       rendererRoleValue: "UI shell"
     },
@@ -220,7 +220,7 @@ export const en = {
             "Project-level skills are resolved inside each session.",
           sourceKinds: {
             bundled: "Bundled",
-            nextopInjected: "Nextop",
+            tuttiInjected: "Tutti",
             personal: "Personal",
             plugin: "Plugin",
             project: "Project",
@@ -311,18 +311,29 @@ export const en = {
           deleting: "Deleting...",
           deleteFailed: "We couldn't delete that managed provider.",
           deleteSucceeded: "Managed provider deleted.",
+          addModel: "Add",
           description:
             "Store provider credentials in Tutti and let workspace apps request short-lived access.",
+          detectModels: "Detect models",
+          detectingModels: "Detecting...",
+          detectModelsEmpty: "No models were found for that provider.",
+          detectModelsFailed: "We couldn't detect models for that provider.",
+          detectModelsSucceeded: "Provider models detected.",
           enabled: "Enable {{provider}}",
+          hideApiKey: "Hide API key",
           keyConfigured: "API key saved in Tutti",
           keyMissing: "API key not configured",
           keepExistingKey: "Leave blank to keep the saved key",
           loadFailed: "We couldn't load managed model providers.",
+          modelId: "Model ID",
+          modelIdPlaceholder: "model-id",
           models: "Models",
+          removeModel: "Remove model",
           save: "Save",
           saveFailed: "We couldn't save that managed provider.",
           saveSucceeded: "Managed provider saved.",
           saving: "Saving...",
+          showApiKey: "Show API key",
           test: "Test",
           testFailed: "Provider test failed.",
           testSucceeded: "Provider test succeeded.",
@@ -482,6 +493,8 @@ export const en = {
     transport_request_failed:
       "An unexpected service error occurred. Please try again.",
     transport_timeout: "That desktop request timed out.",
+    workspace_app_factory_publish_failed:
+      "The app draft did not pass its pre-publish check. Fix it from App Center before publishing.",
     workspace_file_not_found:
       "That file or folder could not be found in the workspace.",
     workspace_not_found: "That workspace could not be found.",

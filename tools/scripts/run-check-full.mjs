@@ -14,6 +14,7 @@ const phases = [
       { label: "defaults", script: "check:defaults-generated" },
       { label: "api", script: "check:api-generated" },
       { label: "event-protocol", script: "check:event-protocol-generated" },
+      { label: "tutti-names", script: "check:tutti-names" },
       { label: "i18n", script: "check:i18n" },
       {
         label: "electron-runtime-boundaries",

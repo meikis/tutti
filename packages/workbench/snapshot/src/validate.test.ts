@@ -5,7 +5,7 @@ import {
   invalidDisplayModeWorkbenchSnapshotFixture,
   invalidFrameWorkbenchSnapshotFixture,
   minimalWorkbenchSnapshotFixture,
-  nextopWorkbenchSnapshotFixture,
+  tuttiWorkbenchSnapshotFixture,
   oversizedWorkbenchSnapshotFixture,
   workbenchSnapshotWithSpacesFixture
 } from "./fixtures.ts";
@@ -15,7 +15,7 @@ import {
 } from "./index.ts";
 
 test("validates a fixture snapshot", () => {
-  const result = validateWorkbenchSnapshot(nextopWorkbenchSnapshotFixture);
+  const result = validateWorkbenchSnapshot(tuttiWorkbenchSnapshotFixture);
   assert.equal(result.ok, true);
   assert.deepEqual(result.issues, []);
 });
@@ -90,7 +90,7 @@ test("rejects deprecated renderer node fields", () => {
 test("accepts canonical contract fixtures", () => {
   for (const fixture of [
     minimalWorkbenchSnapshotFixture,
-    nextopWorkbenchSnapshotFixture,
+    tuttiWorkbenchSnapshotFixture,
     workbenchSnapshotWithSpacesFixture
   ]) {
     const result = validateWorkbenchSnapshot(fixture);

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nextop.dev/schemas/ui-system-components.schema.json",
-  "title": "Nextop UI System Component Metadata",
+  "$id": "https://tutti.dev/schemas/ui-system-components.schema.json",
+  "title": "Tutti UI System Component Metadata",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "components"],

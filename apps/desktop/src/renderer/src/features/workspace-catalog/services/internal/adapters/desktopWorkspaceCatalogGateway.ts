@@ -1,8 +1,8 @@
 import type {
   HealthStatusResponse,
-  NextopdClient,
+  TuttidClient,
   WorkspaceSummary
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopHostWorkspaceApi } from "@preload/types";
 
 export interface DesktopWorkspaceCatalogGateway {
@@ -17,20 +17,20 @@ export interface DesktopWorkspaceCatalogGateway {
 
 export function createDesktopWorkspaceCatalogGateway(
   _hostWorkspaceApi: DesktopHostWorkspaceApi,
-  nextopdClient: NextopdClient
+  tuttidClient: TuttidClient
 ): DesktopWorkspaceCatalogGateway {
   return {
     getHealth() {
-      return nextopdClient.getHealth();
+      return tuttidClient.getHealth();
     },
     getStartupWorkspace() {
-      return nextopdClient.getStartupWorkspace();
+      return tuttidClient.getStartupWorkspace();
     },
     getWorkspace(workspaceID: string) {
-      return nextopdClient.getWorkspace(workspaceID);
+      return tuttidClient.getWorkspace(workspaceID);
     },
     renameWorkspace(workspaceID: string, payload: { name: string }) {
-      return nextopdClient.updateWorkspace(workspaceID, payload);
+      return tuttidClient.updateWorkspace(workspaceID, payload);
     }
   };
 }

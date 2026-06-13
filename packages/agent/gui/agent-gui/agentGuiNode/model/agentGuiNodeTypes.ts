@@ -64,7 +64,7 @@ export interface AgentGUIProviderSkillOption {
     | "bundled"
     | "plugin"
     | "system"
-    | "nextop-injected";
+    | "tutti-injected";
   description?: string;
   pluginName?: string;
 }

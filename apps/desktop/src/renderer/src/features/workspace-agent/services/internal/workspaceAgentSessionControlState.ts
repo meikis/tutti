@@ -1,7 +1,7 @@
 import type {
-  NextopdClient,
+  TuttidClient,
   WorkspaceAgentSession
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { AgentHostAgentSessionState } from "@shared/contracts/dto";
 import {
   desktopAgentHostWorkspaceState,
@@ -11,7 +11,7 @@ import { toAgentHostAgentSessionState } from "./desktopAgentHostProjection.ts";
 
 export async function loadWorkspaceAgentSessionControlState(input: {
   agentSessionId: string;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   session?: WorkspaceAgentSession | null;
   workspaceId: string;
 }): Promise<AgentHostAgentSessionState> {
@@ -19,7 +19,7 @@ export async function loadWorkspaceAgentSessionControlState(input: {
   const normalizedAgentSessionId = input.agentSessionId.trim();
   const session =
     input.session ??
-    (await input.nextopdClient.getWorkspaceAgentSession(
+    (await input.tuttidClient.getWorkspaceAgentSession(
       normalizedWorkspaceId,
       normalizedAgentSessionId
     ));

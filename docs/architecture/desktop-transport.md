@@ -9,11 +9,11 @@ The planned shared business-stream protocol is documented in
 
 ## Purpose
 
-`nextopd` is the only business layer in the local product.
+`tuttid` is the only business layer in the local product.
 
 The desktop app must use a controlled local access path that keeps:
 
-- business logic in `nextopd`
+- business logic in `tuttid`
 - Electron-specific capabilities in `apps/desktop`
 - transport details out of renderer code
 
@@ -22,8 +22,8 @@ The desktop app must use a controlled local access path that keeps:
 Current desktop access follows these paths:
 
 ```text
-renderer -> managed localhost nextopd
-renderer -> preload typed host API -> main IPC -> nextopd
+renderer -> managed localhost tuttid
+renderer -> preload typed host API -> main IPC -> tuttid
 ```
 
 Each layer has one job:
@@ -32,7 +32,7 @@ Each layer has one job:
 - `preload` exposes typed host capabilities and narrow runtime bootstrap metadata
 - `main` owns Electron-specific bridge behavior, daemon supervision, and startup composition
 - transport owns the managed local backend lifecycle details
-- `nextopd` owns business semantics
+- `tuttid` owns business semantics
 
 ## Why Renderer Does Not Discover Transport Directly
 
@@ -44,7 +44,7 @@ Renderer code does not discover daemon endpoints on its own for three reasons:
 
 Renderer should not know:
 
-- how to boot or monitor `nextopd`
+- how to boot or monitor `tuttid`
 - how the daemon selected its final port
 - any Electron-only recovery or lifecycle behavior
 
@@ -55,8 +55,8 @@ daemon endpoint.
 
 Current default strategy:
 
-- desktop asks `nextopd` to bind `127.0.0.1:0`
-- the daemon publishes the actual bound address and per-run bearer auth to `<state-dir>/run/nextopd.listener.json`
+- desktop asks `tuttid` to bind `127.0.0.1:0`
+- the daemon publishes the actual bound address and per-run bearer auth to `<state-dir>/run/tuttid.listener.json`
 - `main` reads that listener info and exposes the resolved backend config to renderer windows
 - renderer and `main` both use a desktop-issued bearer token for daemon requests
 
@@ -76,7 +76,7 @@ share one catch-all application protocol.
 
 Workspace agent activity uses a signal-and-reconcile model.
 
-The live update signal is the shared business-event WebSocket. `nextopd` emits
+The live update signal is the shared business-event WebSocket. `tuttid` emits
 workspace-scoped `agent.activity.updated` events when a workspace agent session
 or its messages changed. These events are intentionally small dirty signals.
 They do not replace the authoritative HTTP read model.
@@ -91,7 +91,7 @@ Renderer clients reconcile through the normal agent-session HTTP APIs:
 
 Do not add a per-session SSE route or a workspace-scoped SSE route for agent
 activity. If a new agent activity update needs to be delivered live, add it to
-the business-event protocol and keep durable state in `nextopd` HTTP-backed
+the business-event protocol and keep durable state in `tuttid` HTTP-backed
 projection reads.
 
 ## Current Endpoint Rules
@@ -100,25 +100,25 @@ Desktop and daemon resolve loopback endpoint intent from the same shared default
 
 Supported endpoint-specific overrides:
 
-- `NEXTOPD_ACCESS_TOKEN`
-- `NEXTOPD_ADDR`
-- `NEXTOPD_LISTENER_INFO_PATH`
+- `TUTTID_ACCESS_TOKEN`
+- `TUTTID_ADDR`
+- `TUTTID_LISTENER_INFO_PATH`
 
 These transport variables are override-only controls for development, test, packaging, and diagnostics.
 They are not the primary source of the default transport policy.
 
 Current transport override surface:
 
-- `NEXTOPD_ACCESS_TOKEN`
-- `NEXTOPD_ADDR`
-- `NEXTOPD_LISTENER_INFO_PATH`
+- `TUTTID_ACCESS_TOKEN`
+- `TUTTID_ADDR`
+- `TUTTID_LISTENER_INFO_PATH`
 
 Rules:
 
 - prefer the generated repository defaults when no override is required
 - do not add a new transport environment variable if an existing endpoint override or shared state-root rule already covers the use case
 - when a new transport override is truly necessary, update this document and [Local State Storage](../conventions/local-state-storage.md) if the change touches default local paths
-- treat `NEXTOPD_ACCESS_TOKEN` as a per-run desktop-issued capability token, not a long-lived product setting
+- treat `TUTTID_ACCESS_TOKEN` as a per-run desktop-issued capability token, not a long-lived product setting
 
 ## Local State Integration
 
@@ -126,10 +126,10 @@ Default local transport runtime files derive from the shared local state root.
 
 Examples:
 
-- CLI shim: `<state-dir>/bin/nextop`
-- development CLI shim: `<state-dir>/bin/nextop-dev`
-- listener info: `<state-dir>/run/nextopd.listener.json`
-- daemon pid file: `<state-dir>/run/nextopd.pid`
+- CLI shim: `<state-dir>/bin/tutti`
+- development CLI shim: `<state-dir>/bin/tutti-dev`
+- listener info: `<state-dir>/run/tuttid.listener.json`
+- daemon pid file: `<state-dir>/run/tuttid.pid`
 
 The listener-info file is also the user-level CLI endpoint file. It is written
 with restrictive permissions and contains the daemon loopback address plus the
@@ -140,8 +140,8 @@ The packaged desktop app may repair the user-level CLI shim during startup. The
 shim path derives from the same state root and must not mutate shell profiles or
 write to global locations such as `/usr/local/bin`.
 
-Local development scripts install a separate `nextop-dev` command so developer
-shells can target the development daemon without shadowing a packaged `nextop`
+Local development scripts install a separate `tutti-dev` command so developer
+shells can target the development daemon without shadowing a packaged `tutti`
 installation.
 
 The state root rules are defined in [Local State Storage](../conventions/local-state-storage.md).
@@ -168,12 +168,12 @@ Current acceptable preload bootstrap helpers include:
 
 ## Daemon-Side Rules
 
-In `services/nextopd`:
+In `services/tuttid`:
 
 - server setup binds a loopback TCP listener
 - the daemon writes its actual bound address to the shared listener-info file
 - browser-originated requests require the desktop-issued bearer token
-- direct daemon startup must provide `NEXTOPD_ACCESS_TOKEN`; desktop-managed startup generates and injects it automatically
+- direct daemon startup must provide `TUTTID_ACCESS_TOKEN`; desktop-managed startup generates and injects it automatically
 - local HTTP requests keep browser-facing CORS behavior because renderer uses standard `fetch`
 - route-local streaming protocols such as terminal and business-event WebSockets should keep their own typed contracts instead of sharing ad hoc frame shapes
 
@@ -183,7 +183,7 @@ The repository includes a transport smoke test:
 
 - `pnpm smoke:desktop-transport`
 
-The smoke test starts `nextopd`, reads the listener-info file, probes `/v1/health` through the current managed loopback path, and shuts the daemon down again.
+The smoke test starts `tuttid`, reads the listener-info file, probes `/v1/health` through the current managed loopback path, and shuts the daemon down again.
 
 Use this test when changing:
 

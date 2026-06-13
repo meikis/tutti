@@ -1,4 +1,4 @@
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type {
   IssueManagerFileAdapter,
   IssueManagerFileReference
@@ -11,13 +11,13 @@ import {
 
 export function createDesktopIssueManagerFileAdapter(input: {
   hostFilesApi: DesktopHostFilesApi;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   openWorkspaceFileManager?: (
     reference: IssueManagerFileReference
   ) => Promise<boolean> | boolean;
   workspaceId: string;
 }): IssueManagerFileAdapter {
-  const { hostFilesApi, nextopdClient } = input;
+  const { hostFilesApi, tuttidClient } = input;
   const fileReferenceAdapter =
     createDesktopWorkspaceFileReferenceAdapter(input);
 
@@ -58,7 +58,7 @@ export function createDesktopIssueManagerFileAdapter(input: {
         return [];
       }
 
-      const preflight = await nextopdClient.preflightUploadWorkspaceFiles(
+      const preflight = await tuttidClient.preflightUploadWorkspaceFiles(
         workspaceId,
         {
           sourcePaths,
@@ -73,7 +73,7 @@ export function createDesktopIssueManagerFileAdapter(input: {
         throw new Error("issue_manager.upload_type_conflict");
       }
 
-      const response = await nextopdClient.uploadWorkspaceFiles(workspaceId, {
+      const response = await tuttidClient.uploadWorkspaceFiles(workspaceId, {
         overwrite: preflight.conflicts.length > 0 ? true : undefined,
         sourcePaths,
         targetDirectoryPath

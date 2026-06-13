@@ -15,7 +15,7 @@ const forbiddenPrefixes = [
 ];
 
 const packages = await getNpmReleasePackages();
-const tempDirectory = await mkdtemp(join(tmpdir(), "nextop-pack-check-"));
+const tempDirectory = await mkdtemp(join(tmpdir(), "tutti-pack-check-"));
 
 try {
   for (const packageConfig of packages) {

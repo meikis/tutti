@@ -4,8 +4,8 @@ import type {
   IssueManagerTaskDetailResponse,
   IssueManagerTaskListResponse,
   IssueManagerTopicListResponse,
-  NextopdClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidClient
+} from "@tutti-os/client-tuttid-ts";
 import type {
   IssueManagerBackend,
   IssueManagerIssueDetail,
@@ -15,12 +15,12 @@ import type {
 } from "@tutti-os/workspace-issue-manager/contracts";
 
 export function createDesktopIssueManagerBackend(
-  nextopdClient: NextopdClient
+  tuttidClient: TuttidClient
 ): IssueManagerBackend {
   return {
     async addContextRefs(input) {
       if (input.parentKind === "task") {
-        const response = await nextopdClient.addWorkspaceIssueTaskContextRefs(
+        const response = await tuttidClient.addWorkspaceIssueTaskContextRefs(
           input.workspaceId,
           input.issueId,
           input.taskId,
@@ -31,7 +31,7 @@ export function createDesktopIssueManagerBackend(
         return response.contextRefs;
       }
 
-      const response = await nextopdClient.addWorkspaceIssueContextRefs(
+      const response = await tuttidClient.addWorkspaceIssueContextRefs(
         input.workspaceId,
         input.issueId,
         {
@@ -43,7 +43,7 @@ export function createDesktopIssueManagerBackend(
     async completeRun(input) {
       const taskId = input.taskId?.trim();
       if (!taskId) {
-        return nextopdClient.completeWorkspaceIssueRun(
+        return tuttidClient.completeWorkspaceIssueRun(
           input.workspaceId,
           input.issueId,
           input.runId,
@@ -55,7 +55,7 @@ export function createDesktopIssueManagerBackend(
           }
         );
       }
-      return nextopdClient.completeWorkspaceIssueTaskRun(
+      return tuttidClient.completeWorkspaceIssueTaskRun(
         input.workspaceId,
         input.issueId,
         taskId,
@@ -69,7 +69,7 @@ export function createDesktopIssueManagerBackend(
       );
     },
     async createIssue(input) {
-      return nextopdClient.createWorkspaceIssue(input.workspaceId, {
+      return tuttidClient.createWorkspaceIssue(input.workspaceId, {
         content: input.content,
         issueId: input.issueId,
         topicId: input.topicId,
@@ -77,7 +77,7 @@ export function createDesktopIssueManagerBackend(
       });
     },
     async createTopic(input) {
-      return nextopdClient.createWorkspaceIssueTopic(input.workspaceId, {
+      return tuttidClient.createWorkspaceIssueTopic(input.workspaceId, {
         summary: input.summary,
         title: input.title,
         topicId: input.topicId
@@ -87,7 +87,7 @@ export function createDesktopIssueManagerBackend(
       const taskId = input.taskId?.trim();
       if (!taskId) {
         const executionDirectory = input.executionDirectory?.trim();
-        return nextopdClient.createWorkspaceIssueRun(
+        return tuttidClient.createWorkspaceIssueRun(
           input.workspaceId,
           input.issueId,
           {
@@ -100,7 +100,7 @@ export function createDesktopIssueManagerBackend(
         );
       }
       const executionDirectory = input.executionDirectory?.trim();
-      return nextopdClient.createWorkspaceIssueTaskRun(
+      return tuttidClient.createWorkspaceIssueTaskRun(
         input.workspaceId,
         input.issueId,
         taskId,
@@ -114,7 +114,7 @@ export function createDesktopIssueManagerBackend(
       );
     },
     async createTask(input) {
-      const task = await nextopdClient.createWorkspaceIssueTask(
+      const task = await tuttidClient.createWorkspaceIssueTask(
         input.workspaceId,
         input.issueId,
         {
@@ -128,33 +128,33 @@ export function createDesktopIssueManagerBackend(
       return normalizeTask(task);
     },
     async deleteIssue(input) {
-      return nextopdClient.deleteWorkspaceIssue(
+      return tuttidClient.deleteWorkspaceIssue(
         input.workspaceId,
         input.issueId
       );
     },
     async deleteTask(input) {
-      return nextopdClient.deleteWorkspaceIssueTask(
+      return tuttidClient.deleteWorkspaceIssueTask(
         input.workspaceId,
         input.issueId,
         input.taskId
       );
     },
     async deleteTopic(input) {
-      return nextopdClient.deleteWorkspaceIssueTopic(
+      return tuttidClient.deleteWorkspaceIssueTopic(
         input.workspaceId,
         input.topicId
       );
     },
     async getIssueDetail(input) {
-      const response = await nextopdClient.getWorkspaceIssueDetail(
+      const response = await tuttidClient.getWorkspaceIssueDetail(
         input.workspaceId,
         input.issueId
       );
       return normalizeIssueDetail(response);
     },
     async getTaskDetail(input) {
-      const response = await nextopdClient.getWorkspaceIssueTaskDetail(
+      const response = await tuttidClient.getWorkspaceIssueTaskDetail(
         input.workspaceId,
         input.issueId,
         input.taskId
@@ -162,7 +162,7 @@ export function createDesktopIssueManagerBackend(
       return normalizeTaskDetail(response);
     },
     async listIssues(input) {
-      return nextopdClient.listWorkspaceIssues(input.workspaceId, {
+      return tuttidClient.listWorkspaceIssues(input.workspaceId, {
         pageSize: input.pageSize,
         pageToken: input.pageToken,
         searchQuery: input.searchQuery,
@@ -172,11 +172,11 @@ export function createDesktopIssueManagerBackend(
     },
     async listTopics(input) {
       return normalizeTopicList(
-        await nextopdClient.listWorkspaceIssueTopics(input.workspaceId)
+        await tuttidClient.listWorkspaceIssueTopics(input.workspaceId)
       );
     },
     async listTasks(input) {
-      const response = await nextopdClient.listWorkspaceIssueTasks(
+      const response = await tuttidClient.listWorkspaceIssueTasks(
         input.workspaceId,
         input.issueId,
         {
@@ -190,21 +190,21 @@ export function createDesktopIssueManagerBackend(
     },
     async removeContextRef(input) {
       if (input.parentKind === "task") {
-        return nextopdClient.removeWorkspaceIssueTaskContextRef(
+        return tuttidClient.removeWorkspaceIssueTaskContextRef(
           input.workspaceId,
           input.issueId,
           input.taskId,
           input.contextRefId
         );
       }
-      return nextopdClient.removeWorkspaceIssueContextRef(
+      return tuttidClient.removeWorkspaceIssueContextRef(
         input.workspaceId,
         input.issueId,
         input.contextRefId
       );
     },
     async updateIssue(input) {
-      return nextopdClient.updateWorkspaceIssue(
+      return tuttidClient.updateWorkspaceIssue(
         input.workspaceId,
         input.issueId,
         {
@@ -214,7 +214,7 @@ export function createDesktopIssueManagerBackend(
       );
     },
     async updateTopic(input) {
-      return nextopdClient.updateWorkspaceIssueTopic(
+      return tuttidClient.updateWorkspaceIssueTopic(
         input.workspaceId,
         input.topicId,
         {
@@ -225,7 +225,7 @@ export function createDesktopIssueManagerBackend(
       );
     },
     async updateTask(input) {
-      const task = await nextopdClient.updateWorkspaceIssueTask(
+      const task = await tuttidClient.updateWorkspaceIssueTask(
         input.workspaceId,
         input.issueId,
         input.taskId,
@@ -305,6 +305,7 @@ function toClientStatus(
 ):
   | "not_started"
   | "running"
+  | "in_progress"
   | "pending_acceptance"
   | "completed"
   | "failed"
@@ -313,6 +314,7 @@ function toClientStatus(
   switch (value) {
     case "not_started":
     case "running":
+    case "in_progress":
     case "pending_acceptance":
     case "completed":
     case "failed":
@@ -329,6 +331,7 @@ function toClientStatusFilter(
   | "all"
   | "not_started"
   | "running"
+  | "in_progress"
   | "pending_acceptance"
   | "completed"
   | "failed"

@@ -14,7 +14,7 @@ const browserHostLayoutAdapter: WorkspaceChromeHostLayoutAdapter = {
   isNativeCompactTitlebar() {
     return (
       typeof document !== "undefined" &&
-      document.documentElement.dataset.nextopCompactTitlebar === "true"
+      document.documentElement.dataset.tuttiCompactTitlebar === "true"
     );
   },
   subscribe(listener) {
@@ -22,9 +22,9 @@ const browserHostLayoutAdapter: WorkspaceChromeHostLayoutAdapter = {
       return () => {};
     }
 
-    window.addEventListener("nextop-host-window-layout", listener);
+    window.addEventListener("tutti-host-window-layout", listener);
     return () => {
-      window.removeEventListener("nextop-host-window-layout", listener);
+      window.removeEventListener("tutti-host-window-layout", listener);
     };
   }
 };

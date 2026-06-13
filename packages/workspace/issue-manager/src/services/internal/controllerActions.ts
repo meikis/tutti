@@ -224,6 +224,36 @@ export function createIssueManagerControllerActions(
     applyOutcome(createIssueManagerAttachReferencesOutcome(attached));
   };
 
+  const updateTaskStatus = async (
+    taskId: string | null | undefined,
+    status: "completed" | "not_started",
+    options: { selectTaskOnSuccess: boolean }
+  ) => {
+    const selectedIssueId = nodeState.selectedIssueId;
+    const normalizedTaskId = taskId?.trim() ?? "";
+    if (!selectedIssueId || !normalizedTaskId) {
+      return;
+    }
+
+    try {
+      const task = await feature.backend.updateTask({
+        issueId: selectedIssueId,
+        status,
+        taskId: normalizedTaskId,
+        workspaceId
+      });
+      applyOutcome(
+        options.selectTaskOnSuccess
+          ? createIssueManagerSaveTaskSuccessOutcome(task.taskId)
+          : {
+              refreshAll: true
+            }
+      );
+    } catch (error) {
+      notifyError(error, "messages.taskSaveFailed");
+    }
+  };
+
   return {
     async attachReferences(parentKind: "issue" | "task") {
       const fileAdapter = feature.fileAdapter;
@@ -497,7 +527,11 @@ export function createIssueManagerControllerActions(
         const outcome = createIssueManagerRunTaskSuccessOutcome({
           status: result.status
         });
-        applyOutcome(outcome);
+        if (outcome.notificationKey && result.errorMessage?.trim()) {
+          notifyTip(result.errorMessage.trim());
+        } else {
+          applyOutcome(outcome);
+        }
       } catch (error) {
         notifyTip(
           resolveIssueManagerErrorMessage(error, copy, "messages.runFailed")
@@ -536,6 +570,7 @@ export function createIssueManagerControllerActions(
         );
       }
 
+      setIsRunningTask(true);
       try {
         trackIssueManagerAnalytics(feature, {
           name: "issue_manager.issue_breakdown_initiated",
@@ -545,6 +580,11 @@ export function createIssueManagerControllerActions(
           }
         });
         const result = await breakdownLauncher.startBreakdown({
+          ...(nodeState.selectedExecutionDirectory?.trim()
+            ? {
+                executionDirectory: nodeState.selectedExecutionDirectory.trim()
+              }
+            : {}),
           issueDetail: currentIssueDetail,
           provider: breakdownPlan.provider,
           workspaceId
@@ -562,6 +602,8 @@ export function createIssueManagerControllerActions(
             "messages.breakdownOpenFailed"
           )
         );
+      } finally {
+        setIsRunningTask(false);
       }
     },
 
@@ -681,24 +723,14 @@ export function createIssueManagerControllerActions(
       }
     },
 
-    async setSelectedTaskStatus(status: "completed" | "not_started") {
-      const selectedIssueId = nodeState.selectedIssueId;
-      const selectedTaskId = nodeState.selectedTaskId;
-      if (!selectedIssueId || !selectedTaskId) {
-        return;
-      }
+    async setTaskStatus(taskId: string, status: "completed" | "not_started") {
+      await updateTaskStatus(taskId, status, { selectTaskOnSuccess: false });
+    },
 
-      try {
-        const task = await feature.backend.updateTask({
-          issueId: selectedIssueId,
-          status,
-          taskId: selectedTaskId,
-          workspaceId
-        });
-        applyOutcome(createIssueManagerSaveTaskSuccessOutcome(task.taskId));
-      } catch (error) {
-        notifyError(error, "messages.taskSaveFailed");
-      }
+    async setSelectedTaskStatus(status: "completed" | "not_started") {
+      await updateTaskStatus(nodeState.selectedTaskId, status, {
+        selectTaskOnSuccess: true
+      });
     },
 
     async shareSelection() {

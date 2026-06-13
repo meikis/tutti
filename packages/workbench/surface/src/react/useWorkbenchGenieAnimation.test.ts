@@ -24,4 +24,18 @@ test("genie anchors keep usable rects while minimized dock slots animate", () =>
     /width: rect\.width >= minimumUsableSize \? rect\.width : fallbackSize/
   );
   assert.match(source, /resolveDockAnchorViewportRect\(element\)/);
+  assert.match(source, /shouldAnimateMinimizedDockEnter/);
+  assert.match(source, /registerMinimizedDockEnterAnimation\(nodeID\)/);
+});
+
+test("genie dock launch does not synchronously flush missing nodes", () => {
+  assert.match(source, /if \(!target\) \{/);
+  assert.match(
+    source,
+    /if \(!target\) \{\s*void Promise\.resolve\(launch\(\)\)\.catch\(\(\) => \{\}\);\s*return;\s*\}/
+  );
+  assert.doesNotMatch(
+    source,
+    /const shouldAnimate = target\?\.isMinimized === true \|\| !target;/
+  );
 });

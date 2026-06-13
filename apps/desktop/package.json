@@ -17,11 +17,11 @@
     "afterAllArtifactBuild": "scripts/notarize-mac-dmg-artifacts.mjs",
     "extraResources": [
       {
-        "from": "build/nextopd",
+        "from": "build/tuttid",
         "to": "bin"
       },
       {
-        "from": "build/nextop",
+        "from": "build/tutti",
         "to": "bin"
       }
     ],
@@ -42,8 +42,8 @@
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "hardenedRuntime": true,
       "binaries": [
-        "Contents/Resources/bin/nextopd",
-        "Contents/Resources/bin/nextop"
+        "Contents/Resources/bin/tuttid",
+        "Contents/Resources/bin/tutti"
       ]
     },
     "dmg": {
@@ -86,7 +86,7 @@
     "@tutti-os/agent-activity-core": "workspace:*",
     "@tutti-os/agent-gui": "workspace:*",
     "@tutti-os/browser-node": "workspace:*",
-    "@tutti-os/client-nextopd-ts": "workspace:*",
+    "@tutti-os/client-tuttid-ts": "workspace:*",
     "@tutti-os/config-tsconfig": "workspace:*",
     "@tutti-os/ui-i18n-runtime": "workspace:*",
     "@tutti-os/ui-notifications": "workspace:*",

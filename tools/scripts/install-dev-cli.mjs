@@ -8,11 +8,11 @@ import { fileURLToPath } from "node:url";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(scriptDir, "../..");
 const cliDir = join(workspaceRoot, "apps", "cli");
-const defaultsPath = join(workspaceRoot, "config", "nextop.defaults.json");
+const defaultsPath = join(workspaceRoot, "config", "tutti.defaults.json");
 const generatedDefaults = JSON.parse(await readFile(defaultsPath, "utf8"));
 const commandName =
-  process.platform === "win32" ? "nextop-dev.cmd" : "nextop-dev";
-const binaryName = process.platform === "win32" ? "nextop.exe" : "nextop";
+  process.platform === "win32" ? "tutti-dev.cmd" : "tutti-dev";
+const binaryName = process.platform === "win32" ? "tutti.exe" : "tutti";
 const builtCliPath = join(cliDir, "build", "dev", binaryName);
 const stateRootDir = resolveDevelopmentStateRoot();
 const canonicalShimPath = join(stateRootDir, "bin", commandName);
@@ -27,13 +27,13 @@ if (pathShimPath) {
   log(`PATH command ready: ${pathShimPath}`);
 } else {
   log(
-    `add this once if nextop-dev is not found: export PATH="${join(stateRootDir, "bin")}:$PATH"`
+    `add this once if tutti-dev is not found: export PATH="${join(stateRootDir, "bin")}:$PATH"`
   );
 }
-log("try: nextop-dev status");
+log("try: tutti-dev status");
 
 function resolveDevelopmentStateRoot() {
-  const override = process.env.NEXTOP_STATE_DIR?.trim();
+  const override = process.env.TUTTI_STATE_DIR?.trim();
   if (override) {
     return override;
   }
@@ -45,12 +45,12 @@ async function buildDevCli() {
   const goBin = process.env.GO_BIN?.trim() || resolveCommand("go");
   const result = spawnSync(
     goBin,
-    ["build", "-o", builtCliPath, "./cmd/nextop"],
+    ["build", "-o", builtCliPath, "./cmd/tutti"],
     {
       cwd: cliDir,
       env: {
         ...process.env,
-        NEXTOP_ENV: "development"
+        TUTTI_ENV: "development"
       },
       stdio: "inherit"
     }
@@ -63,7 +63,7 @@ async function buildDevCli() {
 }
 
 async function installPathShimIfPossible(canonicalPath) {
-  if (process.env.NEXTOP_DEV_SKIP_PATH_SHIM === "1") {
+  if (process.env.TUTTI_DEV_SKIP_PATH_SHIM === "1") {
     return null;
   }
 
@@ -79,7 +79,7 @@ async function installPathShimIfPossible(canonicalPath) {
       return existing;
     }
     log(
-      `found existing nextop-dev outside Tutti control; leaving it unchanged at ${existing}`
+      `found existing tutti-dev outside Tutti control; leaving it unchanged at ${existing}`
     );
     return null;
   }
@@ -143,7 +143,7 @@ async function writeDevShim(shimPath, targetPath) {
       [
         "@echo off",
         "rem Tutti dev CLI shim",
-        `if "%NEXTOP_STATE_DIR%"=="" set "NEXTOP_STATE_DIR=${stateRootDir}"`,
+        `if "%TUTTI_STATE_DIR%"=="" set "TUTTI_STATE_DIR=${stateRootDir}"`,
         `"${targetPath}" %*`,
         ""
       ].join("\r\n"),
@@ -157,7 +157,7 @@ async function writeDevShim(shimPath, targetPath) {
     [
       "#!/usr/bin/env sh",
       "# Tutti dev CLI shim",
-      `if [ -z "\${NEXTOP_STATE_DIR:-}" ]; then export NEXTOP_STATE_DIR=${shellQuote(stateRootDir)}; fi`,
+      `if [ -z "\${TUTTI_STATE_DIR:-}" ]; then export TUTTI_STATE_DIR=${shellQuote(stateRootDir)}; fi`,
       `exec ${shellQuote(targetPath)} "$@"`,
       ""
     ].join("\n"),

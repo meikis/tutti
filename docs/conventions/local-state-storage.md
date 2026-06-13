@@ -1,48 +1,48 @@
 # Local State Storage
 
-`nextop` local state must follow one root-directory convention.
+`tutti` local state must follow one root-directory convention.
 
 The repository-owned default names for these paths now live in:
 
-- `config/nextop.defaults.json`
+- `config/tutti.defaults.json`
 
 Runtime code should consume generated defaults from that source instead of duplicating literal file names in multiple implementations.
 
 ## Default Roots
 
-- production defaults to `~/.nextop`
-- local development defaults to `~/.nextop-dev`
+- production defaults to `~/.tutti`
+- local development defaults to `~/.tutti-dev`
 
 This rule applies to local databases, logs, caches, temporary runtime metadata, and other daemon-owned state.
 
 ## Environment Rules
 
-- `NEXTOP_ENV=development` uses `~/.nextop-dev`
-- `NEXTOP_ENV=production` uses `~/.nextop`
-- `NEXTOP_STATE_DIR=/custom/path` overrides both defaults
+- `TUTTI_ENV=development` uses `~/.tutti-dev`
+- `TUTTI_ENV=production` uses `~/.tutti`
+- `TUTTI_STATE_DIR=/custom/path` overrides both defaults
 
 These environment variables are for development, test, packaging, and diagnostics overrides.
 They are not the primary source of product defaults.
 
-Per-file overrides such as `NEXTOPD_DB_PATH` are still allowed for narrow operational needs, but new local storage code should derive paths from the shared generated defaults and shared state root first.
+Per-file overrides such as `TUTTID_DB_PATH` are still allowed for narrow operational needs, but new local storage code should derive paths from the shared generated defaults and shared state root first.
 
 ## Allowed Override Surface
 
 Current supported override surface for local state and closely-related runtime paths:
 
-- `NEXTOP_ENV`
-- `NEXTOP_STATE_DIR`
-- `NEXTOP_LOG_DIR`
-- `NEXTOPD_DB_PATH`
-- `NEXTOPD_RUN_DIR`
-- `NEXTOPD_PID_PATH`
-- `NEXTOPD_LISTENER_INFO_PATH`
-- `NEXTOP_AGENT_CONTEXT_CONFIG`
+- `TUTTI_ENV`
+- `TUTTI_STATE_DIR`
+- `TUTTI_LOG_DIR`
+- `TUTTID_DB_PATH`
+- `TUTTID_RUN_DIR`
+- `TUTTID_PID_PATH`
+- `TUTTID_LISTENER_INFO_PATH`
+- `TUTTI_AGENT_CONTEXT_CONFIG`
 
 Rules:
 
 - treat these variables as developer and operator escape hatches, not product settings
-- prefer `NEXTOP_STATE_DIR` over adding new per-file overrides
+- prefer `TUTTI_STATE_DIR` over adding new per-file overrides
 - do not add a new environment variable when an existing shared root or generated default can express the same rule
 - if a new override is truly needed, update this document and the matching transport or logging convention document in the same change
 
@@ -51,43 +51,43 @@ Rules:
 Production:
 
 ```text
-~/.nextop/
-  nextopd.db
+~/.tutti/
+  tuttid.db
   bin/
-    nextop
-    nextop-dev
+    tutti
+    tutti-dev
   logs/
-    nextopd.log
-    nextop-desktop.log
+    tuttid.log
+    tutti-desktop.log
   run/
-    nextopd.listener.json
-    nextopd.pid
+    tuttid.listener.json
+    tuttid.pid
 ```
 
 Local development:
 
 ```text
-~/.nextop-dev/
-  nextopd.db
+~/.tutti-dev/
+  tuttid.db
   bin/
-    nextop
-    nextop-dev
+    tutti
+    tutti-dev
   logs/
-    nextopd.log
-    nextop-desktop.log
+    tuttid.log
+    tutti-desktop.log
   run/
-    nextopd.listener.json
-    nextopd.pid
+    tuttid.listener.json
+    tuttid.pid
 ```
 
-`nextopd.listener.json` is runtime endpoint metadata. It contains the loopback
+`tuttid.listener.json` is runtime endpoint metadata. It contains the loopback
 address and per-run bearer auth needed by local clients such as the bundled
 CLI, and should be written with restrictive file permissions.
 
 Migrated agent runtime state should derive from the same root:
 
 ```text
-~/.nextop[-dev]/
+~/.tutti[-dev]/
   agent/
     runs/
       <workspace-id>/
@@ -95,7 +95,7 @@ Migrated agent runtime state should derive from the same root:
           sidecar-manifest.json
           codex-home/
     codex/
-      nextop/
+      tutti/
         current/
           agent-context.json
 ```
@@ -108,15 +108,15 @@ The exact files may appear gradually as features are implemented, but new daemon
 
 ## Current Usage
 
-- `nextopd` SQLite database defaults to `<state-dir>/nextopd.db`
-- desktop-managed local development starts `nextopd` with `NEXTOP_ENV=development`
-- packaged desktop builds start `nextopd` with `NEXTOP_ENV=production`
+- `tuttid` SQLite database defaults to `<state-dir>/tuttid.db`
+- desktop-managed local development starts `tuttid` with `TUTTI_ENV=development`
+- packaged desktop builds start `tuttid` with `TUTTI_ENV=production`
 - path helpers reserve `<state-dir>/logs` and `<state-dir>/run` for daemon log, listener-info, and pid files
-- desktop main-process operational logging defaults to `<state-dir>/logs/nextop-desktop.log`
-- desktop-to-daemon listener publication defaults to `<state-dir>/run/nextopd.listener.json`
-- the bundled CLI discovers the managed daemon by reading `<state-dir>/run/nextopd.listener.json`
-- packaged desktop shim install or repair uses `<state-dir>/bin/nextop` as the user-level command path and points it at the packaged CLI binary
-- local development scripts install or repair `<state-dir>/bin/nextop-dev` as the development CLI command and default it to `NEXTOP_ENV=development`
+- desktop main-process operational logging defaults to `<state-dir>/logs/tutti-desktop.log`
+- desktop-to-daemon listener publication defaults to `<state-dir>/run/tuttid.listener.json`
+- the bundled CLI discovers the managed daemon by reading `<state-dir>/run/tuttid.listener.json`
+- packaged desktop shim install or repair uses `<state-dir>/bin/tutti` as the user-level command path and points it at the packaged CLI binary
+- local development scripts install or repair `<state-dir>/bin/tutti-dev` as the development CLI command and default it to `TUTTI_ENV=development`
 
 ## Validation
 
@@ -128,9 +128,9 @@ Use it after changing local transport, listener setup, or state path derivation.
 
 ## Logging
 
-`nextopd` default operational logging writes to:
+`tuttid` default operational logging writes to:
 
-- `<state-dir>/logs/nextopd.log`
+- `<state-dir>/logs/tuttid.log`
 
 See [Logging](./logging.md) for output mode and level rules.
 

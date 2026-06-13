@@ -1,4 +1,4 @@
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type {
   AgentHostInputApi,
   AgentProviderProbeListInput
@@ -28,7 +28,7 @@ import type { IWorkspaceAgentActivityService } from "./workspaceAgentActivitySer
 
 interface CreateDesktopAgentHostApiInput {
   hostFilesApi: DesktopHostFilesApi;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"
@@ -52,7 +52,7 @@ interface AgentHostUserProjectCompat {
 
 export function createDesktopAgentHostApi({
   hostFilesApi,
-  nextopdClient,
+  tuttidClient,
   platformApi,
   reporterNow,
   reporterService,
@@ -76,7 +76,7 @@ export function createDesktopAgentHostApi({
     workspaceUserProjectService ??
     new DesktopWorkspaceUserProjectService({
       hostFilesApi,
-      nextopdClient,
+      tuttidClient,
       platformApi,
       workspaceId
     });
@@ -151,6 +151,7 @@ export function createDesktopAgentHostApi({
         })
     },
     userProjects: {
+      service: userProjectService,
       checkPath: (payload: { path: string }) =>
         userProjectService.checkProjectPath(payload.path),
       create: async (payload: { name: string }) =>
@@ -226,13 +227,13 @@ export function createDesktopAgentHostApi({
       selectFiles: async () =>
         (await hostFilesApi.selectUploadFiles()).map((path) => ({ path })),
       writeFile: async (payload: { content?: string; path: string }) => {
-        await nextopdClient.writeWorkspaceFileText(workspaceId, {
+        await tuttidClient.writeWorkspaceFileText(workspaceId, {
           content: payload.content ?? "",
           path: payload.path
         });
       },
       writeFileText: async (payload: { content: string; path: string }) => {
-        await nextopdClient.writeWorkspaceFileText(workspaceId, payload);
+        await tuttidClient.writeWorkspaceFileText(workspaceId, payload);
       }
     }
   };

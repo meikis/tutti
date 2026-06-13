@@ -12,7 +12,7 @@ test("user shell env timeout allows slow interactive startup files", () => {
 
 test("user shell env invocation uses interactive login shell for zsh", () => {
   assert.deepEqual(resolveUserShellEnvInvocation("darwin", "/bin/zsh"), {
-    args: ["-lic", "printf '%s\\0' __NEXTOP_USER_SHELL_ENV_START__; env -0"],
+    args: ["-lic", "printf '%s\\0' __TUTTI_USER_SHELL_ENV_START__; env -0"],
     shell: "/bin/zsh"
   });
 });
@@ -24,7 +24,7 @@ test("user shell env invocation is disabled on Windows", () => {
 test("parseAllowedUserShellEnv keeps only runtime environment keys", () => {
   const output = [
     "profile noise",
-    "__NEXTOP_USER_SHELL_ENV_START__\0",
+    "__TUTTI_USER_SHELL_ENV_START__\0",
     "PATH=/custom/bin:/usr/bin\0",
     "FNM_DIR=/Users/test/.fnm\0",
     "LANG=zh_CN.UTF-8\0",

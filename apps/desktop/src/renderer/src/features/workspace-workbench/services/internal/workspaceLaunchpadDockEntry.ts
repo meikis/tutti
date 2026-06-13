@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import type { AgentProviderStatus } from "@tutti-os/client-nextopd-ts";
+import type { AgentProviderStatus } from "@tutti-os/client-tuttid-ts";
 import type { WorkbenchHostDockEntry } from "@tutti-os/workbench-surface";
 import type { WorkspaceAppCenterApp } from "@renderer/features/workspace-app-center";
 import {

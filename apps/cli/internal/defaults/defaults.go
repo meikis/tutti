@@ -27,13 +27,18 @@ type RuntimeDefaults struct {
 }
 
 type StateDefaults struct {
-	RootDir                 string
-	RunDir                  string
-	NextopdListenerInfoPath string
+	RootDir                string
+	RunDir                 string
+	TuttidListenerInfoPath string
 }
 
+const (
+	legacyProductionDirName  = ".nextop"
+	legacyDevelopmentDirName = ".nextop-dev"
+)
+
 func ResolveDefaultsFromEnv() ResolvedDefaults {
-	env := resolveNextopEnv()
+	env := resolveTuttiEnv()
 	stateRootDir := resolveStateRootDir(env)
 	runDir := resolveRunDir(stateRootDir)
 
@@ -42,15 +47,15 @@ func ResolveDefaultsFromEnv() ResolvedDefaults {
 			Env: env,
 		},
 		State: StateDefaults{
-			RootDir:                 stateRootDir,
-			RunDir:                  runDir,
-			NextopdListenerInfoPath: resolveListenerInfoPath(runDir),
+			RootDir:                stateRootDir,
+			RunDir:                 runDir,
+			TuttidListenerInfoPath: resolveListenerInfoPath(runDir),
 		},
 	}
 }
 
-func resolveNextopEnv() string {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv("NEXTOP_ENV")))
+func resolveTuttiEnv() string {
+	value := strings.ToLower(resolveStringOverride("TUTTI_ENV", "NEXTOP_ENV", ""))
 	switch value {
 	case "dev", "development", "local":
 		return "development"
@@ -60,7 +65,7 @@ func resolveNextopEnv() string {
 }
 
 func resolveStateRootDir(env string) string {
-	override := strings.TrimSpace(os.Getenv("NEXTOP_STATE_DIR"))
+	override := resolveStringOverride("TUTTI_STATE_DIR", "NEXTOP_STATE_DIR", "")
 	if override != "" {
 		return override
 	}
@@ -74,15 +79,24 @@ func resolveStateRootDir(env string) string {
 	}
 
 	dirName := generatedDefaults.State.ProductionDirName
+	legacyDirName := legacyProductionDirName
 	if env == "development" {
 		dirName = generatedDefaults.State.DevelopmentDirName
+		legacyDirName = legacyDevelopmentDirName
 	}
 
-	return filepath.Join(homeDir, dirName)
+	stateRootDir := filepath.Join(homeDir, dirName)
+	legacyStateRootDir := filepath.Join(homeDir, legacyDirName)
+	if _, err := os.Stat(stateRootDir); os.IsNotExist(err) {
+		if _, legacyErr := os.Stat(legacyStateRootDir); legacyErr == nil {
+			return legacyStateRootDir
+		}
+	}
+	return stateRootDir
 }
 
 func resolveRunDir(stateRootDir string) string {
-	override := strings.TrimSpace(os.Getenv("NEXTOPD_RUN_DIR"))
+	override := resolveStringOverride("TUTTID_RUN_DIR", "NEXTOPD_RUN_DIR", "")
 	if override != "" {
 		return override
 	}
@@ -91,10 +105,22 @@ func resolveRunDir(stateRootDir string) string {
 }
 
 func resolveListenerInfoPath(runDir string) string {
-	override := strings.TrimSpace(os.Getenv("NEXTOPD_LISTENER_INFO_PATH"))
+	override := resolveStringOverride("TUTTID_LISTENER_INFO_PATH", "NEXTOPD_LISTENER_INFO_PATH", "")
 	if override != "" {
 		return override
 	}
 
 	return filepath.Join(runDir, generatedDefaults.State.ListenerInfoFileName)
+}
+
+func resolveStringOverride(name string, legacyName string, fallback string) string {
+	override := strings.TrimSpace(os.Getenv(name))
+	if override != "" {
+		return override
+	}
+	legacyOverride := strings.TrimSpace(os.Getenv(legacyName))
+	if legacyOverride != "" {
+		return legacyOverride
+	}
+	return fallback
 }

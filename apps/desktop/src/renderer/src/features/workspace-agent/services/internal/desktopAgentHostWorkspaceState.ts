@@ -1,5 +1,5 @@
 import type { AgentActivitySession } from "@tutti-os/agent-activity-core";
-import type { WorkspaceAgentSession } from "@tutti-os/client-nextopd-ts";
+import type { WorkspaceAgentSession } from "@tutti-os/client-tuttid-ts";
 import {
   agentSessionStateDefaultsFromSettings,
   type AgentHostAgentSessionComposerSettingsInput,
@@ -62,17 +62,17 @@ export function resolveDefaultProjectSelection(
 
 export function rememberAgentSessionStateDefaults(
   state: DesktopAgentHostWorkspaceState,
-  nextopdSessionId: string,
+  tuttidSessionId: string,
   settings: AgentHostAgentSessionComposerSettingsInput | null | undefined
 ): void {
   const defaults = agentSessionStateDefaultsFromSettings(settings);
   if (!defaults) {
     return;
   }
-  const normalizedNextopdSessionId = normalizeAgentSessionId(nextopdSessionId);
-  if (normalizedNextopdSessionId) {
+  const normalizedTuttidSessionId = normalizeAgentSessionId(tuttidSessionId);
+  if (normalizedTuttidSessionId) {
     state.sessionStateDefaultsByAgentSessionId.set(
-      normalizedNextopdSessionId,
+      normalizedTuttidSessionId,
       defaults
     );
   }
@@ -89,21 +89,21 @@ export function resolveAgentSessionStateDefaults(
 
 export function rememberAgentSessionVisibility(
   state: DesktopAgentHostWorkspaceState,
-  nextopdSessionId: string,
+  tuttidSessionId: string,
   visible: boolean | null | undefined
 ): void {
   if (visible === undefined || visible === null) {
     return;
   }
-  const normalizedNextopdSessionId = normalizeAgentSessionId(nextopdSessionId);
-  if (!normalizedNextopdSessionId) {
+  const normalizedTuttidSessionId = normalizeAgentSessionId(tuttidSessionId);
+  if (!normalizedTuttidSessionId) {
     return;
   }
   if (visible) {
-    state.hiddenAgentSessionIds.delete(normalizedNextopdSessionId);
+    state.hiddenAgentSessionIds.delete(normalizedTuttidSessionId);
     return;
   }
-  state.hiddenAgentSessionIds.add(normalizedNextopdSessionId);
+  state.hiddenAgentSessionIds.add(normalizedTuttidSessionId);
 }
 
 export function forgetHiddenAgentSession(
@@ -117,14 +117,14 @@ export function isHiddenAgentSession(
   state: DesktopAgentHostWorkspaceState,
   session: WorkspaceAgentSession | AgentActivitySession
 ): boolean {
-  const nextopdSessionId = normalizeAgentSessionId(
+  const tuttidSessionId = normalizeAgentSessionId(
     "agentSessionId" in session ? session.agentSessionId : session.id
   );
   const daemonVisible =
     "visible" in session && typeof session.visible === "boolean"
       ? session.visible
       : true;
-  return !daemonVisible || state.hiddenAgentSessionIds.has(nextopdSessionId);
+  return !daemonVisible || state.hiddenAgentSessionIds.has(tuttidSessionId);
 }
 
 function normalizeAgentSessionId(agentSessionId: string): string {

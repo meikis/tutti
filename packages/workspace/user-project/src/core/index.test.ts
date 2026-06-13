@@ -34,10 +34,10 @@ test("workspace user project display labels fall back to basename and id", () =>
   assert.equal(
     resolveWorkspaceUserProjectDisplayLabel({
       id: "project-1",
-      label: "nextop /workspace/nextop",
-      path: "/workspace/nextop"
+      label: "tutti /workspace/tutti",
+      path: "/workspace/tutti"
     }),
-    "nextop"
+    "tutti"
   );
   assert.equal(
     resolveWorkspaceUserProjectDisplayLabel({
@@ -58,10 +58,7 @@ test("workspace user project display labels fall back to basename and id", () =>
 });
 
 test("workspace user project basename supports unix and windows paths", () => {
-  assert.equal(
-    basenameWorkspaceUserProjectPath("/workspace/nextop/"),
-    "nextop"
-  );
+  assert.equal(basenameWorkspaceUserProjectPath("/workspace/tutti/"), "tutti");
   assert.equal(
     basenameWorkspaceUserProjectPath("C:\\Users\\local\\repo"),
     "repo"
@@ -71,8 +68,8 @@ test("workspace user project basename supports unix and windows paths", () => {
 test("workspace user project upsert replaces by id or path", () => {
   const first = {
     id: "project-1",
-    label: "nextop",
-    path: "/workspace/nextop"
+    label: "tutti",
+    path: "/workspace/tutti"
   };
   const second = {
     id: "project-2",
@@ -84,12 +81,12 @@ test("workspace user project upsert replaces by id or path", () => {
   assert.deepEqual(
     upsertWorkspaceUserProject([first], {
       ...first,
-      label: "Nextop"
+      label: "Tutti"
     }),
     [
       {
         ...first,
-        label: "Nextop"
+        label: "Tutti"
       }
     ]
   );

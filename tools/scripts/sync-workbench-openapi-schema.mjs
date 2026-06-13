@@ -11,7 +11,7 @@ const snapshotSchemaPath = resolve(
 );
 const openApiPath = resolve(
   repoRoot,
-  "services/nextopd/api/openapi/nextopd.v1.yaml"
+  "services/tuttid/api/openapi/tuttid.v1.yaml"
 );
 const checkOnly = process.argv.includes("--check");
 

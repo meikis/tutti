@@ -1,8 +1,8 @@
 import type { ServiceRegistry } from "@zk-tech/bedrock/di";
 import type {
-  NextopdClient,
-  NextopdEventStreamClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidClient,
+  TuttidEventStreamClient
+} from "@tutti-os/client-tuttid-ts";
 import type {
   DesktopHostFilesApi,
   DesktopRuntimeApi,
@@ -17,7 +17,7 @@ import {
 } from "./workspaceAppCenterService.interface";
 
 export interface WorkspaceAppCenterServiceRegistrationInput {
-  eventStreamClient: NextopdEventStreamClient;
+  eventStreamClient: TuttidEventStreamClient;
   hostFilesApi: Pick<
     DesktopHostFilesApi,
     | "revealInFolder"
@@ -26,7 +26,7 @@ export interface WorkspaceAppCenterServiceRegistrationInput {
     | "selectAppIconImage"
   >;
   hostWorkspaceApi: Pick<DesktopHostWorkspaceApi, "openWorkspaceAppFolder">;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   reporterService?: Pick<IReporterService, "trackEvents">;
   runtimeApi: Pick<DesktopRuntimeApi, "logRendererDiagnostic">;
 }
@@ -37,10 +37,10 @@ export function registerWorkspaceAppCenterServices(
 ): WorkspaceAppCenterServiceInterface {
   const service = new WorkspaceAppCenterService({
     eventStreamClient: input.eventStreamClient,
-    gateway: createDesktopWorkspaceAppCenterGateway(input.nextopdClient),
+    gateway: createDesktopWorkspaceAppCenterGateway(input.tuttidClient),
     hostFilesApi: input.hostFilesApi,
     hostWorkspaceApi: input.hostWorkspaceApi,
-    nextopdClient: input.nextopdClient,
+    tuttidClient: input.tuttidClient,
     reporterService: input.reporterService,
     runtimeApi: input.runtimeApi
   });

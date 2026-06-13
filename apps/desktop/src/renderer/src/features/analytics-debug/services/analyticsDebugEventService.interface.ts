@@ -1,4 +1,4 @@
-import type { TrackEvent } from "@tutti-os/client-nextopd-ts";
+import type { TrackEvent } from "@tutti-os/client-tuttid-ts";
 import { createDecorator } from "@zk-tech/bedrock/di";
 
 export type AnalyticsDebugEventServiceSnapshot = TrackEvent[];

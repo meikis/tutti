@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type {
   AgentActivityUpdatedEventV1,
-  NextopdEventStreamClient,
-  NextopdClient,
+  TuttidEventStreamClient,
+  TuttidClient,
   WorkspaceAgentSession
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopSleepPreventionMode } from "../shared/preferences/index.ts";
 import {
   connectAgentPowerSaveBlocker,
@@ -35,7 +35,7 @@ test("agent power save blocker starts while enabled sessions are running", async
   const eventStreamClient = createFakeEventStreamClient();
   const preferences = createFakePreferences("whileAgentRunning");
   const runtime = createFakeRuntime();
-  const client = createFakeNextopdClient({
+  const client = createFakeTuttidClient({
     sessions: {
       "ws-1:session-1": createSession("session-1", "running")
     }
@@ -44,7 +44,7 @@ test("agent power save blocker starts while enabled sessions are running", async
   const blocker = connectAgentPowerSaveBlocker({
     eventStreamClient,
     logger: createLogger(),
-    nextopdClient: client,
+    tuttidClient: client,
     preferences,
     runtime
   });
@@ -62,12 +62,12 @@ test("agent power save blocker starts immediately in always mode", async () => {
   const eventStreamClient = createFakeEventStreamClient();
   const preferences = createFakePreferences("always");
   const runtime = createFakeRuntime();
-  const client = createFakeNextopdClient({ sessions: {} });
+  const client = createFakeTuttidClient({ sessions: {} });
 
   const blocker = connectAgentPowerSaveBlocker({
     eventStreamClient,
     logger: createLogger(),
-    nextopdClient: client,
+    tuttidClient: client,
     preferences,
     runtime
   });
@@ -84,7 +84,7 @@ test("agent power save blocker stops when running session completes", async () =
   const eventStreamClient = createFakeEventStreamClient();
   const preferences = createFakePreferences("whileAgentRunning");
   const runtime = createFakeRuntime();
-  const client = createFakeNextopdClient({
+  const client = createFakeTuttidClient({
     sessions: {
       "ws-1:session-1": createSession("session-1", "running")
     }
@@ -93,7 +93,7 @@ test("agent power save blocker stops when running session completes", async () =
   const blocker = connectAgentPowerSaveBlocker({
     eventStreamClient,
     logger: createLogger(),
-    nextopdClient: client,
+    tuttidClient: client,
     preferences,
     runtime
   });
@@ -113,7 +113,7 @@ test("agent power save blocker follows preference changes", async () => {
   const eventStreamClient = createFakeEventStreamClient();
   const preferences = createFakePreferences("never");
   const runtime = createFakeRuntime();
-  const client = createFakeNextopdClient({
+  const client = createFakeTuttidClient({
     sessions: {
       "ws-1:session-1": createSession("session-1", "running")
     }
@@ -122,7 +122,7 @@ test("agent power save blocker follows preference changes", async () => {
   const blocker = connectAgentPowerSaveBlocker({
     eventStreamClient,
     logger: createLogger(),
-    nextopdClient: client,
+    tuttidClient: client,
     preferences,
     runtime
   });
@@ -142,10 +142,10 @@ test("agent power save blocker follows preference changes", async () => {
   blocker.dispose();
 });
 
-function createFakeNextopdClient(input: {
+function createFakeTuttidClient(input: {
   sessions: Record<string, WorkspaceAgentSession>;
 }): Pick<
-  NextopdClient,
+  TuttidClient,
   "getWorkspaceAgentSession" | "listWorkspaceAgentSessions" | "listWorkspaces"
 > & {
   sessions: Record<string, WorkspaceAgentSession>;
@@ -199,7 +199,7 @@ function createSession(
   };
 }
 
-function createFakeEventStreamClient(): NextopdEventStreamClient & {
+function createFakeEventStreamClient(): TuttidEventStreamClient & {
   emitAgentActivityUpdated(workspaceID: string, agentSessionID: string): void;
 } {
   const activityListeners = new Set<

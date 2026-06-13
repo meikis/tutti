@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 
 export const userShellEnvTimeoutMs = 10_000;
 
-const marker = "__NEXTOP_USER_SHELL_ENV_START__";
+const marker = "__TUTTI_USER_SHELL_ENV_START__";
 const envCommand = `printf '%s\\0' ${marker}; env -0`;
 const maxShellEnvOutputBytes = 1024 * 1024;
 const allowedEnvKeys = new Set([

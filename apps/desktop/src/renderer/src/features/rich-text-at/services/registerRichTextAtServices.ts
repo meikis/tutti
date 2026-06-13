@@ -1,10 +1,10 @@
 import type { ServiceRegistry } from "@zk-tech/bedrock/di";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import { DesktopRichTextAtService } from "./internal/desktopRichTextAtService";
 import { IDesktopRichTextAtService } from "./richTextAtService.interface";
 
 export interface RichTextAtServiceRegistrationInput {
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
 }
 
 export function registerRichTextAtServices(
@@ -12,7 +12,7 @@ export function registerRichTextAtServices(
   input: RichTextAtServiceRegistrationInput
 ): IDesktopRichTextAtService {
   const service = new DesktopRichTextAtService({
-    nextopdClient: input.nextopdClient
+    tuttidClient: input.tuttidClient
   });
   registry.registerInstance(IDesktopRichTextAtService, service);
   return service;

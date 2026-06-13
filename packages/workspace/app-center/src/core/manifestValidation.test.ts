@@ -119,7 +119,7 @@ describe("validateWorkspaceAppManifest", () => {
 
   it("rejects unsupported schema versions and invalid ids", () => {
     const result = validateWorkspaceAppManifest({
-      schemaVersion: "nextop.app.manifest.v0",
+      schemaVersion: "tutti.app.manifest.v0",
       appId: "bad id",
       name: "Bad App",
       description: "Bad",

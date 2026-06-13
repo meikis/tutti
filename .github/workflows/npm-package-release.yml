@@ -47,17 +47,17 @@ jobs:
 
       - name: Apply package release version
         env:
-          NEXTOP_PACKAGE_RELEASE_VERSION: ${{ steps.version.outputs.version }}
-        run: pnpm release:packages:apply-version "${NEXTOP_PACKAGE_RELEASE_VERSION}"
+          TUTTI_PACKAGE_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: pnpm release:packages:apply-version "${TUTTI_PACKAGE_RELEASE_VERSION}"
 
       - name: Validate package tarballs
         run: pnpm release:pack:check
 
       - name: Publish packages
         env:
-          NEXTOP_PACKAGE_RELEASE_VERSION: ${{ steps.version.outputs.version }}
-          NEXTOP_NPM_PROVENANCE: ${{ github.event.repository.private != true }}
+          TUTTI_PACKAGE_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          TUTTI_NPM_PROVENANCE: ${{ github.event.repository.private != true }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm release:packages "${NEXTOP_PACKAGE_RELEASE_VERSION}"
+        run: pnpm release:packages "${TUTTI_PACKAGE_RELEASE_VERSION}"

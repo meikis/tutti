@@ -72,7 +72,7 @@
     min-height: 100vh;
   }
 
-  @keyframes nextop-dropdown-open {
+  @keyframes tutti-dropdown-open {
     from {
       transform: scale(var(--dropdown-pre-scale));
       opacity: 0;
@@ -84,7 +84,7 @@
     }
   }
 
-  @keyframes nextop-dropdown-close {
+  @keyframes tutti-dropdown-close {
     from {
       transform: scale(1);
       opacity: 1;
@@ -107,15 +107,15 @@
     transform: scale(1);
     opacity: 1;
     pointer-events: auto;
-    animation: nextop-dropdown-open var(--dropdown-open-dur)
-      var(--dropdown-ease) both;
+    animation: tutti-dropdown-open var(--dropdown-open-dur) var(--dropdown-ease)
+      both;
   }
 
   .t-dropdown[data-state="closed"] {
     transform: scale(var(--dropdown-closing-scale));
     opacity: 0;
     pointer-events: none;
-    animation: nextop-dropdown-close var(--dropdown-close-dur)
+    animation: tutti-dropdown-close var(--dropdown-close-dur)
       var(--dropdown-ease) both;
   }
 

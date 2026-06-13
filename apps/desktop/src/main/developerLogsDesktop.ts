@@ -1,5 +1,5 @@
 import { app } from "electron";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { ExportDeveloperLogsResult } from "../shared/contracts/ipc.ts";
 import {
   createDeveloperLogsService,
@@ -15,8 +15,8 @@ import { exportDeveloperLogsToDefaultDownloadsPathAndNotify } from "./developerL
 
 export function createDesktopDeveloperLogsService(
   preferences: DesktopHostPreferencesState,
-  nextopdClient?: Pick<
-    NextopdClient,
+  tuttidClient?: Pick<
+    TuttidClient,
     | "listWorkspaceAgentSessionMessages"
     | "listWorkspaceAgentSessions"
     | "listWorkspaceAppFactoryJobs"
@@ -25,11 +25,11 @@ export function createDesktopDeveloperLogsService(
   >
 ): ReturnType<typeof createDeveloperLogsService> {
   return createDeveloperLogsService({
-    agentSessionsProvider: nextopdClient
-      ? () => listDeveloperLogsAgentSessions(nextopdClient)
+    agentSessionsProvider: tuttidClient
+      ? () => listDeveloperLogsAgentSessions(tuttidClient)
       : undefined,
-    appCenterSnapshotProvider: nextopdClient
-      ? () => buildDeveloperLogsAppCenterSnapshot(nextopdClient)
+    appCenterSnapshotProvider: tuttidClient
+      ? () => buildDeveloperLogsAppCenterSnapshot(tuttidClient)
       : undefined,
     defaults: resolveDesktopDefaultsFromEnv(),
     desktopVersion: app.getVersion(),
@@ -47,8 +47,8 @@ export function createDesktopDeveloperLogsService(
 
 export async function exportDesktopDeveloperLogsAndNotify(
   preferences: DesktopHostPreferencesState,
-  nextopdClient?: Pick<
-    NextopdClient,
+  tuttidClient?: Pick<
+    TuttidClient,
     | "listWorkspaceAgentSessionMessages"
     | "listWorkspaceAgentSessions"
     | "listWorkspaceAppFactoryJobs"
@@ -64,13 +64,13 @@ export async function exportDesktopDeveloperLogsAndNotify(
 
   return exportDeveloperLogsToDefaultDownloadsPathAndNotify({
     locale: preferences.getLocale(),
-    service: createDesktopDeveloperLogsService(preferences, nextopdClient)
+    service: createDesktopDeveloperLogsService(preferences, tuttidClient)
   });
 }
 
 async function listDeveloperLogsAgentSessions(
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     | "listWorkspaceAgentSessionMessages"
     | "listWorkspaceAgentSessions"
     | "listWorkspaceAppFactoryJobs"
@@ -78,10 +78,10 @@ async function listDeveloperLogsAgentSessions(
     | "listWorkspaces"
   >
 ): Promise<DeveloperLogsAgentSessionRecord[]> {
-  const workspaces = await nextopdClient.listWorkspaces();
+  const workspaces = await tuttidClient.listWorkspaces();
   const sessionPages = await Promise.all(
     workspaces.workspaces.map((workspace) =>
-      nextopdClient
+      tuttidClient
         .listWorkspaceAgentSessions(workspace.id)
         .catch(() => ({ sessions: [], workspaceId: workspace.id }))
     )
@@ -115,7 +115,7 @@ async function listDeveloperLogsAgentSessions(
   const records = await Promise.all(
     selectedSessions.map(
       async (session): Promise<DeveloperLogsAgentSessionRecord | null> => {
-        const messages = await nextopdClient
+        const messages = await tuttidClient
           .listWorkspaceAgentSessionMessages(
             session.workspaceID,
             session.agentSessionID,
@@ -140,21 +140,21 @@ async function listDeveloperLogsAgentSessions(
 }
 
 async function buildDeveloperLogsAppCenterSnapshot(
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     "listWorkspaceAppFactoryJobs" | "listWorkspaceApps" | "listWorkspaces"
   >
 ): Promise<DeveloperLogsAppCenterSnapshot> {
-  const workspaces = await nextopdClient.listWorkspaces();
+  const workspaces = await tuttidClient.listWorkspaces();
   const workspaceSnapshots: DeveloperLogsAppCenterSnapshot["workspaces"] =
     await Promise.all(
       workspaces.workspaces.map(async (workspace) => {
         const [apps, factoryJobs] = await Promise.all([
-          nextopdClient.listWorkspaceApps(workspace.id).catch((error) => ({
+          tuttidClient.listWorkspaceApps(workspace.id).catch((error) => ({
             error: error instanceof Error ? error.message : String(error),
             workspaceId: workspace.id
           })),
-          nextopdClient
+          tuttidClient
             .listWorkspaceAppFactoryJobs(workspace.id)
             .catch((error) => ({
               error: error instanceof Error ? error.message : String(error),

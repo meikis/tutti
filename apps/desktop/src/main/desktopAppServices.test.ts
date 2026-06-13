@@ -114,26 +114,26 @@ function createUpdateService(): AppUpdateService {
   };
 }
 
-test("createDesktopAppServices starts nextopd before creating host services", async () => {
+test("createDesktopAppServices starts tuttid before creating host services", async () => {
   const events: string[] = [];
   const daemonRuntime: DesktopDaemonRuntime = {
     daemonEndpoint: {
       accessToken: "token",
       boundAddr: null,
-      listenerInfoPath: "/tmp/nextopd.listener.json",
-      pidPath: "/tmp/nextopd.pid",
+      listenerInfoPath: "/tmp/tuttid.listener.json",
+      pidPath: "/tmp/tuttid.pid",
       requestedAddr: "127.0.0.1:0"
     },
-    nextopd: {
+    tuttid: {
       async getHealth() {
         throw new Error("not used");
       },
       async start() {
-        events.push("nextopd:start");
+        events.push("tuttid:start");
       },
       async stop() {}
     },
-    nextopdClient: {
+    tuttidClient: {
       async createWorkspace() {
         throw new Error("not used");
       },
@@ -146,7 +146,7 @@ test("createDesktopAppServices starts nextopd before creating host services", as
       async openWorkspace() {
         throw new Error("not used");
       }
-    } as unknown as DesktopDaemonRuntime["nextopdClient"]
+    } as unknown as DesktopDaemonRuntime["tuttidClient"]
   };
 
   const services = await createDesktopAppServices(createOptions(events), {
@@ -166,7 +166,7 @@ test("createDesktopAppServices starts nextopd before creating host services", as
       events.push("cli-shim:ensure");
       return {
         installed: false,
-        shimPath: "/tmp/nextop/bin/nextop"
+        shimPath: "/tmp/tutti/bin/tutti"
       };
     }
   });
@@ -174,38 +174,38 @@ test("createDesktopAppServices starts nextopd before creating host services", as
   assert.deepEqual(events, [
     "daemon-runtime:create",
     "update-service:create",
-    "nextopd:start",
+    "tuttid:start",
     "cli-shim:ensure",
     "host-services:create"
   ]);
-  assert.equal(services.nextopd, daemonRuntime.nextopd);
-  assert.equal(services.nextopdClient, daemonRuntime.nextopdClient);
+  assert.equal(services.tuttid, daemonRuntime.tuttid);
+  assert.equal(services.tuttidClient, daemonRuntime.tuttidClient);
 });
 
-test("createDesktopAppServices rejects when managed nextopd fails to start", async () => {
+test("createDesktopAppServices rejects when managed tuttid fails to start", async () => {
   const events: string[] = [];
   const startError = new Error("listener info timeout");
-  const dir = await mkdtemp(join(tmpdir(), "nextop-desktop-services-"));
+  const dir = await mkdtemp(join(tmpdir(), "tutti-desktop-services-"));
   const startupFailureQueuePath = join(dir, "startup-failures.jsonl");
   const daemonRuntime: DesktopDaemonRuntime = {
     daemonEndpoint: {
       accessToken: "token",
       boundAddr: null,
-      listenerInfoPath: "/tmp/nextopd.listener.json",
-      pidPath: "/tmp/nextopd.pid",
+      listenerInfoPath: "/tmp/tuttid.listener.json",
+      pidPath: "/tmp/tuttid.pid",
       requestedAddr: "127.0.0.1:0"
     },
-    nextopd: {
+    tuttid: {
       async getHealth() {
         throw new Error("not used");
       },
       async start() {
-        events.push("nextopd:start");
+        events.push("tuttid:start");
         throw startError;
       },
       async stop() {}
     },
-    nextopdClient: {} as DesktopDaemonRuntime["nextopdClient"]
+    tuttidClient: {} as DesktopDaemonRuntime["tuttidClient"]
   };
 
   await assert.rejects(
@@ -231,7 +231,7 @@ test("createDesktopAppServices rejects when managed nextopd fails to start", asy
           events.push("cli-shim:ensure");
           return {
             installed: false,
-            shimPath: "/tmp/nextop/bin/nextop"
+            shimPath: "/tmp/tutti/bin/tutti"
           };
         }
       }
@@ -242,8 +242,8 @@ test("createDesktopAppServices rejects when managed nextopd fails to start", asy
   assert.deepEqual(events, [
     "daemon-runtime:create",
     "update-service:create",
-    "nextopd:start",
-    "error:failed to start managed nextopd"
+    "tuttid:start",
+    "error:failed to start managed tuttid"
   ]);
   const queued = await readFile(startupFailureQueuePath, "utf8");
   assert.match(queued, /"name":"daemon.startup_failed"/);

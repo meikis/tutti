@@ -1,16 +1,18 @@
-import manageAgentClaudeCodeUrl from "../app/renderer/assets/icons/agents/manage-agent-claude-code.png";
-import manageAgentCodexUrl from "../app/renderer/assets/icons/agents/manage-agent-codex.png";
-import manageAgentGeminiUrl from "../app/renderer/assets/icons/agents/manage-agent-gemini.png";
-import manageAgentHermesUrl from "../app/renderer/assets/icons/agents/manage-agent-hermes.png";
-import manageAgentNextopUrl from "../app/renderer/assets/icons/agents/manage-agent-nextop.png";
-import manageAgentOpenclawUrl from "../app/renderer/assets/icons/agents/manage-agent-openclaw.png";
-import claudeRoundedUrl from "../app/renderer/assets/icons/agents/claude-rounded.png";
-import codexRoundedUrl from "../app/renderer/assets/icons/agents/codex-rounded.png";
-import geminiRoundedUrl from "../app/renderer/assets/icons/agents/gemini-rounded.png";
-import hermesRoundedUrl from "../app/renderer/assets/icons/agents/hermes-rounded.png";
-import nextopDocRoundedUrl from "../app/renderer/assets/icons/agents/nextop-doc-rounded.png";
-import openclawRoundedUrl from "../app/renderer/assets/icons/agents/openclaw-rounded.png";
 import { normalizeManagedAgentProvider } from "./managedAgentProviders";
+import {
+  claudeRoundedUrl,
+  codexRoundedUrl,
+  geminiRoundedUrl,
+  hermesRoundedUrl,
+  manageAgentClaudeCodeUrl,
+  manageAgentCodexUrl,
+  manageAgentGeminiUrl,
+  manageAgentHermesUrl,
+  manageAgentTuttiUrl,
+  manageAgentOpenclawUrl,
+  tuttiDocRoundedUrl,
+  openclawRoundedUrl
+} from "../managedAgentIconAssets";
 
 /** Square avatar art for the managed toolchain agents (used by Manage Agents and Launch home Agents floor). */
 export const MANAGED_AGENT_ICON_URLS: Record<string, string> = {
@@ -18,7 +20,7 @@ export const MANAGED_AGENT_ICON_URLS: Record<string, string> = {
   codex: manageAgentCodexUrl,
   gemini: manageAgentGeminiUrl,
   hermes: manageAgentHermesUrl,
-  nextop: manageAgentNextopUrl,
+  tutti: manageAgentTuttiUrl,
   openclaw: manageAgentOpenclawUrl
 };
 
@@ -28,14 +30,14 @@ export const MANAGED_AGENT_ICON_ROUNDED_URLS: Record<string, string> = {
   codex: codexRoundedUrl,
   gemini: geminiRoundedUrl,
   hermes: hermesRoundedUrl,
-  nextop: nextopDocRoundedUrl,
+  tutti: tuttiDocRoundedUrl,
   openclaw: openclawRoundedUrl
 };
 
 /** 与 Manage Agents 列表用的方图区分；房间预览弹幕条等仅用圆图 */
-const MANAGED_AGENT_ROUNDED_ICON_FALLBACK_URL = nextopDocRoundedUrl;
+const MANAGED_AGENT_ROUNDED_ICON_FALLBACK_URL = tuttiDocRoundedUrl;
 
-export const MANAGED_AGENT_ICON_FALLBACK_URL = manageAgentNextopUrl;
+export const MANAGED_AGENT_ICON_FALLBACK_URL = manageAgentTuttiUrl;
 
 export function managedAgentRoundedIconUrl(
   provider: string | undefined

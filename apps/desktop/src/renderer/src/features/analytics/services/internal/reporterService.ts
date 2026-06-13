@@ -1,4 +1,4 @@
-import type { NextopdClient, TrackEvent } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient, TrackEvent } from "@tutti-os/client-tuttid-ts";
 import type {
   IReporterService,
   ReporterEventInput,
@@ -6,18 +6,18 @@ import type {
 } from "../reporterService.interface";
 
 export interface ReporterServiceDependencies {
-  nextopdClient: Pick<NextopdClient, "trackEvents">;
+  tuttidClient: Pick<TuttidClient, "trackEvents">;
   now?: () => number;
 }
 
 export class ReporterService implements IReporterService {
   readonly _serviceBrand: undefined;
 
-  private readonly nextopdClient: Pick<NextopdClient, "trackEvents">;
+  private readonly tuttidClient: Pick<TuttidClient, "trackEvents">;
   private readonly now: () => number;
 
   constructor(dependencies: ReporterServiceDependencies) {
-    this.nextopdClient = dependencies.nextopdClient;
+    this.tuttidClient = dependencies.tuttidClient;
     this.now = dependencies.now ?? Date.now;
   }
 
@@ -31,21 +31,21 @@ export class ReporterService implements IReporterService {
     }
 
     try {
-      const nextopdEvents = events.map((event) => this.toNextopdEvent(event));
-      await this.nextopdClient.trackEvents(nextopdEvents);
+      const tuttidEvents = events.map((event) => this.toTuttidEvent(event));
+      await this.tuttidClient.trackEvents(tuttidEvents);
     } catch {
       // Analytics is best-effort in the renderer and must not affect product flows.
     }
   }
 
-  private toNextopdEvent(event: ReporterEventInput): TrackEvent {
-    const nextopdEvent: TrackEvent = {
+  private toTuttidEvent(event: ReporterEventInput): TrackEvent {
+    const tuttidEvent: TrackEvent = {
       client_ts: event.clientTS ?? this.now(),
       name: event.name
     };
     if (event.params) {
-      nextopdEvent.params = { ...event.params };
+      tuttidEvent.params = { ...event.params };
     }
-    return nextopdEvent;
+    return tuttidEvent;
   }
 }

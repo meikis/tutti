@@ -100,7 +100,7 @@ describe("agentToolRenderData", () => {
         toolName: "Bash",
         input: {
           command:
-            'nextop-cli agent active-peers 2>/dev/null || echo "no active peers"'
+            'tutti-cli agent active-peers 2>/dev/null || echo "no active peers"'
         },
         output: {
           status: "completed",
@@ -118,7 +118,7 @@ describe("agentToolRenderData", () => {
 
     expect(data).toMatchObject({
       command:
-        'nextop-cli agent active-peers 2>/dev/null || echo "no active peers"',
+        'tutti-cli agent active-peers 2>/dev/null || echo "no active peers"',
       stdout:
         '{\n  "schema_version": 1,\n  "ok": true,\n  "query": {\n    "kind": "active_peers"\n  }\n}',
       stderr: "",
@@ -132,7 +132,7 @@ describe("agentToolRenderData", () => {
         toolName: "Bash",
         input: {
           command:
-            'nextop-cli agent active-peers --room-id room-123 2>/dev/null || echo "no active peers"'
+            'tutti-cli agent active-peers --room-id room-123 2>/dev/null || echo "no active peers"'
         },
         output: {
           status: "completed",
@@ -150,7 +150,7 @@ describe("agentToolRenderData", () => {
 
     expect(data).toMatchObject({
       command:
-        'nextop-cli agent active-peers --room-id room-123 2>/dev/null || echo "no active peers"',
+        'tutti-cli agent active-peers --room-id room-123 2>/dev/null || echo "no active peers"',
       stdout:
         '{\n  "schema_version": 1,\n  "ok": true,\n  "query": {\n    "kind": "active_peers",\n    "room_id": "room-123"\n  }\n}',
       stderr: "",

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  NextopdProtocolError,
+  TuttidProtocolError,
   workspaceProtocolErrorCodes
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import { toDesktopIpcResult } from "./result.ts";
 
 test("toDesktopIpcResult preserves protocol error details for renderer i18n", async () => {
   const result = await toDesktopIpcResult(async () => {
-    throw new NextopdProtocolError({
+    throw new TuttidProtocolError({
       code: workspaceProtocolErrorCodes.workspaceNotFound,
       correlationId: "corr-1",
       developerMessage: "workspace not found",

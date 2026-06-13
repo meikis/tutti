@@ -28,13 +28,13 @@ export function resolveDesktopEnvironment(
     desktopApi: createWebDesktopApi(),
     mode: "web",
     startupWorkspaceID: readEnvString(
-      import.meta.env.VITE_NEXTOP_WEB_WORKSPACE_ID
+      import.meta.env.VITE_TUTTI_WEB_WORKSPACE_ID
     )
   };
 }
 
 function isWebDesktopDevEnabled(): boolean {
-  return import.meta.env.VITE_NEXTOP_WEB_DEV === "1";
+  return import.meta.env.VITE_TUTTI_WEB_DEV === "1";
 }
 
 function readEnvString(value: string | undefined): string | null {

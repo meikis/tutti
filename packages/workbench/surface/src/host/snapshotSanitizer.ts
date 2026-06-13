@@ -15,7 +15,7 @@ export interface WorkbenchHostSnapshotNodeData {
 }
 
 const allowedMetadataKeys = [
-  "nextopWorkbenchInitialized",
+  "tuttiWorkbenchInitialized",
   "workbenchHostInitialized"
 ] as const;
 

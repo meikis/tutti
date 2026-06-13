@@ -2,7 +2,7 @@ import type {
   DesktopApiErrorDetails,
   DesktopIpcResult
 } from "../../shared/contracts/ipc";
-import { normalizeNextopdError } from "@tutti-os/client-nextopd-ts";
+import { normalizeTuttidError } from "@tutti-os/client-tuttid-ts";
 import {
   classifyDesktopErrorCode,
   formatErrorMessage
@@ -25,7 +25,7 @@ export async function toDesktopIpcResult<TResult>(
 }
 
 function toDesktopIpcError(error: unknown): DesktopApiErrorDetails {
-  const protocolError = normalizeNextopdError(error);
+  const protocolError = normalizeTuttidError(error);
   if (protocolError) {
     return {
       code: protocolError.code,

@@ -31,7 +31,7 @@ If you are editing `packages/ui/*`, also read [packages/ui/AGENTS.md](ui/AGENTS.
 - a reusable frontend workspace-domain package may still own shared session orchestration, view-model derivation, and React-facing interaction state when those behaviors are intentionally shared across hosts
 - a reusable frontend package that owns optional UI may also own narrow default i18n resources for that shared surface; keep those defaults in the owning package and let hosts override them through their app-level i18n or i18n runtime
 - keep host-specific transport wiring, desktop preload calls, daemon client construction, host absolute paths, and product-specific integration details out of `workspace/*`
-- keep host-specific transport wiring, product global names such as `__nextop` or `__tsh`, and product bridge methods out of `browser/*`
+- keep host-specific transport wiring, product global names such as `__tutti` or `__tsh`, and product bridge methods out of `browser/*`
 - do not move code into `packages/` until there is a real multi-consumer boundary
 - treat a public npm package as an explicit external contract, not as automatic proof that the package already has multiple in-repository consumers
 - when a package is intended for public npm release before a second in-repository host exists, document that external contract in the npm release conventions and review the package as a deliberate published boundary rather than as speculative pre-extraction
@@ -44,7 +44,7 @@ If you are editing `packages/ui/*`, also read [packages/ui/AGENTS.md](ui/AGENTS.
 Keep code local by default:
 
 - TypeScript code used only by desktop stays in `apps/desktop`
-- Go code used only by the daemon stays in `services/nextopd`
+- Go code used only by the daemon stays in `services/tuttid`
 
 Move code into `packages/` only when:
 
@@ -63,7 +63,7 @@ external contract and is included in the durable npm release conventions.
 - For TypeScript package changes, run `pnpm typecheck`
 - If a package change affects `@tutti-os/ui-system` exports or import boundaries, also run `pnpm check:ui-boundaries`
 - If a package change affects desktop integration, also run `pnpm --filter @tutti-os/desktop build`
-- If a package change affects daemon behavior, also run the relevant `services/nextopd` checks
+- If a package change affects daemon behavior, also run the relevant `services/tuttid` checks
 
 ## Related docs
 

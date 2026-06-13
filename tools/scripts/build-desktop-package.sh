@@ -4,9 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_DIR="${ROOT_DIR}/apps/desktop"
 VARIANT="${1:-unpack}"
-DAEMON_BUNDLE_DIR="${APP_DIR}/build/nextopd"
-CLI_BUNDLE_DIR="${APP_DIR}/build/nextop"
-DESKTOP_BUILD_VERSION="${NEXTOP_DESKTOP_BUILD_VERSION:-}"
+DAEMON_BUNDLE_DIR="${APP_DIR}/build/tuttid"
+CLI_BUNDLE_DIR="${APP_DIR}/build/tutti"
+DESKTOP_BUILD_VERSION="${TUTTI_DESKTOP_BUILD_VERSION:-}"
 
 release_timing_log() {
   echo "[release-timing] $*"
@@ -88,20 +88,20 @@ prepare_packaged_daemon() {
   rm -rf "${DAEMON_BUNDLE_DIR}" "${CLI_BUNDLE_DIR}"
   mkdir -p "${DAEMON_BUNDLE_DIR}" "${CLI_BUNDLE_DIR}"
 
-  local daemon_output_name="nextopd"
-  local cli_output_name="nextop"
+  local daemon_output_name="tuttid"
+  local cli_output_name="tutti"
   if [[ "${VARIANT}" == "win" ]]; then
-    daemon_output_name="nextopd.exe"
-    cli_output_name="nextop.exe"
+    daemon_output_name="tuttid.exe"
+    cli_output_name="tutti.exe"
   fi
 
   (
-    cd "${ROOT_DIR}/services/nextopd"
+    cd "${ROOT_DIR}/services/tuttid"
     go build -o "${DAEMON_BUNDLE_DIR}/${daemon_output_name}" .
   )
   (
     cd "${ROOT_DIR}/apps/cli"
-    go build -o "${CLI_BUNDLE_DIR}/${cli_output_name}" ./cmd/nextop
+    go build -o "${CLI_BUNDLE_DIR}/${cli_output_name}" ./cmd/tutti
   )
 }
 

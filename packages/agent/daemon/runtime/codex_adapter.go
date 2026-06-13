@@ -22,7 +22,7 @@ import (
 const (
 	codexACPCommand       = "codex-acp"
 	nexightACPCommand     = "nexight-acp"
-	codexAgentRoutingEnv  = "NEXTOP_AGENT_ROUTING=1"
+	codexAgentRoutingEnv  = "TUTTI_AGENT_ROUTING=1"
 	codexRoutingPreload   = "LD_PRELOAD=" + runtimepaths.BundlePreloadSOPath
 	acpMethodInitialize   = "initialize"
 	acpMethodAuthenticate = "authenticate"
@@ -128,7 +128,7 @@ func NewNexightAdapterWithHostMetadata(transport ProcessTransport, host HostMeta
 		command:             []string{nexightACPCommand},
 		adapterName:         "nexight-acp",
 		authRequiredMessage: "Nexight ACP requires authentication in the runtime VM. Sync the Nexight host credentials, then retry this session.",
-		fallbackTitles:      []string{"", ProviderNexight, "nextop"},
+		fallbackTitles:      []string{"", ProviderNexight, "tutti"},
 	}, host)
 }
 
@@ -2537,7 +2537,7 @@ func acpApplyDiffContent(body map[string]any, value any) {
 }
 
 func acpToolCallDiagnosticEnabled() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("NEXTOP_ACP_TOOL_DEBUG"))) {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("TUTTI_ACP_TOOL_DEBUG"))) {
 	case "1", "true", "yes", "on":
 		return true
 	default:

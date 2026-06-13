@@ -39,7 +39,7 @@ describe("AgentTerminalBlock", () => {
 
     const { container } = render(
       <AgentTerminalBlock
-        command="nextop-cli agent session-summary"
+        command="tutti-cli agent session-summary"
         stdout={stdout}
         stderr=""
         exitCode={0}

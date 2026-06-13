@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import { createDesktopIssueManagerBackend } from "./desktopIssueManagerBackend.ts";
 
 test("desktop issue-manager backend routes issue and task context refs", async () => {
   const calls: Array<{ method: string; args: unknown[] }> = [];
   const backend = createDesktopIssueManagerBackend(
-    createNextopdClient({
+    createTuttidClient({
       async addWorkspaceIssueContextRefs(...args) {
         calls.push({ args, method: "addIssueRefs" });
         return {
@@ -116,7 +116,7 @@ test("desktop issue-manager backend routes issue and task context refs", async (
 test("desktop issue-manager backend maps list, update, run, and status payloads", async () => {
   const calls: Array<{ method: string; args: unknown[] }> = [];
   const backend = createDesktopIssueManagerBackend(
-    createNextopdClient({
+    createTuttidClient({
       async completeWorkspaceIssueTaskRun(...args) {
         calls.push({ args, method: "completeRun" });
         return {} as never;
@@ -148,7 +148,7 @@ test("desktop issue-manager backend maps list, update, run, and status payloads"
     pageSize: 25,
     pageToken: "page-1",
     searchQuery: "renderer",
-    statusFilter: "running",
+    statusFilter: "in_progress",
     topicId: "topic-1",
     workspaceId: "workspace-1"
   });
@@ -205,7 +205,7 @@ test("desktop issue-manager backend maps list, update, run, and status payloads"
           pageSize: 25,
           pageToken: "page-1",
           searchQuery: "renderer",
-          statusFilter: "running",
+          statusFilter: "in_progress",
           topicId: "topic-1"
         }
       ],
@@ -280,6 +280,6 @@ test("desktop issue-manager backend maps list, update, run, and status payloads"
   ]);
 });
 
-function createNextopdClient(overrides: Partial<NextopdClient>): NextopdClient {
-  return overrides as NextopdClient;
+function createTuttidClient(overrides: Partial<TuttidClient>): TuttidClient {
+  return overrides as TuttidClient;
 }

@@ -1,4 +1,4 @@
-import type { NextopdClient, TrackEvent } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient, TrackEvent } from "@tutti-os/client-tuttid-ts";
 import type { AppUpdateState } from "../shared/contracts/ipc.ts";
 import type { AppUpdateService } from "./update/appUpdateService.ts";
 
@@ -7,7 +7,7 @@ export interface DesktopAppUpdateAnalyticsHandle {
 }
 
 export interface StartDesktopAppUpdateAnalyticsInput {
-  nextopdClient: Pick<NextopdClient, "trackEvents">;
+  tuttidClient: Pick<TuttidClient, "trackEvents">;
   now?: () => number;
   onError?: (error: unknown) => void;
   updateService: Pick<AppUpdateService, "onStateChanged">;
@@ -23,7 +23,7 @@ export function startDesktopAppUpdateAnalytics(
         return;
       }
 
-      void input.nextopdClient
+      void input.tuttidClient
         .trackEvents([
           createAppUpdateStatusChangedEvent({
             availableVersion: state.latestVersion,

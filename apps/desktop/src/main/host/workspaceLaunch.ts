@@ -1,4 +1,4 @@
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 
 export interface WorkspaceLaunchOwnerWindow {
   close(): void;
@@ -20,7 +20,7 @@ export interface WorkspaceLaunch {
 
 export interface WorkspaceLaunchDependencies {
   adapters: WorkspaceLaunchAdapters;
-  nextopdClient: Pick<NextopdClient, "getStartupWorkspace">;
+  tuttidClient: Pick<TuttidClient, "getStartupWorkspace">;
 }
 
 export function createWorkspaceLaunch(
@@ -41,9 +41,9 @@ export function createWorkspaceLaunch(
   };
 
   async function resolveStartupWorkspaceID(): Promise<string> {
-    const workspaceToRestore = await deps.nextopdClient.getStartupWorkspace();
+    const workspaceToRestore = await deps.tuttidClient.getStartupWorkspace();
     if (!workspaceToRestore) {
-      throw new Error("nextopd did not return a startup workspace");
+      throw new Error("tuttid did not return a startup workspace");
     }
     return workspaceToRestore.id;
   }

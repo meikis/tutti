@@ -87,7 +87,7 @@ test("rejects app-level relative imports of feature services/internal implementa
 test("allows window containers to read the preload API composition root", async () => {
   const workspaceRoot = await createFixtureWorkspace({
     "app/windows/dashboard/createDashboardWindowContainer.ts":
-      "registerDashboardServices(registry, window.nextop);\n"
+      "registerDashboardServices(registry, window.tutti);\n"
   });
 
   const result = runBoundaryCheck(workspaceRoot);
@@ -99,30 +99,30 @@ test("allows window containers to read the preload API composition root", async 
 test("rejects feature UI direct access to the preload API", async () => {
   const workspaceRoot = await createFixtureWorkspace({
     "features/app-update/ui/AppUpdateStatus.tsx":
-      "void window.nextop.update.getState();\n"
+      "void window.tutti.update.getState();\n"
   });
 
   const result = runBoundaryCheck(workspaceRoot);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /renderer-window-nextop-access/);
+  assert.match(result.stderr, /renderer-window-tutti-access/);
 });
 
 test("rejects feature service direct access to the preload API", async () => {
   const workspaceRoot = await createFixtureWorkspace({
     "features/workspace-launcher/services/internal/workspaceLauncherService.ts":
-      "void window.nextop.workspace.list();\n"
+      "void window.tutti.workspace.list();\n"
   });
 
   const result = runBoundaryCheck(workspaceRoot);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /renderer-window-nextop-access/);
+  assert.match(result.stderr, /renderer-window-tutti-access/);
 });
 
 async function createFixtureWorkspace(files) {
   const workspaceRoot = await mkdtemp(
-    join(tmpdir(), "nextop-renderer-boundaries-")
+    join(tmpdir(), "tutti-renderer-boundaries-")
   );
 
   for (const [path, content] of Object.entries(files)) {
@@ -140,8 +140,8 @@ function runBoundaryCheck(workspaceRoot) {
     encoding: "utf8",
     env: {
       ...process.env,
-      NEXTOP_WORKSPACE_ROOT: workspaceRoot,
-      NEXTOP_RENDERER_ROOT: rendererRoot
+      TUTTI_WORKSPACE_ROOT: workspaceRoot,
+      TUTTI_RENDERER_ROOT: rendererRoot
     }
   });
 }

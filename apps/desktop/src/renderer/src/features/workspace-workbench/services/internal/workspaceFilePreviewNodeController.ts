@@ -6,7 +6,7 @@ import {
   workspaceFilePreviewMaxBytes,
   type WorkspaceFilePreviewReadonlyReason
 } from "@tutti-os/workspace-file-preview";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import type { WorkspaceWorkbenchDesktopI18nRuntime } from "@shared/i18n";
 import { workspaceWorkbenchDesktopI18nKeys } from "@shared/i18n";
@@ -64,8 +64,8 @@ export function createWorkspaceFilePreviewNodeController(input: {
   appI18n: I18nRuntime<string>;
   i18n: WorkspaceWorkbenchDesktopI18nRuntime;
   initialFile: WorkspaceFileActivationTarget | null;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     "readWorkspaceFilePreview" | "writeWorkspaceFileText"
   >;
   onRuntimeStateChange(state: unknown): void;
@@ -90,8 +90,8 @@ class WorkspaceFilePreviewNodeControllerImpl implements WorkspaceFilePreviewNode
       appI18n: I18nRuntime<string>;
       i18n: WorkspaceWorkbenchDesktopI18nRuntime;
       initialFile: WorkspaceFileActivationTarget | null;
-      nextopdClient: Pick<
-        NextopdClient,
+      tuttidClient: Pick<
+        TuttidClient,
         "readWorkspaceFilePreview" | "writeWorkspaceFileText"
       >;
       onRuntimeStateChange(state: unknown): void;
@@ -145,7 +145,7 @@ class WorkspaceFilePreviewNodeControllerImpl implements WorkspaceFilePreviewNode
     );
 
     try {
-      await this.input.nextopdClient.writeWorkspaceFileText(
+      await this.input.tuttidClient.writeWorkspaceFileText(
         this.input.workspaceID,
         {
           content,
@@ -216,7 +216,7 @@ class WorkspaceFilePreviewNodeControllerImpl implements WorkspaceFilePreviewNode
     generation: number
   ): Promise<void> {
     try {
-      const preview = await this.input.nextopdClient.readWorkspaceFilePreview(
+      const preview = await this.input.tuttidClient.readWorkspaceFilePreview(
         this.input.workspaceID,
         target.path
       );

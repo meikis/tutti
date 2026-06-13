@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentGUIProps, AgentHostInputApi } from "@tutti-os/agent-gui";
 import type { AgentActivitySnapshot } from "@tutti-os/agent-activity-core";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { RichTextAtProvider } from "@tutti-os/ui-rich-text/types";
 import type {
   DesktopHostFilesApi,
@@ -26,7 +26,7 @@ test("desktop agent GUI workbench host input reuses an injected agent host api",
   const hostInput = createDesktopAgentGUIWorkbenchHostInput({
     agentHostApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     richTextAtService: createRichTextAtService({
       providers: richTextAtProviders,
@@ -61,7 +61,7 @@ test("desktop agent GUI workbench host input reuses an injected agent host api",
 test("desktop agent GUI workbench host input creates the default agent host api", async () => {
   const hostInput = createDesktopAgentGUIWorkbenchHostInput({
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     richTextAtService: createRichTextAtService(),
     runtimeApi: createRuntimeApi(),
@@ -97,7 +97,7 @@ test("desktop agent GUI workbench host input passes an activity runtime backed b
   const hostInput = createDesktopAgentGUIWorkbenchHostInput({
     agentHostApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     richTextAtService: createRichTextAtService(),
     runtimeApi: createRuntimeApi(),
@@ -121,7 +121,7 @@ test("desktop agent GUI workbench host input tracks runtime prompt sends", async
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     reporterNow: () => 1749124800000,
     reporterService: {
@@ -171,7 +171,7 @@ test("desktop agent GUI workbench host input tracks workspace file references", 
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     reporterNow: () => 1749124800000,
     reporterService: {
@@ -223,7 +223,7 @@ test("desktop agent GUI workbench host input tracks runtime message stops", asyn
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     reporterNow: () => 1749124800000,
     reporterService: {
@@ -256,6 +256,45 @@ test("desktop agent GUI workbench host input tracks runtime message stops", asyn
   ]);
 });
 
+test("desktop agent GUI workbench host input skips stopped tracking for no-op cancel", async () => {
+  const reporterCalls: ReporterEventInput[][] = [];
+  const hostInput = createDesktopAgentGUIWorkbenchHostInput({
+    agentHostApi: {
+      meta: { workspaceId }
+    } as unknown as AgentHostInputApi,
+    hostFilesApi: createHostFilesApi(),
+    tuttidClient: createTuttidClient(),
+    platformApi: createPlatformApi(),
+    reporterNow: () => 1749124800000,
+    reporterService: {
+      async trackEvents(events) {
+        reporterCalls.push(events);
+      }
+    },
+    richTextAtService: createRichTextAtService(),
+    runtimeApi: createRuntimeApi(),
+    workspaceAgentActivityService: createWorkspaceAgentActivityService([], {
+      cancelSessionResult: {
+        canceled: false,
+        reason: "no_active_turn",
+        session: {
+          ...emptySession(),
+          agentSessionId: "session-runtime-stop-1",
+          status: "ready"
+        }
+      }
+    }),
+    workspaceId
+  });
+
+  await hostInput.agentActivityRuntime.cancelSession({
+    workspaceId,
+    agentSessionId: "session-runtime-stop-1"
+  });
+
+  assert.deepEqual(reporterCalls, []);
+});
+
 test("desktop agent GUI workbench host input tracks runtime new session activation", async () => {
   const reporterCalls: ReporterEventInput[][] = [];
   const hostInput = createDesktopAgentGUIWorkbenchHostInput({
@@ -263,7 +302,7 @@ test("desktop agent GUI workbench host input tracks runtime new session activati
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     reporterNow: () => 1749124800000,
     reporterService: {
@@ -314,7 +353,7 @@ test("desktop agent GUI workbench host input tracks runtime session pin changes"
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     reporterNow: () => 1749124800000,
     reporterService: {
@@ -373,7 +412,7 @@ test("desktop agent GUI workbench host input tracks runtime session settings cha
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     reporterNow: () => 1749124800000,
     reporterService: {
@@ -469,7 +508,7 @@ test("desktop agent GUI workbench host input tracks runtime project setting chan
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     reporterNow: () => 1749124800000,
     reporterService: {
@@ -515,7 +554,7 @@ test("desktop agent GUI workbench host input tracks draft composer setting chang
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     reporterNow: () => 1749124800000,
     reporterService: {
@@ -586,7 +625,7 @@ test("desktop agent GUI workbench host input wires runtime control-state reads t
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     richTextAtService: createRichTextAtService(),
     runtimeApi: createRuntimeApi(),
@@ -620,7 +659,7 @@ test("desktop agent GUI workbench host input wires runtime composer options thro
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     richTextAtService: createRichTextAtService(),
     runtimeApi: createRuntimeApi(),
@@ -652,7 +691,7 @@ test("desktop agent GUI workbench host input wires runtime activation through th
       meta: { workspaceId }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     richTextAtService: createRichTextAtService(),
     runtimeApi: createRuntimeApi(),
@@ -697,7 +736,7 @@ test("desktop agent GUI workbench host input forwards OpenClaw warmup through th
       }
     } as unknown as AgentHostInputApi,
     hostFilesApi: createHostFilesApi(),
-    nextopdClient: createNextopdClient(),
+    tuttidClient: createTuttidClient(),
     platformApi: createPlatformApi(),
     richTextAtService: createRichTextAtService(),
     runtimeApi: createRuntimeApi(),
@@ -744,7 +783,7 @@ function createRichTextAtService(
 function createHostFilesApi(): DesktopHostFilesApi {
   return {
     async createUserDocumentsProjectDirectory(input) {
-      return { path: `/Users/local/Documents/nextop/${input.name}` };
+      return { path: `/Users/local/Documents/tutti/${input.name}` };
     },
     async openExternal() {},
     async openFile() {},
@@ -781,14 +820,17 @@ function createHostFilesApi(): DesktopHostFilesApi {
     async openFileInBrowser() {},
     async resolveWorkspaceFileFileUrl() {
       return "file:///tmp/example.html";
+    },
+    async resolveEntryIcon() {
+      return null;
     }
   };
 }
 
-function createNextopdClient(): NextopdClient {
+function createTuttidClient(): TuttidClient {
   return {
     async checkUserProjectPath(
-      request: Parameters<NextopdClient["checkUserProjectPath"]>[0]
+      request: Parameters<TuttidClient["checkUserProjectPath"]>[0]
     ) {
       return {
         exists: true,
@@ -797,8 +839,8 @@ function createNextopdClient(): NextopdClient {
       };
     },
     async getAgentProviderComposerOptions(
-      provider: Parameters<NextopdClient["getAgentProviderComposerOptions"]>[0],
-      request: Parameters<NextopdClient["getAgentProviderComposerOptions"]>[1]
+      provider: Parameters<TuttidClient["getAgentProviderComposerOptions"]>[0],
+      request: Parameters<TuttidClient["getAgentProviderComposerOptions"]>[1]
     ) {
       const settings = request?.settings ?? {};
       return {
@@ -874,7 +916,7 @@ function createNextopdClient(): NextopdClient {
       return { projects: [] };
     },
     async useUserProject(
-      request: Parameters<NextopdClient["useUserProject"]>[0]
+      request: Parameters<TuttidClient["useUserProject"]>[0]
     ) {
       return {
         createdAtUnixMs: 1,
@@ -886,7 +928,7 @@ function createNextopdClient(): NextopdClient {
     },
     async writeWorkspaceFileText(
       workspaceId: string,
-      request: Parameters<NextopdClient["writeWorkspaceFileText"]>[1]
+      request: Parameters<TuttidClient["writeWorkspaceFileText"]>[1]
     ) {
       return {
         entry: {
@@ -901,7 +943,7 @@ function createNextopdClient(): NextopdClient {
         workspaceId
       };
     }
-  } as unknown as NextopdClient;
+  } as unknown as TuttidClient;
 }
 
 function createPlatformApi(): Pick<
@@ -954,6 +996,9 @@ function createRuntimeApi(
 function createWorkspaceAgentActivityService(
   calls: string[],
   options: {
+    cancelSessionResult?: Awaited<
+      ReturnType<IWorkspaceAgentActivityService["cancelSession"]>
+    >;
     controlStateSettings?: {
       model?: string | null;
       permissionModeId?: string | null;
@@ -992,10 +1037,23 @@ function createWorkspaceAgentActivityService(
       };
     },
     async cancelSession(input) {
+      if (options.cancelSessionResult) {
+        return {
+          ...options.cancelSessionResult,
+          session: {
+            ...options.cancelSessionResult.session,
+            agentSessionId: input.agentSessionId
+          }
+        };
+      }
       return {
-        ...emptySession(),
-        agentSessionId: input.agentSessionId,
-        status: "canceled"
+        canceled: true,
+        reason: "active_turn_canceled",
+        session: {
+          ...emptySession(),
+          agentSessionId: input.agentSessionId,
+          status: "canceled"
+        }
       };
     },
     async createSession(input) {

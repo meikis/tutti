@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentProviderStatus } from "@tutti-os/client-nextopd-ts";
+import type { AgentProviderStatus } from "@tutti-os/client-tuttid-ts";
 import type { AgentProviderStatusService } from "@renderer/features/workspace-agent";
 import type { WorkspaceWorkbenchDesktopI18nRuntime } from "@shared/i18n";
 import { createWorkspaceAgentProviderDockStateSource } from "./workspaceAgentProviderDockStateSource.ts";

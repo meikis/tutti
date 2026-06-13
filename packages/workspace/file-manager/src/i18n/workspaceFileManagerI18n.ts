@@ -7,7 +7,7 @@ import {
 
 type WorkspaceFileManagerI18nLocale = "en" | "zh-CN";
 export const workspaceFileManagerI18nNamespace = "workspaceFileManager";
-export const nextopI18nModule = createScopedLocaleObjectsI18nModuleManifest({
+export const tuttiI18nModule = createScopedLocaleObjectsI18nModuleManifest({
   localeObjectByLocale: {
     en: "workspaceFileManagerEn",
     "zh-CN": "workspaceFileManagerZhCN"
@@ -19,6 +19,14 @@ export const nextopI18nModule = createScopedLocaleObjectsI18nModuleManifest({
 
 const workspaceFileManagerEn = {
   backLabel: "Back",
+  arrangeApplicationLabel: "Application",
+  arrangeCreatedLabel: "Created",
+  arrangeDateAddedLabel: "Date Added",
+  arrangeKindLabel: "Kind",
+  arrangeLastOpenedLabel: "Last Opened",
+  arrangeMenuLabel: "Arrange",
+  arrangeNoneLabel: "None",
+  arrangeTagsLabel: "Tags",
   breadcrumbRootLabel: "workspace",
   cancelLabel: "Cancel",
   closeLabel: "Close",
@@ -47,7 +55,7 @@ const workspaceFileManagerEn = {
   noSearchResults: "No files matched your search",
   openFailedTitle: "Open failed",
   openLabel: "Open",
-  openInAppBrowserLabel: "Nextop built-in browser",
+  openInAppBrowserLabel: "Tutti built-in browser",
   openInDefaultBrowserLabel: "Default Browser",
   openWithLabel: "Open With",
   openWithLoadingLabel: "Loading apps...",
@@ -104,11 +112,21 @@ const workspaceFileManagerEn = {
   importLabel: "Import",
   importTypeConflictDescription:
     "{{count}} import path conflicts with an existing file or folder using an incompatible type. Resolve it before retrying.",
-  importTypeConflictTitle: "Import path conflict"
+  importTypeConflictTitle: "Import path conflict",
+  layoutIconViewLabel: "Icon view",
+  layoutListViewLabel: "List view"
 } as const satisfies I18nDictionary;
 
 const workspaceFileManagerZhCN = {
   backLabel: "后退",
+  arrangeApplicationLabel: "应用程序",
+  arrangeCreatedLabel: "创建日期",
+  arrangeDateAddedLabel: "添加日期",
+  arrangeKindLabel: "种类",
+  arrangeLastOpenedLabel: "上次打开日期",
+  arrangeMenuLabel: "排列方式",
+  arrangeNoneLabel: "无",
+  arrangeTagsLabel: "标签",
   breadcrumbRootLabel: "工作区",
   cancelLabel: "取消",
   closeLabel: "关闭",
@@ -137,7 +155,7 @@ const workspaceFileManagerZhCN = {
   noSearchResults: "没有匹配的文件",
   openFailedTitle: "打开失败",
   openLabel: "打开",
-  openInAppBrowserLabel: "Nextop 内置的浏览器",
+  openInAppBrowserLabel: "Tutti 内置的浏览器",
   openInDefaultBrowserLabel: "默认浏览器",
   openWithLabel: "打开方式",
   openWithLoadingLabel: "正在加载应用...",
@@ -188,7 +206,9 @@ const workspaceFileManagerZhCN = {
   importLabel: "导入",
   importTypeConflictDescription:
     "这次导入里有 {{count}} 个路径与现有文件或文件夹的类型不兼容。请先处理后再重试。",
-  importTypeConflictTitle: "导入路径冲突"
+  importTypeConflictTitle: "导入路径冲突",
+  layoutIconViewLabel: "图标",
+  layoutListViewLabel: "列表"
 } as const satisfies I18nDictionary;
 
 export type WorkspaceFileManagerI18nKey = keyof typeof workspaceFileManagerEn;

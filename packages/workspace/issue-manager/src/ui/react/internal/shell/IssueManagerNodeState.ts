@@ -15,7 +15,7 @@ interface IssueManagerTaskListCollapsedDetail {
 }
 
 const issueManagerTaskListCollapsedEvent =
-  "nextop:issue-manager-task-list-collapsed";
+  "tutti:issue-manager-task-list-collapsed";
 
 type IssueManagerTopicCreateEventInput = Omit<
   IssueManagerCreateTopicInput,

@@ -1,23 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { NotificationService } from "@tutti-os/ui-notifications";
 import type { DesktopHostFilesApi, DesktopPlatformApi } from "@preload/types";
 import { DesktopWorkspaceUserProjectService } from "./desktopWorkspaceUserProjectService.ts";
 
-type NextopdUserProject = Awaited<ReturnType<NextopdClient["useUserProject"]>>;
+type TuttidUserProject = Awaited<ReturnType<TuttidClient["useUserProject"]>>;
 
 test("workspace user project service loads projects into Valtio state once", async () => {
   let listCalls = 0;
   const service = createService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async listUserProjects() {
         listCalls += 1;
         return {
           projects: [
             createProject({
               id: "project-1",
-              path: "/workspace/nextop"
+              path: "/workspace/tutti"
             })
           ]
         };
@@ -35,7 +35,7 @@ test("workspace user project service loads projects into Valtio state once", asy
   assert.deepEqual(service.store.projects, [
     createProject({
       id: "project-1",
-      path: "/workspace/nextop"
+      path: "/workspace/tutti"
     })
   ]);
   assert.equal(service.getSnapshot().projects.length, 1);
@@ -44,13 +44,13 @@ test("workspace user project service loads projects into Valtio state once", asy
 
 test("workspace user project service refresh updates projects and preserves them on API failure", async () => {
   const service = createService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async listUserProjects() {
         return {
           projects: [
             createProject({
               id: "project-1",
-              path: "/workspace/nextop"
+              path: "/workspace/tutti"
             })
           ]
         };
@@ -62,13 +62,13 @@ test("workspace user project service refresh updates projects and preserves them
   assert.equal(service.store.error, null);
   assert.deepEqual(
     service.store.projects.map((project) => project.path),
-    ["/workspace/nextop"]
+    ["/workspace/tutti"]
   );
 
   const failingService = createService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async listUserProjects() {
-        throw new Error("nextopd offline");
+        throw new Error("tuttid offline");
       }
     })
   });
@@ -81,7 +81,7 @@ test("workspace user project service refresh updates projects and preserves them
 
   await failingService.refresh();
 
-  assert.equal(failingService.store.error, "nextopd offline");
+  assert.equal(failingService.store.error, "tuttid offline");
   assert.deepEqual(
     failingService.store.projects.map((project) => project.path),
     ["/workspace/existing"]
@@ -96,7 +96,7 @@ test("workspace user project service registers project paths and remembers defau
     path: "/workspace/registered"
   });
   const service = createService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async listUserProjects() {
         return { projects: [registeredProject] };
       },
@@ -127,7 +127,7 @@ test("workspace user project service removes project paths until they are regist
     createProject({ id: "project-beta", path: "/workspace/beta" })
   ];
   const service = createService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async deleteUserProject(input) {
         deletedPaths.push(input.path);
       },
@@ -174,7 +174,7 @@ test("workspace user project service removes project paths until they are regist
 });
 
 test("workspace user project service keeps registered project when stale refresh resolves later", async () => {
-  const staleList = createDeferred<{ projects: NextopdUserProject[] }>();
+  const staleList = createDeferred<{ projects: TuttidUserProject[] }>();
   let listCalls = 0;
   const registeredProject = createProject({
     id: "project-registered",
@@ -182,7 +182,7 @@ test("workspace user project service keeps registered project when stale refresh
     path: "/workspace/registered"
   });
   const service = createService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async listUserProjects() {
         listCalls += 1;
         if (listCalls === 1) {
@@ -230,10 +230,10 @@ test("workspace user project service creates a documents directory before regist
     hostFilesApi: createHostFilesApi({
       async createUserDocumentsProjectDirectory(input) {
         calls.push({ method: "createDirectory", name: input.name });
-        return { path: `/Users/local/Documents/nextop/${input.name}` };
+        return { path: `/Users/local/Documents/tutti/${input.name}` };
       }
     }),
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async listUserProjects() {
         return { projects: [] };
       },
@@ -249,16 +249,16 @@ test("workspace user project service creates a documents directory before regist
 
   const project = await service.createProject("Demo project");
 
-  assert.equal(project.path, "/Users/local/Documents/nextop/Demo project");
+  assert.equal(project.path, "/Users/local/Documents/tutti/Demo project");
   assert.deepEqual(calls, [
     { method: "createDirectory", name: "Demo project" },
     {
       method: "useProject",
-      path: "/Users/local/Documents/nextop/Demo project"
+      path: "/Users/local/Documents/tutti/Demo project"
     }
   ]);
   assert.deepEqual(await service.getDefaultSelection(), {
-    path: "/Users/local/Documents/nextop/Demo project"
+    path: "/Users/local/Documents/tutti/Demo project"
   });
 });
 
@@ -269,7 +269,7 @@ test("workspace user project service delegates path checks, directory selection,
         return "/workspace";
       }
     }),
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async checkUserProjectPath(input) {
         return {
           exists: true,
@@ -288,7 +288,7 @@ test("workspace user project service delegates path checks, directory selection,
   assert.deepEqual(await service.selectDirectory(), { path: "/workspace" });
   assert.equal(
     service.isNoProjectPath(
-      "/Users/local/Documents/nextop/session-44444444-4444-4444-8444-444444444444"
+      "/Users/local/Documents/tutti/session-44444444-4444-4444-8444-444444444444"
     ),
     true
   );
@@ -301,7 +301,7 @@ test("workspace user project service prepares selection decisions", async () => 
     createProject({ id: "project-beta", path: "/workspace/beta" })
   ];
   const service = createService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async checkUserProjectPath(input) {
         return {
           exists: input.path !== "/workspace/missing",
@@ -394,7 +394,7 @@ test("workspace user project service reports directory selection failures throug
 function createService(
   overrides: {
     hostFilesApi?: DesktopWorkspaceUserProjectServiceTestHostFilesApi;
-    nextopdClient?: DesktopWorkspaceUserProjectServiceTestNextopdClient;
+    tuttidClient?: DesktopWorkspaceUserProjectServiceTestTuttidClient;
     notifications?: NotificationService;
     platformApi?: DesktopWorkspaceUserProjectServiceTestPlatformApi;
     workspaceId?: string;
@@ -402,7 +402,7 @@ function createService(
 ): DesktopWorkspaceUserProjectService {
   return new DesktopWorkspaceUserProjectService({
     hostFilesApi: overrides.hostFilesApi ?? createHostFilesApi(),
-    nextopdClient: overrides.nextopdClient ?? createNextopdClient(),
+    tuttidClient: overrides.tuttidClient ?? createTuttidClient(),
     notifications: overrides.notifications,
     platformApi: overrides.platformApi ?? createPlatformApi(),
     workspaceId:
@@ -416,8 +416,8 @@ type DesktopWorkspaceUserProjectServiceTestHostFilesApi = Pick<
   "createUserDocumentsProjectDirectory" | "selectDirectory"
 >;
 
-type DesktopWorkspaceUserProjectServiceTestNextopdClient = Pick<
-  NextopdClient,
+type DesktopWorkspaceUserProjectServiceTestTuttidClient = Pick<
+  TuttidClient,
   | "checkUserProjectPath"
   | "deleteUserProject"
   | "listUserProjects"
@@ -434,7 +434,7 @@ function createHostFilesApi(
 ): DesktopWorkspaceUserProjectServiceTestHostFilesApi {
   return {
     async createUserDocumentsProjectDirectory(input) {
-      return { path: `/Users/local/Documents/nextop/${input.name}` };
+      return { path: `/Users/local/Documents/tutti/${input.name}` };
     },
     async selectDirectory() {
       return null;
@@ -443,9 +443,9 @@ function createHostFilesApi(
   };
 }
 
-function createNextopdClient(
-  overrides: Partial<DesktopWorkspaceUserProjectServiceTestNextopdClient> = {}
-): DesktopWorkspaceUserProjectServiceTestNextopdClient {
+function createTuttidClient(
+  overrides: Partial<DesktopWorkspaceUserProjectServiceTestTuttidClient> = {}
+): DesktopWorkspaceUserProjectServiceTestTuttidClient {
   return {
     async checkUserProjectPath(input) {
       return {
@@ -476,8 +476,8 @@ function createPlatformApi(
 }
 
 function createProject(
-  overrides: Partial<NextopdUserProject> = {}
-): NextopdUserProject {
+  overrides: Partial<TuttidUserProject> = {}
+): TuttidUserProject {
   const path = overrides.path ?? "/workspace/project";
   return {
     createdAtUnixMs: 1,

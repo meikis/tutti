@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {
-  NextopdEventStreamClient,
+  TuttidEventStreamClient,
   WorkspaceApp,
   WorkspaceAppListResponse
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type {
   WorkspaceAppCenterGateway,
   WorkspaceAppFactoryJob,
@@ -1299,10 +1299,10 @@ function createFakeWorkspaceAppCenterGateway(
 
 function createFakeEventStreamClient(options?: {
   emitConnectedOnConnect?: boolean;
-}): NextopdEventStreamClient & {
+}): TuttidEventStreamClient & {
   emitConnectionState(
     state: Parameters<
-      Parameters<NextopdEventStreamClient["subscribeConnectionState"]>[0]
+      Parameters<TuttidEventStreamClient["subscribeConnectionState"]>[0]
     >[0]
   ): void;
   emitWorkspaceAppUpdated(app: WorkspaceApp): void;
@@ -1318,7 +1318,7 @@ function createFakeEventStreamClient(options?: {
     }) => void
   >();
   const connectionStateListeners = new Set<
-    Parameters<NextopdEventStreamClient["subscribeConnectionState"]>[0]
+    Parameters<TuttidEventStreamClient["subscribeConnectionState"]>[0]
   >();
 
   return {

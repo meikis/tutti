@@ -2,7 +2,7 @@ import type {
   AgentProviderTerminalCommandRunner,
   AgentProviderStatusActionContext
 } from "@renderer/features/workspace-agent";
-import type { AgentProviderTerminalCommand } from "@tutti-os/client-nextopd-ts";
+import type { AgentProviderTerminalCommand } from "@tutti-os/client-tuttid-ts";
 import type { DesktopRuntimeApi } from "@preload/types";
 import type { WorkbenchHostHandle } from "@tutti-os/workbench-surface";
 import { classifyDesktopErrorCode } from "../../../../../shared/errors/desktopErrors.ts";

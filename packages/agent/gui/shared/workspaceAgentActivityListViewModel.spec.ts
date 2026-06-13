@@ -988,7 +988,7 @@ describe("buildWorkspaceAgentActivityListViewModel", () => {
               fileChanges: {
                 files: [
                   {
-                    path: "/workspace/docs/NextopLandingPage.md",
+                    path: "/workspace/docs/TuttiLandingPage.md",
                     change: "added"
                   }
                 ]
@@ -1011,8 +1011,8 @@ describe("buildWorkspaceAgentActivityListViewModel", () => {
       latestActivitySummary: "已完成",
       changedFiles: [
         {
-          path: "/workspace/docs/NextopLandingPage.md",
-          label: "NextopLandingPage.md"
+          path: "/workspace/docs/TuttiLandingPage.md",
+          label: "TuttiLandingPage.md"
         }
       ]
     });

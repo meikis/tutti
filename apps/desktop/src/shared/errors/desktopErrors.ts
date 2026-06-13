@@ -1,8 +1,8 @@
 import type {
   RuntimeProtocolErrorCode,
   WorkspaceProtocolErrorCode
-} from "@tutti-os/client-nextopd-ts";
-import { getNextopdProtocolErrorCode } from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
+import { getTuttidProtocolErrorCode } from "@tutti-os/client-tuttid-ts";
 
 export const desktopErrorCodes = {
   daemonUnavailable: "daemon_unavailable",
@@ -29,7 +29,7 @@ export type DesktopErrorCode =
   | WorkspaceProtocolErrorCode;
 
 export function classifyDesktopErrorCode(error: unknown): DesktopErrorCode {
-  const protocolCode = getNextopdProtocolErrorCode(error);
+  const protocolCode = getTuttidProtocolErrorCode(error);
   if (protocolCode) {
     return protocolCode as
       | RuntimeProtocolErrorCode

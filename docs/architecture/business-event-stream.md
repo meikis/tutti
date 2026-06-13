@@ -1,7 +1,7 @@
 # Business Event Stream
 
 This document describes the intended architecture for a shared business event
-stream between desktop clients, `nextopd`, and future extensible feature
+stream between desktop clients, `tuttid`, and future extensible feature
 surfaces.
 
 The event stream is a business transport, not an Electron host bridge and not a
@@ -26,7 +26,7 @@ replacement for every existing WebSocket route.
 
 ## Why This Exists
 
-`nextopd` and desktop clients are expected to need more frequent bidirectional
+`tuttid` and desktop clients are expected to need more frequent bidirectional
 coordination than ordinary request-response APIs handle well.
 
 We want one durable event model that:
@@ -50,7 +50,7 @@ Current intended transport split:
 
 Desktop still follows the normal backend-access rule:
 
-- `renderer -> nextopd` for business APIs and business streams
+- `renderer -> tuttid` for business APIs and business streams
 - `renderer -> preload -> main` for host capabilities
 
 `main` supervises the managed daemon endpoint and issues the bearer token, but
@@ -59,7 +59,7 @@ it does not become a general event relay.
 ## Shared Contract Ownership
 
 The business event contract belongs to a repository-owned shared package under
-`packages/`, not to `services/nextopd` alone and not to `apps/desktop` alone.
+`packages/`, not to `services/tuttid` alone and not to `apps/desktop` alone.
 
 That shared package owns:
 
@@ -71,7 +71,7 @@ That shared package owns:
 The daemon transport seam owns:
 
 - generated Go transport contracts and registry output under
-  `services/nextopd/api/events/generated`
+  `services/tuttid/api/events/generated`
 - the authoritative catalog used by `/v1/events/ws`
 - daemon-side route validation, session handling, and subscription fan-out
 
@@ -94,7 +94,7 @@ Example shape:
 
 ```json
 {
-  "$schema": "https://nextop.dev/schemas/event-definition.schema.json",
+  "$schema": "https://tutti.dev/schemas/event-definition.schema.json",
   "topic": "workspace.issue.updated",
   "version": 1,
   "direction": "server->client",
@@ -197,15 +197,15 @@ field for every workspace-scoped topic.
 
 ## Event Authority
 
-`nextopd` remains the single business core for authoritative domain workflows
+`tuttid` remains the single business core for authoritative domain workflows
 and domain-state changes.
 
 That means:
 
 - client-to-server event publishing represents typed request or intent topics
-- `nextopd` validates and executes those intents through its normal business
+- `tuttid` validates and executes those intents through its normal business
   authority
-- authoritative domain-state events are emitted by `nextopd`
+- authoritative domain-state events are emitted by `tuttid`
 
 Desktop clients may publish intents onto the stream, but they do not become a
 second business core by publishing final business-state events directly.
@@ -278,8 +278,8 @@ Event-definition files generate:
 - TypeScript runtime validators and topic registry metadata in
   `packages/events/protocol`
 - Go payload and envelope transport types in
-  `services/nextopd/api/events/generated`
-- Go topic registry metadata in `services/nextopd/api/events/generated`
+  `services/tuttid/api/events/generated`
+- Go topic registry metadata in `services/tuttid/api/events/generated`
 
 Those generated outputs belong first to the stream transport seam. They must
 not turn into many hand-maintained parallel TypeScript interfaces or Go structs

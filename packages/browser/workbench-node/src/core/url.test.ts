@@ -41,19 +41,19 @@ test("allows host browser navigation for workspace file URLs", () => {
 });
 
 test("keeps non-URL address input policy host-provided", () => {
-  const resolved = resolveBrowserAddressInput("nextop browser node");
+  const resolved = resolveBrowserAddressInput("tutti browser node");
   assert.deepEqual(resolved, { errorCode: "invalid-url", url: null });
 });
 
 test("turns non-URL address input into host-provided search navigation", () => {
-  const resolved = resolveBrowserAddressInput("nextop browser node", {
+  const resolved = resolveBrowserAddressInput("tutti browser node", {
     resolveSearchUrl(query) {
       const searchUrl = new URL("https://search.example/");
       searchUrl.searchParams.set("q", query);
       return searchUrl.toString();
     }
   });
-  assert.equal(resolved.url, "https://search.example/?q=nextop+browser+node");
+  assert.equal(resolved.url, "https://search.example/?q=tutti+browser+node");
 });
 
 test("normalizes comparable URLs through browser navigation rules", () => {

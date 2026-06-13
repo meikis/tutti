@@ -140,7 +140,7 @@ describe("projectAgentTurnSummaryRowForTurn", () => {
     ]);
   });
 
-  it("extracts local Nextop workspace paths when workspaceRoot is known", () => {
+  it("extracts local Tutti workspace paths when workspaceRoot is known", () => {
     const rows = projectAgentTurnSummaryRowForTurn(
       {
         id: "turn-local-workspace",
@@ -162,7 +162,7 @@ describe("projectAgentTurnSummaryRowForTurn", () => {
                 files: [
                   { path: "src/app.ts", change: "modified" },
                   {
-                    path: "/Users/example/tsh-project/nextop/src/routes.ts",
+                    path: "/Users/example/tsh-project/tutti/src/routes.ts",
                     change: "added"
                   },
                   { path: "/tmp/outside.txt", change: "added" }
@@ -175,7 +175,7 @@ describe("projectAgentTurnSummaryRowForTurn", () => {
         hasFailedToolCall: false,
         agentItems: []
       } satisfies WorkspaceAgentSessionDetailTurn,
-      { workspaceRoot: "/Users/example/tsh-project/nextop" }
+      { workspaceRoot: "/Users/example/tsh-project/tutti" }
     );
 
     expect(rows[0]?.files).toEqual([
@@ -184,7 +184,7 @@ describe("projectAgentTurnSummaryRowForTurn", () => {
         label: "app.ts"
       }),
       expect.objectContaining({
-        path: "/Users/example/tsh-project/nextop/src/routes.ts",
+        path: "/Users/example/tsh-project/tutti/src/routes.ts",
         label: "routes.ts",
         changeType: "created"
       })

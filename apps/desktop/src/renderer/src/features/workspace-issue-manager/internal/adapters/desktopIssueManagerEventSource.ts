@@ -1,8 +1,8 @@
-import type { NextopdEventStreamClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidEventStreamClient } from "@tutti-os/client-tuttid-ts";
 import type { IssueManagerEventSource } from "@tutti-os/workspace-issue-manager/contracts";
 
 export function createDesktopIssueManagerEventSource(
-  eventStreamClient: NextopdEventStreamClient
+  eventStreamClient: TuttidEventStreamClient
 ): IssueManagerEventSource {
   return {
     connect() {

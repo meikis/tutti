@@ -106,7 +106,7 @@ The host owns:
 - IPC channel registration and preload global wiring
 - external URL opening policy
 - loopback preview target resolution
-- bridge namespace, such as `__tsh` or `__nextop`
+- bridge namespace, such as `__tsh` or `__tutti`
 - bridge methods, such as TSH agent/game/share actions or future Tutti actions
 - product authorization and host allowlist policy
 - daemon or server clients
@@ -183,7 +183,7 @@ import { installBrowserNodeGuestBridge } from "@tutti-os/browser-node/electron-p
 installBrowserNodeGuestBridge({
   call,
   methods,
-  namespace: "__nextop"
+  namespace: "__tutti"
 });
 ```
 
@@ -228,7 +228,7 @@ Tutti should first consume the package as a workbench node type:
    snapshot path.
 3. Add a narrow desktop host API for Browser Node commands through preload.
 4. Register Electron main handlers as host capabilities, not business flows.
-5. Keep direct `nextopd` backend tokens out of guest pages.
+5. Keep direct `tuttid` backend tokens out of guest pages.
 6. Add package i18n resources to the renderer app-level i18n runtime.
 
 The first slice can support ordinary HTTP and HTTPS navigation before enabling

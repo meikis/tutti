@@ -56,7 +56,7 @@ test("serializes canonical workbench state back to canonical snapshot shape", ()
 
   const snapshot = createWorkbenchSnapshotFromState(state, {
     metadata: {
-      nextopWorkbenchInitialized: true
+      tuttiWorkbenchInitialized: true
     }
   });
 
@@ -69,6 +69,6 @@ test("serializes canonical workbench state back to canonical snapshot shape", ()
   });
   assert.equal(snapshot.activeNodeId, "workspace-files");
   assert.deepEqual(snapshot.metadata, {
-    nextopWorkbenchInitialized: true
+    tuttiWorkbenchInitialized: true
   });
 });

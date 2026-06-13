@@ -222,7 +222,7 @@ export interface AgentHostManagedAgentsStateItem {
 
 export interface AgentHostToolchainConfigSyncedAgent {
   agentId: string;
-  /** RFC3339 timestamp for when Nextop last synced this agent's host config. */
+  /** RFC3339 timestamp for when Tutti last synced this agent's host config. */
   syncedAt?: string;
 }
 
@@ -236,7 +236,7 @@ export interface AgentHostManagedAgentsState {
   readyAgentIds: string[];
   /** Agent IDs whose host config has been synced to the VM through Manage Agents. */
   configSyncedAgentIds: string[];
-  /** Agent config sync metadata, including when Nextop last copied host config. */
+  /** Agent config sync metadata, including when Tutti last copied host config. */
   configSyncedAgents?: AgentHostToolchainConfigSyncedAgent[];
 }
 

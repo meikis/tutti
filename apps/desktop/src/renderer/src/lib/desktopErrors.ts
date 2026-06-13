@@ -1,7 +1,7 @@
 import {
-  getNextopdErrorI18nCandidates,
-  normalizeNextopdError
-} from "@tutti-os/client-nextopd-ts";
+  getTuttidErrorI18nCandidates,
+  normalizeTuttidError
+} from "@tutti-os/client-tuttid-ts";
 import { classifyDesktopErrorCode } from "../../../shared/errors/desktopErrors.ts";
 import {
   createDesktopErrorI18nRuntime,
@@ -19,7 +19,7 @@ export function resolveDesktopErrorMessage(
   const copy = createDesktopErrorI18nRuntime(locale);
   const unexpectedServiceError = () =>
     copy.t("errors.transport_request_failed");
-  const protocolError = normalizeNextopdError(error);
+  const protocolError = normalizeTuttidError(error);
   if (protocolError) {
     const params = protocolError.params as Record<
       string,
@@ -30,7 +30,7 @@ export function resolveDesktopErrorMessage(
       return overrideMessage;
     }
 
-    for (const candidate of getNextopdErrorI18nCandidates(protocolError)) {
+    for (const candidate of getTuttidErrorI18nCandidates(protocolError)) {
       const candidateOverride = overrides[candidate];
       if (candidateOverride) {
         return candidateOverride;
@@ -68,7 +68,7 @@ export function resolveDesktopErrorMessage(
 }
 
 export function getDesktopErrorCode(error: unknown): string | null {
-  const protocolError = normalizeNextopdError(error);
+  const protocolError = normalizeTuttidError(error);
   if (protocolError) {
     return protocolError.code;
   }

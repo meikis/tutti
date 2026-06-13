@@ -5,9 +5,10 @@ import type {
 } from "@preload/types";
 import type {
   AgentProviderComposerOptionsResponse,
-  NextopdClient,
-  NextopdEventStreamClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidClient,
+  TuttidEventStreamClient
+} from "@tutti-os/client-tuttid-ts";
+import { createDesktopErrorI18nRuntime } from "../../../../../../shared/i18n/index.ts";
 import { getActiveLocale } from "../../../../i18n/runtime.ts";
 import {
   getDesktopErrorCode,
@@ -47,13 +48,14 @@ import { createWorkspaceAppCenterStore } from "./workspaceAppCenterStore.ts";
 const catalogLoadingRefreshDelayMs = 750;
 const appOpenLaunchWaitTimeoutMs = 35_000;
 const installRefreshDelayMs = 750;
+const factoryJobDiagnosticLimit = 20;
 type AgentProviderComposerOptionsClient = Pick<
-  NextopdClient,
+  TuttidClient,
   "getAgentProviderComposerOptions"
 >;
 
 export interface WorkspaceAppCenterServiceDependencies {
-  eventStreamClient: NextopdEventStreamClient;
+  eventStreamClient: TuttidEventStreamClient;
   appOpenLaunchWaitTimeoutMs?: number;
   gateway: WorkspaceAppCenterGateway;
   hostFilesApi: Pick<
@@ -64,7 +66,7 @@ export interface WorkspaceAppCenterServiceDependencies {
     | "selectAppIconImage"
   >;
   hostWorkspaceApi: Pick<DesktopHostWorkspaceApi, "openWorkspaceAppFolder">;
-  nextopdClient?: AgentProviderComposerOptionsClient;
+  tuttidClient?: AgentProviderComposerOptionsClient;
   reporterNow?: () => number;
   reporterService?: Pick<IReporterService, "trackEvents">;
   runtimeApi?: Pick<DesktopRuntimeApi, "logRendererDiagnostic">;
@@ -95,7 +97,8 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
   private pendingInstallKeys = new Set<string>();
   private pendingInstallReportKeys = new Set<string>();
   private pendingFactoryPublishKeys = new Set<string>();
-  private loadSequence = 0;
+  private appLoadSequence = 0;
+  private factoryLoadSequence = 0;
   private updates: WorkspaceAppCenterUpdateState | null = null;
 
   constructor(dependencies: WorkspaceAppCenterServiceDependencies) {
@@ -116,10 +119,13 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
     appId: string;
     workspaceId: string;
   }): Promise<void> {
+    const installKey = appRuntimeKey(input.workspaceId, input.appId);
+    if (this.pendingInstallKeys.has(installKey)) {
+      return;
+    }
     const previousApps = this.store.apps;
     const appBeforeInstall =
       previousApps.find((app) => app.appId === input.appId) ?? null;
-    const installKey = appRuntimeKey(input.workspaceId, input.appId);
     this.pendingInstallKeys.add(installKey);
     this.pendingInstallReportKeys.add(installKey);
     this.markAppInstalling(input.appId);
@@ -288,11 +294,11 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
     provider: string
   ): Promise<WorkspaceAppFactoryProviderConfiguration> {
     const normalizedProvider = provider.trim();
-    if (!normalizedProvider || !this.dependencies.nextopdClient) {
+    if (!normalizedProvider || !this.dependencies.tuttidClient) {
       return emptyFactoryProviderConfiguration();
     }
     const response =
-      await this.dependencies.nextopdClient.getAgentProviderComposerOptions(
+      await this.dependencies.tuttidClient.getAgentProviderComposerOptions(
         normalizedProvider as Parameters<
           AgentProviderComposerOptionsClient["getAgentProviderComposerOptions"]
         >[0]
@@ -531,7 +537,8 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
       return;
     }
 
-    const sequence = ++this.loadSequence;
+    const appSequence = ++this.appLoadSequence;
+    const factorySequence = ++this.factoryLoadSequence;
     const wasIdle = this.store.loadStatus === "idle";
     this.store.workspaceId = normalizedWorkspaceId;
     this.store.error = null;
@@ -540,21 +547,77 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
     }
 
     try {
-      const [snapshot, factorySnapshot] = await Promise.all([
+      const [appResult, factoryResult] = await Promise.allSettled([
         this.dependencies.gateway.listWorkspaceApps(normalizedWorkspaceId),
         this.dependencies.gateway.listWorkspaceAppFactoryJobs(
           normalizedWorkspaceId
         )
       ]);
-      if (sequence !== this.loadSequence) {
+
+      if (
+        appResult.status === "fulfilled" &&
+        appSequence !== this.appLoadSequence
+      ) {
+        this.recordRefreshDiscard({
+          currentSequence: this.appLoadSequence,
+          itemCount: appResult.value.apps.length,
+          operation: "app_center.refresh",
+          sequence: appSequence,
+          snapshotKind: "apps",
+          workspaceId: normalizedWorkspaceId
+        });
+      }
+      if (
+        factoryResult.status === "fulfilled" &&
+        factorySequence !== this.factoryLoadSequence
+      ) {
+        this.recordRefreshDiscard({
+          currentSequence: this.factoryLoadSequence,
+          itemCount: factoryResult.value.jobs.length,
+          operation: "app_center.refresh",
+          sequence: factorySequence,
+          snapshotKind: "factory_jobs",
+          workspaceId: normalizedWorkspaceId
+        });
+      }
+
+      let error: unknown = null;
+      if (
+        appResult.status === "rejected" &&
+        appSequence === this.appLoadSequence
+      ) {
+        error = appResult.reason;
+      } else if (
+        factoryResult.status === "rejected" &&
+        factorySequence === this.factoryLoadSequence
+      ) {
+        error = factoryResult.reason;
+      }
+      if (error) {
+        const message = formatAppCenterError(error);
+        this.recordOperationFailure(error, message, {
+          operation: "app_center.refresh",
+          workspaceId: normalizedWorkspaceId
+        });
+        this.store.error = message;
+        this.store.loadStatus = "unavailable";
+        this.bumpRevision();
         return;
       }
-      this.applySnapshot(normalizedWorkspaceId, snapshot);
-      this.applyFactorySnapshot(normalizedWorkspaceId, factorySnapshot);
+
+      if (
+        appResult.status === "fulfilled" &&
+        appSequence === this.appLoadSequence
+      ) {
+        this.applySnapshot(normalizedWorkspaceId, appResult.value);
+      }
+      if (
+        factoryResult.status === "fulfilled" &&
+        factorySequence === this.factoryLoadSequence
+      ) {
+        this.applyFactorySnapshot(normalizedWorkspaceId, factoryResult.value);
+      }
     } catch (error) {
-      if (sequence !== this.loadSequence) {
-        return;
-      }
       const message = formatAppCenterError(error);
       this.recordOperationFailure(error, message, {
         operation: "app_center.refresh",
@@ -572,7 +635,7 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
       return;
     }
 
-    const sequence = ++this.loadSequence;
+    const sequence = ++this.appLoadSequence;
     this.store.workspaceId = normalizedWorkspaceId;
     this.store.error = null;
     try {
@@ -580,7 +643,15 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
         await this.dependencies.gateway.refreshWorkspaceAppCatalog(
           normalizedWorkspaceId
         );
-      if (sequence !== this.loadSequence) {
+      if (sequence !== this.appLoadSequence) {
+        this.recordRefreshDiscard({
+          currentSequence: this.appLoadSequence,
+          itemCount: snapshot.apps.length,
+          operation: "app_center.refresh_catalog",
+          sequence,
+          snapshotKind: "catalog_apps",
+          workspaceId: normalizedWorkspaceId
+        });
         return;
       }
       this.applySnapshot(normalizedWorkspaceId, snapshot);
@@ -590,7 +661,14 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
         success: true
       });
     } catch (error) {
-      if (sequence !== this.loadSequence) {
+      if (sequence !== this.appLoadSequence) {
+        this.recordRefreshDiscard({
+          currentSequence: this.appLoadSequence,
+          operation: "app_center.refresh_catalog",
+          sequence,
+          snapshotKind: "catalog_apps",
+          workspaceId: normalizedWorkspaceId
+        });
         return;
       }
       const message = formatAppCenterError(error);
@@ -775,13 +853,16 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
     trigger: "badge_button" | "primary_action";
     workspaceId: string;
   }): Promise<void> {
+    const installKey = appRuntimeKey(input.workspaceId, input.appId);
+    if (this.pendingInstallKeys.has(installKey)) {
+      return;
+    }
     const app = this.store.apps.find(
       (candidate) => candidate.appId === input.appId
     );
     const previousApps = this.store.apps;
-    const installKey = appRuntimeKey(input.workspaceId, input.appId);
     this.pendingInstallKeys.add(installKey);
-    this.markAppInstalling(input.appId);
+    this.markAppInstalling(input.appId, { preserveInstalled: true });
     try {
       const snapshot = await this.dependencies.gateway.installWorkspaceApp(
         input.workspaceId,
@@ -887,16 +968,20 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
       if (!currentApp || currentApp.stateRevision < snapshotApp.stateRevision) {
         return snapshotApp;
       }
-      if (
-        this.pendingInstallKeys.has(
-          appRuntimeKey(workspaceId, snapshotApp.appId)
-        ) &&
-        (snapshotApp.installed || snapshotApp.runtimeStatus === "failed") &&
-        currentApp.stateRevision <= snapshotApp.stateRevision
-      ) {
-        return snapshotApp;
+      const installKey = appRuntimeKey(workspaceId, snapshotApp.appId);
+      if (this.pendingInstallKeys.has(installKey)) {
+        const pendingSettled = this.isPendingInstallSettled(
+          installKey,
+          snapshotApp
+        );
+        if (
+          pendingSettled &&
+          currentApp.stateRevision <= snapshotApp.stateRevision
+        ) {
+          return snapshotApp;
+        }
       }
-      return currentApp;
+      return mergeWorkspaceAppCatalogFields(currentApp, snapshotApp);
     });
   }
 
@@ -937,13 +1022,15 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
       if (!this.pendingInstallKeys.has(installKey)) {
         return app;
       }
-      if (app.installed || app.runtimeStatus === "failed") {
+      if (this.isPendingInstallSettled(installKey, app)) {
         return app;
       }
       return {
         ...app,
         enabled: true,
-        installed: false,
+        installed: this.pendingInstallReportKeys.has(installKey)
+          ? false
+          : app.installed,
         runtimeStatus: "installing"
       };
     });
@@ -1015,7 +1102,9 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
     if (areWorkspaceAppFactoryJobsEqual(this.store.factoryJobs, nextJobs)) {
       return;
     }
+    const previousJobs = this.store.factoryJobs;
     this.store.factoryJobs = nextJobs;
+    this.recordFactorySnapshotApplied(workspaceId, previousJobs, nextJobs);
     this.bumpRevision();
   }
 
@@ -1339,14 +1428,20 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
       : null;
   }
 
-  private markAppInstalling(appId: string): void {
+  private markAppInstalling(
+    appId: string,
+    options: { preserveInstalled?: boolean } = {}
+  ): void {
     this.store.apps = this.store.apps.map((app) =>
       app.appId === appId
         ? {
             ...app,
+            availableVersion: null,
             enabled: true,
-            installed: false,
-            runtimeStatus: "installing"
+            installed:
+              options.preserveInstalled === true ? app.installed : false,
+            runtimeStatus: "installing",
+            updateAvailable: false
           }
         : app
     );
@@ -1380,7 +1475,7 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
     error: unknown,
     details: WorkspaceAppCenterOperationDetails
   ): void {
-    const message = formatAppCenterError(error);
+    const message = formatAppCenterError(error, details);
     this.recordOperationFailure(error, message, details);
     this.store.error = message;
     this.bumpRevision();
@@ -1397,6 +1492,63 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
       runtimeApi: this.dependencies.runtimeApi,
       toastMessage
     });
+  }
+
+  private recordRefreshDiscard(input: {
+    currentSequence: number;
+    itemCount?: number;
+    operation: "app_center.refresh" | "app_center.refresh_catalog";
+    sequence: number;
+    snapshotKind: "apps" | "catalog_apps" | "factory_jobs";
+    workspaceId: string;
+  }): void {
+    this.recordRendererDiagnostic({
+      details: {
+        currentSequence: input.currentSequence,
+        itemCount: input.itemCount ?? null,
+        operation: input.operation,
+        sequence: input.sequence,
+        snapshotKind: input.snapshotKind
+      },
+      event: "workspace_app_center_refresh_snapshot_discarded",
+      level: "debug",
+      workspaceId: input.workspaceId
+    });
+  }
+
+  private recordFactorySnapshotApplied(
+    workspaceId: string,
+    previousJobs: readonly WorkspaceAppFactoryJob[],
+    nextJobs: readonly WorkspaceAppFactoryJob[]
+  ): void {
+    this.recordRendererDiagnostic({
+      details: {
+        afterCount: nextJobs.length,
+        beforeCount: previousJobs.length,
+        jobs: summarizeFactoryJobsForDiagnostic(nextJobs),
+        truncated: nextJobs.length > factoryJobDiagnosticLimit
+      },
+      event: "workspace_app_center_factory_snapshot_applied",
+      level: "debug",
+      workspaceId
+    });
+  }
+
+  private recordRendererDiagnostic(input: {
+    details: Record<string, unknown>;
+    event: string;
+    level: "debug" | "info" | "warn" | "error";
+    workspaceId: string;
+  }): void {
+    void this.dependencies.runtimeApi
+      ?.logRendererDiagnostic({
+        details: input.details,
+        event: input.event,
+        level: input.level,
+        source: "workspace-app-center",
+        workspaceId: input.workspaceId
+      })
+      .catch(() => undefined);
   }
 
   private bumpRevision(): void {
@@ -1427,7 +1579,7 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
     if (!this.pendingInstallKeys.has(installKey)) {
       return;
     }
-    if (!input.app.installed && input.app.runtimeStatus !== "failed") {
+    if (!this.isPendingInstallSettled(installKey, input.app)) {
       return;
     }
 
@@ -1449,6 +1601,19 @@ export class WorkspaceAppCenterService implements IWorkspaceAppCenterService {
         input.app.lastError ??
         null
     });
+  }
+
+  private isPendingInstallSettled(
+    installKey: string,
+    app: WorkspaceAppCenterApp
+  ): boolean {
+    if (app.runtimeStatus === "failed") {
+      return true;
+    }
+    if (this.pendingInstallReportKeys.has(installKey)) {
+      return app.installed;
+    }
+    return app.installed && !app.updateAvailable && !app.availableVersion;
   }
 
   private reportAppInstalled(app: WorkspaceAppCenterApp | null): void {
@@ -1651,6 +1816,25 @@ function sortWorkspaceAppCenterApps(
   return [...apps].sort((left, right) =>
     left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
   );
+}
+
+function mergeWorkspaceAppCatalogFields(
+  currentApp: WorkspaceAppCenterApp,
+  snapshotApp: WorkspaceAppCenterApp
+): WorkspaceAppCenterApp {
+  return {
+    ...currentApp,
+    availableIconUrl: snapshotApp.availableIconUrl,
+    availableVersion: snapshotApp.availableVersion,
+    description: snapshotApp.description,
+    iconUrl: snapshotApp.iconUrl,
+    localizations: snapshotApp.localizations,
+    minimizeBehavior: snapshotApp.minimizeBehavior,
+    name: snapshotApp.name,
+    source: snapshotApp.source,
+    tags: snapshotApp.tags,
+    updateAvailable: snapshotApp.updateAvailable
+  };
 }
 
 function areWorkspaceAppCenterAppsEqual(
@@ -2063,8 +2247,34 @@ function emptyFactoryProviderConfiguration(): WorkspaceAppFactoryProviderConfigu
   };
 }
 
-function formatAppCenterError(error: unknown): string {
-  return resolveDesktopErrorMessage(error, getActiveLocale());
+function formatAppCenterError(
+  error: unknown,
+  details?: WorkspaceAppCenterOperationDetails
+): string {
+  const locale = getActiveLocale();
+  const overrides =
+    details?.operation === "app_factory.publish"
+      ? {
+          workspace_operation_failed: createDesktopErrorI18nRuntime(locale).t(
+            "errors.workspace_app_factory_publish_failed"
+          )
+        }
+      : undefined;
+  return resolveDesktopErrorMessage(error, locale, overrides);
+}
+
+function summarizeFactoryJobsForDiagnostic(
+  jobs: readonly WorkspaceAppFactoryJob[]
+): Array<{
+  jobId: string;
+  status: WorkspaceAppFactoryJob["status"];
+  updatedAtUnixMs: number;
+}> {
+  return jobs.slice(0, factoryJobDiagnosticLimit).map((job) => ({
+    jobId: job.jobId,
+    status: job.status,
+    updatedAtUnixMs: job.updatedAtUnixMs
+  }));
 }
 
 function noop(): void {}

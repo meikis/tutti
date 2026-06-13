@@ -5,10 +5,10 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { ensureDesktopCliShim, resolveUserShimPath } from "./cliInstaller.ts";
 
-test("ensureDesktopCliShim writes dev nextop-dev shim outside packaged app", async () => {
-  const stateRootDir = await mkdtemp(join(tmpdir(), "nextop-cli-state-"));
-  const repoRoot = await mkdtemp(join(tmpdir(), "nextop-cli-repo-"));
-  const builtCliPath = join(repoRoot, "apps", "cli", "build", "dev", "nextop");
+test("ensureDesktopCliShim writes dev tutti-dev shim outside packaged app", async () => {
+  const stateRootDir = await mkdtemp(join(tmpdir(), "tutti-cli-state-"));
+  const repoRoot = await mkdtemp(join(tmpdir(), "tutti-cli-repo-"));
+  const builtCliPath = join(repoRoot, "apps", "cli", "build", "dev", "tutti");
   await mkdir(dirname(builtCliPath), { recursive: true });
   await writeFile(builtCliPath, "#!/bin/sh\n", "utf8");
 
@@ -21,14 +21,14 @@ test("ensureDesktopCliShim writes dev nextop-dev shim outside packaged app", asy
   });
 
   assert.equal(state.installed, true);
-  assert.equal(state.shimPath, join(stateRootDir, "bin", "nextop-dev"));
+  assert.equal(state.shimPath, join(stateRootDir, "bin", "tutti-dev"));
   const content = await readFile(state.shimPath, "utf8");
   assert.match(content, /Tutti dev CLI shim/);
   assert.match(content, new RegExp(escapeRegExp(builtCliPath)));
 });
 
 test("ensureDesktopCliShim writes unix shim with state root", async () => {
-  const stateRootDir = await mkdtemp(join(tmpdir(), "nextop-cli-state-"));
+  const stateRootDir = await mkdtemp(join(tmpdir(), "tutti-cli-state-"));
   const shimPath = resolveUserShimPath(stateRootDir, "darwin");
   await mkdir(join(stateRootDir, "bin"), { recursive: true });
   await writeFile(shimPath, "stale", "utf8");
@@ -45,13 +45,13 @@ test("ensureDesktopCliShim writes unix shim with state root", async () => {
   assert.match(content, /Tutti CLI shim/);
   assert.match(
     content,
-    /\/Applications\/Tutti\.app\/Contents\/Resources\/bin\/nextop/
+    /\/Applications\/Tutti\.app\/Contents\/Resources\/bin\/tutti/
   );
   assert.match(content, new RegExp(escapeRegExp(stateRootDir)));
 });
 
 test("ensureDesktopCliShim writes windows command shim", async () => {
-  const stateRootDir = await mkdtemp(join(tmpdir(), "nextop-cli-state-"));
+  const stateRootDir = await mkdtemp(join(tmpdir(), "tutti-cli-state-"));
 
   const state = await ensureDesktopCliShim({
     isPackaged: true,
@@ -61,9 +61,9 @@ test("ensureDesktopCliShim writes windows command shim", async () => {
   });
 
   assert.equal(state.installed, true);
-  assert.equal(state.shimPath, join(stateRootDir, "bin", "nextop.cmd"));
+  assert.equal(state.shimPath, join(stateRootDir, "bin", "tutti.cmd"));
   const content = await readFile(state.shimPath, "utf8");
-  assert.match(content, /nextop\.exe/);
+  assert.match(content, /tutti\.exe/);
   assert.match(content, new RegExp(escapeRegExp(stateRootDir)));
 });
 

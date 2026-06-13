@@ -1,7 +1,7 @@
 import type {
-  NextopdClient,
+  TuttidClient,
   PutDesktopPreferencesRequest
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import {
   normalizeDesktopAgentComposerDefaultsByProvider,
   type DesktopAgentComposerDefaultsByProvider,
@@ -44,8 +44,8 @@ export interface DesktopHostPreferencesState {
 export interface CreateDesktopHostPreferencesOptions {
   fallbackLocale: DesktopLocale;
   logger: DesktopLogger;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     "getDesktopPreferences" | "putDesktopPreferences"
   >;
 }
@@ -149,13 +149,13 @@ async function resolveInitialDesktopPreferences(
   options: CreateDesktopHostPreferencesOptions
 ): Promise<PutDesktopPreferencesRequest["preferences"]> {
   try {
-    const response = await options.nextopdClient.getDesktopPreferences();
+    const response = await options.tuttidClient.getDesktopPreferences();
     if (response.initialized) {
       return response.preferences;
     }
 
     return (
-      await options.nextopdClient.putDesktopPreferences({
+      await options.tuttidClient.putDesktopPreferences({
         preferences: {
           agentComposerDefaultsByProvider: {},
           defaultAgentProvider: defaultDesktopAgentProvider,
@@ -168,7 +168,7 @@ async function resolveInitialDesktopPreferences(
       })
     ).preferences;
   } catch (error) {
-    options.logger.warn("failed to resolve desktop preferences from nextopd", {
+    options.logger.warn("failed to resolve desktop preferences from tuttid", {
       error: error instanceof Error ? error.message : String(error)
     });
     return {

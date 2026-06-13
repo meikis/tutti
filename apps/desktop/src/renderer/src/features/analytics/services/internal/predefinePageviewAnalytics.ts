@@ -1,8 +1,7 @@
 import { PredefinePageviewReporter } from "../../reporters/predefine-pageview/predefinePageviewReporter.ts";
 import type { IReporterService } from "../reporterService.interface.ts";
 
-const reportedDayStorageKey =
-  "nextop.analytics.predefine_pageview.reported_day";
+const reportedDayStorageKey = "tutti.analytics.predefine_pageview.reported_day";
 
 export interface PredefinePageviewAnalyticsController {
   dispose(): void;

@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultWorkspaceRoot = join(scriptDirectory, "..", "..");
-const workspaceRoot = process.env.NEXTOP_WORKSPACE_ROOT ?? defaultWorkspaceRoot;
+const workspaceRoot = process.env.TUTTI_WORKSPACE_ROOT ?? defaultWorkspaceRoot;
 const rendererRoot =
-  process.env.NEXTOP_RENDERER_ROOT ?? "apps/desktop/src/renderer/src";
+  process.env.TUTTI_RENDERER_ROOT ?? "apps/desktop/src/renderer/src";
 const ignoredDirectories = new Set([
   ".git",
   ".turbo",
@@ -98,7 +98,7 @@ function inspectCodeFile(relativePath, content) {
       inspectImport(relativePath, specifier, index + 1);
     }
 
-    inspectWindowNextopAccess(relativePath, lines[index], index + 1);
+    inspectWindowTuttiAccess(relativePath, lines[index], index + 1);
   }
 }
 
@@ -159,8 +159,8 @@ function inspectWorkspaceWorkbenchUiInternalImport(
   });
 }
 
-function inspectWindowNextopAccess(relativePath, lineContent, line) {
-  if (!/\bwindow\s*\.\s*nextop\b/.test(lineContent)) {
+function inspectWindowTuttiAccess(relativePath, lineContent, line) {
+  if (!/\bwindow\s*\.\s*tutti\b/.test(lineContent)) {
     return;
   }
 
@@ -172,8 +172,8 @@ function inspectWindowNextopAccess(relativePath, lineContent, line) {
     file: relativePath,
     line,
     message:
-      "renderer code must receive DesktopApi through window composition instead of reading window.nextop directly",
-    rule: "renderer-window-nextop-access"
+      "renderer code must receive DesktopApi through window composition instead of reading window.tutti directly",
+    rule: "renderer-window-tutti-access"
   });
 }
 

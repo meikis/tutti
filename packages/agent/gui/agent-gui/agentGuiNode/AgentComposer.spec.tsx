@@ -8,6 +8,11 @@ import {
   within
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createI18nRuntime } from "@tutti-os/ui-i18n-runtime";
+import {
+  createWorkspaceUserProjectI18nRuntime,
+  workspaceUserProjectI18nResources
+} from "@tutti-os/workspace-user-project/i18n";
 import { AgentComposer } from "./AgentComposer";
 import type {
   AgentGUIComposerSettingsVM,
@@ -24,6 +29,12 @@ const { mockProjectMissingState } = vi.hoisted(() => ({
 afterEach(() => {
   mockProjectMissingState.current = false;
 });
+
+const workspaceUserProjectI18n = createWorkspaceUserProjectI18nRuntime(
+  createI18nRuntime({
+    dictionaries: [workspaceUserProjectI18nResources["zh-CN"]]
+  })
+);
 
 function createImageDataTransfer(file: File): DataTransfer {
   return {
@@ -194,6 +205,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -233,6 +245,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -280,6 +293,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={onSettingsChange}
         onSubmit={vi.fn()}
@@ -328,6 +342,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={onSettingsChange}
         onSubmit={vi.fn()}
@@ -375,6 +390,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={onDraftChange}
         onSettingsChange={onSettingsChange}
         onSubmit={onSubmit}
@@ -416,6 +432,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={onDraftChange}
         onSettingsChange={onSettingsChange}
         onSubmit={onSubmit}
@@ -476,6 +493,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -534,6 +552,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -579,6 +598,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -627,6 +647,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -678,6 +699,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -714,6 +736,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -751,6 +774,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -790,6 +814,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -833,10 +858,11 @@ describe("AgentComposer", () => {
     );
     expect(inputShell?.nextElementSibling).toBeNull();
 
-    const nativeOption = container.querySelector(
-      'option[value="__nextop_workspace_reference_add__"]'
-    );
-    expect(nativeOption).toHaveTextContent("引用空间文件");
+    expect(
+      container.querySelector(
+        '[data-slot="select-content"] [data-value="__tutti_workspace_reference_add__"]'
+      )
+    ).toBeNull();
   });
 
   it("hides the project row for locked dock composers in existing conversations", () => {
@@ -860,6 +886,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -903,6 +930,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={onSubmit}
@@ -921,7 +949,7 @@ describe("AgentComposer", () => {
     const missingProjectNotice = await screen.findByTestId(
       "agent-gui-missing-project-notice"
     );
-    expect(missingProjectNotice).toHaveTextContent("当前工作目录缺失");
+    expect(missingProjectNotice).toHaveTextContent("当前工作目录不存在");
     expect(missingProjectNotice).toHaveClass("agent-gui-chrome__card--danger");
     expect(
       missingProjectNotice.closest(".agent-gui-chrome__session-chrome")
@@ -966,6 +994,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         layoutMode="hero"
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
@@ -996,11 +1025,75 @@ describe("AgentComposer", () => {
     ).toHaveClass("agent-gui-node__composer-input-shell-hero");
   });
 
+  it("hides the hero project selector when disabled while keeping prompt tips", () => {
+    const { container } = render(
+      <AgentComposer
+        workspaceId="workspace-1"
+        currentUserId="user-1"
+        provider="codex"
+        draftPrompt=""
+        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
+        disabled={false}
+        submitDisabled={false}
+        placeholder="placeholder"
+        composerSettings={createComposerSettings()}
+        queuedPrompts={[]}
+        drainingQueuedPromptId={null}
+        canQueueWhileBusy={false}
+        showStopButton={false}
+        activePrompt={null}
+        promptTips={[
+          {
+            id: "set-workspace",
+            label: "指定工作区",
+            prompt: "让 Agent 知道在哪里读文件、运行命令和理解代码"
+          }
+        ]}
+        isInterrupting={false}
+        isSendingTurn={false}
+        isSubmittingPrompt={false}
+        labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
+        layoutMode="hero"
+        showProjectSelector={false}
+        onDraftChange={vi.fn()}
+        onSettingsChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onSendQueuedPromptNext={vi.fn()}
+        onRemoveQueuedPrompt={vi.fn()}
+        onEditQueuedPrompt={vi.fn()}
+        onInterruptCurrentTurn={vi.fn()}
+        onSubmitInteractivePrompt={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByTestId("agent-project-dropdown")).toBeNull();
+    expect(
+      container.querySelector(".agent-gui-node__composer-project-row")
+    ).not.toBeNull();
+    expect(screen.getByTestId("agent-gui-prompt-tips")).toHaveTextContent(
+      "Tips：指定工作区"
+    );
+  });
+
   it("keeps the hero composer shell visually flattened inside the glow frame", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
     expect(css).toMatch(
       /\.agent-gui-node__composer-input-group-hero\s*{[^}]*border:\s*1px solid var\(--agent-gui-border-focus\)[^}]*background:\s*var\(--agent-gui-accent-bg\)/s
+    );
+    expect(css).toMatch(/--agent-gui-package-accent:\s*var\(--accent-codex\)/);
+    expect(css).toMatch(
+      /--agent-gui-package-border-focus:\s*var\(--accent-codex-border\)/
+    );
+    expect(css).toMatch(
+      /html\[data-theme="light"\][\s\S]*?\.agent-gui-node__composer-input-group\[data-edge-glow="true"\]\s*{[^}]*--agent-gui-star-border-color:\s*color-mix\(\s*in srgb,\s*var\(--accent-codex\) 90%,\s*transparent\s*\)/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__composer-menu-trigger\[data-permission-tone="accent"\],[\s\S]*?\.agent-gui-node__composer-menu-trigger\[data-permission-tone="accent"\]\s*>\s*svg\s*{[^}]*color:\s*var\(--tutti-purple\)/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__composer-menu-content\s*{[^}]*--accent:\s*var\(--tutti-purple\)[^}]*--agent-gui-package-accent:\s*var\(--tutti-purple\)/s
     );
     expect(css).toMatch(
       /\.agent-gui-node__composer-input-shell-hero\s*{[^}]*border-color:\s*transparent[^}]*border-radius:\s*14px[^}]*box-shadow:\s*none/s
@@ -1048,6 +1141,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         layoutMode="hero"
         onDraftChange={onDraftChange}
         onSettingsChange={vi.fn()}
@@ -1117,6 +1211,7 @@ describe("AgentComposer", () => {
           isSendingTurn={false}
           isSubmittingPrompt={false}
           labels={createLabels()}
+          workspaceUserProjectI18n={workspaceUserProjectI18n}
           layoutMode="hero"
           onDraftChange={vi.fn()}
           onSettingsChange={vi.fn()}
@@ -1162,6 +1257,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -1199,6 +1295,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -1214,6 +1311,17 @@ describe("AgentComposer", () => {
       'textarea[placeholder="placeholder"]'
     );
     expect(editor?.parentElement?.className).toContain("self-start");
+
+    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
+    expect(css).toMatch(
+      /\.agent-gui-node__composer-textarea\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__composer-textarea p\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__composer-textarea[\s\S]*?\.agent-rich-text-placeholder-node:first-child::before\s*{[^}]*font-size:\s*13px/s
+    );
   });
 
   it("adds dropped system images on the AgentGUI detail panel to draft images", async () => {
@@ -1240,6 +1348,7 @@ describe("AgentComposer", () => {
           isSendingTurn={false}
           isSubmittingPrompt={false}
           labels={createLabels()}
+          workspaceUserProjectI18n={workspaceUserProjectI18n}
           onDraftChange={vi.fn()}
           onSettingsChange={vi.fn()}
           onSubmit={vi.fn()}
@@ -1292,6 +1401,7 @@ describe("AgentComposer", () => {
         isSendingTurn={true}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -1333,6 +1443,7 @@ describe("AgentComposer", () => {
         isSendingTurn={true}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={onSubmit}
@@ -1375,6 +1486,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={onSubmit}
@@ -1425,6 +1537,7 @@ describe("AgentComposer", () => {
         isSendingTurn={false}
         isSubmittingPrompt={true}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={onSubmit}
@@ -1473,6 +1586,7 @@ describe("AgentComposer", () => {
         isSubmittingPrompt={false}
         promptImagesSupported={false}
         labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
         onDraftChange={vi.fn()}
         onSettingsChange={vi.fn()}
         onSubmit={onSubmit}
@@ -1575,27 +1689,8 @@ function createLabels(): Parameters<typeof AgentComposer>[0]["labels"] {
     approvalLead: "审批",
     planLead: "计划",
     planModes: [],
-    projectLabel: "项目",
-    noProject: "不使用项目",
-    addProject: "添加新项目",
-    createProjectCancel: "取消",
-    createProjectConfirm: "创建",
-    createProjectDocumentsUnavailable: "无法访问 Documents，请改用已有项目。",
-    createProjectFailed: "无法创建项目。",
-    createProjectNameConflict: "已存在同名项目，请换一个名称。",
-    createProjectNameInvalid: "项目名称不能为空，也不能包含路径分隔符。",
-    createProjectNameLabel:
-      "输入项目名称，将在 Documents/nextop 下创建文件夹。",
-    createProjectNamePlaceholder: "项目名称",
-    createProjectNameRequired: "请输入项目名称。",
-    createProjectPermissionDenied: "Nextop 没有权限在 Documents 下创建文件夹。",
-    createProjectTitle: "添加新项目",
-    linkExistingProject: "使用已有项目",
     projectLocked: "项目已锁定",
     projectMissingDescription: "此对话的工作目录已不存在",
-    projectMissingTitle: "当前工作目录缺失",
-    loadingProjects: "加载项目中",
-    projectUnavailable: "项目不可用",
     promptTipsPrefix: "Tips：",
     stayInPlan: "保持计划模式",
     sendFeedback: "发送反馈",

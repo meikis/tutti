@@ -68,9 +68,9 @@ importers:
       "@tutti-os/browser-node":
         specifier: workspace:*
         version: link:../../packages/browser/workbench-node
-      "@tutti-os/client-nextopd-ts":
+      "@tutti-os/client-tuttid-ts":
         specifier: workspace:*
-        version: link:../../packages/clients/nextopd-ts
+        version: link:../../packages/clients/tuttid-ts
       "@tutti-os/config-tsconfig":
         specifier: workspace:*
         version: link:../../packages/configs/tsconfig
@@ -306,6 +306,9 @@ importers:
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
+      valtio:
+        specifier: ^2.3.2
+        version: 2.3.2(@types/react@19.2.15)(react@19.2.6)
       zustand:
         specifier: ^5.0.14
         version: 5.0.14(@types/react@19.2.15)(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -390,7 +393,7 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
-  packages/clients/nextopd-ts:
+  packages/clients/tuttid-ts:
     dependencies:
       "@tutti-os/event-protocol":
         specifier: workspace:*
@@ -806,6 +809,9 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.2.6(react@19.2.6)
+      tsx:
+        specifier: ^4.22.3
+        version: 4.22.3
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

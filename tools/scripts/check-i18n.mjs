@@ -7,7 +7,7 @@ import vm from "node:vm";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot =
-  process.env.NEXTOP_WORKSPACE_ROOT ?? join(scriptDirectory, "..", "..");
+  process.env.TUTTI_WORKSPACE_ROOT ?? join(scriptDirectory, "..", "..");
 const locales = [
   { exportName: "en", file: "en.ts", locale: "en" },
   { exportName: "zhCN", file: "zh-CN.ts", locale: "zh-CN" }
@@ -20,7 +20,7 @@ const ignoredDirectories = new Set([
   "out"
 ]);
 const i18nModuleManifestExportNames = [
-  "nextopI18nModule",
+  "tuttiI18nModule",
   "agentGuiI18nModule",
   "browserNodeI18nModule"
 ];

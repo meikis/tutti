@@ -5,6 +5,7 @@ import {
   type WorkspaceUserProjectSelectLabelOverrides
 } from "@tutti-os/workspace-user-project/ui";
 import { prepareWorkspaceUserProjectSelection } from "@tutti-os/workspace-user-project/core";
+import type { WorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import { useAgentHostApi } from "../../agentActivityHost";
 import {
   NewWorkspaceLinedIcon,
@@ -62,10 +63,12 @@ export type AgentComposerSettingsMenuLabels = {
   };
 };
 
-export type AgentProjectDropdownLabels =
-  WorkspaceUserProjectSelectLabelOverrides & {
-    projectMissingDescription: string;
-  };
+export type AgentProjectDropdownLabels = Pick<
+  WorkspaceUserProjectSelectLabelOverrides,
+  "projectLocked"
+> & {
+  projectMissingDescription: string;
+};
 
 export interface AgentProjectPathChangeMetadata {
   action: WorkspaceUserProjectSelectChangeAction;
@@ -74,6 +77,7 @@ export interface AgentProjectPathChangeMetadata {
 export function AgentProjectDropdown({
   composerSettings,
   labels,
+  i18n,
   onProjectMissingChange,
   onProjectPathChange
 }: {
@@ -81,6 +85,7 @@ export function AgentProjectDropdown({
     AgentGUIComposerSettingsVM,
     "selectedProjectPath" | "projectLocked"
   >;
+  i18n: WorkspaceUserProjectI18nRuntime;
   labels: AgentProjectDropdownLabels;
   onProjectMissingChange?: (isMissing: boolean) => void;
   onProjectPathChange: (
@@ -117,6 +122,7 @@ export function AgentProjectDropdown({
           "disabled:cursor-not-allowed disabled:text-[var(--agent-gui-text-tertiary)] disabled:opacity-60 disabled:hover:text-[var(--agent-gui-text-tertiary)]"
         )
       }}
+      i18n={i18n}
       labels={labels}
       projectLocked={Boolean(composerSettings.projectLocked)}
       renderAddProjectIcon={() => (
@@ -127,6 +133,7 @@ export function AgentProjectDropdown({
         />
       )}
       selectedProjectPath={composerSettings.selectedProjectPath}
+      service={agentHostApi.userProjects?.service ?? null}
       showCreateProjectAction
       onProjectMissingChange={onProjectMissingChange}
       onProjectPathChange={onProjectPathChange}
@@ -798,7 +805,7 @@ function ComposerSettingsModelItems({
                 {formatModelDisplayLabel(model.label)}
               </span>
               {model.description ? (
-                <span className="whitespace-normal text-[12px] leading-[1.3] text-[var(--text-tertiary)]">
+                <span className="whitespace-normal text-[11px] leading-[1.3] text-[var(--text-tertiary)]">
                   {resolveModelDescription(model.description, labels)}
                 </span>
               ) : null}

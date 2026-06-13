@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {
-  NextopdClient,
+  TuttidClient,
   WorkbenchSnapshot
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import { workbenchSnapshotSchemaVersion } from "@tutti-os/workbench-snapshot";
 import {
   readWorkspaceWallpaperIdFromSnapshot,
@@ -13,7 +13,7 @@ import { createDesktopWorkspaceWorkbenchRepository } from "./desktopWorkspaceWor
 
 test("desktop workspace workbench repository caches loaded snapshots", async () => {
   const repository = createDesktopWorkspaceWorkbenchRepository(
-    createNextopdClient({
+    createTuttidClient({
       initialSnapshot: createSnapshot()
     })
   );
@@ -33,7 +33,7 @@ test("desktop workspace workbench repository caches loaded snapshots", async () 
 test("desktop workspace workbench repository preserves wallpaper metadata on host saves", async () => {
   let savedSnapshot: WorkbenchSnapshot | null = null;
   const repository = createDesktopWorkspaceWorkbenchRepository(
-    createNextopdClient({
+    createTuttidClient({
       initialSnapshot: writeWorkspaceWallpaperIdToSnapshot(
         createSnapshot(),
         "sky"
@@ -50,10 +50,10 @@ test("desktop workspace workbench repository preserves wallpaper metadata on hos
   assert.equal(readWorkspaceWallpaperIdFromSnapshot(savedSnapshot), "sky");
 });
 
-function createNextopdClient(input: {
+function createTuttidClient(input: {
   initialSnapshot: WorkbenchSnapshot;
   onSave?: (snapshot: WorkbenchSnapshot) => void;
-}): NextopdClient {
+}): TuttidClient {
   return {
     async getWorkspaceWorkbench() {
       return input.initialSnapshot;
@@ -62,7 +62,7 @@ function createNextopdClient(input: {
       input.onSave?.(snapshot);
       return snapshot;
     }
-  } as Partial<NextopdClient> as NextopdClient;
+  } as Partial<TuttidClient> as TuttidClient;
 }
 
 function createSnapshot(): WorkbenchSnapshot {

@@ -1,6 +1,6 @@
 # @tutti-os/ui-react-hooks
 
-Host-agnostic React hook helpers for shared Nextop frontend packages.
+Host-agnostic React hook helpers for shared Tutti frontend packages.
 
 This package is published to npm as `@tutti-os/ui-react-hooks`.
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import { DesktopRichTextAtService } from "./desktopRichTextAtService.ts";
 
 test("desktop rich text @ service assembles workspace file providers by capability", async () => {
@@ -11,7 +11,7 @@ test("desktop rich text @ service assembles workspace file providers by capabili
     signal?: AbortSignal;
   }> = [];
   const service = new DesktopRichTextAtService({
-    nextopdClient: {
+    tuttidClient: {
       async searchWorkspaceFiles(
         workspaceId: string,
         input: { limit?: number; query: string },
@@ -28,27 +28,27 @@ test("desktop rich text @ service assembles workspace file providers by capabili
             {
               kind: "directory",
               name: "issues",
-              path: "/Users/test/project/nextop/issues",
+              path: "/Users/test/project/tutti/issues",
               score: 100
             },
             {
               kind: "file",
               name: "summary.md",
-              path: "/Users/test/project/nextop/issues/issue-1/tasks/task-1/runs/run-1/summary.md",
+              path: "/Users/test/project/tutti/issues/issue-1/tasks/task-1/runs/run-1/summary.md",
               score: 80
             },
             {
               kind: "file",
               name: "README.md",
-              path: "/Users/test/project/nextop/README.md",
+              path: "/Users/test/project/tutti/README.md",
               score: 1
             }
           ],
-          root: "/Users/test/project/nextop",
+          root: "/Users/test/project/tutti",
           workspaceID: workspaceId
         };
       }
-    } as unknown as NextopdClient
+    } as unknown as TuttidClient
   });
 
   const providers = service.getProviders({
@@ -78,11 +78,11 @@ test("desktop rich text @ service assembles workspace file providers by capabili
     {
       displayName: "README.md",
       kind: "file",
-      path: "/Users/test/project/nextop/README.md"
+      path: "/Users/test/project/tutti/README.md"
     }
   ]);
   assert.deepEqual(provider.toInsertResult(items[0]), {
-    href: "/Users/test/project/nextop/README.md",
+    href: "/Users/test/project/tutti/README.md",
     kind: "markdown-link",
     label: "README.md"
   });
@@ -96,7 +96,7 @@ test("desktop rich text @ service assembles workspace issue providers by capabil
     topicId?: string;
   }> = [];
   const service = new DesktopRichTextAtService({
-    nextopdClient: {
+    tuttidClient: {
       async listWorkspaceIssueTopics(workspaceId: string) {
         return {
           topics: [
@@ -136,7 +136,7 @@ test("desktop rich text @ service assembles workspace issue providers by capabil
           totalCount: 1
         };
       }
-    } as unknown as NextopdClient
+    } as unknown as TuttidClient
   });
 
   const providers = service.getProviders({
@@ -188,7 +188,7 @@ test("desktop rich text @ service assembles agent session providers by capabilit
     workspaceId: string;
   }> = [];
   const service = new DesktopRichTextAtService({
-    nextopdClient: {
+    tuttidClient: {
       async listWorkspaceAgentSessions(
         workspaceId: string,
         request?: {
@@ -219,7 +219,7 @@ test("desktop rich text @ service assembles agent session providers by capabilit
           ]
         };
       }
-    } as unknown as NextopdClient
+    } as unknown as TuttidClient
   });
 
   const providers = service.getProviders({
@@ -290,7 +290,7 @@ test("desktop rich text @ service assembles agent session providers by capabilit
 test("desktop rich text @ service assembles workspace app providers by capability", async () => {
   const listCalls: string[] = [];
   const service = new DesktopRichTextAtService({
-    nextopdClient: {
+    tuttidClient: {
       async listCliCapabilities(workspaceId?: string) {
         listCalls.push(workspaceId ?? "");
         return {
@@ -333,7 +333,7 @@ test("desktop rich text @ service assembles workspace app providers by capabilit
           ]
         };
       }
-    } as unknown as NextopdClient
+    } as unknown as TuttidClient
   });
 
   const providers = service.getProviders({
@@ -391,7 +391,7 @@ test("desktop rich text @ service assembles workspace app providers by capabilit
 
 test("desktop rich text @ service falls back to app description for workspace app mentions", async () => {
   const service = new DesktopRichTextAtService({
-    nextopdClient: {
+    tuttidClient: {
       async listCliCapabilities() {
         return {
           commands: [
@@ -411,7 +411,7 @@ test("desktop rich text @ service falls back to app description for workspace ap
           ]
         };
       }
-    } as unknown as NextopdClient
+    } as unknown as TuttidClient
   });
 
   const [provider] = service.getProviders({
@@ -444,7 +444,7 @@ test("desktop rich text @ service falls back to app description for workspace ap
 
 test("desktop rich text @ service prefers cli scope description for workspace app mentions", async () => {
   const service = new DesktopRichTextAtService({
-    nextopdClient: {
+    tuttidClient: {
       async listCliCapabilities() {
         return {
           commands: [
@@ -466,7 +466,7 @@ test("desktop rich text @ service prefers cli scope description for workspace ap
           ]
         };
       }
-    } as unknown as NextopdClient
+    } as unknown as TuttidClient
   });
 
   const [provider] = service.getProviders({
@@ -493,7 +493,7 @@ test("desktop rich text @ service prefers cli scope description for workspace ap
 
 test("desktop rich text @ service returns no providers without requested capabilities", () => {
   const service = new DesktopRichTextAtService({
-    nextopdClient: {} as NextopdClient
+    tuttidClient: {} as TuttidClient
   });
 
   const providers = service.getProviders({
@@ -508,7 +508,7 @@ test("desktop rich text @ service returns no providers without requested capabil
 
 test("desktop rich text @ service reuses provider instances for the same request", () => {
   const service = new DesktopRichTextAtService({
-    nextopdClient: {} as NextopdClient
+    tuttidClient: {} as TuttidClient
   });
 
   const firstProviders = service.getProviders({
@@ -531,16 +531,16 @@ test("desktop rich text @ service reuses provider instances for the same request
 test("desktop rich text @ service honors abort before provider search starts", async () => {
   let searchCallCount = 0;
   const service = new DesktopRichTextAtService({
-    nextopdClient: {
+    tuttidClient: {
       async searchWorkspaceFiles() {
         searchCallCount += 1;
         return {
           entries: [],
-          root: "/Users/test/project/nextop",
+          root: "/Users/test/project/tutti",
           workspaceID: "workspace-1"
         };
       }
-    } as unknown as NextopdClient
+    } as unknown as TuttidClient
   });
 
   const [provider] = service.getProviders({
@@ -564,10 +564,10 @@ test("desktop rich text @ service honors abort before provider search starts", a
   assert.equal(searchCallCount, 0);
 });
 
-test("desktop rich text @ service passes abort signals through to nextopd search", async () => {
+test("desktop rich text @ service passes abort signals through to tuttid search", async () => {
   let receivedSignal: AbortSignal | undefined;
   const service = new DesktopRichTextAtService({
-    nextopdClient: {
+    tuttidClient: {
       async searchWorkspaceFiles(
         _workspaceId: string,
         _input: { limit?: number; query: string },
@@ -576,11 +576,11 @@ test("desktop rich text @ service passes abort signals through to nextopd search
         receivedSignal = requestOptions?.signal;
         return {
           entries: [],
-          root: "/Users/test/project/nextop",
+          root: "/Users/test/project/tutti",
           workspaceID: "workspace-1"
         };
       }
-    } as unknown as NextopdClient
+    } as unknown as TuttidClient
   });
 
   const [provider] = service.getProviders({
@@ -604,7 +604,7 @@ test("desktop rich text @ service passes abort signals through to nextopd search
 
 test("desktop rich text @ service skips provider caching when metadata is present", () => {
   const service = new DesktopRichTextAtService({
-    nextopdClient: {} as NextopdClient
+    tuttidClient: {} as TuttidClient
   });
 
   const firstProviders = service.getProviders({

@@ -1,13 +1,13 @@
 import type {
-  NextopdClient,
+  TuttidClient,
   WorkspaceApp,
   WorkspaceAppCatalogLoadStatus,
-  WorkspaceAppFactoryJob as NextopdWorkspaceAppFactoryJob,
+  WorkspaceAppFactoryJob as TuttidWorkspaceAppFactoryJob,
   WorkspaceAppFactoryJobListResponse,
-  WorkspaceAppFactoryJobStatus as NextopdWorkspaceAppFactoryJobStatus,
+  WorkspaceAppFactoryJobStatus as TuttidWorkspaceAppFactoryJobStatus,
   WorkspaceAppListResponse,
   WorkspaceAppRuntimeStatus
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type {
   WorkspaceAppFactoryJob,
   WorkspaceAppFactoryJobStatus,
@@ -59,114 +59,114 @@ export interface WorkspaceAppLocalizationLike {
 }
 
 export function createDesktopWorkspaceAppCenterGateway(
-  nextopdClient: NextopdClient
+  tuttidClient: TuttidClient
 ): WorkspaceAppCenterGateway {
   return {
     async installWorkspaceApp(workspaceId, appId) {
-      await nextopdClient.installWorkspaceApp(workspaceId, appId);
+      await tuttidClient.installWorkspaceApp(workspaceId, appId);
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.listWorkspaceApps(workspaceId)
+        await tuttidClient.listWorkspaceApps(workspaceId)
       );
     },
     async deleteWorkspaceApp(workspaceId, appId) {
-      await nextopdClient.deleteWorkspaceApp(workspaceId, appId);
+      await tuttidClient.deleteWorkspaceApp(workspaceId, appId);
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.listWorkspaceApps(workspaceId)
+        await tuttidClient.listWorkspaceApps(workspaceId)
       );
     },
     async exportWorkspaceApp(workspaceId, appId, input) {
-      return nextopdClient.exportWorkspaceApp(workspaceId, appId, input);
+      return tuttidClient.exportWorkspaceApp(workspaceId, appId, input);
     },
     async importWorkspaceApp(workspaceId, input) {
-      await nextopdClient.importWorkspaceApp(workspaceId, input);
+      await tuttidClient.importWorkspaceApp(workspaceId, input);
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.listWorkspaceApps(workspaceId)
+        await tuttidClient.listWorkspaceApps(workspaceId)
       );
     },
     async replaceWorkspaceAppIcon(workspaceId, appId, input) {
       return normalizeWorkspaceAppCenterApp(
-        await nextopdClient.replaceWorkspaceAppIcon(workspaceId, appId, input)
+        await tuttidClient.replaceWorkspaceAppIcon(workspaceId, appId, input)
       );
     },
     async listWorkspaceApps(workspaceId) {
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.listWorkspaceApps(workspaceId)
+        await tuttidClient.listWorkspaceApps(workspaceId)
       );
     },
     async refreshWorkspaceAppCatalog(workspaceId) {
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.refreshWorkspaceAppCatalog(workspaceId)
+        await tuttidClient.refreshWorkspaceAppCatalog(workspaceId)
       );
     },
     async uninstallWorkspaceApp(workspaceId, appId) {
-      await nextopdClient.uninstallWorkspaceApp(workspaceId, appId);
+      await tuttidClient.uninstallWorkspaceApp(workspaceId, appId);
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.listWorkspaceApps(workspaceId)
+        await tuttidClient.listWorkspaceApps(workspaceId)
       );
     },
     async retryWorkspaceApp(workspaceId, appId) {
-      await nextopdClient.retryWorkspaceApp(workspaceId, appId);
+      await tuttidClient.retryWorkspaceApp(workspaceId, appId);
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.listWorkspaceApps(workspaceId)
+        await tuttidClient.listWorkspaceApps(workspaceId)
       );
     },
     async rollbackWorkspaceApp(workspaceId, appId, version) {
-      await nextopdClient.rollbackWorkspaceApp(workspaceId, appId, { version });
+      await tuttidClient.rollbackWorkspaceApp(workspaceId, appId, { version });
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.listWorkspaceApps(workspaceId)
+        await tuttidClient.listWorkspaceApps(workspaceId)
       );
     },
     async listWorkspaceAppFactoryJobs(workspaceId) {
       return normalizeWorkspaceAppFactorySnapshot(
-        await nextopdClient.listWorkspaceAppFactoryJobs(workspaceId)
+        await tuttidClient.listWorkspaceAppFactoryJobs(workspaceId)
       );
     },
     async createWorkspaceAppFactoryJob(workspaceId, input) {
-      await nextopdClient.createWorkspaceAppFactoryJob(workspaceId, input);
+      await tuttidClient.createWorkspaceAppFactoryJob(workspaceId, input);
       return normalizeWorkspaceAppFactorySnapshot(
-        await nextopdClient.listWorkspaceAppFactoryJobs(workspaceId)
+        await tuttidClient.listWorkspaceAppFactoryJobs(workspaceId)
       );
     },
     async cancelWorkspaceAppFactoryJob(workspaceId, jobId) {
-      await nextopdClient.cancelWorkspaceAppFactoryJob(workspaceId, jobId);
+      await tuttidClient.cancelWorkspaceAppFactoryJob(workspaceId, jobId);
       return normalizeWorkspaceAppFactorySnapshot(
-        await nextopdClient.listWorkspaceAppFactoryJobs(workspaceId)
+        await tuttidClient.listWorkspaceAppFactoryJobs(workspaceId)
       );
     },
     async deleteWorkspaceAppFactoryJob(workspaceId, jobId) {
       return normalizeWorkspaceAppFactorySnapshot(
-        await nextopdClient.deleteWorkspaceAppFactoryJob(workspaceId, jobId)
+        await tuttidClient.deleteWorkspaceAppFactoryJob(workspaceId, jobId)
       );
     },
     async retryWorkspaceAppFactoryJobValidation(workspaceId, jobId) {
-      await nextopdClient.retryWorkspaceAppFactoryJobValidation(
+      await tuttidClient.retryWorkspaceAppFactoryJobValidation(
         workspaceId,
         jobId
       );
       return normalizeWorkspaceAppFactorySnapshot(
-        await nextopdClient.listWorkspaceAppFactoryJobs(workspaceId)
+        await tuttidClient.listWorkspaceAppFactoryJobs(workspaceId)
       );
     },
     async fixWorkspaceAppFactoryJob(workspaceId, jobId, input) {
-      await nextopdClient.fixWorkspaceAppFactoryJob(workspaceId, jobId, input);
+      await tuttidClient.fixWorkspaceAppFactoryJob(workspaceId, jobId, input);
       return normalizeWorkspaceAppFactorySnapshot(
-        await nextopdClient.listWorkspaceAppFactoryJobs(workspaceId)
+        await tuttidClient.listWorkspaceAppFactoryJobs(workspaceId)
       );
     },
     async prepareWorkspaceAppFactoryJobModification(workspaceId, jobId) {
-      await nextopdClient.prepareWorkspaceAppFactoryJobModification(
+      await tuttidClient.prepareWorkspaceAppFactoryJobModification(
         workspaceId,
         jobId
       );
       return normalizeWorkspaceAppFactorySnapshot(
-        await nextopdClient.listWorkspaceAppFactoryJobs(workspaceId)
+        await tuttidClient.listWorkspaceAppFactoryJobs(workspaceId)
       );
     },
     async publishWorkspaceAppFactoryJob(workspaceId, jobId) {
-      await nextopdClient.publishWorkspaceAppFactoryJob(workspaceId, jobId);
+      await tuttidClient.publishWorkspaceAppFactoryJob(workspaceId, jobId);
       const [apps, jobs] = await Promise.all([
-        nextopdClient.listWorkspaceApps(workspaceId),
-        nextopdClient.listWorkspaceAppFactoryJobs(workspaceId)
+        tuttidClient.listWorkspaceApps(workspaceId),
+        tuttidClient.listWorkspaceAppFactoryJobs(workspaceId)
       ]);
       return {
         appSnapshot: normalizeWorkspaceAppCenterSnapshot(apps),
@@ -175,7 +175,7 @@ export function createDesktopWorkspaceAppCenterGateway(
     },
     async startEnabledWorkspaceApps(workspaceId) {
       return normalizeWorkspaceAppCenterSnapshot(
-        await nextopdClient.startEnabledWorkspaceApps(workspaceId)
+        await tuttidClient.startEnabledWorkspaceApps(workspaceId)
       );
     }
   };
@@ -190,7 +190,7 @@ export function normalizeWorkspaceAppFactorySnapshot(
 }
 
 export function normalizeWorkspaceAppFactoryJob(
-  job: NextopdWorkspaceAppFactoryJob
+  job: TuttidWorkspaceAppFactoryJob
 ): WorkspaceAppFactoryJob {
   return {
     agentSessionId: job.agentSessionId,
@@ -239,7 +239,7 @@ function normalizeCatalogStatus(
 }
 
 function normalizeFactoryJobStatus(
-  status: NextopdWorkspaceAppFactoryJobStatus
+  status: TuttidWorkspaceAppFactoryJobStatus
 ): WorkspaceAppFactoryJobStatus {
   switch (status) {
     case "canceled":

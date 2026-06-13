@@ -50,7 +50,7 @@ not as first-class analyzed source, until they are promoted into the active
 package seam.
 
 `packages/agent/gui` has a package-scoped temporary ESLint override while
-the carried Agent GUI renderer is being renamed and adapted to nextop-native
+the carried Agent GUI renderer is being renamed and adapted to tutti-native
 host contracts. The override relaxes high-volume type-aware migration noise
 such as unsafe `any` flows, redundant broad string unions, and async test/mock
 idioms. Keep this exception package-scoped, keep `pnpm typecheck` and package
@@ -77,7 +77,7 @@ of `workspace-workbench/services/internal/**`.
 
 `pnpm check:ui-boundaries` has a package-scoped temporary migration exception
 for `packages/agent/gui` while the carried agent activity renderer is
-being ported into nextop. During that migration the package may keep its
+being ported into tutti. During that migration the package may keep its
 existing local SVG and icon-library imports, but new reusable icons and
 design-system primitives should still move through `@tutti-os/ui-system`
 before being shared elsewhere. Remove or replace the package-wide exception
@@ -97,7 +97,7 @@ The i18n check enforces:
 
 The i18n check discovers locale-resource modules through manifest exports
 instead of a central script-side registry. Desktop-owned resources use
-`nextopI18nModule`; reusable packages may use a package-specific manifest name
+`tuttiI18nModule`; reusable packages may use a package-specific manifest name
 when that keeps the package vocabulary product-neutral, such as
 `browserNodeI18nModule` or `agentGuiI18nModule`.
 
@@ -146,18 +146,18 @@ The current root entrypoint runs the linter from:
 
 - `packages/workspace/files`
 - `packages/workbench/service`
-- `services/nextopd`
+- `services/tuttid`
 
-The shared lint configuration currently lives in `services/nextopd/.golangci.yml`.
+The shared lint configuration currently lives in `services/tuttid/.golangci.yml`.
 
 The shared agent daemon runtime under `packages/agent/daemon` is still linted
 by `pnpm lint:go`.
 During the migration, selected historical files carry file-local
-`revive:disable:file-length-limit` comments. New nextop-owned daemon
+`revive:disable:file-length-limit` comments. New tutti-owned daemon
 service/API code should stay outside those exceptions and must continue to
 satisfy the normal Go lint baseline.
 
-Local runs expect a `golangci-lint` binary on `PATH`. The repository pins the CI version through `services/nextopd/.golangci-lint-version`.
+Local runs expect a `golangci-lint` binary on `PATH`. The repository pins the CI version through `services/tuttid/.golangci-lint-version`.
 
 If you plan to run `pnpm lint:go` or `pnpm check:full` locally, install `golangci-lint` first and keep it available on `PATH`.
 
@@ -205,7 +205,7 @@ The limit does not apply to:
 Current first-pass scope:
 
 - TypeScript business paths under `apps/desktop/src/main/*`, `apps/desktop/src/preload/*`, and `packages/clients/*`
-- Go business paths under `packages/workspace/files/*` and `services/nextopd/app/*`, `api/*`, `biz/*`, `data/*`, `server/*`, and `service/*`
+- Go business paths under `packages/workspace/files/*` and `services/tuttid/app/*`, `api/*`, `biz/*`, `data/*`, `server/*`, and `service/*`
 
 ## Workflow Rules
 

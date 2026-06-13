@@ -127,7 +127,7 @@ describe("AgentQueuedPromptPanel", () => {
   });
 
   it("renders queued workspace app mentions when query params follow the markdown link", () => {
-    const iconUrl = "nextop://workspace-apps/ai-media-canvas/icon.png";
+    const iconUrl = "tutti://workspace-apps/ai-media-canvas/icon.png";
     const { container } = render(
       <AgentQueuedPromptPanel
         queuedPrompts={[

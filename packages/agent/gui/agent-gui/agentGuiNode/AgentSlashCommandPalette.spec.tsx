@@ -14,11 +14,11 @@ describe("AgentSlashCommandPalette", () => {
         entries={[
           {
             type: "command",
-            key: "command:nextop-cli",
-            label: "nextop-cli",
+            key: "command:tutti-cli",
+            label: "tutti-cli",
             description: "Inspect tasks and agent context.",
             command: {
-              name: "nextop-cli",
+              name: "tutti-cli",
               description: "Inspect tasks and agent context.",
               inputHint: "[issue description]"
             }
@@ -38,7 +38,7 @@ describe("AgentSlashCommandPalette", () => {
       "pt-2"
     );
 
-    const option = screen.getByRole("option", { name: /nextop-cli/i });
+    const option = screen.getByRole("option", { name: /tutti-cli/i });
     expect(option).toHaveClass(
       "rounded-[6px]",
       "min-h-9",
@@ -49,16 +49,16 @@ describe("AgentSlashCommandPalette", () => {
       "active:bg-[var(--transparency-active)]"
     );
     expect(option).toHaveAttribute("data-highlighted", "");
-    expect(screen.getByText("nextop-cli")).toHaveClass(
+    expect(screen.getByText("tutti-cli")).toHaveClass(
       "max-w-[48%]",
       "shrink-0",
       "truncate",
-      "text-[12px]"
+      "text-[11px]"
     );
     expect(screen.getByText("Inspect tasks and agent context.")).toHaveClass(
       "flex-1",
       "truncate",
-      "text-[12px]",
+      "text-[11px]",
       "text-[var(--text-secondary)]"
     );
     expect(screen.queryByText("[issue description]")).toBeNull();

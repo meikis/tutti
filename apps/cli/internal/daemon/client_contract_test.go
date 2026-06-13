@@ -42,7 +42,7 @@ func readOpenAPISpec(t *testing.T) string {
 		t.Fatal("resolve caller")
 	}
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(filename), "../../../.."))
-	specPath := filepath.Join(repoRoot, "services/nextopd/api/openapi/nextopd.v1.yaml")
+	specPath := filepath.Join(repoRoot, "services/tuttid/api/openapi/tuttid.v1.yaml")
 	content, err := os.ReadFile(specPath)
 	if err != nil {
 		t.Fatalf("read OpenAPI spec: %v", err)

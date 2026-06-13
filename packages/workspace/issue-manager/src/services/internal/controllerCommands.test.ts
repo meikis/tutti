@@ -83,7 +83,7 @@ test("controllerCommands detect open/share adapters only when the method exists"
   assert.equal(
     canIssueManagerCreateShareLink({
       async createIssueLink() {
-        return "nextop://workspace/workspace-1/issues/issue-1";
+        return "tutti://workspace/workspace-1/issues/issue-1";
       }
     }),
     true
@@ -268,7 +268,7 @@ test("controllerCommands share selections through the share adapter and clipboar
     shareAdapter: {
       async createIssueLink(input) {
         shareCalls.push(input);
-        return "nextop://workspace/workspace-1/issues/issue-1/tasks/task-1";
+        return "tutti://workspace/workspace-1/issues/issue-1/tasks/task-1";
       }
     },
     taskId: "task-1",
@@ -284,6 +284,6 @@ test("controllerCommands share selections through the share adapter and clipboar
   ]);
   assert.equal(
     copiedText,
-    "nextop://workspace/workspace-1/issues/issue-1/tasks/task-1"
+    "tutti://workspace/workspace-1/issues/issue-1/tasks/task-1"
   );
 });

@@ -1589,8 +1589,10 @@ test("restored fullscreen nodes keep fullscreen sizing below 1440", async () => 
 test("launchNode asks host to create backing instance before opening shell", async () => {
   const launchRequests: Array<{
     dockEntryId?: string;
+    layoutConstraints: typeof defaultWorkbenchLayoutConstraints;
     payload?: unknown;
     reason: string;
+    surfaceSize: typeof defaultWorkbenchSurfaceSize;
     typeId: string;
     workspaceId: string;
   }> = [];
@@ -1599,8 +1601,10 @@ test("launchNode asks host to create backing instance before opening shell", asy
     async onLaunchRequest(request) {
       launchRequests.push({
         dockEntryId: request.dockEntryId,
+        layoutConstraints: request.layoutConstraints,
         payload: request.payload,
         reason: request.reason,
+        surfaceSize: request.surfaceSize,
         typeId: request.typeId,
         workspaceId: request.workspaceId
       });
@@ -1655,10 +1659,12 @@ test("launchNode asks host to create backing instance before opening shell", asy
   assert.deepEqual(launchRequests, [
     {
       dockEntryId: "dock:terminal",
+      layoutConstraints: defaultWorkbenchLayoutConstraints,
       payload: {
         provider: "codex"
       },
       reason: "dock",
+      surfaceSize: defaultWorkbenchSurfaceSize,
       typeId: "terminal",
       workspaceId: "workspace-1"
     }
@@ -1674,6 +1680,93 @@ test("launchNode asks host to create backing instance before opening shell", asy
     type: "focus-pane"
   });
   assert.equal(node?.data.dockEntryId, "dock:terminal");
+
+  session.dispose();
+});
+
+test("launchNode logs host launch failures without opening a shell", async () => {
+  const diagnostics: unknown[] = [];
+  const session = createWorkbenchHostSession({
+    debugDiagnostics: {
+      isEnabled: () => false,
+      log(input) {
+        diagnostics.push(input);
+      }
+    },
+    nodes: [terminalNodeDefinition],
+    async onLaunchRequest() {
+      throw new Error("launch exploded");
+    },
+    snapshotRepository: {
+      async load() {
+        return createWorkbenchSnapshotFromState(
+          {
+            nodeStack: [],
+            nodes: []
+          },
+          {
+            metadata: {
+              workbenchHostInitialized: true
+            }
+          }
+        );
+      },
+      async save(_workspaceId, snapshot) {
+        return snapshot;
+      }
+    },
+    workspaceId: "workspace-1"
+  });
+
+  await session.load();
+  const nodeId = await session.launchNode({
+    dockEntryId: "dock:terminal",
+    payload: {
+      provider: "codex"
+    },
+    reason: "dock",
+    typeId: "terminal"
+  });
+
+  assert.equal(nodeId, null);
+  assert.equal(session.controller.getSnapshot().nodes.length, 0);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(
+    {
+      ...(diagnostics[0] as Record<string, unknown>),
+      details: {
+        ...(diagnostics[0] as { details: Record<string, unknown> }).details,
+        error: {
+          message: "launch exploded",
+          name: "Error",
+          stack: Boolean(
+            (
+              (diagnostics[0] as { details: { error: { stack?: unknown } } })
+                .details.error.stack as string | undefined
+            )?.includes("launch exploded")
+          )
+        }
+      }
+    },
+    {
+      details: {
+        dockEntryId: "dock:terminal",
+        error: {
+          message: "launch exploded",
+          name: "Error",
+          stack: true
+        },
+        launchSource: "dock",
+        payload: '{"provider":"codex"}',
+        reason: "dock",
+        typeId: "terminal"
+      },
+      event: "host.launch.failed",
+      level: "error",
+      source: "workbench-host",
+      workspaceId: "workspace-1"
+    }
+  );
 
   session.dispose();
 });

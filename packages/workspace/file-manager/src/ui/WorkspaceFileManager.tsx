@@ -5,9 +5,9 @@ import type {
   ReactElement,
   RefObject
 } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@tutti-os/ui-system";
-import type { NextopDateLocale } from "@tutti-os/ui-system/date-format";
+import type { TuttiDateLocale } from "@tutti-os/ui-system/date-format";
 import type { WorkspaceFileManagerSession } from "../services/workspaceFileManagerService.interface.ts";
 import {
   resolveRevealInFolderLabel,
@@ -31,6 +31,14 @@ import {
   WorkspaceFileManagerPanels
 } from "./WorkspaceFileManagerPanels.tsx";
 import { WorkspaceFileManagerToolbar } from "./WorkspaceFileManagerToolbar.tsx";
+import {
+  sortWorkspaceFileEntriesForArrangeMode,
+  type WorkspaceFileManagerArrangeMode
+} from "./workspaceFileManagerArrangeMode.ts";
+import { useWorkspaceFileManagerArrangeMode } from "./useWorkspaceFileManagerArrangeMode.ts";
+import type { WorkspaceFileManagerLayoutMode } from "./workspaceFileManagerLayoutMode.ts";
+import { useWorkspaceFileManagerLayoutMode } from "./useWorkspaceFileManagerLayoutMode.ts";
+import { useWorkspaceFileEntryIconUrls } from "./useWorkspaceFileEntryIconUrls.ts";
 import { shouldTrackDirectoryExpanded } from "./workspaceFileManagerAnalytics.ts";
 import {
   useWorkspaceFileManagerContextMenuView,
@@ -42,7 +50,7 @@ import {
 
 export interface WorkspaceFileManagerProps {
   className?: string;
-  dateLocale?: NextopDateLocale;
+  dateLocale?: TuttiDateLocale;
   entryDragMode?: WorkspaceFileManagerEntryDragMode;
   openInAppBrowserIcon?: ReactElement;
   resolveOpenWithApplicationIcon?: (
@@ -55,6 +63,9 @@ export interface WorkspaceFileManagerProps {
     entry: WorkspaceFileEntry,
     dataTransfer: DataTransfer
   ) => void;
+  resolveEntryIconUrl?: (
+    entry: WorkspaceFileEntry
+  ) => Promise<string | null | undefined>;
   hostOs?: NodeJS.Platform;
   i18n: WorkspaceFileManagerI18nRuntime;
   session: WorkspaceFileManagerSession;
@@ -72,11 +83,14 @@ export function WorkspaceFileManager({
   onEntryDragStart,
   openInAppBrowserIcon,
   resolveOpenWithApplicationIcon,
+  resolveEntryIconUrl,
   hostOs = "linux",
   session,
   surface = "card"
 }: WorkspaceFileManagerProps): ReactElement {
   const rootRef = useRef<HTMLElement | null>(null);
+  const { arrangeMode, setArrangeMode } = useWorkspaceFileManagerArrangeMode();
+  const { layoutMode, setLayoutMode } = useWorkspaceFileManagerLayoutMode();
   const rootView = useWorkspaceFileManagerRootView(session);
   const { state: panelsState, view: panelsView } =
     useWorkspaceFileManagerPanelsView(session);
@@ -301,7 +315,11 @@ export function WorkspaceFileManager({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <WorkspaceFileManagerToolbarContainer
           i18n={i18n}
+          arrangeMode={arrangeMode}
+          layoutMode={layoutMode}
+          onArrangeModeChange={setArrangeMode}
           onDirectoryExpanded={onDirectoryExpanded}
+          onLayoutModeChange={setLayoutMode}
           session={session}
         />
         <div
@@ -315,10 +333,13 @@ export function WorkspaceFileManager({
           <WorkspaceFileManagerPanelsContainer
             dateLocale={dateLocale}
             entryDragMode={entryDragMode}
+            arrangeMode={arrangeMode}
             i18n={i18n}
+            layoutMode={layoutMode}
             onDirectoryExpanded={onDirectoryExpanded}
             onEntryDragStart={onEntryDragStart}
             onOpenContextMenu={openContextMenu}
+            resolveEntryIconUrl={resolveEntryIconUrl}
             session={session}
           />
         </div>
@@ -338,12 +359,20 @@ export function WorkspaceFileManager({
 }
 
 function WorkspaceFileManagerToolbarContainer({
+  arrangeMode,
   i18n,
+  layoutMode,
+  onArrangeModeChange,
   onDirectoryExpanded,
+  onLayoutModeChange,
   session
 }: {
+  arrangeMode: WorkspaceFileManagerArrangeMode;
   i18n: WorkspaceFileManagerI18nRuntime;
+  layoutMode: WorkspaceFileManagerLayoutMode;
+  onArrangeModeChange: (arrangeMode: WorkspaceFileManagerArrangeMode) => void;
   onDirectoryExpanded?: (path: string) => void;
+  onLayoutModeChange: (layoutMode: WorkspaceFileManagerLayoutMode) => void;
   session: WorkspaceFileManagerSession;
 }): ReactElement {
   const { view } = useWorkspaceFileManagerToolbarView(session, i18n);
@@ -358,12 +387,16 @@ function WorkspaceFileManagerToolbarContainer({
       isBusy={view.isBusy}
       isLoading={view.isLoading}
       isMutating={view.isMutating}
+      arrangeMode={arrangeMode}
+      layoutMode={layoutMode}
+      onArrangeModeChange={onArrangeModeChange}
       onGoBack={() => {
         void session.goBack();
       }}
       onGoForward={() => {
         void session.goForward();
       }}
+      onLayoutModeChange={onLayoutModeChange}
       onLoadDirectory={(path) => {
         if (
           shouldTrackDirectoryExpanded({
@@ -383,17 +416,22 @@ function WorkspaceFileManagerToolbarContainer({
 }
 
 function WorkspaceFileManagerPanelsContainer({
+  arrangeMode,
   dateLocale,
   entryDragMode,
   i18n,
+  layoutMode,
   onDirectoryExpanded,
   onEntryDragStart,
   onOpenContextMenu,
+  resolveEntryIconUrl,
   session
 }: {
-  dateLocale?: NextopDateLocale;
+  arrangeMode: WorkspaceFileManagerArrangeMode;
+  dateLocale?: TuttiDateLocale;
   entryDragMode?: WorkspaceFileManagerEntryDragMode;
   i18n: WorkspaceFileManagerI18nRuntime;
+  layoutMode: WorkspaceFileManagerLayoutMode;
   onDirectoryExpanded?: (path: string) => void;
   onEntryDragStart?: (
     entry: WorkspaceFileEntry,
@@ -403,27 +441,41 @@ function WorkspaceFileManagerPanelsContainer({
     event: ReactMouseEvent<HTMLElement>,
     entry: WorkspaceFileEntry | null
   ) => void;
+  resolveEntryIconUrl?: (
+    entry: WorkspaceFileEntry
+  ) => Promise<string | null | undefined>;
   session: WorkspaceFileManagerSession;
 }): ReactElement {
   const { state, view } = useWorkspaceFileManagerPanelsView(session);
+  const arrangedEntries = useMemo(
+    () => sortWorkspaceFileEntriesForArrangeMode(state.entries, arrangeMode),
+    [arrangeMode, state.entries]
+  );
+  const iconUrlByCacheKey = useWorkspaceFileEntryIconUrls({
+    entries: arrangedEntries,
+    resolveEntryIconUrl
+  });
 
   return (
     <WorkspaceFileManagerPanels
+      arrangeMode={arrangeMode}
       canMove={view.canMove}
       contextMenuEntryPath={view.contextMenuEntryPath}
       copy={i18n}
       dateLocale={dateLocale}
       entryDragMode={entryDragMode}
+      iconUrlByCacheKey={iconUrlByCacheKey}
       inlineRenameEntryPath={view.inlineRenameEntryPath}
       inlineRenameValidation={view.inlineRenameValidation}
       isRenaming={view.isRenaming}
+      layoutMode={layoutMode}
       pendingDirectoryPath={view.pendingDirectoryPath}
       previewState={view.previewState}
       selectedEntry={view.selectedEntry}
       selectedPath={view.selectedPath}
       showDropOverlay={view.showDropOverlay}
       state={{
-        entries: state.entries,
+        entries: arrangedEntries,
         error: state.error,
         isLoading: state.isLoading
       }}

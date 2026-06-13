@@ -31,11 +31,11 @@ func TestNormalizeProviderMapsSupportedAgentsToServerValues(t *testing.T) {
 	}
 }
 
-func TestNormalizeProviderRejectsNextopAsNexightAlias(t *testing.T) {
+func TestNormalizeProviderRejectsTuttiAsNexightAlias(t *testing.T) {
 	t.Parallel()
 
-	if provider, ok := NormalizeProvider("nextop"); ok {
-		t.Fatalf("NormalizeProvider(nextop) = %q, true; want unsupported", provider)
+	if provider, ok := NormalizeProvider("tutti"); ok {
+		t.Fatalf("NormalizeProvider(tutti) = %q, true; want unsupported", provider)
 	}
 }
 

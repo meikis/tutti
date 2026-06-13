@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TrackEvent } from "@tutti-os/client-nextopd-ts";
+import type { TrackEvent } from "@tutti-os/client-tuttid-ts";
 import { AnalyticsDebugEventService } from "./analyticsDebugEventService.ts";
 
 test("analytics debug event service records immutable snapshots and notifies listeners", () => {

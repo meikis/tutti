@@ -1,4 +1,4 @@
-import { formatNextopShortDateTime } from "@tutti-os/ui-system/date-format";
+import { formatTuttiShortDateTime } from "@tutti-os/ui-system/date-format";
 import type {
   IssueManagerFileReference,
   IssueManagerPriority,
@@ -44,14 +44,14 @@ export function formatIssueManagerTimestamp(
   value: number | null | undefined
 ): string | null {
   const date = createIssueManagerDate(value);
-  return date ? formatNextopShortDateTime(date) : null;
+  return date ? formatTuttiShortDateTime(date) : null;
 }
 
 export function formatIssueManagerDate(
   value: number | null | undefined
 ): string {
   const date = createIssueManagerDate(value);
-  return date ? formatNextopShortDateTime(date) : "";
+  return date ? formatTuttiShortDateTime(date) : "";
 }
 
 export function resolveIssueManagerStatusLabel(

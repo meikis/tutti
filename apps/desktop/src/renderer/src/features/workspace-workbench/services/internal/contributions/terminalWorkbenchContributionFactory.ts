@@ -12,7 +12,7 @@ export const terminalWorkbenchContributionFactory: DesktopWorkbenchContributionF
         dockIcon: context.dockIcons.terminal,
         hostFilesApi: context.hostFilesApi,
         i18n: context.i18n,
-        nextopdClient: context.nextopdClient,
+        tuttidClient: context.tuttidClient,
         platformApi: context.platformApi,
         reporterService: context.reporterService,
         runtimeApi: context.runtimeApi,

@@ -47,7 +47,7 @@
     "react-dom": "^19.1.0",
     "valtio": "^2.3.2"
   },
-  "nextop": {
+  "tutti": {
     "tailwindSourceRoot": "src"
   },
   "publishConfig": {

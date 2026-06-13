@@ -11,13 +11,13 @@ const healthPollIntervalMs = 250;
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = join(scriptDirectory, "..", "..");
 
-const stateDir = await mkdtemp(join(tmpdir(), "nextop-transport-smoke-"));
+const stateDir = await mkdtemp(join(tmpdir(), "tutti-transport-smoke-"));
 const accessToken = randomBytes(32).toString("base64url");
 const daemonPath = join(
   stateDir,
-  process.platform === "win32" ? "nextopd.exe" : "nextopd"
+  process.platform === "win32" ? "tuttid.exe" : "tuttid"
 );
-const listenerInfoPath = join(stateDir, "run", "nextopd.listener.json");
+const listenerInfoPath = join(stateDir, "run", "tuttid.listener.json");
 
 await buildDaemon(daemonPath);
 
@@ -25,12 +25,12 @@ const child = spawn(daemonPath, [], {
   cwd: workspaceRoot,
   env: {
     ...process.env,
-    NEXTOP_ENV: "development",
-    NEXTOP_STATE_DIR: stateDir,
-    NEXTOPD_ACCESS_TOKEN: accessToken,
-    NEXTOPD_ADDR: "127.0.0.1:0",
-    NEXTOPD_LISTENER_INFO_PATH: listenerInfoPath,
-    NEXTOPD_LOG_OUTPUT: "tee"
+    TUTTI_ENV: "development",
+    TUTTI_STATE_DIR: stateDir,
+    TUTTID_ACCESS_TOKEN: accessToken,
+    TUTTID_ADDR: "127.0.0.1:0",
+    TUTTID_LISTENER_INFO_PATH: listenerInfoPath,
+    TUTTID_LOG_OUTPUT: "tee"
   },
   stdio: ["ignore", "pipe", "pipe"]
 });
@@ -41,13 +41,13 @@ let stderrLog = "";
 child.stdout?.on("data", (chunk) => {
   const text = chunk.toString();
   stdoutLog += text;
-  process.stdout.write(`[nextopd] ${text}`);
+  process.stdout.write(`[tuttid] ${text}`);
 });
 
 child.stderr?.on("data", (chunk) => {
   const text = chunk.toString();
   stderrLog += text;
-  process.stderr.write(`[nextopd] ${text}`);
+  process.stderr.write(`[tuttid] ${text}`);
 });
 
 try {
@@ -83,13 +83,13 @@ function buildDaemon(outputPath) {
   return new Promise((resolve, reject) => {
     execFile(
       "go",
-      ["build", "-o", outputPath, "./services/nextopd"],
+      ["build", "-o", outputPath, "./services/tuttid"],
       { cwd: workspaceRoot },
       (error, stdout, stderr) => {
         if (error) {
           reject(
             new Error(
-              `failed to build nextopd for smoke test:\n${stdout}${stderr}`
+              `failed to build tuttid for smoke test:\n${stdout}${stderr}`
             )
           );
           return;
@@ -108,7 +108,7 @@ async function waitForHealth(listenerInfoPathToCheck, token, isProcessAlive) {
   while (Date.now() < deadline) {
     if (!isProcessAlive()) {
       throw new Error(
-        `nextopd exited before health check succeeded: ${String(lastError ?? "unknown error")}`
+        `tuttid exited before health check succeeded: ${String(lastError ?? "unknown error")}`
       );
     }
 
@@ -129,7 +129,7 @@ async function waitForHealth(listenerInfoPathToCheck, token, isProcessAlive) {
   }
 
   throw new Error(
-    `timed out waiting for nextopd health: ${String(lastError ?? "unknown error")}`
+    `timed out waiting for tuttid health: ${String(lastError ?? "unknown error")}`
   );
 }
 

@@ -1,7 +1,7 @@
 # Workspace Issue Manager
 
 This document records the reusable issue-manager architecture shared by
-`nextop` and `tsh`.
+`tutti` and `tsh`.
 
 The TypeScript package `packages/workspace/issue-manager` is the current public
 frontend/package surface for this boundary. Complementary daemon-side or Go
@@ -50,10 +50,10 @@ It must not own:
 - HTTP, gRPC, OpenAPI, or protobuf contracts
 - Electron IPC or desktop preload details
 - `tsh` room membership, visitor share tokens, or invite capability
-- `nextopd` process wiring
+- `tuttid` process wiring
 - concrete MySQL or SQLite queries
 
-`nextopd` should adapt this package to local SQLite-backed storage. `tsh-server`
+`tuttid` should adapt this package to local SQLite-backed storage. `tsh-server`
 should adapt it to the existing remote control-plane storage and room policy
 surface.
 
@@ -69,7 +69,7 @@ This TypeScript package owns the reusable workbench feature surface:
 - host-agnostic rich-text context reference handling
 - host-agnostic run lifecycle UI flow
 
-It must not read product globals such as `window.nextop`, `legacy TSH preload globals`, or
+It must not read product globals such as `window.tutti`, `legacy TSH preload globals`, or
 any host-specific preload surface. Hosts provide explicit adapters instead.
 
 Expected exports:
@@ -96,14 +96,14 @@ It participates in the shared public npm release group documented in
 The OpenAPI fragment is a transport contract for hosts that expose the shared
 issue-manager capability over HTTP. Host daemons keep their own aggregate API
 entrypoints and compose the fragment instead of duplicating issue-manager paths,
-parameters, and schemas. `nextopd` composes it from
-`services/nextopd/api/openapi/nextopd.v1.yaml`.
+parameters, and schemas. `tuttid` composes it from
+`services/tuttid/api/openapi/tuttid.v1.yaml`.
 
 ## Scope Model
 
 The shared packages use `workspaceId` as the stable scope.
 
-`nextop` can pass the local workspace id directly. `tsh` keeps `roomId` in its
+`tutti` can pass the local workspace id directly. `tsh` keeps `roomId` in its
 host adapter for collaboration, authorization, sharing, and visitor access, then
 maps requests into the shared workspace-scoped model.
 
@@ -136,7 +136,7 @@ The TypeScript feature receives an `agentRunner` adapter. The Go package stores
 and transitions run records. Hosts decide how to start Codex, Claude Code,
 OpenClaw, Gemini, or any other provider.
 
-This boundary lets `nextop` and `tsh` share the issue-manager UX while keeping
+This boundary lets `tutti` and `tsh` share the issue-manager UX while keeping
 their runtime/session integration separate.
 
 ## Landing Slices
@@ -151,10 +151,10 @@ this section tracks the broader cross-host rollout model:
 3. Scaffold `packages/workspace/issue-manager` with contracts, adapter
    interfaces, i18n defaults, and workbench registration types.
 
-The next local-first slice wires `nextopd` to the shared contracts:
+The next local-first slice wires `tuttid` to the shared contracts:
 
-- `nextopd` SQLite adapter and OpenAPI routes under `/v1/workspaces/{workspaceID}`
-- generated `@tutti-os/client-nextopd-ts` issue-manager methods
+- `tuttid` SQLite adapter and OpenAPI routes under `/v1/workspaces/{workspaceID}`
+- generated `@tutti-os/client-tuttid-ts` issue-manager methods
 
 Later slices can add:
 

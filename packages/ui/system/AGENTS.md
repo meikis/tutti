@@ -5,10 +5,10 @@
 This file applies to `packages/ui/system/*`.
 
 `packages/ui/system` is the source package for `@tutti-os/ui-system`, the
-shared Nextop UI component library. It owns shared CSS tokens, theme styles,
+shared Tutti UI component library. It owns shared CSS tokens, theme styles,
 icon exports, presentation primitives, reusable host-agnostic business display
 components, component metadata, storyboard inventory, and the bundled
-`nextop-ui-system` agent skill.
+`tutti-ui-system` agent skill.
 
 Before changing components, icons, metadata, styles, storyboard examples, or
 the bundled skill, read `ui-system.md`.
@@ -83,7 +83,7 @@ Rules:
 - build primitives for a calm workbench shell, not for marketing-card theatrics
 - every public component, icon, utility, or style entry must have metadata with
   a stable readable `id` and `layer`
-- use the single `nextop-ui-system` skill for component reuse, extraction,
+- use the single `tutti-ui-system` skill for component reuse, extraction,
   base/business classification, metadata, and storyboard work
 
 ## React Component Splitting Rules

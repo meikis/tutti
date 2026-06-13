@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import type {
   AgentProviderStatus,
   WorkspaceAgentProvider
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { WorkspaceAppCenterApp } from "@renderer/features/workspace-app-center";
 import { createWorkspaceLaunchpadDockEntry } from "./workspaceLaunchpadDockEntry.ts";
 import {

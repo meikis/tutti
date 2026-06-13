@@ -8,11 +8,11 @@ const workspaceRoot = join(scriptDirectory, "..", "..");
 const nodeModulesDirectory = join(workspaceRoot, "node_modules");
 const nodeVersionFile = join(workspaceRoot, ".node-version");
 const packageJsonPath = join(workspaceRoot, "package.json");
-const goModPath = join(workspaceRoot, "services", "nextopd", "go.mod");
+const goModPath = join(workspaceRoot, "services", "tuttid", "go.mod");
 const golangciVersionFile = join(
   workspaceRoot,
   "services",
-  "nextopd",
+  "tuttid",
   ".golangci-lint-version"
 );
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
@@ -35,7 +35,7 @@ const checks = buildChecks();
 
 const failedChecks = checks.filter((check) => !check.ok);
 
-console.log("nextop developer setup");
+console.log("tutti developer setup");
 for (const check of checks) {
   console.log(
     `${check.ok ? "PASS" : "FAIL"} ${check.name}: ${check.ok ? check.success : check.failure}`
@@ -54,7 +54,7 @@ if (failedChecks.length > 0) {
     console.log(
       "1. Use Node.js from `.node-version` and pnpm from `packageManager`."
     );
-    console.log("2. Install Go matching `services/nextopd/go.mod`.");
+    console.log("2. Install Go matching `services/tuttid/go.mod`.");
     console.log("3. Run `pnpm install`.");
     console.log("4. Run `pnpm install:golangci-lint`.");
     console.log(
@@ -243,7 +243,7 @@ function parsePnpmVersion(packageManager) {
 function parseGoVersionPrefix(goMod) {
   const match = /^go\s+(\d+\.\d+)(?:\.\d+)?$/m.exec(goMod);
   if (!match) {
-    throw new Error("unable to parse Go version from services/nextopd/go.mod");
+    throw new Error("unable to parse Go version from services/tuttid/go.mod");
   }
   return `go${match[1]}`;
 }

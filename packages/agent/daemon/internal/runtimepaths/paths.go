@@ -22,27 +22,27 @@ func (p Paths) AgentPath(parts ...string) string {
 }
 
 func defaultStateDir() string {
-	if override := strings.TrimSpace(os.Getenv("NEXTOP_STATE_DIR")); override != "" {
+	if override := strings.TrimSpace(os.Getenv("TUTTI_STATE_DIR")); override != "" {
 		return override
 	}
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil || strings.TrimSpace(homeDir) == "" {
 		if isDevelopmentEnv() {
-			return ".nextop-dev"
+			return ".tutti-dev"
 		}
-		return ".nextop"
+		return ".tutti"
 	}
 
-	dirName := ".nextop"
+	dirName := ".tutti"
 	if isDevelopmentEnv() {
-		dirName = ".nextop-dev"
+		dirName = ".tutti-dev"
 	}
 	return filepath.Join(homeDir, dirName)
 }
 
 func isDevelopmentEnv() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("NEXTOP_ENV"))) {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("TUTTI_ENV"))) {
 	case "dev", "development", "local":
 		return true
 	default:

@@ -27,9 +27,11 @@ vi.mock("../../i18n/index", async () => {
       "继续输入文件名可搜索更多本机文件",
     "agentHost.agentGui.mentionGroupOpenedFiles": "我打开的文件",
     "agentHost.agentGui.mentionGroupAgentGeneratedFiles": "Agent 生成的文件",
+    "agentHost.agentGui.mentionAgentGeneratedFolderBack": "返回",
     "agentHost.agentGui.mentionNoMatchingFiles": "没有匹配到文件",
     "agentHost.roomIssueNode.issueStatusNotStarted": "未启动",
     "agentHost.roomIssueNode.issueStatusRunning": "执行中",
+    "agentHost.roomIssueNode.issueStatusInProgress": "已推进",
     "agentHost.roomIssueNode.issueStatusPendingAcceptance": "待验收",
     "agentHost.roomIssueNode.issueStatusCompleted": "已完成",
     "agentHost.roomIssueNode.issueStatusFailed": "失败",
@@ -91,44 +93,54 @@ describe("AgentFileMentionPalette", () => {
               href: "tsh://room/room-1/task/task-3",
               workspaceId: "room-1",
               targetId: "task-3",
-              name: "整理输出",
-              title: "整理输出",
+              name: "继续推进",
+              title: "继续推进",
               creatorName: "Cathy",
-              status: "pending_acceptance"
+              status: "in_progress"
             },
             {
               kind: "workspace-issue",
               href: "tsh://room/room-1/task/task-4",
               workspaceId: "room-1",
               targetId: "task-4",
-              name: "归档结果",
-              title: "归档结果",
-              creatorName: "David",
-              status: "completed"
+              name: "整理输出",
+              title: "整理输出",
+              creatorName: "Dora",
+              status: "pending_acceptance"
             },
             {
               kind: "workspace-issue",
               href: "tsh://room/room-1/task/task-5",
               workspaceId: "room-1",
               targetId: "task-5",
-              name: "重试任务",
-              title: "重试任务",
+              name: "归档结果",
+              title: "归档结果",
               creatorName: "Eve",
-              status: "failed"
+              status: "completed"
             },
             {
               kind: "workspace-issue",
               href: "tsh://room/room-1/task/task-6",
               workspaceId: "room-1",
               targetId: "task-6",
+              name: "重试任务",
+              title: "重试任务",
+              creatorName: "Frank",
+              status: "failed"
+            },
+            {
+              kind: "workspace-issue",
+              href: "tsh://room/room-1/task/task-7",
+              workspaceId: "room-1",
+              targetId: "task-7",
               name: "停止执行",
               title: "停止执行",
-              creatorName: "Frank",
+              creatorName: "Grace",
               status: "canceled"
             }
           ],
-          totalCount: 6,
-          visibleCount: 6,
+          totalCount: 7,
+          visibleCount: 7,
           hasMore: false
         }
       ],
@@ -157,6 +169,7 @@ describe("AgentFileMentionPalette", () => {
 
     expect(screen.getByText("未启动")).toBeVisible();
     expect(screen.getByText("执行中")).toBeVisible();
+    expect(screen.getByText("已推进")).toBeVisible();
     expect(screen.getByText("待验收")).toBeVisible();
     expect(screen.getByText("已完成")).toBeVisible();
     expect(screen.getAllByText("失败")).toHaveLength(1);
@@ -170,7 +183,7 @@ describe("AgentFileMentionPalette", () => {
     expect(screen.queryByText("已退出")).toBeNull();
   });
 
-  it("hides completed status tags from session mentions", () => {
+  it("renders session mention status tags with activity-core display statuses", () => {
     const state: AgentMentionSearchState = {
       status: "ready",
       query: "",
@@ -191,7 +204,7 @@ describe("AgentFileMentionPalette", () => {
               scope: "my_sessions",
               initiatorName: "Alice",
               agentName: "Codex",
-              status: "working"
+              status: "running"
             },
             {
               kind: "session",
@@ -321,16 +334,71 @@ describe("AgentFileMentionPalette", () => {
     expect(screen.getByText("运行中")).toBeVisible();
     expect(screen.getByText("等待中")).toBeVisible();
     expect(screen.getAllByText("错误")).toHaveLength(1);
-    expect(
-      Array.from(
-        document.querySelectorAll('[data-agent-mention-status-tag="true"]')
-      ).map((tag) => tag.textContent)
-    ).toEqual(["运行中", "等待中", "错误"]);
+    const statusTags = Array.from(
+      document.querySelectorAll('[data-agent-mention-status-tag="true"]')
+    );
+    expect(statusTags.map((tag) => tag.textContent)).toEqual([
+      "运行中",
+      "等待中",
+      "已完成",
+      "已完成",
+      "已完成",
+      "已完成",
+      "已完成",
+      "已完成",
+      "错误"
+    ]);
+    expect(statusTags.map((tag) => tag.getAttribute("data-status"))).toEqual([
+      "working",
+      "waiting",
+      "idle",
+      "completed",
+      "idle",
+      "idle",
+      "completed",
+      "idle",
+      "failed"
+    ]);
+    expect(statusTags.map((tag) => tag.getAttribute("data-tone"))).toEqual([
+      "blue",
+      "amber",
+      "green",
+      "green",
+      "green",
+      "green",
+      "green",
+      "green",
+      "red"
+    ]);
+    expect(statusTags[0]).toHaveClass("bg-sky-500/10", "text-sky-700");
+    expect(statusTags[1]).toHaveClass(
+      "bg-[color:color-mix(in_srgb,var(--color-amber-500)_12%,transparent)]",
+      "text-[var(--color-amber-500)]"
+    );
+    expect(statusTags[2]).toHaveClass(
+      "bg-[var(--tsh-ui-pill-success-bg)]",
+      "text-[var(--tsh-ui-pill-success-fg)]"
+    );
+    expect(statusTags[8]).toHaveClass(
+      "bg-[var(--on-danger)]",
+      "text-[var(--state-danger)]"
+    );
     const selectedOption = screen.getByRole("option", { selected: true });
     expect(selectedOption).toHaveClass(
       "rounded-[6px]",
       "bg-[var(--transparency-block)]"
     );
+    const sessionRow = selectedOption.querySelector(
+      ".grid-cols-\\[minmax\\(0\\,1fr\\)_auto\\]"
+    );
+    expect(sessionRow).toHaveClass(
+      "grid",
+      "w-full",
+      "min-w-0",
+      "items-center",
+      "gap-3"
+    );
+    expect(statusTags[0]).toHaveClass("shrink-0");
     const userAvatarImage = selectedOption.querySelector(
       '[data-agent-mention-user-avatar="true"] img'
     );
@@ -478,7 +546,7 @@ describe("AgentFileMentionPalette", () => {
     expect(title).toHaveClass(
       "min-w-0",
       "truncate",
-      "text-[12px]",
+      "text-[13px]",
       "text-[var(--text-primary)]"
     );
     expect(title.parentElement).toHaveClass(
@@ -931,6 +999,69 @@ describe("AgentFileMentionPalette", () => {
     ).toBeNull();
   });
 
+  it("renders agent generated folder back rows with a back navigation marker", () => {
+    const state: AgentMentionSearchState = {
+      status: "ready",
+      query: "",
+      mode: "browse",
+      filter: "file",
+      categories: [],
+      groups: [
+        {
+          id: "agent_generated_files",
+          items: [
+            {
+              kind: "file",
+              href: "",
+              path: "/workspace/demo/static",
+              name: "返回",
+              entryKind: "unknown",
+              directoryPath: "/workspace/demo",
+              mentionNavigation: "agent-generated-folder-back"
+            }
+          ],
+          totalCount: 1,
+          visibleCount: 1,
+          hasMore: false
+        }
+      ],
+      error: null
+    };
+
+    render(
+      <AgentFileMentionPalette
+        state={state}
+        highlightedKey="agent_generated_files:agent-generated-folder-back:/workspace/demo/static"
+        label="mention palette"
+        loadingLabel="loading"
+        emptyLabel="empty"
+        errorLabel="error"
+        tabHintLabel="hint"
+        maxHeightPx={320}
+        onHighlightChange={vi.fn()}
+        onSelectItem={vi.fn()}
+        onSelectCategory={vi.fn()}
+        onSelectFilter={vi.fn()}
+        onExpandGroup={vi.fn()}
+        onCycleFilter={vi.fn()}
+        onMoveSelection={vi.fn()}
+      />
+    );
+
+    const backRow = screen
+      .getByText("返回")
+      .closest('[data-agent-file-mention="true"]');
+
+    expect(backRow).toHaveAttribute(
+      "data-agent-mention-navigation",
+      "agent-generated-folder-back"
+    );
+    expect(backRow).toHaveAttribute("data-agent-file-visual-kind", "back");
+    expect(
+      backRow?.querySelector(".agent-gui-node__mention-file-icon")
+    ).not.toBeNull();
+  });
+
   it("renders image mention rows with thumbnails instead of default file icons", () => {
     const state: AgentMentionSearchState = {
       status: "ready",
@@ -1053,12 +1184,12 @@ describe("AgentFileMentionPalette", () => {
       "border-[var(--line-1)]"
     );
     expect(screen.getByText("事项")).toHaveClass(
-      "text-[12px]",
+      "text-[13px]",
       "font-normal",
       "text-[var(--text-secondary)]"
     );
     expect(screen.getByText("暂无事项")).toHaveClass(
-      "text-[12px]",
+      "text-[13px]",
       "font-normal",
       "text-[var(--text-tertiary)]"
     );
@@ -1134,7 +1265,7 @@ describe("AgentFileMentionPalette", () => {
       "gap-1"
     );
     expect(screen.getByText("Automation")).toHaveClass(
-      "text-[12px]",
+      "text-[13px]",
       "text-[var(--text-primary)]",
       "max-w-[40%]",
       "shrink-0"
@@ -1144,7 +1275,7 @@ describe("AgentFileMentionPalette", () => {
         "Schedule and review recurring automation runs for this workspace."
       )
     ).toHaveClass(
-      "text-[12px]",
+      "text-[13px]",
       "font-normal",
       "truncate",
       "text-[var(--text-secondary)]"
@@ -1352,6 +1483,15 @@ describe("AgentFileMentionPalette", () => {
     expect(css).toMatch(
       /\[data-message-center-item-id\]\.agent-gui-edge-glow\s*{[^}]*overflow:\s*hidden/s
     );
+    expect(css).toMatch(
+      /html\[data-theme="light"\]\s+\[data-message-center-item-id\]\.agent-gui-edge-glow\s*{[^}]*--agent-gui-star-border-color:\s*var\(--tutti-purple\)/s
+    );
+    expect(css).toMatch(
+      /html\[data-theme="light"\]\s+\[data-message-center-item-id\]\.agent-gui-edge-glow\s*{[^}]*--agent-gui-star-border-mid-color:\s*color-mix\(\s*in srgb,\s*var\(--tutti-purple\) 48%,\s*transparent\s*\)/s
+    );
+    expect(css).toMatch(
+      /html\[data-theme="light"\]\s+\[data-message-center-item-id\]\.agent-gui-edge-glow\s*{[^}]*--agent-gui-star-border-shadow:\s*drop-shadow\(\s*0 0 6px color-mix\(in srgb, var\(--tutti-purple\) 58%, transparent\)\s*\)/s
+    );
     for (const selector of [
       "interactive-prompt-lead",
       "interactive-option-button",
@@ -1393,7 +1533,113 @@ describe("AgentFileMentionPalette", () => {
     );
   });
 
+  it("lets the project rail header scroll with the conversation list", () => {
+    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
+    const nodeViewSource = readFileSync(
+      resolve("agent-gui/agentGuiNode/AgentGUINodeView.tsx"),
+      "utf8"
+    );
+    const projectRailHeaderRule =
+      css.match(/\.agent-gui-node__project-rail-header\s*{[^}]*}/s)?.[0] ?? "";
+    const projectRailTitleRule =
+      css.match(/\.agent-gui-node__project-rail-title\s*{[^}]*}/s)?.[0] ?? "";
+
+    expect(projectRailHeaderRule).toMatch(/display:\s*flex/);
+    expect(projectRailHeaderRule).not.toMatch(/position:\s*sticky/);
+    expect(projectRailHeaderRule).not.toMatch(/\btop:\s*0/);
+    expect(projectRailHeaderRule).not.toMatch(/\bz-index:/);
+    expect(projectRailHeaderRule).not.toMatch(/\bbackground:/);
+    expect(projectRailTitleRule).toMatch(/font-size:\s*13px/);
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\s*\+\s*\.agent-gui-node__project-rail-header\s*{[^}]*margin-top:\s*24px/s
+    );
+    expect(nodeViewSource).toMatch(/<Fragment key=\{section\.id\}>/);
+    expect(nodeViewSource).toMatch(/const showProjectRailHeader\s*=/);
+    expect(nodeViewSource).toMatch(/section\.kind !== "pinned"/);
+    expect(nodeViewSource).toMatch(
+      /groupedConversations\[sectionIndex - 1\]\?\.kind === "pinned"/
+    );
+  });
+
+  it("gives project section headers a hover-only background", () => {
+    const nodeViewSource = readFileSync(
+      resolve("agent-gui/agentGuiNode/AgentGUINodeView.tsx"),
+      "utf8"
+    );
+    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
+
+    expect(nodeViewSource).toMatch(/data-kind=\{section\.kind\}/);
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section-header\s*{[^}]*border-radius:\s*6px[^}]*background-color:\s*transparent[^}]*padding:\s*4px 6px 4px 10px[^}]*transition:\s*background-color 140ms ease/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section-label\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="project"\][\s\S]*?>\s*\.agent-gui-node__conversation-section-header:hover\s*{[^}]*background-color:\s*var\(--agent-gui-surface-hover\)/s
+    );
+    expect(css).not.toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="project"\][\s\S]*?>\s*\.agent-gui-node__conversation-section-header:focus-within/
+    );
+  });
+
+  it("swaps project folder icons for chevrons only on hover", () => {
+    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
+
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section-toggle\s*{[^}]*position:\s*relative[^}]*gap:\s*0/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section-chevron\s*{[^}]*position:\s*absolute[^}]*left:\s*0[^}]*opacity:\s*0[^}]*pointer-events:\s*none/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="project"\][\s\S]*?>\s*\.agent-gui-node__conversation-section-header:hover[\s\S]*?\.agent-gui-node__conversation-section-chevron\s*{[^}]*opacity:\s*1/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section-label-icon\s*{[^}]*width:\s*12px[^}]*height:\s*12px[^}]*transition:\s*opacity 140ms ease/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="project"\][\s\S]*?>\s*\.agent-gui-node__conversation-section-header:hover[\s\S]*?\.agent-gui-node__conversation-section-label-icon\s*{[^}]*opacity:\s*0/s
+    );
+  });
+
+  it("lets project and pinned conversation row backgrounds span the section width", () => {
+    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
+
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section-items\s*{[^}]*padding-left:\s*14px[^}]*padding-top:\s*8px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="project"\]\s+\.agent-gui-node__conversation-section-items\s*{[^}]*padding-left:\s*0[^}]*padding-top:\s*4px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="project"\]\s+\.agent-gui-node__conversation-select\s*{[^}]*padding-left:\s*26px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="pinned"\]\s+\.agent-gui-node__conversation-section-items\s*{[^}]*padding-left:\s*0/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="pinned"\]\s+\.agent-gui-node__conversation-select\s*{[^}]*padding-left:\s*26px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="conversations"\]\s+\.agent-gui-node__conversation-section-items\s*{[^}]*padding-left:\s*0/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="conversations"\]\s+\.agent-gui-node__conversation-select\s*{[^}]*padding-left:\s*26px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section-items-inner\s*{[^}]*gap:\s*4px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="project"\]\s+\.agent-gui-node__conversation-section-items-inner\s*{[^}]*gap:\s*2px/s
+    );
+  });
+
   it("reserves space for conversation row actions so titles truncate", () => {
+    const nodeViewSource = readFileSync(
+      resolve("agent-gui/agentGuiNode/AgentGUINodeView.tsx"),
+      "utf8"
+    );
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
     expect(css).toMatch(
@@ -1403,16 +1649,25 @@ describe("AgentFileMentionPalette", () => {
       /\.agent-gui-node__conversation-section\s*{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s
     );
     expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\s*\+\s*\.agent-gui-node__conversation-section\s*{[^}]*margin-top:\s*12px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="project"\]\s*\+\s*\.agent-gui-node__conversation-section\[data-kind="project"\]\s*{[^}]*margin-top:\s*2px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__conversation-section\[data-kind="pinned"\]\s*\+\s*\.agent-gui-node__conversation-section\[data-kind="conversations"\],[\s\S]*?\.agent-gui-node__conversation-section\[data-kind="project"\]\s*\+\s*\.agent-gui-node__conversation-section\[data-kind="conversations"\]\s*{[^}]*margin-top:\s*24px/s
+    );
+    expect(css).toMatch(
       /\.agent-gui-node__conversation-section-items\s*{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s
     );
     expect(css).toMatch(
-      /\.agent-gui-node__conversation-item\s*{[^}]*width:\s*100%[^}]*max-width:\s*100%[^}]*height:\s*36px[^}]*min-height:\s*36px[^}]*overflow:\s*hidden/s
+      /\.agent-gui-node__conversation-item\s*{[^}]*width:\s*100%[^}]*max-width:\s*100%[^}]*height:\s*32px[^}]*min-height:\s*32px[^}]*border-radius:\s*6px[^}]*overflow:\s*hidden/s
     );
     expect(css).toMatch(
       /\.agent-gui-node__conversation-select\s*{[^}]*width:\s*100%[^}]*max-width:\s*100%[^}]*min-width:\s*0[^}]*overflow:\s*hidden/s
     );
     expect(css).toMatch(
-      /\.agent-gui-node__conversation-title\s*{[^}]*overflow:\s*hidden[^}]*color:\s*var\(--text-primary\)[^}]*font-weight:\s*500[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s
+      /\.agent-gui-node__conversation-title\s*{[^}]*overflow:\s*hidden[^}]*color:\s*var\(--text-primary\)[^}]*font-size:\s*13px[^}]*font-weight:\s*500[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s
     );
     expect(css).toMatch(
       /\.agent-gui-node__conversation-item:hover\s+\.agent-gui-node__conversation-select[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)\s*0[\s\S]*?padding-right:\s*72px/s
@@ -1427,10 +1682,16 @@ describe("AgentFileMentionPalette", () => {
       /\.agent-gui-node__conversation-item\[data-pinned="true"\]\s+\.agent-gui-node__conversation-actions,\s*\.agent-gui-node__conversation-item:hover/s
     );
     expect(css).toMatch(
-      /\.agent-gui-node__conversation-actions\s*{[^}]*justify-content:\s*flex-start[^}]*gap:\s*4px[^}]*min-width:\s*60px/s
+      /\.agent-gui-node__conversation-actions\s*{[^}]*right:\s*4px[^}]*justify-content:\s*flex-start[^}]*gap:\s*0[^}]*min-width:\s*48px/s
     );
     expect(css).toMatch(
-      /\.agent-gui-node__conversation-delete-button,\s*\.agent-gui-node__conversation-pin-button\s*{[^}]*flex:\s*0 0 28px[^}]*width:\s*28px[^}]*min-width:\s*28px[^}]*height:\s*28px[^}]*min-height:\s*28px/s
+      /\.agent-gui-node__conversation-delete-button,\s*\.agent-gui-node__conversation-pin-button\s*{[^}]*background:\s*transparent[^}]*background-color:\s*transparent[^}]*color:\s*var\(--text-tertiary\)/s
+    );
+    expect(css).not.toMatch(
+      /\.agent-gui-node__conversation-delete-button,\s*\.agent-gui-node__conversation-pin-button\s*{[^}]*width:\s*28px/s
+    );
+    expect(nodeViewSource).toMatch(
+      /<BareIconButton[\s\S]*className=\{styles\.conversationPinButton\}[\s\S]*size="md"[\s\S]*<BareIconButton[\s\S]*className=\{[\s\S]*?styles\.conversationDeleteButton[\s\S]*?\}[\s\S]*size="md"/
     );
     expect(css).toMatch(
       /\.agent-gui-node__conversation-actions\s+>\s+button\.agent-gui-node__conversation-pin-button:not\(:disabled\):hover,\s*\.agent-gui-node__conversation-actions\s+>\s+button\.agent-gui-node__conversation-pin-button:not\(:disabled\):focus-visible,\s*\.agent-gui-node__conversation-actions\s+>\s+button\.agent-gui-node__conversation-pin-button:not\(:disabled\):active\s*{[^}]*background:\s*transparent[^}]*background-color:\s*transparent/s
@@ -1457,7 +1718,7 @@ describe("AgentFileMentionPalette", () => {
       /\.agent-gui-node__conversation-meta\[data-kind="time"\]\s*{[^}]*min-width:\s*max-content[^}]*white-space:\s*nowrap/s
     );
     expect(css).toMatch(
-      /\.agent-gui-node__conversation-time\s*{[^}]*white-space:\s*nowrap/s
+      /\.agent-gui-node__conversation-time\s*{[^}]*font-size:\s*11px[^}]*white-space:\s*nowrap/s
     );
   });
 
@@ -1513,11 +1774,22 @@ describe("AgentFileMentionPalette", () => {
     );
   });
 
+  it("uses tutti purple for composer approval menu accents", () => {
+    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
+
+    expect(css).toMatch(
+      /\.agent-gui-node__composer-menu-trigger\[data-permission-tone="accent"\],[\s\S]*?\.agent-gui-node__composer-menu-trigger\[data-permission-tone="accent"\]\s*>\s*svg\s*{[^}]*color:\s*var\(--tutti-purple\)/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__composer-menu-content\s*{[^}]*--accent:\s*var\(--tutti-purple\)[^}]*--agent-gui-package-accent:\s*var\(--tutti-purple\)[^}]*--agent-gui-package-accent-strong:\s*var\(--tutti-purple\)/s
+    );
+  });
+
   it("keeps conversation prompt titles on the carried TSH medium weight", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
     expect(css).toMatch(
-      /\.agent-gui-conversation__interactive-prompt-lead\s*{[^}]*font-size:\s*16px[^}]*font-weight:\s*500/s
+      /\.agent-gui-conversation__interactive-prompt-lead\s*{[^}]*font-size:\s*15px[^}]*font-weight:\s*500/s
     );
   });
 
@@ -1541,7 +1813,7 @@ describe("AgentFileMentionPalette", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
     expect(css).toMatch(
-      /\.agent-gui-node__detail-header-title\s*{[^}]*color:\s*var\(--text-primary\)/s
+      /\.agent-gui-node__detail-header-title\s*{[^}]*color:\s*var\(--text-primary\)[^}]*font-size:\s*15px/s
     );
   });
 
@@ -1561,7 +1833,7 @@ describe("AgentFileMentionPalette", () => {
       /\.agent-gui-node__layout\s+\[data-slot="status-dot"\]\[data-pulse="true"\],\s*\[data-testid="workspace-agent-message-center"\]\s+\[data-slot="status-dot"\]\[data-pulse="true"\]\s*{[^}]*animation:\s*agent-gui-status-dot-pulse\s+1\.8s\s+ease-in-out\s+infinite/s
     );
     expect(css).toMatch(/@keyframes\s+agent-gui-status-dot-pulse/s);
-    expect(css).toMatch(/--agent-gui-package-accent:\s*rgb\(65 130 245\)/s);
+    expect(css).toMatch(/--agent-gui-package-accent:\s*var\(--accent-codex\)/s);
     expect(css).toMatch(
       /--agent-gui-accent:\s*var\(--agent-gui-package-accent\)/s
     );
@@ -1575,6 +1847,9 @@ describe("AgentFileMentionPalette", () => {
 
     expect(css).toMatch(
       /\.workspace-agent-message-center__card\s*{[^}]*display:\s*flex[^}]*border:\s*1px solid var\(--line-2\)[^}]*background:\s*var\(--background-fronted\)/s
+    );
+    expect(css).toMatch(
+      /\.workspace-agent-message-center__card\[data-waiting="true"\]\s*{[^}]*border-color:\s*var\(--tutti-purple-border\)[^}]*background:\s*var\(--tutti-purple-bg\)/s
     );
     expect(css).toMatch(
       /\.workspace-agent-message-center__open-chat-button\s*{[^}]*background:\s*transparent[^}]*background-color:\s*transparent[^}]*color:\s*var\(--agent-gui-accent\)/s
@@ -1606,10 +1881,10 @@ describe("AgentFileMentionPalette", () => {
       /\[data-agent-file-mention="true"\]\[data-agent-mention-kind="file"\]\.tsh-agent-object-token--file\s*{[^}]*color:\s*var\(--folder\)/s
     );
     expect(css).toMatch(
-      /\[data-agent-mention-kind="workspace-app"\]\.tsh-agent-object-token--entity\s*{[^}]*color:\s*var\(--accent\)/s
+      /\[data-agent-mention-kind="workspace-app"\]\.tsh-agent-object-token--entity\s*{[^}]*color:\s*var\(--tutti-purple\)/s
     );
     expect(css).toMatch(
-      /\.workspace-agents-status-panel__activity-summary\s+\.workspace-agents-status-panel__detail-markdown\s+a,[\s\S]*?\.workspace-agents-status-panel__detail-markdown\s+code\s+a\s*{[^}]*color:\s*var\(--accent\)/s
+      /\.workspace-agents-status-panel__activity-summary\s+\.workspace-agents-status-panel__detail-markdown\s+a,[\s\S]*?\.workspace-agents-status-panel__detail-markdown\s+code\s+a\s*{[^}]*color:\s*var\(--tutti-purple\)/s
     );
   });
 
@@ -1625,6 +1900,7 @@ describe("AgentFileMentionPalette", () => {
       )?.[0] ?? "";
 
     expect(nodeViewSource).toContain("text-[var(--accent)]");
+    expect(nodeViewSource).toContain("text-[13px]");
     expect(nodeViewSource).toContain("relative grid size-4");
     expect(nodeViewSource).not.toContain("size-[18px]");
     expect(nodeViewSource).not.toContain(
@@ -1722,6 +1998,10 @@ describe("AgentFileMentionPalette", () => {
       )?.[0] ?? "";
     const paletteFileIconRule =
       css.match(/\.agent-gui-node__mention-file-icon\s*{[^}]*}/s)?.[0] ?? "";
+    const backNavigationIconRule =
+      css.match(
+        /\[data-agent-file-mention="true"\]\[data-agent-mention-kind="file"\]\[data-agent-file-visual-kind="back"\]\s+\.agent-gui-node__mention-file-icon\s*{[^}]*}/s
+      )?.[0] ?? "";
 
     expect(shellRule).toMatch(/--agent-mention-file-icon-size:\s*16px/);
     expect(paletteRule).toMatch(/--agent-mention-file-icon-size:\s*16px/);
@@ -1734,6 +2014,10 @@ describe("AgentFileMentionPalette", () => {
     expect(fileTokenRule).not.toMatch(/height:\s*24px/);
     expect(fileTokenRule).not.toMatch(/min-height:\s*24px/);
     expect(paletteFileIconRule).toMatch(/background-color:\s*var\(--folder\)/);
+    expect(backNavigationIconRule).toMatch(/arrow-left-filled\.svg/);
+    expect(backNavigationIconRule).toMatch(
+      /background-color:\s*var\(--text-secondary\)/
+    );
     expect(fileIconRule).toMatch(
       /width:\s*var\(--agent-mention-file-icon-size,\s*16px\)/
     );
@@ -1748,6 +2032,15 @@ describe("AgentFileMentionPalette", () => {
   it("keeps conversation mention hover backgrounds outside the queue", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
+    expect(css).toMatch(
+      /\.agent-gui-conversation__assistant-markdown\s+\[data-agent-file-mention="true"\]\.tsh-agent-object-token,[\s\S]*?\.workspace-agents-status-panel__detail-user-message\s+\[data-agent-file-mention="true"\]\.tsh-agent-object-token\s*{[^}]*cursor:\s*pointer/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-conversation__assistant-markdown\s+\[data-agent-file-mention="true"\]\.tsh-agent-object-token,[\s\S]*?\.workspace-agents-status-panel__detail-user-message\s+\[data-agent-file-mention="true"\]\.tsh-agent-object-token\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-conversation__assistant-markdown\s+\[data-agent-file-mention="true"\]\.tsh-agent-object-token\s+\.tsh-agent-object-token__main,[\s\S]*?\.workspace-agents-status-panel__detail-user-message\s+\[data-agent-file-mention="true"\]\.tsh-agent-object-token\s+\.tsh-agent-object-token__main\s*{[^}]*font-size:\s*13px/s
+    );
     expect(css).toMatch(
       /\.agent-gui-conversation__assistant-markdown\s+\[data-agent-file-mention="true"\]\.tsh-agent-object-token:hover,[\s\S]*?\.workspace-agents-status-panel__detail-user-message\s+\[data-agent-file-mention="true"\]\.tsh-agent-object-token:hover\s*{[^}]*background:\s*color-mix\(in srgb,\s*currentColor 16%,\s*transparent\)/s
     );
@@ -1826,7 +2119,7 @@ describe("AgentFileMentionPalette", () => {
     expect(userBubbleRule).toMatch(/justify-self:\s*end/);
     expect(userBubbleRule).toMatch(/width:\s*fit-content/);
     expect(userBubbleRule).toMatch(/overflow:\s*visible/);
-    expect(userBubbleRule).toMatch(/font-size:\s*14px/);
+    expect(userBubbleRule).toMatch(/font-size:\s*13px/);
     expect(userBubbleRule).toMatch(/line-height:\s*24px/);
     expect(userTokenRule).toMatch(/font-size:\s*inherit/);
     expect(userTokenRule).not.toMatch(/line-height:\s*inherit/);

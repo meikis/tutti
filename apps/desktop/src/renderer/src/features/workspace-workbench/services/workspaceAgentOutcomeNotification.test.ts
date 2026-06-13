@@ -92,6 +92,7 @@ function item(
 ): WorkspaceAgentMessageCenterItem {
   return {
     agentSessionId: "session-1",
+    userId: null,
     cwd: "/workspace",
     id: "message-center-session-1",
     identity: null,

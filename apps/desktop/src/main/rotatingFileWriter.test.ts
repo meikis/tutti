@@ -13,7 +13,7 @@ import test from "node:test";
 import { RotatingFileWriter } from "./rotatingFileWriter.ts";
 
 function createTempDir(): string {
-  return mkdtempSync(join(tmpdir(), "nextop-desktop-log-test-"));
+  return mkdtempSync(join(tmpdir(), "tutti-desktop-log-test-"));
 }
 
 test("RotatingFileWriter rotates the active log when size budget is exceeded", async (t) => {
@@ -24,7 +24,7 @@ test("RotatingFileWriter rotates the active log when size budget is exceeded", a
 
   const now = new Date(2026, 4, 5, 18, 0, 0, 0);
   const writer = await RotatingFileWriter.create(
-    join(dir, "nextop-desktop.log"),
+    join(dir, "tutti-desktop.log"),
     {
       maxSizeBytes: 5,
       maxBackups: 10,
@@ -39,10 +39,10 @@ test("RotatingFileWriter rotates the active log when size budget is exceeded", a
   await writer.close();
 
   assert.equal(
-    readFileSync(join(dir, "nextop-desktop.2026-05-05.log"), "utf8"),
+    readFileSync(join(dir, "tutti-desktop.2026-05-05.log"), "utf8"),
     "hello"
   );
-  assert.equal(readFileSync(join(dir, "nextop-desktop.log"), "utf8"), "world");
+  assert.equal(readFileSync(join(dir, "tutti-desktop.log"), "utf8"), "world");
 });
 
 test("RotatingFileWriter rotates on calendar day change", async (t) => {
@@ -53,7 +53,7 @@ test("RotatingFileWriter rotates on calendar day change", async (t) => {
 
   let now = new Date(2026, 4, 5, 15, 59, 0, 0);
   const writer = await RotatingFileWriter.create(
-    join(dir, "nextop-desktop.log"),
+    join(dir, "tutti-desktop.log"),
     {
       maxSizeBytes: 1024,
       maxBackups: 10,
@@ -69,13 +69,10 @@ test("RotatingFileWriter rotates on calendar day change", async (t) => {
   await writer.close();
 
   assert.equal(
-    readFileSync(join(dir, "nextop-desktop.2026-05-05.log"), "utf8"),
+    readFileSync(join(dir, "tutti-desktop.2026-05-05.log"), "utf8"),
     "before\n"
   );
-  assert.equal(
-    readFileSync(join(dir, "nextop-desktop.log"), "utf8"),
-    "after\n"
-  );
+  assert.equal(readFileSync(join(dir, "tutti-desktop.log"), "utf8"), "after\n");
 });
 
 test("RotatingFileWriter prunes older rotated files to stay within directory budget", async (t) => {
@@ -84,8 +81,8 @@ test("RotatingFileWriter prunes older rotated files to stay within directory bud
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const olderPath = join(dir, "nextop-desktop.2026-05-04.log");
-  const newerPath = join(dir, "nextop-desktop.2026-05-05.1.log");
+  const olderPath = join(dir, "tutti-desktop.2026-05-04.log");
+  const newerPath = join(dir, "tutti-desktop.2026-05-05.1.log");
   writeFileSync(olderPath, "older", "utf8");
   writeFileSync(newerPath, "newer", "utf8");
 
@@ -101,7 +98,7 @@ test("RotatingFileWriter prunes older rotated files to stay within directory bud
   );
 
   const writer = await RotatingFileWriter.create(
-    join(dir, "nextop-desktop.log"),
+    join(dir, "tutti-desktop.log"),
     {
       maxSizeBytes: 1024,
       maxBackups: 10,
@@ -122,8 +119,8 @@ test("RotatingFileWriter shared directory budget can prune rotated logs from oth
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const daemonRotatedPath = join(dir, "nextopd.2026-05-04.log");
-  const desktopRotatedPath = join(dir, "nextop-desktop.2026-05-05.1.log");
+  const daemonRotatedPath = join(dir, "tuttid.2026-05-04.log");
+  const desktopRotatedPath = join(dir, "tutti-desktop.2026-05-05.1.log");
   writeFileSync(daemonRotatedPath, "daemon-older", "utf8");
   writeFileSync(desktopRotatedPath, "desktop-newer", "utf8");
 
@@ -139,7 +136,7 @@ test("RotatingFileWriter shared directory budget can prune rotated logs from oth
   );
 
   const writer = await RotatingFileWriter.create(
-    join(dir, "nextop-desktop.log"),
+    join(dir, "tutti-desktop.log"),
     {
       maxSizeBytes: 1024,
       maxBackups: 10,

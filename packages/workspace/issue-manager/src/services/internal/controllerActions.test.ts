@@ -840,6 +840,42 @@ test("controller actions ignore runs without agent session ids", async () => {
   assert.deepEqual(openCalls, []);
 });
 
+test("controller actions update an issue-level execution task status without selecting it", async () => {
+  const updateTaskCalls: IssueManagerUpdateTaskInput[] = [];
+  const harness = createControllerActionsHarness({
+    backend: {
+      async updateTask(input) {
+        updateTaskCalls.push(input);
+        return createTaskSummary({
+          issueId: input.issueId,
+          status: input.status,
+          taskId: input.taskId,
+          title: ""
+        });
+      }
+    },
+    nodeState: {
+      issueSearchQuery: "",
+      issueStatusFilter: "all",
+      selectedAgentProvider: "codex",
+      selectedIssueId: "issue-1",
+      selectedTaskId: null
+    }
+  });
+
+  await harness.actions.setTaskStatus("task-acceptance", "completed");
+
+  assert.deepEqual(updateTaskCalls, [
+    {
+      issueId: "issue-1",
+      status: "completed",
+      taskId: "task-acceptance",
+      workspaceId: "workspace-1"
+    }
+  ]);
+  assert.equal(harness.nodeState.current.selectedTaskId, null);
+});
+
 test("controller actions run selected task through task-scoped handoff", async () => {
   const runnerCalls: IssueManagerAgentRunRequest[] = [];
   const createRunCalls: unknown[] = [];
@@ -1199,6 +1235,7 @@ test("controller actions open agent task breakdown with a provider override", as
       issueSearchQuery: "",
       issueStatusFilter: "all",
       selectedAgentProvider: "codex",
+      selectedExecutionDirectory: "/Users/example/project/tutti",
       selectedIssueId: "issue-1",
       selectedTaskId: null
     }
@@ -1208,6 +1245,7 @@ test("controller actions open agent task breakdown with a provider override", as
 
   assert.deepEqual(breakdownCalls, [
     {
+      executionDirectory: "/Users/example/project/tutti",
       issueDetail: {
         contextRefs: [createIssueContextRef({ path: "/workspace/spec.md" })],
         issue,
@@ -1229,7 +1267,7 @@ test("controller actions open agent task breakdown with a provider override", as
     }
   ]);
   assert.equal(harness.nodeState.current.selectedAgentProvider, "gemini");
-  assert.deepEqual(harness.isRunningTaskState.history, []);
+  assert.deepEqual(harness.isRunningTaskState.history, [true, false]);
   assert.deepEqual(harness.notificationState.history, []);
 });
 
@@ -1259,6 +1297,60 @@ test("controller actions report unavailable agent task breakdown", async () => {
   assert.deepEqual(harness.notificationState.history, [
     "messages.breakdownUnavailable"
   ]);
+});
+
+test("controller actions report run result error messages", async () => {
+  const harness = createControllerActionsHarness({
+    agentRunner: {
+      async runTask() {
+        return {
+          errorMessage: "issue_manager.agent_gui_launch_unavailable",
+          status: "failed"
+        };
+      }
+    },
+    issueDetail: {
+      contextRefs: [],
+      issue: createIssueSummary({
+        issueId: "issue-1",
+        title: "Plan migration"
+      }),
+      latestOutputs: [],
+      recentRuns: [],
+      tasks: [
+        createTaskSummary({
+          issueId: "issue-1",
+          taskId: "task-1",
+          title: "Port renderer"
+        })
+      ]
+    },
+    nodeState: {
+      issueSearchQuery: "",
+      issueStatusFilter: "all",
+      selectedAgentProvider: "codex",
+      selectedIssueId: "issue-1",
+      selectedTaskId: "task-1"
+    },
+    taskDetail: {
+      contextRefs: [],
+      latestOutputs: [],
+      recentRuns: [],
+      task: createTaskSummary({
+        issueId: "issue-1",
+        taskId: "task-1",
+        title: "Port renderer"
+      })
+    }
+  });
+
+  await harness.actions.runTask();
+
+  assert.deepEqual(harness.notificationState.history, [
+    "issue_manager.agent_gui_launch_unavailable"
+  ]);
+  assert.deepEqual(harness.isRunningTaskState.history, [true, false]);
+  assert.equal(harness.refreshDetailsCount, 1);
 });
 
 test("controller actions report run failures when the runner throws", async () => {
@@ -1363,7 +1455,7 @@ test("controller actions share the selected issue and task through the clipboard
     shareAdapter: {
       async createIssueLink(input) {
         shareCalls.push(input);
-        return "nextop://workspace/workspace-1/issues/issue-1/tasks/task-1";
+        return "tutti://workspace/workspace-1/issues/issue-1/tasks/task-1";
       }
     }
   });
@@ -1379,7 +1471,7 @@ test("controller actions share the selected issue and task through the clipboard
   ]);
   assert.equal(
     copiedText,
-    "nextop://workspace/workspace-1/issues/issue-1/tasks/task-1"
+    "tutti://workspace/workspace-1/issues/issue-1/tasks/task-1"
   );
   assert.deepEqual(analyticsEvents, []);
   assert.equal(harness.notificationState.current, null);

@@ -28,7 +28,7 @@ Decisions already made:
 | Topic              | Decision                                                                                            |
 | ------------------ | --------------------------------------------------------------------------------------------------- |
 | Shared scope       | Share terminal UI/runtime mechanics, not process execution.                                         |
-| Tutti execution    | Run local pty sessions through `services/nextopd`.                                                  |
+| Tutti execution    | Run local pty sessions through `services/tuttid`.                                                   |
 | TSH execution      | Keep VM, guest-agent, relay, room, and collaboration behavior in TSH adapters.                      |
 | Session identity   | A terminal workbench node cannot switch to another `sessionId`. New process means new session/node. |
 | Close semantics    | Close terminates the terminal session; if work is running, ask through close guard first.           |
@@ -71,7 +71,7 @@ packages/workspace/terminal
   scrollback, input queue, default terminal copy, and workbench node helpers.
 
 apps/desktop terminal adapter
-  Tutti-specific workbench registration, nextopd client wiring, local pty
+  Tutti-specific workbench registration, tuttid client wiring, local pty
   session creation, file-link handling, app i18n merge, and user-facing host
   integration.
 
@@ -79,7 +79,7 @@ apps/tsh-desktop terminal adapter
   TSH-specific workbench registration, desktopd client wiring, VM transport,
   room/collaboration metadata, runtime-lost projection, and agent/room behavior.
 
-services/nextopd terminal service
+services/tuttid terminal service
   Local host pty session lifecycle, output replay, snapshots, resize/write,
   and WebSocket attach for Tutti.
 
@@ -104,18 +104,18 @@ desktop adapter exist, and the terminal node is a real xterm surface registered
 in `apps/desktop`. Electron runtime passes have verified the local terminal
 path, including the idle and foreground-command close semantics.
 
-| Area                     | State                         | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Package skeleton         | Done                          | `packages/workspace/terminal` exports contracts, React, workbench, i18n, and CSS entrypoints.                                                                                                                                                                                                                                                                                                                                                                     |
-| TSH quarantine           | Removed                       | The temporary copied TSH terminal renderer source has been deleted after the Tutti V1 shared package surface landed.                                                                                                                                                                                                                                                                                                                                              |
-| Ledger                   | Folded back                   | Durable package-boundary decisions now live in this document instead of a package-internal quarantine ledger.                                                                                                                                                                                                                                                                                                                                                     |
-| Shared contracts         | Done                          | Transport, launch, close guard, diagnostics, link, drop, output transform, limits, theme, and external state contracts exist.                                                                                                                                                                                                                                                                                                                                     |
-| Pure shared helpers      | Done for V1                   | Scrollback, string overlap, dimensions, session projection, link detection, close flow, and screen cache helpers have package-local tests.                                                                                                                                                                                                                                                                                                                        |
-| nextopd HTTP routes      | Implemented for V1            | OpenAPI, generated clients, and handlers exist for list/create/get/terminate/close-guard/resize/snapshot.                                                                                                                                                                                                                                                                                                                                                         |
-| nextopd WebSocket attach | Implemented for V1            | The route now upgrades through a custom route because strict generated handlers do not receive `http.ResponseWriter` and `*http.Request`. It supports `input`, `resize`, `detach`, `ping`, replay after `afterSeq`, live output, and exit/error frames.                                                                                                                                                                                                           |
-| Shared xterm surface     | Runtime verified for Tutti V1 | `TerminalNode` mounts xterm with fit/search/serialize/web-links addons, hydrates from snapshot, attaches by `afterSeq`, writes transport output through a bounded scheduler, queues input until attach, sends resize, exposes find UI with case-sensitive and regex options, routes drops through the host hook, detects URL and file-path links, uses the committed screen-state cache on remount, and has a shared close-guard dialog for direct header closes. |
-| Desktop adapter          | Runtime verified for Tutti V1 | `apps/desktop` registers the terminal node and maps nextopd HTTP/WebSocket APIs into launch, snapshot, write, resize, detach, terminate, close-guard, default workbench close, URL/file link handling, and drop-input contracts. Runtime testing verified launch, requested/default cwd behavior, input/output, minimize, remount, stale-session projection, and close guard.                                                                                     |
-| TSH adapter              | Out of scope for this landing | TSH can adopt the package later, but this plan does not require migrating TSH now.                                                                                                                                                                                                                                                                                                                                                                                |
+| Area                    | State                         | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Package skeleton        | Done                          | `packages/workspace/terminal` exports contracts, React, workbench, i18n, and CSS entrypoints.                                                                                                                                                                                                                                                                                                                                                                     |
+| TSH quarantine          | Removed                       | The temporary copied TSH terminal renderer source has been deleted after the Tutti V1 shared package surface landed.                                                                                                                                                                                                                                                                                                                                              |
+| Ledger                  | Folded back                   | Durable package-boundary decisions now live in this document instead of a package-internal quarantine ledger.                                                                                                                                                                                                                                                                                                                                                     |
+| Shared contracts        | Done                          | Transport, launch, close guard, diagnostics, link, drop, output transform, limits, theme, and external state contracts exist.                                                                                                                                                                                                                                                                                                                                     |
+| Pure shared helpers     | Done for V1                   | Scrollback, string overlap, dimensions, session projection, link detection, close flow, and screen cache helpers have package-local tests.                                                                                                                                                                                                                                                                                                                        |
+| tuttid HTTP routes      | Implemented for V1            | OpenAPI, generated clients, and handlers exist for list/create/get/terminate/close-guard/resize/snapshot.                                                                                                                                                                                                                                                                                                                                                         |
+| tuttid WebSocket attach | Implemented for V1            | The route now upgrades through a custom route because strict generated handlers do not receive `http.ResponseWriter` and `*http.Request`. It supports `input`, `resize`, `detach`, `ping`, replay after `afterSeq`, live output, and exit/error frames.                                                                                                                                                                                                           |
+| Shared xterm surface    | Runtime verified for Tutti V1 | `TerminalNode` mounts xterm with fit/search/serialize/web-links addons, hydrates from snapshot, attaches by `afterSeq`, writes transport output through a bounded scheduler, queues input until attach, sends resize, exposes find UI with case-sensitive and regex options, routes drops through the host hook, detects URL and file-path links, uses the committed screen-state cache on remount, and has a shared close-guard dialog for direct header closes. |
+| Desktop adapter         | Runtime verified for Tutti V1 | `apps/desktop` registers the terminal node and maps tuttid HTTP/WebSocket APIs into launch, snapshot, write, resize, detach, terminate, close-guard, default workbench close, URL/file link handling, and drop-input contracts. Runtime testing verified launch, requested/default cwd behavior, input/output, minimize, remount, stale-session projection, and close guard.                                                                                      |
+| TSH adapter             | Out of scope for this landing | TSH can adopt the package later, but this plan does not require migrating TSH now.                                                                                                                                                                                                                                                                                                                                                                                |
 
 Post-landing follow-up order:
 
@@ -160,7 +160,7 @@ The package may own:
 
 The package must not own:
 
-- nextopd or desktopd client construction
+- tuttid or desktopd client construction
 - Electron preload calls
 - WorkbenchHost snapshot repository construction
 - local host pty spawning
@@ -492,7 +492,7 @@ Client-to-server frames:
 | `ping`   | optional liveness probe if the host transport needs one     |
 
 This frame shape is already close to the TSH desktop transport and is a good
-candidate for reuse by nextopd, but the shared React package should consume the
+candidate for reuse by tuttid, but the shared React package should consume the
 typed transport events, not raw WebSocket frames.
 
 Close is intentionally not a stream frame. Closing a workbench terminal flows
@@ -571,7 +571,7 @@ The shared package should follow TSH's recovery split:
 - a host may preserve scrollback for display after a session is gone, but that
   is not the same as restoring the process
 
-Tutti should mirror this model for the first implementation. `nextopd` should
+Tutti should mirror this model for the first implementation. `tuttid` should
 own live local pty sessions and output replay. Workbench snapshots should
 recover shell layout. Any durable terminal history beyond the live daemon
 session should be modeled as terminal history or placeholder state, not as proof
@@ -651,7 +651,7 @@ Host responsibilities:
 
 Tutti's first implementation should target local host pty terminals.
 
-`services/nextopd` should own:
+`services/tuttid` should own:
 
 - local pty process lifecycle
 - session ids and state transitions
@@ -664,7 +664,7 @@ Tutti's first implementation should target local host pty terminals.
 - WebSocket attach, resize, write, detach, close, and exit/lost behavior
 
 The exact HTTP contract must be added to
-`services/nextopd/api/openapi/nextopd.v1.yaml` before generated clients or
+`services/tuttid/api/openapi/tuttid.v1.yaml` before generated clients or
 daemon handlers are changed.
 
 Expected route family:
@@ -680,7 +680,7 @@ GET    /v1/workspaces/{workspaceID}/terminals/{terminalID}/ws
 ```
 
 Tutti should not import TSH VM or routing code. It should treat terminal
-execution as a local desktop capability mediated by nextopd.
+execution as a local desktop capability mediated by tuttid.
 
 ## TSH VM Terminal Path
 
@@ -854,9 +854,9 @@ Exit criteria:
 
 ### Phase 5: Tutti Vertical Integration
 
-- add nextopd OpenAPI terminal contracts before daemon/client changes
+- add tuttid OpenAPI terminal contracts before daemon/client changes
 - implement local pty sessions, ring buffer, snapshot, sequence replay, resize,
-  WebSocket attach, close guard, and terminate in `services/nextopd`
+  WebSocket attach, close guard, and terminate in `services/tuttid`
 - implement the desktop renderer host adapter that satisfies the package
   contracts
 - register the terminal node in `apps/desktop`
@@ -914,7 +914,7 @@ extraction decision table:
 | terminal search addon binding                     | V1 shared UI                                     | Include find bar and xterm search addon binding when the package owns terminal body/header UI. Keep it host-configurable.                                                                                                   |
 | light diagnostics hook                            | V1 shared interface                              | Provide host-injected diagnostics with package-owned, product-neutral event names. Default to no-op and avoid raw user input, env values, tokens, and product-specific logging dependencies.                                |
 | WebGL pixel snapping                              | omit from V1                                     | TSH does not currently enable WebGL, and its dormant snapping code depends on product DOM/platform details. Reintroduce only with an active host requirement to enable WebGL.                                               |
-| transport attach, detach, write, resize, snapshot | V1 shared contract plus host adapter             | The package defines typed transport contracts. Concrete HTTP, WebSocket, IPC, desktopd, or nextopd wiring stays in host adapters. `detach` means detach the renderer stream, not close or kill the terminal session.        |
+| transport attach, detach, write, resize, snapshot | V1 shared contract plus host adapter             | The package defines typed transport contracts. Concrete HTTP, WebSocket, IPC, desktopd, or tuttid wiring stays in host adapters. `detach` means detach the renderer stream, not close or kill the terminal session.         |
 | output sequencing and `afterSeq` replay           | V1 shared semantics; daemon-owned implementation | Use monotonic output sequence numbers, snapshot `fromSeq`/`toSeq`, attach `afterSeq`, and explicit replay gap/truncation signaling. Ring-buffer storage remains daemon-owned.                                               |
 | snapshot hydration                                | V1 shared terminal core                          | Hydrate xterm from `TerminalTransport.snapshot`, attach with `afterSeq`, and surface truncation/gap state. Agent placeholder and advanced restored-history behavior stay out of V1 core.                                    |
 | output scheduler and scrollback buffer            | V1 shared terminal core                          | Schedule xterm writes and keep bounded renderer scrollback for UI/persistence. Daemon replay remains authoritative; limits and persistence callbacks are host-configured.                                                   |
@@ -953,10 +953,10 @@ port, and make Tutti consume a clean shared package.
      product-i18n dependencies as each module is promoted
 
 4. **Tutti local terminal vertical**
-   - add the terminal API contract to nextopd OpenAPI before daemon/client
+   - add the terminal API contract to tuttid OpenAPI before daemon/client
      changes
    - implement local pty sessions, ring buffer, snapshot, sequence replay,
-     resize, WebSocket attach, close guard, and terminate in `services/nextopd`
+     resize, WebSocket attach, close guard, and terminate in `services/tuttid`
    - implement a desktop renderer adapter for the package contracts
    - register the terminal node from the desktop workbench host service
 
@@ -976,17 +976,17 @@ checks.
 The Tutti vertical is complete only when all required outcomes are implemented
 and the runtime checks have been exercised in a running desktop workspace.
 
-| Check                    | Required outcome                                                                                                                                                            | Current status                                                                                                                                                                                                                                                                                                                                                                |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Daemon session lifecycle | `nextopd` can create, list, inspect, resize, close-guard, terminate, snapshot, and stream local pty sessions.                                                               | Implemented and covered by focused Go tests.                                                                                                                                                                                                                                                                                                                                  |
-| Live stream              | A renderer can attach to a session, receive replay after `afterSeq`, receive live output, write input, resize, detach, and observe exit.                                    | Implemented and runtime verified in Electron through xterm input, nextopd WebSocket write, daemon snapshot, and close exit.                                                                                                                                                                                                                                                   |
-| Shared xterm surface     | The package owns xterm mount/dispose, fit, search, serialize, link detection, input queue, hydration, output scheduling, and screen cache behavior.                         | Implemented with package tests for pure helpers and runtime verified for mount, output, find UI, minimize, and remount.                                                                                                                                                                                                                                                       |
-| Close flow               | Workbench close calls shared close flow, host close guard, and host terminate; detach never kills the process.                                                              | Implemented and runtime verified. nextopd now uses Unix pty foreground process group inspection so idle local shells close directly, foreground commands require confirmation, and unknown platforms remain conservative. Close confirmation currently enters through the workbench close callback; direct terminal-header dialog remains available for hosts that render it. |
-| Minimize flow            | Minimize only changes workbench visibility and leaves the daemon session running.                                                                                           | Runtime verified: minimizing the terminal node kept the daemon session status `running`.                                                                                                                                                                                                                                                                                      |
-| Desktop adapter          | `apps/desktop` maps nextopd HTTP/WebSocket APIs into `TerminalLaunchService`, `TerminalTransport`, close guard, diagnostics, link, and drop hooks.                          | Implemented and runtime verified against a real desktop window.                                                                                                                                                                                                                                                                                                               |
-| Workbench registration   | `WorkspaceWorkbenchHostService` registers the terminal node definition and composes the terminal launch handler with existing launch behavior.                              | Implemented.                                                                                                                                                                                                                                                                                                                                                                  |
-| Recovery                 | Restored workbench nodes bind to existing daemon sessions by `sessionId`; missing sessions project exited/lost state rather than silently creating a new process.           | Runtime verified: renderer reload reattached the same live `sessionId`; daemon-missing sessions now project `failed` after snapshot failure and do not create a replacement process.                                                                                                                                                                                          |
-| Validation               | Package typecheck/test/build, desktop typecheck/test/build, i18n, generated API check, renderer-boundary check, TS lint, UI boundary check, and nextopd Go test/build pass. | Passed after the latest close-guard and adapter hardening.                                                                                                                                                                                                                                                                                                                    |
+| Check                    | Required outcome                                                                                                                                                           | Current status                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Daemon session lifecycle | `tuttid` can create, list, inspect, resize, close-guard, terminate, snapshot, and stream local pty sessions.                                                               | Implemented and covered by focused Go tests.                                                                                                                                                                                                                                                                                                                                 |
+| Live stream              | A renderer can attach to a session, receive replay after `afterSeq`, receive live output, write input, resize, detach, and observe exit.                                   | Implemented and runtime verified in Electron through xterm input, tuttid WebSocket write, daemon snapshot, and close exit.                                                                                                                                                                                                                                                   |
+| Shared xterm surface     | The package owns xterm mount/dispose, fit, search, serialize, link detection, input queue, hydration, output scheduling, and screen cache behavior.                        | Implemented with package tests for pure helpers and runtime verified for mount, output, find UI, minimize, and remount.                                                                                                                                                                                                                                                      |
+| Close flow               | Workbench close calls shared close flow, host close guard, and host terminate; detach never kills the process.                                                             | Implemented and runtime verified. tuttid now uses Unix pty foreground process group inspection so idle local shells close directly, foreground commands require confirmation, and unknown platforms remain conservative. Close confirmation currently enters through the workbench close callback; direct terminal-header dialog remains available for hosts that render it. |
+| Minimize flow            | Minimize only changes workbench visibility and leaves the daemon session running.                                                                                          | Runtime verified: minimizing the terminal node kept the daemon session status `running`.                                                                                                                                                                                                                                                                                     |
+| Desktop adapter          | `apps/desktop` maps tuttid HTTP/WebSocket APIs into `TerminalLaunchService`, `TerminalTransport`, close guard, diagnostics, link, and drop hooks.                          | Implemented and runtime verified against a real desktop window.                                                                                                                                                                                                                                                                                                              |
+| Workbench registration   | `WorkspaceWorkbenchHostService` registers the terminal node definition and composes the terminal launch handler with existing launch behavior.                             | Implemented.                                                                                                                                                                                                                                                                                                                                                                 |
+| Recovery                 | Restored workbench nodes bind to existing daemon sessions by `sessionId`; missing sessions project exited/lost state rather than silently creating a new process.          | Runtime verified: renderer reload reattached the same live `sessionId`; daemon-missing sessions now project `failed` after snapshot failure and do not create a replacement process.                                                                                                                                                                                         |
+| Validation               | Package typecheck/test/build, desktop typecheck/test/build, i18n, generated API check, renderer-boundary check, TS lint, UI boundary check, and tuttid Go test/build pass. | Passed after the latest close-guard and adapter hardening.                                                                                                                                                                                                                                                                                                                   |
 
 Do not call the migration complete merely because static checks pass. The V1
 completion bar is a running desktop workspace where a local terminal can be
@@ -1015,7 +1015,7 @@ Use this order when validating the current branch in `apps/desktop`:
    visible output.
 9. Close the terminal node. If the host reports foreground work, confirm the
    user is asked before `terminate`; otherwise close should terminate directly.
-10. Stop the app and rerun package, desktop, client, generated API, and nextopd
+10. Stop the app and rerun package, desktop, client, generated API, and tuttid
     validation if any runtime fixes were made.
 
 Record any runtime mismatch back in this document before changing package
@@ -1028,7 +1028,7 @@ The first Electron runtime pass was completed against a local workspace window
 using `pnpm --filter @tutti-os/desktop dev -- --remote-debugging-port=9223`.
 Verified behavior:
 
-- dock launch created a nextopd local pty session and rendered an xterm prompt
+- dock launch created a tuttid local pty session and rendered an xterm prompt
 - created sessions used the requested cwd, or the daemon default home-directory
   cwd when none was supplied
 - xterm input reached the shell through the WebSocket `input` path
@@ -1046,13 +1046,13 @@ Verified behavior:
 A second Electron runtime pass was completed after the close-guard precision
 hardening:
 
-- dock popup launch created a fresh nextopd local terminal session in the
+- dock popup launch created a fresh tuttid local terminal session in the
   requested cwd
 - xterm input reached the shell and daemon snapshot output included the
-  `NEXTOP_RUNTIME_VERIFY_1` marker
+  `TUTTI_RUNTIME_VERIFY_1` marker
 - closing an idle shell from the workbench window close button did not call
   `window.confirm` and the daemon session moved to `exited`
-- running `sleep 30` made nextopd close guard return `foreground-process` with
+- running `sleep 30` made tuttid close guard return `foreground-process` with
   `requiresConfirmation: true` and a process label
 - rejecting the foreground close confirmation kept the daemon session `running`
 - accepting the foreground close confirmation terminated the daemon session and
@@ -1062,7 +1062,7 @@ Runtime mismatch found and fixed:
 
 - after renderer reload, the desktop adapter lost in-memory session metadata and
   restored live terminals with the fallback title `Terminal`; `attach(...)` now
-  reloads the session descriptor through nextopd before opening the WebSocket
+  reloads the session descriptor through tuttid before opening the WebSocket
 - after daemon restart, stale terminal nodes stayed in the `created` projection
   when snapshot failed; `snapshot(...)` now records the failed projection in the
   desktop adapter before surfacing the error
@@ -1135,7 +1135,7 @@ As of the current Tutti vertical checkpoint:
 - the desktop renderer consumes the package i18n resources and stylesheet
   contract, registers the shared terminal node definition, composes the terminal
   launch handler with the existing files/browser launch handler, and provides a
-  first nextopd-backed terminal adapter
+  first tuttid-backed terminal adapter
 - the desktop adapter reloads session descriptors during transport attach so
   renderer reloads can recover title, cwd, runtime kind, and status for live
   daemon sessions
@@ -1152,16 +1152,16 @@ As of the current Tutti vertical checkpoint:
   and drag/drop input: dropped files are resolved through the desktop platform
   API and inserted as shell-quoted local paths, while file targets route through
   the host files API
-- browser WebSocket clients cannot set `Authorization` headers, so nextopd
+- browser WebSocket clients cannot set `Authorization` headers, so tuttid
   bearer auth now accepts an `access_token` query parameter only for WebSocket
   upgrade requests; ordinary HTTP requests still require the bearer header
-- the nextopd OpenAPI contract now defines terminal list/create/get/terminate,
+- the tuttid OpenAPI contract now defines terminal list/create/get/terminate,
   close-guard, resize, snapshot, and WebSocket attach routes; generated Go and
   TypeScript clients have been updated
-- nextopd now has an in-memory local pty terminal service for list, create,
+- tuttid now has an in-memory local pty terminal service for list, create,
   get, terminate, resize, write, snapshot, close-guard, and attach-stream
   behavior
-- nextopd close guard now inspects the Unix pty foreground process group: idle
+- tuttid close guard now inspects the Unix pty foreground process group: idle
   shells return `not-running` without confirmation, foreground commands return
   `foreground-process` with confirmation, and platforms where this cannot be
   inspected remain conservative
@@ -1177,7 +1177,7 @@ As of the current Tutti vertical checkpoint:
 - focused package validation has passed after the latest close-guard and adapter
   hardening for workspace-terminal typecheck/test/build, desktop
   typecheck/test/build, desktop renderer-boundary check, UI boundary check,
-  i18n check, TS lint, nextopd Go test/build, client typecheck/test, and
+  i18n check, TS lint, tuttid Go test/build, client typecheck/test, and
   generated API checks
 
 The package xterm surface and first Tutti desktop adapter have passed Electron

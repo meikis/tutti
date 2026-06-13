@@ -298,7 +298,7 @@ test("rejects generated i18n key names", async () => {
 });
 
 async function createFixtureWorkspace(options = {}) {
-  const workspaceRoot = await mkdtemp(join(tmpdir(), "nextop-i18n-"));
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "tutti-i18n-"));
   const files = {
     "apps/desktop/src/shared/i18n/locales/en.ts":
       options.en ?? defaultEnglishLocale(),
@@ -370,7 +370,7 @@ function defaultDesktopI18nManifest() {
   return `
     import { createLocaleObjectI18nModuleManifest } from "@tutti-os/ui-i18n-runtime";
 
-    export const nextopI18nModule = createLocaleObjectI18nModuleManifest({
+    export const tuttiI18nModule = createLocaleObjectI18nModuleManifest({
       fileByLocale: {
         en: "apps/desktop/src/shared/i18n/locales/en.ts",
         "zh-CN": "apps/desktop/src/shared/i18n/locales/zh-CN.ts"
@@ -385,7 +385,7 @@ function defaultWorkspaceFileManagerI18n(zhCNOverride) {
     import { createScopedLocaleObjectsI18nModuleManifest } from "@tutti-os/ui-i18n-runtime";
 
     export const workspaceFileManagerI18nNamespace = "workspaceFileManager";
-    export const nextopI18nModule = createScopedLocaleObjectsI18nModuleManifest({
+    export const tuttiI18nModule = createScopedLocaleObjectsI18nModuleManifest({
       localeObjectByLocale: {
         en: "workspaceFileManagerEn",
         "zh-CN": "workspaceFileManagerZhCN"
@@ -426,7 +426,7 @@ function defaultWorkbenchWindowI18n() {
     import { createScopedLocaleObjectsI18nModuleManifest } from "@tutti-os/ui-i18n-runtime";
 
     export const workbenchWindowChromeI18nNamespace = "workbenchWindowChrome";
-    export const nextopI18nModule = createScopedLocaleObjectsI18nModuleManifest({
+    export const tuttiI18nModule = createScopedLocaleObjectsI18nModuleManifest({
       localeObjectByLocale: {
         en: "workbenchWindowChromeEn",
         "zh-CN": "workbenchWindowChromeZhCN"
@@ -460,7 +460,7 @@ function defaultWorkbenchHostI18n() {
     import { createScopedLocaleObjectsI18nModuleManifest } from "@tutti-os/ui-i18n-runtime";
 
     export const workbenchHostI18nNamespace = "workbenchHost";
-    export const nextopI18nModule = createScopedLocaleObjectsI18nModuleManifest({
+    export const tuttiI18nModule = createScopedLocaleObjectsI18nModuleManifest({
       localeObjectByLocale: {
         en: "workbenchHostEn",
         "zh-CN": "workbenchHostZhCN"
@@ -536,7 +536,7 @@ function runI18nCheck(workspaceRoot) {
     encoding: "utf8",
     env: {
       ...process.env,
-      NEXTOP_WORKSPACE_ROOT: workspaceRoot
+      TUTTI_WORKSPACE_ROOT: workspaceRoot
     }
   });
 }

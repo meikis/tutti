@@ -33,6 +33,7 @@ export interface WorkspaceAgentMessageCenterItem {
   id: string;
   agentSessionId: string;
   provider: string;
+  userId: string | null;
   title: string;
   identity: WorkspaceAgentMessageCenterIdentity | null;
   cwd: string;
@@ -114,6 +115,7 @@ export function buildWorkspaceAgentMessageCenterModel(
         id: `message-center-${session.agentSessionId}`,
         agentSessionId: session.agentSessionId,
         provider: session.provider,
+        userId: session.userId?.trim() || null,
         title,
         identity: resolveMessageCenterIdentity(
           session.agentSessionId,

@@ -9,23 +9,23 @@ describe("resolveWorkspaceFileLinkAction", () => {
   it("opens local absolute paths without remapping workspace-prefixed paths", () => {
     expect(
       resolveWorkspaceFileLinkAction({
-        path: "/Users/test/project/nextop/src/App.tsx",
-        workspaceRoot: "/Users/test/project/nextop",
-        basePath: "/Users/test/project/nextop",
+        path: "/Users/test/project/tutti/src/App.tsx",
+        workspaceRoot: "/Users/test/project/tutti",
+        basePath: "/Users/test/project/tutti",
         source: "agent-markdown"
       })
     ).toMatchObject({
       type: "open-workspace-file",
-      path: "/Users/test/project/nextop/src/App.tsx",
-      directoryPath: "/Users/test/project/nextop/src",
-      workspaceRoot: "/Users/test/project/nextop"
+      path: "/Users/test/project/tutti/src/App.tsx",
+      directoryPath: "/Users/test/project/tutti/src",
+      workspaceRoot: "/Users/test/project/tutti"
     });
 
     expect(
       resolveWorkspaceFileLinkAction({
         path: "/workspace/src/App.tsx",
-        workspaceRoot: "/Users/test/project/nextop",
-        basePath: "/Users/test/project/nextop",
+        workspaceRoot: "/Users/test/project/tutti",
+        basePath: "/Users/test/project/tutti",
         source: "agent-markdown"
       })
     ).toBeNull();
@@ -34,40 +34,40 @@ describe("resolveWorkspaceFileLinkAction", () => {
   it("allows local absolute paths when the workspace root is the filesystem root", () => {
     expect(
       resolveWorkspaceFileLinkAction({
-        path: "/Users/test/project/nextop/src/App.tsx",
+        path: "/Users/test/project/tutti/src/App.tsx",
         workspaceRoot: "/",
         basePath: "/",
         source: "agent-markdown"
       })
     ).toMatchObject({
       type: "open-workspace-file",
-      path: "/Users/test/project/nextop/src/App.tsx",
-      directoryPath: "/Users/test/project/nextop/src",
+      path: "/Users/test/project/tutti/src/App.tsx",
+      directoryPath: "/Users/test/project/tutti/src",
       workspaceRoot: "/"
     });
   });
 
-  it("allows direct generated image paths under Nextop state outside the workspace root", () => {
+  it("allows direct generated image paths under Tutti state outside the workspace root", () => {
     expect(
       resolveWorkspaceFileLinkAction({
-        path: "/Users/test/.nextop-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png",
-        workspaceRoot: "/Users/test/project/nextop",
-        basePath: "/Users/test/project/nextop",
+        path: "/Users/test/.tutti-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png",
+        workspaceRoot: "/Users/test/project/tutti",
+        basePath: "/Users/test/project/tutti",
         source: "agent-markdown"
       })
     ).toMatchObject({
       type: "open-workspace-file",
-      path: "/Users/test/.nextop-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png",
+      path: "/Users/test/.tutti-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png",
       directoryPath:
-        "/Users/test/.nextop-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen",
-      workspaceRoot: "/Users/test/project/nextop"
+        "/Users/test/.tutti-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen",
+      workspaceRoot: "/Users/test/project/tutti"
     });
 
     expect(
       resolveWorkspaceFileLinkAction({
-        path: "/Users/test/.nextop-dev/agent/runs/run-1/session-1/codex-home/secrets.txt",
-        workspaceRoot: "/Users/test/project/nextop",
-        basePath: "/Users/test/project/nextop",
+        path: "/Users/test/.tutti-dev/agent/runs/run-1/session-1/codex-home/secrets.txt",
+        workspaceRoot: "/Users/test/project/tutti",
+        basePath: "/Users/test/project/tutti",
         source: "agent-markdown"
       })
     ).toBeNull();
@@ -77,27 +77,27 @@ describe("resolveWorkspaceFileLinkAction", () => {
     expect(
       resolveWorkspaceFilePathCandidate({
         path: "src/App.tsx",
-        workspaceRoot: "/Users/test/project/nextop"
+        workspaceRoot: "/Users/test/project/tutti"
       })
     ).toMatchObject({
-      path: "/Users/test/project/nextop/src/App.tsx",
-      directoryPath: "/Users/test/project/nextop/src",
-      workspaceRoot: "/Users/test/project/nextop"
+      path: "/Users/test/project/tutti/src/App.tsx",
+      directoryPath: "/Users/test/project/tutti/src",
+      workspaceRoot: "/Users/test/project/tutti"
     });
   });
 
   it("allows Windows local paths inside the workspace root", () => {
     expect(
       resolveWorkspaceFileLinkAction({
-        path: "C:\\Users\\test\\project\\nextop\\src\\App.tsx",
-        workspaceRoot: "C:\\Users\\test\\project\\nextop",
+        path: "C:\\Users\\test\\project\\tutti\\src\\App.tsx",
+        workspaceRoot: "C:\\Users\\test\\project\\tutti",
         source: "agent-markdown"
       })
     ).toMatchObject({
       type: "open-workspace-file",
-      path: "C:/Users/test/project/nextop/src/App.tsx",
-      directoryPath: "C:/Users/test/project/nextop/src",
-      workspaceRoot: "C:/Users/test/project/nextop"
+      path: "C:/Users/test/project/tutti/src/App.tsx",
+      directoryPath: "C:/Users/test/project/tutti/src",
+      workspaceRoot: "C:/Users/test/project/tutti"
     });
   });
 });

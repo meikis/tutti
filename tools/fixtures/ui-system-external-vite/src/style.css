@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @source ".";
 @source "../../../../packages/ui/system/src";
-@source "../.nextop-ui-system-dev";
+@source "../.tutti-ui-system-dev";
 @source "../node_modules/@tutti-os/ui-system/dist";
 @reference "@tutti-os/ui-system/styles.css";
 

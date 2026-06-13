@@ -14,8 +14,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const skillName = "nextop-ui-system";
-const devCacheDirectoryName = ".nextop-ui-system-dev";
+const skillName = "tutti-ui-system";
+const devCacheDirectoryName = ".tutti-ui-system-dev";
 const companionFiles = ["AGENTS.md", "ui-system.md"];
 
 const options = parseArgs(process.argv.slice(2));
@@ -48,7 +48,7 @@ if (await pathExists(targetDirectory)) {
   if (!options.force) {
     if (await directoriesMatch(sourceRoot, sourceDirectory, targetDirectory)) {
       console.log(
-        `nextop-ui-system skill already configured at ${targetDirectory}`
+        `tutti-ui-system skill already configured at ${targetDirectory}`
       );
       process.exit(0);
     }
@@ -77,9 +77,9 @@ await Promise.all(
   )
 );
 
-console.log(`Installed nextop-ui-system skill to ${targetDirectory}`);
+console.log(`Installed tutti-ui-system skill to ${targetDirectory}`);
 console.log(
-  "Agents can now load it from .codex/skills/nextop-ui-system/SKILL.md"
+  "Agents can now load it from .codex/skills/tutti-ui-system/SKILL.md"
 );
 
 function parseArgs(args) {
@@ -119,13 +119,13 @@ function parseArgs(args) {
 }
 
 function printHelp() {
-  console.log(`Usage: nextop-ui-system-install-skill [options]
+  console.log(`Usage: tutti-ui-system-install-skill [options]
 
-Copies the bundled Nextop UI System skill into the current repository.
+Copies the bundled Tutti UI System skill into the current repository.
 
 Options:
   --cwd <path>  Repository root to configure. Defaults to the current directory.
-  --force       Replace an existing .codex/skills/nextop-ui-system directory.
+  --force       Replace an existing .codex/skills/tutti-ui-system directory.
   -h, --help    Show this help message.`);
 }
 

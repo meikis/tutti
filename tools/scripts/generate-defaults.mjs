@@ -6,10 +6,10 @@ import { format } from "prettier";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../..");
-const defaultsPath = resolve(repoRoot, "config/nextop.defaults.json");
+const defaultsPath = resolve(repoRoot, "config/tutti.defaults.json");
 const goOutputPath = resolve(
   repoRoot,
-  "services/nextopd/types/defaults_generated.go"
+  "services/tuttid/types/defaults_generated.go"
 );
 const cliGoOutputPath = resolve(
   repoRoot,

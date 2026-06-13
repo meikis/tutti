@@ -2,19 +2,19 @@
 
 ## Project overview
 
-`nextop` is a monorepo for a local-first desktop product.
+`tutti` is a monorepo for a local-first desktop product.
 
 Top-level areas:
 
 - `apps/desktop`: Electron shell, renderer UI, preload bridge, and desktop integration
 - `config`: repository-owned default sources used to generate runtime defaults
-- `services/nextopd`: long-running local daemon and primary business core
+- `services/tuttid`: long-running local daemon and primary business core
 - `packages/clients/*`: shared domain-specific clients
 - `packages/configs/*`: shared TypeScript and formatting config
 
 Repository rule of thumb:
 
-- business logic belongs in `services/nextopd`
+- business logic belongs in `services/tuttid`
 - UI and desktop integration belong in `apps/desktop`
 - code moves into `packages/` only when there is a real shared boundary
 
@@ -33,7 +33,7 @@ Repository rule of thumb:
 Read the closest `AGENTS.md` before editing files in that area:
 
 - `apps/desktop/*` -> [apps/desktop/AGENTS.md](apps/desktop/AGENTS.md)
-- `services/nextopd/*` -> [services/nextopd/AGENTS.md](services/nextopd/AGENTS.md)
+- `services/tuttid/*` -> [services/tuttid/AGENTS.md](services/tuttid/AGENTS.md)
 - `packages/ui/*` -> [packages/ui/AGENTS.md](packages/ui/AGENTS.md)
 - `packages/*` -> [packages/AGENTS.md](packages/AGENTS.md)
 
@@ -42,24 +42,24 @@ Use this root file for repository-wide defaults only. Keep area-specific instruc
 ## Repository-wide rules
 
 - `apps/desktop` must not become a second business core
-- `services/nextopd` owns business rules, durable local state, and domain workflows
+- `services/tuttid` owns business rules, durable local state, and domain workflows
 - business-code files must stay at or below `800` lines; once a file crosses that limit, prefer functional decomposition or refactoring before adding more logic
 - do not create vague packages such as `shared`, `common`, `utils`, or `client-sdk`
 - published workspace packages use the npm scope `@tutti-os/*`; keep package manifests, import paths, docs, and release configuration aligned with that scope
 - user-visible copy must be controlled through the relevant i18n layer; do not add or change product UI text, dialog text, empty states, status labels, or user-facing error messages as hardcoded single-language strings
-- change `services/nextopd/api/openapi/nextopd.v1.yaml` before changing daemon HTTP request or response contracts
+- change `services/tuttid/api/openapi/tuttid.v1.yaml` before changing daemon HTTP request or response contracts
 - keep environment-variable growth deliberate: supported override variables must be documented in the matching durable convention docs
 - update the matching document in `docs/conventions` when structural rules change
 - when a fix resolves a recurring bug pattern or debugging trap, capture the durable note in `docs/conventions/troubleshooting.md`
 
 ## Testing defaults
 
-- For daemon changes, run `pnpm lint:go` and `cd services/nextopd && go test ./... && go build ./...`
+- For daemon changes, run `pnpm lint:go` and `cd services/tuttid && go test ./... && go build ./...`
 - For desktop or shared TypeScript changes, run `pnpm lint:ts` and `pnpm typecheck`
 - For desktop-facing behavior changes, also run `pnpm --filter @tutti-os/desktop build`
 - For user-visible copy or locale-resource changes, run `pnpm check:i18n`
 - For shared UI boundary changes such as `@tutti-os/ui-system` exports, CSS rules, or SVG/icon usage rules, run `pnpm check:ui-boundaries`
-- For shared default-source changes under `config/nextop.defaults.json`, run `pnpm generate:defaults` and `pnpm check:defaults-generated`
+- For shared default-source changes under `config/tutti.defaults.json`, run `pnpm generate:defaults` and `pnpm check:defaults-generated`
 - Run `pnpm lint` when a change spans both TypeScript and Go surfaces
 
 ## Development workflow defaults
@@ -108,7 +108,7 @@ Treat conflicts in these files and surfaces as manual-review-required:
 - renderer app roots, window composition shells, and route/layout surfaces under
   `apps/desktop/src/renderer/src/app/`
 - daemon API contracts and generated boundaries under
-  `services/nextopd/api/openapi/` and `packages/clients/*`
+  `services/tuttid/api/openapi/` and `packages/clients/*`
 - release and CI workflows under `.github/workflows/`
 - shared test harnesses, desktop bootstrap tests, auth entry points, and runtime
   startup paths
@@ -134,7 +134,7 @@ Repository minimum checks for desktop or shared TypeScript conflict resolution:
 Repository minimum checks for daemon conflict resolution:
 
 - `pnpm lint:go`
-- `cd services/nextopd && go test ./... && go build ./...`
+- `cd services/tuttid && go test ./... && go build ./...`
 
 ### Skill setup
 
@@ -146,8 +146,8 @@ one exists rather than repeating ad hoc install commands.
 
 Daemon-owned local state uses one root convention:
 
-- production default: `~/.nextop`
-- development default: `~/.nextop-dev`
+- production default: `~/.tutti`
+- development default: `~/.tutti-dev`
 
 Do not add new daemon-owned files directly under `$HOME`.
 
@@ -164,7 +164,7 @@ Do not add new daemon-owned files directly under `$HOME`.
 - [docs/conventions/desktop-visual-language.md](docs/conventions/desktop-visual-language.md)
 - [docs/conventions/local-git-hooks.md](docs/conventions/local-git-hooks.md)
 - [docs/conventions/logging.md](docs/conventions/logging.md)
-- [docs/conventions/nextopd-layering.md](docs/conventions/nextopd-layering.md)
+- [docs/conventions/tuttid-layering.md](docs/conventions/tuttid-layering.md)
 - [docs/conventions/runtime-overrides.md](docs/conventions/runtime-overrides.md)
 - [docs/conventions/static-analysis.md](docs/conventions/static-analysis.md)
 - [docs/conventions/troubleshooting.md](docs/conventions/troubleshooting.md)

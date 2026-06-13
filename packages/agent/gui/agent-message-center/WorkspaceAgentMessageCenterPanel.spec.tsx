@@ -15,6 +15,7 @@ const baseItem: WorkspaceAgentMessageCenterItem = {
   id: "message-center-session-1",
   agentSessionId: "session-1",
   provider: "codex",
+  userId: null,
   title: "整理本地文件夹",
   identity: null,
   cwd: "/workspace",
@@ -171,7 +172,12 @@ describe("WorkspaceAgentMessageCenterCard", () => {
       container.querySelector(
         '[data-message-center-item-id="message-center-session-1"]'
       )
-    ).toHaveClass("border-[var(--border-focus)]");
+    ).toHaveClass("border-[var(--tutti-purple-border)]");
+    expect(
+      container.querySelector(
+        '[data-message-center-item-id="message-center-session-1"]'
+      )
+    ).toHaveClass("bg-[var(--tutti-purple-bg)]");
 
     rerender(
       <TooltipProvider>
@@ -442,6 +448,17 @@ describe("WorkspaceAgentMessageCenterCard", () => {
     );
 
     expect(screen.getByText("Codex requests your authorization")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "整理本地文件夹" })).toHaveClass(
+      "text-[13px]"
+    );
+    expect(screen.getByText("Codex requests your authorization")).toHaveClass(
+      "agent-gui-conversation__interactive-prompt-lead"
+    );
+    expect(
+      screen
+        .getByRole("button", { name: /Yes/i })
+        .querySelector(".agent-gui-conversation__interactive-option-title")
+    ).toHaveClass("agent-gui-conversation__interactive-option-title");
     expect(screen.queryByText("Agent requests your authorization")).toBeNull();
   });
 
@@ -482,6 +499,10 @@ describe("WorkspaceAgentMessageCenterCard", () => {
     expect(
       container.querySelector('img[src="https://cdn.example.com/codex.png"]')
     ).toBeTruthy();
+    expect(
+      container.querySelector('img[src="https://cdn.example.com/codex.png"]')
+        ?.parentElement
+    ).toHaveClass("rounded-full");
   });
 
   it("resolves summary file links through the shared workspace link action", () => {
@@ -491,7 +512,7 @@ describe("WorkspaceAgentMessageCenterCard", () => {
         <WorkspaceAgentMessageCenterCard
           item={{
             ...baseItem,
-            cwd: "/Users/local/.nextop/sessions/2026-06-05-001",
+            cwd: "/Users/local/.tutti/sessions/2026-06-05-001",
             lastAgentMessageSummary:
               "已完成项目文件总结，并新增文档：[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)"
           }}
@@ -503,13 +524,18 @@ describe("WorkspaceAgentMessageCenterCard", () => {
       </TooltipProvider>
     );
 
-    fireEvent.click(screen.getByRole("link", { name: "PROJECT_SUMMARY.md" }));
+    const link = screen.getByRole("link", { name: "PROJECT_SUMMARY.md" });
+    expect(link.closest('[data-workspace-agent-markdown="true"]')).toHaveClass(
+      "[&_a]:text-[var(--tutti-purple)]"
+    );
+
+    fireEvent.click(link);
 
     expect(onLinkAction).toHaveBeenCalledWith({
       type: "open-workspace-file",
-      path: "/Users/local/.nextop/sessions/2026-06-05-001/PROJECT_SUMMARY.md",
-      directoryPath: "/Users/local/.nextop/sessions/2026-06-05-001",
-      workspaceRoot: "/Users/local/.nextop/sessions/2026-06-05-001",
+      path: "/Users/local/.tutti/sessions/2026-06-05-001/PROJECT_SUMMARY.md",
+      directoryPath: "/Users/local/.tutti/sessions/2026-06-05-001",
+      workspaceRoot: "/Users/local/.tutti/sessions/2026-06-05-001",
       source: "agent-markdown"
     });
   });
@@ -619,9 +645,9 @@ describe("WorkspaceAgentMessageCenterCard", () => {
         <WorkspaceAgentMessageCenterCard
           item={{
             ...baseItem,
-            cwd: "/Users/local/.nextop/sessions/2026-06-05-001",
+            cwd: "/Users/local/.tutti/sessions/2026-06-05-001",
             lastAgentMessageSummary:
-              "![generated image](/Users/local/.nextop/sessions/2026-06-05-001/output/imagegen/sheep.png)"
+              "![generated image](/Users/local/.tutti/sessions/2026-06-05-001/output/imagegen/sheep.png)"
           }}
           isSubmitting={false}
           onOpenChat={vi.fn()}
@@ -638,7 +664,7 @@ describe("WorkspaceAgentMessageCenterCard", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(readFile).toHaveBeenCalledWith({
-      path: "/Users/local/.nextop/sessions/2026-06-05-001/output/imagegen/sheep.png"
+      path: "/Users/local/.tutti/sessions/2026-06-05-001/output/imagegen/sheep.png"
     });
   });
 
@@ -761,7 +787,7 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     openViewOptions();
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Status" }));
 
-    // Interactive waiting item is in the deck, not a status group.
+    // Interactive waiting item is in the deck (PR #151), not a status group.
     expect(
       screen.getByTestId("workspace-agent-message-center-attention-deck")
     ).toHaveAttribute(
@@ -770,10 +796,16 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     );
     expect(screen.queryByRole("heading", { name: "Waiting · 1" })).toBeNull();
 
-    // Non-interactive items still group by status.
-    expect(screen.getByRole("heading", { name: "Error · 1" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Running · 1" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Completed · 1" })).toBeTruthy();
+    // Non-interactive items still group by status, with font-normal headings.
+    expect(screen.getByRole("heading", { name: "Error · 1" })).toHaveClass(
+      "font-normal"
+    );
+    expect(screen.getByRole("heading", { name: "Running · 1" })).toHaveClass(
+      "font-normal"
+    );
+    expect(screen.getByRole("heading", { name: "Completed · 1" })).toHaveClass(
+      "font-normal"
+    );
   });
 
   it("filters message center items by status from the view menu", () => {
@@ -843,6 +875,83 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     expect(screen.getByText("Gemini task")).toBeTruthy();
   });
 
+  it("groups the agent view by agent and user identity", () => {
+    render(
+      <WorkspaceAgentMessageCenterPanel
+        open
+        model={createMessageCenterModel([
+          createMessageCenterItem({
+            agentSessionId: "codex-jessica-1",
+            provider: "codex",
+            userId: "user-a",
+            title: "Jessica task 1",
+            status: "working",
+            identity: {
+              userName: "Jessica",
+              userAvatarUrl: "https://cdn.example.com/jessica.png",
+              agentName: "Codex",
+              agentAvatarUrl: "https://cdn.example.com/codex.png"
+            }
+          }),
+          createMessageCenterItem({
+            agentSessionId: "codex-jessica-2",
+            provider: "codex",
+            userId: "user-a",
+            title: "Jessica task 2",
+            status: "working",
+            identity: {
+              userName: "Jessica",
+              userAvatarUrl: "https://cdn.example.com/jessica.png",
+              agentName: "Codex",
+              agentAvatarUrl: "https://cdn.example.com/codex.png"
+            }
+          }),
+          createMessageCenterItem({
+            agentSessionId: "codex-taylor",
+            provider: "codex",
+            userId: "user-b",
+            title: "Taylor task",
+            status: "working",
+            identity: {
+              userName: "Taylor",
+              userAvatarUrl: "https://cdn.example.com/taylor.png",
+              agentName: "Codex",
+              agentAvatarUrl: "https://cdn.example.com/codex.png"
+            }
+          })
+        ])}
+        onClose={vi.fn()}
+        onOpenChat={vi.fn()}
+        onSubmitPrompt={vi.fn()}
+      />
+    );
+
+    openViewOptions();
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Agent" }));
+
+    const jessicaGroup = screen
+      .getByRole("heading", { name: "Jessica & Codex · 2" })
+      .closest("section");
+    const taylorGroup = screen
+      .getByRole("heading", { name: "Taylor & Codex · 1" })
+      .closest("section");
+
+    expect(jessicaGroup).toHaveTextContent("Jessica task 1");
+    expect(jessicaGroup).not.toHaveTextContent("Taylor task");
+    expect(taylorGroup).toHaveTextContent("Taylor task");
+    expect(taylorGroup).not.toHaveTextContent("Jessica task 1");
+    expect(
+      jessicaGroup?.querySelector(
+        ".workspace-agent-message-center__identity-avatar-stack"
+      )
+    ).toBeInTheDocument();
+    expect(
+      jessicaGroup?.querySelector(
+        'img[src="https://cdn.example.com/jessica.png"]'
+      )
+    ).toBeTruthy();
+  });
+
   it("collapses grouped cards into a summary card with stack edges exposed below", () => {
     render(
       <WorkspaceAgentMessageCenterPanel
@@ -881,7 +990,7 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     );
 
     const stack = screen.getByTestId(
-      "workspace-agent-message-stack-working:codex"
+      "workspace-agent-message-stack-working:agent-user:codex:unknown-user"
     );
     expect(stack).toHaveAttribute(
       "data-stack-top-item-id",
@@ -893,11 +1002,12 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     expect(stack.querySelector("[data-message-center-item-id]")).toBeNull();
 
     const summary = screen.getByTestId(
-      "workspace-agent-message-stack-summary-working:codex"
+      "workspace-agent-message-stack-summary-working:agent-user:codex:unknown-user"
     );
     expect(summary).toHaveAttribute("data-stack-summary-count", "5");
     expect(summary).toHaveAttribute("data-stack-provider", "codex");
     expect(summary).toHaveTextContent("5 messages");
+    expect(summary.querySelector("img")).toHaveClass("rounded-full");
     expect(summary).toHaveTextContent("Running task 1 summary");
     expect(summary).not.toHaveTextContent("more");
     expect(summary).not.toHaveTextContent("Running task 2 summary");
@@ -906,7 +1016,7 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     expect(screen.queryByText("Running task 5")).toBeNull();
   });
 
-  it("aggregates stacked cards by agent provider inside a group", () => {
+  it("aggregates stacked cards by agent provider and user inside a group", () => {
     render(
       <WorkspaceAgentMessageCenterPanel
         open
@@ -914,24 +1024,35 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
           createMessageCenterItem({
             agentSessionId: "codex-session-1",
             provider: "codex",
+            userId: "user-a",
             title: "Codex task 1",
             status: "working"
           }),
           createMessageCenterItem({
             agentSessionId: "codex-session-2",
             provider: "codex",
+            userId: "user-a",
             title: "Codex task 2",
+            status: "working"
+          }),
+          createMessageCenterItem({
+            agentSessionId: "codex-session-3",
+            provider: "codex",
+            userId: "user-b",
+            title: "Codex task 3",
             status: "working"
           }),
           createMessageCenterItem({
             agentSessionId: "gemini-session-1",
             provider: "gemini",
+            userId: "user-a",
             title: "Gemini task 1",
             status: "working"
           }),
           createMessageCenterItem({
             agentSessionId: "gemini-session-2",
             provider: "gemini",
+            userId: "user-a",
             title: "Gemini task 2",
             status: "working"
           }),
@@ -949,24 +1070,95 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     );
 
     const codexStack = screen.getByTestId(
-      "workspace-agent-message-stack-working:codex"
+      "workspace-agent-message-stack-working:agent-user:codex:user-a"
     );
     expect(codexStack).toHaveAttribute("data-stack-count", "2");
     const geminiStack = screen.getByTestId(
-      "workspace-agent-message-stack-working:gemini"
+      "workspace-agent-message-stack-working:agent-user:gemini:user-a"
     );
     expect(geminiStack).toHaveAttribute("data-stack-count", "2");
     expect(
-      screen.getByTestId("workspace-agent-message-stack-summary-working:codex")
+      screen.getByTestId(
+        "workspace-agent-message-stack-summary-working:agent-user:codex:user-a"
+      )
     ).toHaveTextContent("2 messages");
     expect(
-      screen.getByTestId("workspace-agent-message-stack-summary-working:gemini")
+      screen.getByTestId(
+        "workspace-agent-message-stack-summary-working:agent-user:codex:user-a"
+      )
+    ).toHaveAttribute("data-stack-user-id", "user-a");
+    expect(
+      screen.getByTestId(
+        "workspace-agent-message-stack-summary-working:agent-user:gemini:user-a"
+      )
     ).toHaveTextContent("2 messages");
+    expect(
+      screen.queryByTestId(
+        "workspace-agent-message-stack-working:agent-user:codex:user-b"
+      )
+    ).toBeNull();
+    expect(screen.getByText("Codex task 3")).toBeTruthy();
 
     expect(
-      screen.queryByTestId("workspace-agent-message-stack-working:claude-code")
+      screen.queryByTestId(
+        "workspace-agent-message-stack-working:agent-user:claude-code:unknown-user"
+      )
     ).toBeNull();
     expect(screen.getByText("Claude task 1")).toBeTruthy();
+  });
+
+  it("renders user and agent avatars in collapsed stack summaries", () => {
+    render(
+      <WorkspaceAgentMessageCenterPanel
+        open
+        model={createMessageCenterModel([
+          createMessageCenterItem({
+            agentSessionId: "codex-session-1",
+            provider: "codex",
+            userId: "user-a",
+            title: "Codex task 1",
+            status: "working",
+            identity: {
+              userName: "Jessica",
+              userAvatarUrl: "https://cdn.example.com/jessica.png",
+              agentName: "Codex",
+              agentAvatarUrl: "https://cdn.example.com/codex.png"
+            }
+          }),
+          createMessageCenterItem({
+            agentSessionId: "codex-session-2",
+            provider: "codex",
+            userId: "user-a",
+            title: "Codex task 2",
+            status: "working",
+            identity: {
+              userName: "Jessica",
+              userAvatarUrl: "https://cdn.example.com/jessica.png",
+              agentName: "Codex",
+              agentAvatarUrl: "https://cdn.example.com/codex.png"
+            }
+          })
+        ])}
+        onClose={vi.fn()}
+        onOpenChat={vi.fn()}
+        onSubmitPrompt={vi.fn()}
+      />
+    );
+
+    const summary = screen.getByTestId(
+      "workspace-agent-message-stack-summary-working:agent-user:codex:user-a"
+    );
+
+    expect(
+      summary.querySelector(
+        ".workspace-agent-message-center__identity-avatar-stack"
+      )
+    ).toBeInTheDocument();
+    const imageSources = Array.from(summary.querySelectorAll("img")).map(
+      (image) => image.getAttribute("src")
+    );
+    expect(imageSources).toContain("https://cdn.example.com/jessica.png");
+    expect(imageSources).toContain("https://cdn.example.com/codex.png");
   });
 
   it("expands and collapses a stacked card group", async () => {
@@ -1011,7 +1203,7 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     );
 
     const expandedStack = screen.getByTestId(
-      "workspace-agent-message-stack-working:codex"
+      "workspace-agent-message-stack-working:agent-user:codex:unknown-user"
     );
     expect(expandedStack).toHaveAttribute("data-stack-state", "expanded");
     expect(
@@ -1025,24 +1217,33 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     await waitFor(() => {
       expect(
         screen.queryByTestId(
-          "workspace-agent-message-stack-summary-working:codex"
+          "workspace-agent-message-stack-summary-working:agent-user:codex:unknown-user"
         )
       ).toBeNull();
     });
+    expect(
+      screen
+        .getAllByText("5 messages")
+        .some((element) =>
+          element.parentElement?.classList.contains("text-[13px]")
+        )
+    ).toBe(true);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Collapse expanded messages" })
     );
 
     const collapsedStack = screen.getByTestId(
-      "workspace-agent-message-stack-working:codex"
+      "workspace-agent-message-stack-working:agent-user:codex:unknown-user"
     );
     expect(collapsedStack).toHaveAttribute("data-stack-state", "collapsed");
     await waitFor(() => {
       expect(screen.queryByText("Running task 3")).toBeNull();
     });
     expect(
-      screen.getByTestId("workspace-agent-message-stack-summary-working:codex")
+      screen.getByTestId(
+        "workspace-agent-message-stack-summary-working:agent-user:codex:unknown-user"
+      )
     ).toHaveTextContent("5 messages");
     expect(screen.queryByText("Running task 4")).toBeNull();
     expect(screen.queryByText("Running task 5")).toBeNull();
@@ -1077,7 +1278,7 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     );
 
     const stack = screen.getByTestId(
-      "workspace-agent-message-stack-working:codex"
+      "workspace-agent-message-stack-working:agent-user:codex:unknown-user"
     );
     expect(stack).toHaveAttribute("data-stack-state", "expanded");
     expect(screen.getByText("Running task 3")).toBeTruthy();
@@ -1120,7 +1321,7 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     );
 
     const stack = screen.getByTestId(
-      "workspace-agent-message-stack-completed:codex"
+      "workspace-agent-message-stack-completed:agent-user:codex:unknown-user"
     );
     expect(stack).toHaveAttribute(
       "data-stack-top-item-id",
@@ -1129,7 +1330,7 @@ describe("WorkspaceAgentMessageCenterPanel", () => {
     expect(stack).toHaveAttribute("data-stack-count", "3");
 
     const summary = screen.getByTestId(
-      "workspace-agent-message-stack-summary-completed:codex"
+      "workspace-agent-message-stack-summary-completed:agent-user:codex:unknown-user"
     );
     expect(summary).toHaveTextContent("3 messages");
     expect(summary).toHaveTextContent("Completed task 1 summary");

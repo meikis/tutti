@@ -7,7 +7,7 @@ import {
 } from "./workspaceLaunch.ts";
 import { createWorkspaceHostAccess } from "./workspaceHostAccess.ts";
 import type { DesktopWorkspaceAppPayload } from "../../shared/contracts/ipc.ts";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 
 function createAdapters(
   overrides: Partial<WorkspaceLaunchAdapters> = {}
@@ -20,8 +20,8 @@ function createAdapters(
 }
 
 function createTransportClient(
-  overrides: Partial<NextopdClient> = {}
-): NextopdClient {
+  overrides: Partial<TuttidClient> = {}
+): TuttidClient {
   return {
     async listCliCapabilities() {
       throw new Error("not used");
@@ -129,7 +129,7 @@ function createTransportClient(
       throw new Error("not used");
     },
     async getHealth() {
-      return { service: "nextopd", status: "ok" as const };
+      return { service: "tuttid", status: "ok" as const };
     },
     async getStartupWorkspace() {
       return null;
@@ -254,6 +254,9 @@ function createTransportClient(
     async cancelWorkspaceAgentSession() {
       throw new Error("not used");
     },
+    async cancelWorkspaceAgentSessionWithResult() {
+      throw new Error("not used");
+    },
     async sendWorkspaceAgentSessionInput() {
       throw new Error("not used");
     },
@@ -339,7 +342,7 @@ test("workspace host access delegates workspace window handoff", async () => {
           events.push(`workspace:${workspaceID}`);
         }
       }),
-      nextopdClient: createTransportClient()
+      tuttidClient: createTransportClient()
     })
   });
 
@@ -356,7 +359,7 @@ test("workspace host access delegates open workspace app folder without exposing
     },
     workspaceLaunch: createWorkspaceLaunch({
       adapters: createAdapters(),
-      nextopdClient: createTransportClient()
+      tuttidClient: createTransportClient()
     })
   });
 

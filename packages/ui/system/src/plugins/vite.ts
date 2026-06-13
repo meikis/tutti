@@ -22,14 +22,14 @@ import type {
   UISystemDevManifest
 } from "../dev-server/protocol.js";
 
-export type NextopUISystemDevOptions = {
+export type TuttiUISystemDevOptions = {
   serverUrl?: string;
   cacheDir?: string;
 };
 
 const defaultServerUrl = "http://127.0.0.1:4100";
-const defaultCacheDir = ".nextop-ui-system-dev";
-const cacheMarkerFileName = ".nextop-ui-system-dev-cache";
+const defaultCacheDir = ".tutti-ui-system-dev";
+const cacheMarkerFileName = ".tutti-ui-system-dev-cache";
 const packageName = "@tutti-os/ui-system";
 const packageRequire = createRequire(import.meta.url);
 const stableEntrypoints = [
@@ -59,15 +59,15 @@ type DevSyncState = {
   serverUrl: URL;
 };
 
-export function nextopUISystemDev(
-  options: NextopUISystemDevOptions = {}
+export function tuttiUISystemDev(
+  options: TuttiUISystemDevOptions = {}
 ): Plugin {
   const serverUrl = normalizeServerUrl(options.serverUrl ?? defaultServerUrl);
   const cacheDir = options.cacheDir ?? defaultCacheDir;
   let syncState: DevSyncState | null = null;
 
   return {
-    name: "nextop-ui-system-dev",
+    name: "tutti-ui-system-dev",
     async config(config, env) {
       if (env.command !== "serve") {
         syncState = null;
@@ -628,7 +628,7 @@ async function ensureOwnedCacheRoot(cacheRoot: string): Promise<void> {
 
   if (entries.length > 0) {
     throw new Error(
-      "@tutti-os/ui-system dev cacheDir must be empty or contain a Nextop UI cache marker before stale cleanup"
+      "@tutti-os/ui-system dev cacheDir must be empty or contain a Tutti UI cache marker before stale cleanup"
     );
   }
 

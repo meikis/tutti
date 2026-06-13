@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TrackEvent } from "@tutti-os/client-nextopd-ts";
+import type { TrackEvent } from "@tutti-os/client-tuttid-ts";
 import { ReporterService } from "./reporterService.ts";
 
 test("reporter service tracks one renderer event with a client timestamp", async () => {
   const calls: TrackEvent[][] = [];
   const service = new ReporterService({
-    nextopdClient: {
+    tuttidClient: {
       async trackEvents(events) {
         calls.push(events);
       }
@@ -37,7 +37,7 @@ test("reporter service tracks batches without mutating caller params", async () 
   const params = { source: "dock" };
   const calls: TrackEvent[][] = [];
   const service = new ReporterService({
-    nextopdClient: {
+    tuttidClient: {
       async trackEvents(events) {
         calls.push(structuredClone(events));
         events[0]!.params = { source: "mutated" };
@@ -77,9 +77,9 @@ test("reporter service tracks batches without mutating caller params", async () 
 
 test("reporter service swallows transport failures", async () => {
   const service = new ReporterService({
-    nextopdClient: {
+    tuttidClient: {
       async trackEvents() {
-        throw new Error("nextopd offline");
+        throw new Error("tuttid offline");
       }
     },
     now: () => 1749124800000

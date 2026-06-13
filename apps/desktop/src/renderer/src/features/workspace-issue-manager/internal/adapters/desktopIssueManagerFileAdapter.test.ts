@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { DesktopHostFilesApi } from "@preload/types";
 import { createDesktopIssueManagerFileAdapter } from "./desktopIssueManagerFileAdapter.ts";
 
@@ -17,7 +17,7 @@ test("desktop issue-manager file adapter normalizes directory listings and searc
         terminalOpenCalls.push([input.workspaceID, input.path]);
       }
     } as DesktopHostFilesApi,
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async listWorkspaceFileDirectory(workspaceID, request) {
         assert.equal(workspaceID, "workspace-1");
         assert.deepEqual(request, { path: "/workspace/docs" });
@@ -188,7 +188,7 @@ test("desktop issue-manager file adapter falls back to host file open when file 
         terminalOpenCalls.push([input.workspaceID, input.path]);
       }
     } as DesktopHostFilesApi,
-    nextopdClient: createNextopdClient({}),
+    tuttidClient: createTuttidClient({}),
     async openWorkspaceFileManager() {
       return false;
     },
@@ -208,14 +208,14 @@ test("desktop issue-manager file adapter falls back to host file open when file 
   assert.deepEqual(terminalOpenCalls, [["workspace-1", "/tmp/spec.md"]]);
 });
 
-test("desktop issue-manager file adapter uploads selected files through nextopd", async () => {
+test("desktop issue-manager file adapter uploads selected files through tuttid", async () => {
   const adapter = createDesktopIssueManagerFileAdapter({
     hostFilesApi: {
       async selectUploadFiles() {
         return ["/tmp/spec.md", "/tmp/plan.md"];
       }
     } as DesktopHostFilesApi,
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async preflightUploadWorkspaceFiles(workspaceID, request) {
         assert.equal(workspaceID, "workspace-1");
         assert.deepEqual(request, {
@@ -271,7 +271,7 @@ test("desktop issue-manager file adapter uses directory picker and rejects type 
         return "/tmp/docs";
       }
     } as DesktopHostFilesApi,
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async preflightUploadWorkspaceFiles() {
         return {
           conflicts: [{ kind: "type_mismatch", path: "/workspace/docs" }]
@@ -303,7 +303,7 @@ test("desktop issue-manager file adapter reads image and text previews", async (
           : new TextEncoder().encode("hello");
       }
     } as DesktopHostFilesApi,
-    nextopdClient: createNextopdClient({}),
+    tuttidClient: createTuttidClient({}),
     workspaceId: "workspace-1"
   });
 
@@ -355,6 +355,6 @@ test("desktop issue-manager file adapter reads image and text previews", async (
   ]);
 });
 
-function createNextopdClient(overrides: Partial<NextopdClient>): NextopdClient {
-  return overrides as NextopdClient;
+function createTuttidClient(overrides: Partial<TuttidClient>): TuttidClient {
+  return overrides as TuttidClient;
 }

@@ -13,19 +13,19 @@ test("controller actions useExecutionDirectory updates state and remembers the p
         usedPaths.push(input.path);
         return {
           id: "project-1",
-          label: "nextop",
+          label: "tutti",
           path: input.path
         };
       }
     }
   });
 
-  await harness.actions.useExecutionDirectory("  /workspace/nextop  ");
+  await harness.actions.useExecutionDirectory("  /workspace/tutti  ");
 
-  assert.deepEqual(usedPaths, ["/workspace/nextop"]);
+  assert.deepEqual(usedPaths, ["/workspace/tutti"]);
   assert.equal(
     harness.nodeState.current.selectedExecutionDirectory,
-    "/workspace/nextop"
+    "/workspace/tutti"
   );
 });
 
@@ -38,11 +38,11 @@ test("controller actions keep selected execution directory when recency tracking
     }
   });
 
-  await harness.actions.useExecutionDirectory("/workspace/nextop");
+  await harness.actions.useExecutionDirectory("/workspace/tutti");
 
   assert.equal(
     harness.nodeState.current.selectedExecutionDirectory,
-    "/workspace/nextop"
+    "/workspace/tutti"
   );
   assert.equal(harness.notificationState.current, null);
 });
@@ -52,10 +52,10 @@ test("controller actions support missing execution directory picker methods", as
     executionDirectoryPicker: {}
   });
 
-  await harness.actions.useExecutionDirectory("/workspace/nextop");
+  await harness.actions.useExecutionDirectory("/workspace/tutti");
 
   assert.equal(
     harness.nodeState.current.selectedExecutionDirectory,
-    "/workspace/nextop"
+    "/workspace/tutti"
   );
 });

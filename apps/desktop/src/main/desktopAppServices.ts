@@ -55,7 +55,7 @@ export async function createDesktopAppServices(
   const updateService = await resolveUpdateService(factories);
 
   try {
-    await daemonRuntime.nextopd.start();
+    await daemonRuntime.tuttid.start();
   } catch (error) {
     await recordStartupFailureEvent({
       error,
@@ -66,7 +66,7 @@ export async function createDesktopAppServices(
         error: formatErrorMessage(recordError)
       });
     });
-    options.logger.error("failed to start managed nextopd", {
+    options.logger.error("failed to start managed tuttid", {
       error: formatErrorMessage(error),
       error_code: classifyDesktopErrorCode(error)
     });
@@ -74,7 +74,7 @@ export async function createDesktopAppServices(
   }
 
   await flushStartupFailureEvents({
-    nextopdClient: daemonRuntime.nextopdClient,
+    tuttidClient: daemonRuntime.tuttidClient,
     queuePath: options.startupFailureQueuePath
   }).catch((error) => {
     options.logger.warn("failed to flush startup failure analytics", {
@@ -87,7 +87,7 @@ export async function createDesktopAppServices(
       isPackaged: Boolean(options.isPackaged)
     });
   } catch (error) {
-    options.logger.warn("failed to install nextop cli shim", {
+    options.logger.warn("failed to install tutti cli shim", {
       error: formatErrorMessage(error),
       error_code: classifyDesktopErrorCode(error)
     });
@@ -98,7 +98,7 @@ export async function createDesktopAppServices(
     enableDevelopmentReloadShortcut: options.enableDevelopmentReloadShortcut,
     fallbackLocale: options.fallbackLocale,
     logger: options.logger,
-    nextopdClient: daemonRuntime.nextopdClient,
+    tuttidClient: daemonRuntime.tuttidClient,
     preloadPath: options.preloadPath,
     rendererUrl: options.rendererUrl,
     workspaceAppPreloadPath: options.workspaceAppPreloadPath

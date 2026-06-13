@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import type {
-  NextopdClient,
-  NextopdEventStreamClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidClient,
+  TuttidEventStreamClient
+} from "@tutti-os/client-tuttid-ts";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import type {
   WorkbenchContribution,
@@ -18,7 +18,8 @@ import type {
 import type { IDesktopRichTextAtService } from "@renderer/features/rich-text-at";
 import type {
   AgentProviderStatusService,
-  IWorkspaceAgentActivityService
+  IWorkspaceAgentActivityService,
+  WorkspaceAgentPromptSessionService
 } from "@renderer/features/workspace-agent";
 import type { IWorkspaceAppCenterService } from "@renderer/features/workspace-app-center";
 import type { IWorkspaceFileManagerService } from "@renderer/features/workspace-file-manager";
@@ -53,8 +54,9 @@ export interface DesktopWorkbenchContributionContext {
   workspaceFileManagerService: IWorkspaceFileManagerService;
   workspaceUserProjectService: IWorkspaceUserProjectService;
   workspaceAgentActivityService: IWorkspaceAgentActivityService;
-  eventStreamClient?: NextopdEventStreamClient;
-  nextopdClient: NextopdClient;
+  workspaceAgentPromptSessionService: WorkspaceAgentPromptSessionService;
+  eventStreamClient?: TuttidEventStreamClient;
+  tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"

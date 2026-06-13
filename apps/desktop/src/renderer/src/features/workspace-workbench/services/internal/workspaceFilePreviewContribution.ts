@@ -3,7 +3,7 @@ import type {
   WorkbenchContribution,
   WorkbenchHostNodeDefinition
 } from "@tutti-os/workbench-surface";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import type { WorkspaceWorkbenchDesktopI18nRuntime } from "@shared/i18n";
 import { workspaceWorkbenchDesktopI18nKeys } from "@shared/i18n";
@@ -32,8 +32,8 @@ import { workspaceFilePreviewNodeFrame } from "./workspaceWorkbenchComposition.t
 export function createWorkspaceFilePreviewContribution(input: {
   appI18n: I18nRuntime<string>;
   i18n: WorkspaceWorkbenchDesktopI18nRuntime;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     "readWorkspaceFilePreview" | "writeWorkspaceFileText"
   >;
   reporterService?: Pick<IReporterService, "trackEvents">;
@@ -87,8 +87,8 @@ export function createWorkspaceFilePreviewContribution(input: {
 function createWorkspaceFilePreviewNodeDefinition(input: {
   appI18n: I18nRuntime<string>;
   i18n: WorkspaceWorkbenchDesktopI18nRuntime;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     "readWorkspaceFilePreview" | "writeWorkspaceFileText"
   >;
   reporterService?: Pick<IReporterService, "trackEvents">;
@@ -127,7 +127,7 @@ function createWorkspaceFilePreviewNodeDefinition(input: {
         appI18n: input.appI18n,
         context,
         i18n: input.i18n,
-        nextopdClient: input.nextopdClient,
+        tuttidClient: input.tuttidClient,
         saveRequestSource,
         workspaceID: input.workspaceId
       }),

@@ -33,12 +33,12 @@ jobs:
             packages/workbench/service/go.mod
             packages/workspace/files/go.mod
             packages/workspace/issues/go.mod
-            services/nextopd/go.mod
-            services/nextopd/go.sum
+            services/tuttid/go.mod
+            services/tuttid/go.sum
 
       - name: Install pinned golangci-lint
         run: |
-          version=$(tr -d '\n' < services/nextopd/.golangci-lint-version)
+          version=$(tr -d '\n' < services/tuttid/.golangci-lint-version)
           install_dir="${HOME}/.local/bin"
           mkdir -p "${install_dir}"
           curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "${install_dir}" "${version}"
@@ -189,15 +189,15 @@ jobs:
             packages/workbench/service/go.mod
             packages/workspace/files/go.mod
             packages/workspace/issues/go.mod
-            services/nextopd/go.mod
-            services/nextopd/go.sum
+            services/tuttid/go.mod
+            services/tuttid/go.sum
 
       - name: Run shared Workbench service tests
         working-directory: packages/workbench/service
         run: go test ./...
 
       - name: Run daemon tests
-        working-directory: services/nextopd
+        working-directory: services/tuttid
         run: go test ./...
 
   go-lint:
@@ -218,12 +218,12 @@ jobs:
             packages/workbench/service/go.mod
             packages/workspace/files/go.mod
             packages/workspace/issues/go.mod
-            services/nextopd/go.mod
-            services/nextopd/go.sum
+            services/tuttid/go.mod
+            services/tuttid/go.sum
 
       - name: Install pinned golangci-lint
         run: |
-          version=$(tr -d '\n' < services/nextopd/.golangci-lint-version)
+          version=$(tr -d '\n' < services/tuttid/.golangci-lint-version)
           install_dir="${HOME}/.local/bin"
           mkdir -p "${install_dir}"
           curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "${install_dir}" "${version}"

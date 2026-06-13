@@ -6,12 +6,12 @@
 
 參與本專案即表示你同意遵守我們的[行為準則](CODE_OF_CONDUCT.md)。
 
-> 註：本程式碼庫使用內部代號 `nextop`，你會在目錄與二進位檔命名中看到它（如 `services/nextopd`）。
+> 註：本程式碼庫使用內部代號 `tutti`，你會在目錄與二進位檔命名中看到它（如 `services/tuttid`）。
 
 ## 儲存庫結構
 
 - `apps/desktop`：Electron 桌面外殼、renderer UI、preload 橋接層和原生桌面整合
-- `services/nextopd`：長駐本機的常駐服務，核心業務邏輯所在
+- `services/tuttid`：長駐本機的常駐服務，核心業務邏輯所在
 - `packages/clients/*`：共用的領域用戶端
 - `packages/configs/*`：共用的工程設定
 - `packages/ui/*`：共用的視覺系統邊界
@@ -43,7 +43,7 @@ pnpm install:golangci-lint
 pnpm setup:dev
 ```
 
-以包含前置檢查和預先建置 `nextopd` 的方式啟動桌面應用程式開發：
+以包含前置檢查和預先建置 `tuttid` 的方式啟動桌面應用程式開發：
 
 ```sh
 make dev-gui
@@ -76,7 +76,7 @@ pnpm check:full
 
 ## 儲存庫規則
 
-- 業務邏輯歸屬 `services/nextopd`
+- 業務邏輯歸屬 `services/tuttid`
 - UI 與桌面整合歸屬 `apps/desktop`
 - 只有存在真實共用邊界時，程式碼才應進入 `packages/`
 - 業務程式碼檔案應保持在 `800` 行以內；超過即為重構訊號

@@ -18,7 +18,7 @@ export function normalizeAgentGUIProviderIdentity(
     case "codex":
       return "codex";
     case "nexight":
-    case "nextop":
+    case "tutti":
       return "nexight";
     case "gemini":
       return "gemini";

@@ -1,7 +1,7 @@
 # Workbench
 
 This document defines durable Workbench ownership rules across shared packages,
-the desktop renderer host, and `nextopd` snapshot persistence.
+the desktop renderer host, and `tuttid` snapshot persistence.
 
 ## Purpose
 
@@ -24,10 +24,10 @@ Current ownership:
   dock rendering, window chrome, render context plumbing, and shell snapshot
   sanitation.
 - `apps/desktop/src/renderer/src/features/workspace-workbench` owns the Tutti
-  desktop host adapter: product contributions, nextopd clients, preload
+  desktop host adapter: product contributions, tuttid clients, preload
   adapters, workspace context, close policy, launch policy, and desktop-owned
   Workbench copy.
-- `services/nextopd/service/workspace` owns daemon-side Workbench snapshot load,
+- `services/tuttid/service/workspace` owns daemon-side Workbench snapshot load,
   save, and host-specific snapshot reconciliation before a snapshot is returned
   to desktop.
 
@@ -106,7 +106,7 @@ pnpm check:renderer-boundaries
 
 ## Daemon Reconciliation Rules
 
-`services/nextopd/service/workspace` may reconcile Workbench snapshots with
+`services/tuttid/service/workspace` may reconcile Workbench snapshots with
 daemon-owned runtime state before returning them to desktop.
 
 Rules:
@@ -115,7 +115,7 @@ Rules:
   canonicalization, and calling the configured reconciler
 - put node-kind-specific cleanup behind a `WorkbenchSnapshotReconciler`
   implementation
-- wire host-specific reconcilers explicitly in `services/nextopd/wiring.go`
+- wire host-specific reconcilers explicitly in `services/tuttid/wiring.go`
 - do not hide a fallback to a concrete node-kind service inside
   `WorkbenchService`
 

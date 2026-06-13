@@ -1,6 +1,6 @@
 # @tutti-os/ui-system
 
-Shared Nextop UI tokens, styles, icons, and low-level React primitives.
+Shared Tutti UI tokens, styles, icons, and low-level React primitives.
 
 This package is published to npm as `@tutti-os/ui-system`.
 
@@ -21,7 +21,7 @@ External consumers should install the package normally:
 pnpm add @tutti-os/ui-system
 ```
 
-For local source sync from a Nextop checkout, start the UI system dev server:
+For local source sync from a Tutti checkout, start the UI system dev server:
 
 ```bash
 pnpm --filter @tutti-os/ui-system dev:server
@@ -30,22 +30,22 @@ pnpm --filter @tutti-os/ui-system dev:server
 Then add the Vite plugin in the external app:
 
 ```ts
-import { nextopUISystemDev } from "@tutti-os/ui-system/dev-vite";
+import { tuttiUISystemDev } from "@tutti-os/ui-system/dev-vite";
 
 export default defineConfig({
-  plugins: [nextopUISystemDev()]
+  plugins: [tuttiUISystemDev()]
 });
 ```
 
 When the dev server is reachable, the plugin mirrors the allowed UI-system
-source and skill-support files into `.nextop-ui-system-dev/` and aliases the
+source and skill-support files into `.tutti-ui-system-dev/` and aliases the
 stable package entrypoints to that cache. When the dev server is unavailable,
 resolution falls back to the installed package in `node_modules`.
 
 Add the generated cache to the external app's `.gitignore`:
 
 ```text
-.nextop-ui-system-dev/
+.tutti-ui-system-dev/
 ```
 
 If the external app uses Tailwind CSS, include both the installed package output
@@ -53,7 +53,7 @@ and the generated dev cache in the app's Tailwind source scan:
 
 ```css
 @source "../node_modules/@tutti-os/ui-system/dist";
-@source "../.nextop-ui-system-dev";
+@source "../.tutti-ui-system-dev";
 ```
 
 ## Agent Usage
@@ -65,7 +65,7 @@ import { uiSystemMetadata } from "@tutti-os/ui-system/metadata";
 ```
 
 When promoting business UI into this package, use the bundled
-`agent/nextop-ui-system/SKILL.md` skill when it is available. In the source
+`agent/tutti-ui-system/SKILL.md` skill when it is available. In the source
 checkout, also read `AGENTS.md`, `ui-system.md`, and
 `docs/conventions/desktop-visual-language.md`. The durable rules are:
 
@@ -82,16 +82,16 @@ External repositories can install the bundled skill into their local Codex
 skill directory with one command:
 
 ```bash
-pnpm exec nextop-ui-system-install-skill
+pnpm exec tutti-ui-system-install-skill
 ```
 
 This copies the package skill into:
 
 ```text
-.codex/skills/nextop-ui-system/SKILL.md
+.codex/skills/tutti-ui-system/SKILL.md
 ```
 
-When `.nextop-ui-system-dev/` is present, the installer prefers the synced
+When `.tutti-ui-system-dev/` is present, the installer prefers the synced
 source checkout so the installed skill and bundled UI-system rules stay aligned
 with the current local UI-system source. The installer does not overwrite a
 locally modified skill unless `--force` is provided.

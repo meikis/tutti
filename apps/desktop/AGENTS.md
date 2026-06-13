@@ -10,7 +10,7 @@ This file applies to `apps/desktop/*`.
 - preload bridge and IPC exposure
 - renderer UI
 - native desktop integration
-- starting, monitoring, and reconnecting to `nextopd`
+- starting, monitoring, and reconnecting to `tuttid`
 
 `apps/desktop` must not become a second business core.
 
@@ -40,13 +40,13 @@ Current naming guidance:
 ## Action rules
 
 - keep business rules out of renderer, preload, and main-process code
-- prefer calling `nextopd` or desktop IPC adapters instead of re-implementing workflows in Electron
+- prefer calling `tuttid` or desktop IPC adapters instead of re-implementing workflows in Electron
 - keep preload surfaces narrow and explicit
 - keep webview guest preload entries self-contained at runtime. Avoid runtime imports from shared contracts or helpers in `src/preload/entries/browserNodeGuest.ts`, `src/preload/entries/workspaceApp.ts`, and directly imported guest-preload helpers unless the build output proves they are inlined. `import type` is fine.
 - keep Electron-only concerns in `src/main/*` and renderer window composition under `src/renderer/src/app/windows/*`
 - keep managed-daemon shutdown deterministic; when quit flow depends on daemon cleanup, gate app exit instead of firing cleanup in the background
 - keep renderer feature logic in feature-local services; services assemble commands, adapters, request flow, and side effects
-- treat `window.nextop` as a renderer window-composition input; feature UI and feature services must not read it directly
+- treat `window.tutti` as a renderer window-composition input; feature UI and feature services must not read it directly
 - render UI from state-library snapshots and selectors; React handles DOM events, subscriptions, and rendering rather than feature orchestration
 - treat fewer `useEffect` calls as an architecture constraint; move feature data flow into services, stores, reducers, or selectors when possible
 - do not import another feature's `services/internal/**`
@@ -67,7 +67,7 @@ Current naming guidance:
 - For webview guest preload changes, verify the build succeeds with the self-contained guest preload guard and that guest preload output does not contain relative chunk requires such as `require("./ipc-*.cjs")`
 - If a change affects `@tutti-os/ui-system` consumption or renderer import shape, also run `pnpm check:ui-boundaries`
 - If a change affects renderer feature structure or imports, also run `pnpm check:renderer-boundaries`
-- If a change affects daemon interaction, also run the relevant `services/nextopd` checks
+- If a change affects daemon interaction, also run the relevant `services/tuttid` checks
 
 ## Related docs
 
@@ -77,5 +77,5 @@ Current naming guidance:
 - [docs/architecture/desktop-transport.md](../../docs/architecture/desktop-transport.md)
 - [docs/architecture/desktop-windows.md](../../docs/architecture/desktop-windows.md)
 - [docs/conventions/logging.md](../../docs/conventions/logging.md)
-- [docs/conventions/nextopd-layering.md](../../docs/conventions/nextopd-layering.md)
+- [docs/conventions/tuttid-layering.md](../../docs/conventions/tuttid-layering.md)
 - [packages/ui/system/ui-system.md](../../packages/ui/system/ui-system.md)

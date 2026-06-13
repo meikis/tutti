@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentProviderTerminalCommand } from "@tutti-os/client-nextopd-ts";
+import type { AgentProviderTerminalCommand } from "@tutti-os/client-tuttid-ts";
 import type { WorkbenchHostHandle } from "@tutti-os/workbench-surface";
 import type { DesktopRuntimeApi } from "@preload/types";
 import { createAgentProviderTerminalCommandRunner } from "./createAgentProviderTerminalCommandRunner.ts";

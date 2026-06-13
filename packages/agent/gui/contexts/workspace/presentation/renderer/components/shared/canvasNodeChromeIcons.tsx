@@ -40,7 +40,7 @@ export function CanvasNodeGuideLinedIcon({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       {...props}
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       data-nexight-chrome-glyph="fill"
     >
       <path d={GUIDE_LINED_PATH} fill="currentColor" />
@@ -59,7 +59,7 @@ export function CanvasNodeMoreLinedIcon({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       {...props}
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       data-nexight-chrome-glyph="fill"
     >
       <path d={MORE_LINED_PATH} fill="currentColor" />
@@ -78,7 +78,7 @@ export function CanvasNodeTrashLinedIcon({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       {...props}
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       data-nexight-chrome-glyph="fill"
     >
       <path d={TRASH_LINED_PATH} fill="currentColor" />
@@ -97,7 +97,7 @@ export function CanvasNodeMaximizeLinedIcon({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       {...props}
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       data-nexight-chrome-glyph="fill"
     >
       <path d={MAXIMIZE_LINED_PATH} fill="currentColor" />
@@ -116,7 +116,7 @@ export function CanvasNodeMinimizeLinedIcon({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       {...props}
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       data-nexight-chrome-glyph="fill"
     >
       <path d={MINIMIZE_LINED_PATH} fill="currentColor" />
@@ -135,7 +135,7 @@ export function CanvasNodeLayoutLinedIcon({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       {...props}
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       data-nexight-chrome-glyph="fill"
     >
       <path d={LAYOUT_LINED_PATH} fill="currentColor" />
@@ -154,7 +154,7 @@ export function CanvasNodePanelLinedIcon({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       {...props}
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       data-nexight-chrome-glyph="fill"
     >
       <path d={PANEL_LINED_FRAME_PATH} fill="currentColor" />

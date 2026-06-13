@@ -91,7 +91,7 @@ This change does not try to:
 
 - remove or deprecate the current flat `WorkbenchHost` prop model in the first
   landing
-- move preload APIs, Electron globals, `nextopd` clients, or host-specific
+- move preload APIs, Electron globals, `tuttid` clients, or host-specific
   transport wiring into shared packages
 - make workbench contributions responsible for top-level shell concerns such as
   `snapshotRepository`, `workspaceId`, `missionControl`, or layout constraints
@@ -114,7 +114,7 @@ This change does not try to:
 It should not own:
 
 - desktop-specific preload or Electron details
-- `nextopd` client construction
+- `tuttid` client construction
 - product copy overrides
 - app-specific diagnostics sinks
 - host-specific business close or reuse policy
@@ -140,7 +140,7 @@ Those packages may own:
 
 They must not own:
 
-- host globals such as `window.nextop`
+- host globals such as `window.tutti`
 - preload surface assumptions
 - app-specific daemon client creation
 - product-specific enablement or routing policy

@@ -1,7 +1,7 @@
 import type {
-  NextopdEventStreamClient,
+  TuttidEventStreamClient,
   TrackEvent
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type {
   AnalyticsDebugEventServiceSnapshot,
   IAnalyticsDebugEventService
@@ -10,7 +10,7 @@ import type {
 const MAX_DEBUG_EVENTS = 200;
 
 interface AnalyticsDebugEventServiceDependencies {
-  eventStreamClient?: Pick<NextopdEventStreamClient, "connect" | "subscribe">;
+  eventStreamClient?: Pick<TuttidEventStreamClient, "connect" | "subscribe">;
 }
 
 type AnalyticsDebugReportedEvent = {
@@ -71,7 +71,7 @@ export class AnalyticsDebugEventService implements IAnalyticsDebugEventService {
   }
 
   private connectEventStream(
-    eventStreamClient: Pick<NextopdEventStreamClient, "connect" | "subscribe">
+    eventStreamClient: Pick<TuttidEventStreamClient, "connect" | "subscribe">
   ): void {
     eventStreamClient.subscribe("analytics.debug.reported", (event) => {
       this.recordReportedEvents(event.payload.events);

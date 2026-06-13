@@ -2,7 +2,7 @@ import {
   migrateWorkbenchSnapshot,
   type WorkbenchSnapshot
 } from "@tutti-os/workbench-snapshot";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import { preserveWorkspaceWallpaperSnapshotMetadata } from "../../workspaceWallpaper.ts";
 
 export interface DesktopWorkspaceWorkbenchRepository {
@@ -17,7 +17,7 @@ export interface DesktopWorkspaceWorkbenchRepository {
 }
 
 export function createDesktopWorkspaceWorkbenchRepository(
-  nextopdClient: NextopdClient
+  tuttidClient: TuttidClient
 ): DesktopWorkspaceWorkbenchRepository {
   const cachedSnapshots = new Map<string, WorkbenchSnapshot>();
   const loadedWorkspaceIDs = new Set<string>();
@@ -40,7 +40,7 @@ export function createDesktopWorkspaceWorkbenchRepository(
     },
     async load(workspaceID: string) {
       const snapshot = migrateWorkbenchSnapshot(
-        await nextopdClient.getWorkspaceWorkbench(workspaceID)
+        await tuttidClient.getWorkspaceWorkbench(workspaceID)
       );
       writeCache(workspaceID, snapshot);
       return snapshot;
@@ -54,7 +54,7 @@ export function createDesktopWorkspaceWorkbenchRepository(
         snapshot
       );
       const savedSnapshot = migrateWorkbenchSnapshot(
-        await nextopdClient.putWorkspaceWorkbench(
+        await tuttidClient.putWorkspaceWorkbench(
           workspaceID,
           snapshotWithMetadata
         )

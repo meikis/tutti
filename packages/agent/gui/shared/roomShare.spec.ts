@@ -31,7 +31,7 @@ describe("room share text i18n", () => {
     });
     expect(
       parseRoomShareJoinInput(
-        "https://nextop.sh/nextop-share/room-1\n邀请码：legacy"
+        "https://tutti.sh/tutti-share/room-1\n邀请码：legacy"
       )
     ).toMatchObject({
       inviteCode: "legacy",
@@ -42,11 +42,28 @@ describe("room share text i18n", () => {
   it("parses common English invite labels", () => {
     expect(
       parseRoomShareJoinInput(
-        "https://nextop.sh/nextop-share/room-1\ninvite: short"
+        "https://tutti.sh/tutti-share/room-1\ninvite: short"
       )
     ).toMatchObject({
       inviteCode: "short",
       roomId: "room-1"
+    });
+  });
+
+  it("parses legacy nextop scheme room links", () => {
+    expect(
+      parseRoomShareJoinInput(
+        "nextop://room/join?roomId=room-1&inviteCode=legacy"
+      )
+    ).toMatchObject({
+      inviteCode: "legacy",
+      roomId: "room-1"
+    });
+    expect(
+      parseRoomShareJoinInput("nextop://invite/room-2?code=legacy-2")
+    ).toMatchObject({
+      inviteCode: "legacy-2",
+      roomId: "room-2"
     });
   });
 });

@@ -4,8 +4,8 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const SECTION_START = "<!-- nextop-desktop-download-links:start -->";
-const SECTION_END = "<!-- nextop-desktop-download-links:end -->";
+const SECTION_START = "<!-- tutti-desktop-download-links:start -->";
+const SECTION_END = "<!-- tutti-desktop-download-links:end -->";
 
 function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, "");

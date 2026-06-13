@@ -132,6 +132,24 @@ export function createHostDesktopApi(): DesktopHostApi {
           workspaceID
         });
       },
+      resolveEntryIcon(
+        workspaceID: string,
+        entry: {
+          kind: string;
+          name: string;
+          path: string;
+        }
+      ): Promise<string | null> {
+        return invokeDesktopApi(
+          desktopIpcChannels.host.files.resolveEntryIcon,
+          {
+            entryKind: entry.kind,
+            entryName: entry.name,
+            path: entry.path,
+            workspaceID
+          }
+        );
+      },
       selectUploadFiles(): Promise<string[]> {
         return invokeDesktopApi(
           desktopIpcChannels.host.files.selectUploadFiles
@@ -147,6 +165,12 @@ export function createHostDesktopApi(): DesktopHostApi {
     window: {
       approveClose(): Promise<void> {
         return invokeDesktopApi(desktopIpcChannels.host.window.approveClose);
+      },
+      capturePreview(input): Promise<string | null> {
+        return invokeDesktopApi(
+          desktopIpcChannels.host.window.capturePreview,
+          input
+        );
       },
       onCloseRequest(listener): () => void {
         const handler = () => listener();

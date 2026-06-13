@@ -1,11 +1,11 @@
 import {
-  createNextopdClient,
-  type NextopdClient
-} from "@tutti-os/client-nextopd-ts";
+  createTuttidClient,
+  type TuttidClient
+} from "@tutti-os/client-tuttid-ts";
 import {
-  createNextopdManager,
-  type NextopdManager
-} from "./daemon/nextopdManager";
+  createTuttidManager,
+  type TuttidManager
+} from "./daemon/tuttidManager";
 import { createDesktopDaemonFetch } from "./transport/fetch";
 import {
   resolveDesktopDaemonEndpoint,
@@ -14,21 +14,21 @@ import {
 
 export interface DesktopDaemonRuntime {
   daemonEndpoint: DesktopDaemonEndpoint;
-  nextopd: NextopdManager;
-  nextopdClient: NextopdClient;
+  tuttid: TuttidManager;
+  tuttidClient: TuttidClient;
 }
 
 export function createDesktopDaemonRuntime(): DesktopDaemonRuntime {
   const daemonEndpoint = resolveDesktopDaemonEndpoint();
-  const nextopdClient = createNextopdClient({
+  const tuttidClient = createTuttidClient({
     auth: daemonEndpoint.accessToken,
     fetch: createDesktopDaemonFetch(() => daemonEndpoint)
   });
-  const nextopd = createNextopdManager(daemonEndpoint, nextopdClient);
+  const tuttid = createTuttidManager(daemonEndpoint, tuttidClient);
 
   return {
     daemonEndpoint,
-    nextopd,
-    nextopdClient
+    tuttid,
+    tuttidClient
   };
 }

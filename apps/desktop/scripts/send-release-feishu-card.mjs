@@ -270,7 +270,7 @@ async function sendPayload(webhookUrl, payload) {
 async function main() {
   const args = parseArgs(process.argv);
   const dryRun =
-    args.has("dry-run") || process.env.NEXTOP_DESKTOP_FEISHU_DRY_RUN === "true";
+    args.has("dry-run") || process.env.TUTTI_DESKTOP_FEISHU_DRY_RUN === "true";
   const repository = readOption(
     args,
     "repository",
@@ -301,17 +301,17 @@ async function main() {
     bucket: readOption(
       args,
       "release-asset-bucket",
-      "NEXTOP_DESKTOP_RELEASE_ASSETS_S3_BUCKET"
+      "TUTTI_DESKTOP_RELEASE_ASSETS_S3_BUCKET"
     ),
     explicitBaseUrl: readOption(
       args,
       "release-asset-base-url",
-      "NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL"
+      "TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL"
     ),
     prefix: readOption(
       args,
       "release-asset-prefix",
-      "NEXTOP_DESKTOP_RELEASE_ASSETS_S3_PREFIX"
+      "TUTTI_DESKTOP_RELEASE_ASSETS_S3_PREFIX"
     )
   });
   const release = await loadRelease(repository, tag, resolveGithubToken());

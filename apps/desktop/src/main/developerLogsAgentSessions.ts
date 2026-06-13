@@ -97,7 +97,7 @@ function createExportedAgentSessionFile(
     agentSessionID: record.agentSessionID,
     archivePath: joinZipPath(sessionDir, fileName),
     content,
-    path: `nextopd-db://${record.workspaceID}/${record.agentSessionID}/${fileName}`,
+    path: `tuttid-db://${record.workspaceID}/${record.agentSessionID}/${fileName}`,
     provider: record.provider,
     sizeBytes: content.byteLength,
     workspaceID: record.workspaceID

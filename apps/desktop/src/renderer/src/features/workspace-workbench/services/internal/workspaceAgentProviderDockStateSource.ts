@@ -1,5 +1,5 @@
 import type { WorkbenchHostDockEntryStateSource } from "@tutti-os/workbench-surface";
-import type { AgentProviderStatus } from "@tutti-os/client-nextopd-ts";
+import type { AgentProviderStatus } from "@tutti-os/client-tuttid-ts";
 import type { AgentProviderStatusService } from "@renderer/features/workspace-agent";
 import {
   workspaceWorkbenchDesktopI18nKeys,

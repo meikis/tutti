@@ -1,15 +1,15 @@
 export interface DesktopRuntimeEnvironmentInput {
-  nextopEnv?: string | null;
+  tuttiEnv?: string | null;
   nodeEnv?: string | null;
 }
 
 export function isDesktopDevelopmentRuntime({
-  nextopEnv,
+  tuttiEnv,
   nodeEnv
 }: DesktopRuntimeEnvironmentInput): boolean {
-  const normalizedNextopEnv = nextopEnv?.trim();
-  if (normalizedNextopEnv) {
-    return /^(dev|development|local)$/i.test(normalizedNextopEnv);
+  const normalizedTuttiEnv = tuttiEnv?.trim();
+  if (normalizedTuttiEnv) {
+    return /^(dev|development|local)$/i.test(normalizedTuttiEnv);
   }
 
   return nodeEnv === "development";

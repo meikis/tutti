@@ -41,9 +41,10 @@ export interface WorkbenchDockContext<TData = unknown> {
     launchNodeFromAnchor(
       anchorKey: string,
       nodeID: string,
-      launch: () => void
+      launch: () => Promise<string | null | void> | string | null | void
     ): void;
     registerDockAnchor(anchorKey: string, element: HTMLElement | null): void;
+    shouldAnimateMinimizedDockEnter(nodeID: string): boolean;
   };
 }
 

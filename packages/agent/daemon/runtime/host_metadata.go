@@ -3,7 +3,7 @@ package agentruntime
 import "strings"
 
 const (
-	defaultWorkspaceEnvName         = "NEXTOP_WORKSPACE_ID"
+	defaultWorkspaceEnvName         = "TUTTI_WORKSPACE_ID"
 	defaultOpenClawSessionKeyPrefix = "agent:main:tsh-"
 )
 

@@ -1,5 +1,5 @@
 export const workspaceFilePreviewSaveRequestEvent =
-  "nextop:workspace-file-preview-save-request";
+  "tutti:workspace-file-preview-save-request";
 
 export interface WorkspaceFilePreviewSaveRequestDetail {
   nodeId: string;

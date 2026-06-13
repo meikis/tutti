@@ -28,7 +28,7 @@ func TestResolveConfigReadsAgentContextConfig(t *testing.T) {
 	}`), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	t.Setenv("NEXTOP_AGENT_CONTEXT_CONFIG", path)
+	t.Setenv("TUTTI_AGENT_CONTEXT_CONFIG", path)
 
 	cfg, err := ResolveConfig(ConfigInput{})
 	if err != nil {

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { createDefaultWorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceAgentSessionDetailViewModel } from "../../shared/workspaceAgentSessionDetailViewModel";
 import type { AgentGUINodeViewModel } from "./model/agentGuiNodeTypes";
@@ -11,8 +12,14 @@ const conversationFlowMock = vi.hoisted(() => ({
 }));
 
 const composerMock = vi.hoisted(() => ({
-  calls: [] as Array<{ isSendingTurn?: boolean; showStopButton?: boolean }>
+  calls: [] as Array<{
+    composerFocusRequestSequence?: number | null;
+    isSendingTurn?: boolean;
+    showStopButton?: boolean;
+  }>
 }));
+
+const workspaceUserProjectI18n = createDefaultWorkspaceUserProjectI18nRuntime();
 
 const statusDotMock = vi.hoisted(() => ({
   calls: [] as Array<{
@@ -30,10 +37,12 @@ vi.mock("./AgentSessionChrome", () => ({
 
 vi.mock("./AgentComposer", () => ({
   AgentComposer: (props: {
+    composerFocusRequestSequence?: number | null;
     isSendingTurn?: boolean;
     showStopButton?: boolean;
   }) => {
     composerMock.calls.push({
+      composerFocusRequestSequence: props.composerFocusRequestSequence,
       isSendingTurn: props.isSendingTurn,
       showStopButton: props.showStopButton
     });
@@ -236,6 +245,32 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(actions.createConversation).toHaveBeenCalledWith({
       projectPath: "/workspace/app"
     });
+    expect(composerMock.calls.at(-1)?.composerFocusRequestSequence).toBe(1);
+  });
+
+  it("hides the project rail header when the project selector is disabled", () => {
+    const { container } = renderAgentGUINodeView({
+      showProjectSelector: false,
+      viewModel: {
+        ...createViewModel(),
+        conversations: [
+          {
+            ...createConversationSummary("session-1"),
+            cwd: "/workspace/app",
+            project: {
+              id: "project-app",
+              path: "/workspace/app",
+              label: "App"
+            }
+          }
+        ]
+      }
+    });
+
+    expect(
+      container.querySelector(".agent-gui-node__project-rail-header")
+    ).toBeNull();
+    expect(screen.getByText("App")).toBeInTheDocument();
   });
 
   it("shows empty project sections when projects have no conversations", () => {
@@ -358,6 +393,7 @@ describe("AgentGUINodeView layout persistence", () => {
           uiLanguage="en"
           onConversationRailWidthChanged={vi.fn()}
           labels={createLabels()}
+          workspaceUserProjectI18n={workspaceUserProjectI18n}
         />
       );
 
@@ -400,6 +436,7 @@ describe("AgentGUINodeView layout persistence", () => {
         uiLanguage="en"
         onConversationRailWidthChanged={onConversationRailWidthChanged}
         labels={labels}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
       />
     );
     const secondCall = conversationFlowMock.calls.at(-1);
@@ -474,6 +511,7 @@ describe("AgentGUINodeView layout persistence", () => {
         uiLanguage="en"
         onConversationRailWidthChanged={onConversationRailWidthChanged}
         labels={labels}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
       />
     );
 
@@ -518,6 +556,7 @@ describe("AgentGUINodeView layout persistence", () => {
         uiLanguage="en"
         onConversationRailWidthChanged={onConversationRailWidthChanged}
         labels={labels}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
       />
     );
 
@@ -976,6 +1015,7 @@ interface RenderAgentGUINodeViewOptions {
   viewModel?: AgentGUINodeViewModel;
   actions?: AgentGUINodeViewProps["actions"];
   labels?: AgentGUIViewLabels;
+  showProjectSelector?: boolean;
 }
 
 function buildAgentGUINodeViewElement({
@@ -984,19 +1024,22 @@ function buildAgentGUINodeViewElement({
   onConversationRailWidthChanged = vi.fn(),
   viewModel = createViewModel(),
   actions = createActions(),
-  labels = createLabels()
+  labels = createLabels(),
+  showProjectSelector = true
 }: RenderAgentGUINodeViewOptions = {}) {
   return (
     <AgentGUINodeView
       viewModel={viewModel}
       isAgentProviderReady={true}
       actions={actions}
+      workspaceUserProjectI18n={workspaceUserProjectI18n}
       conversationRailCollapsed={conversationRailCollapsed}
       conversationRailWidthPx={conversationRailWidthPx}
       conversationRailMinWidthPx={220}
       conversationRailMaxWidthPx={420}
       detailMinWidthPx={220}
       uiLanguage="en"
+      showProjectSelector={showProjectSelector}
       onConversationRailWidthChanged={onConversationRailWidthChanged}
       labels={labels}
     />
@@ -1174,6 +1217,8 @@ function createLabels(): AgentGUIViewLabels {
     initialPlaceholder: "initialPlaceholder",
     followupPlaceholder: "followupPlaceholder",
     installRequiredPlaceholder: "installRequiredPlaceholder",
+    collaboratorSessionReadOnlyPlaceholder:
+      "collaboratorSessionReadOnlyPlaceholder",
     send: "send",
     modelLabel: "model",
     modelSelectionLabel: "modelSelectionLabel",
@@ -1257,26 +1302,8 @@ function createLabels(): AgentGUIViewLabels {
     turnSummary: "turnSummary",
     planLead: "planLead",
     planModes: [],
-    projectLabel: "projectLabel",
-    noProject: "noProject",
-    addProject: "addProject",
-    createProjectCancel: "createProjectCancel",
-    createProjectConfirm: "createProjectConfirm",
-    createProjectDocumentsUnavailable: "createProjectDocumentsUnavailable",
-    createProjectFailed: "createProjectFailed",
-    createProjectNameConflict: "createProjectNameConflict",
-    createProjectNameInvalid: "createProjectNameInvalid",
-    createProjectNameLabel: "createProjectNameLabel",
-    createProjectNamePlaceholder: "createProjectNamePlaceholder",
-    createProjectNameRequired: "createProjectNameRequired",
-    createProjectPermissionDenied: "createProjectPermissionDenied",
-    createProjectTitle: "createProjectTitle",
-    linkExistingProject: "linkExistingProject",
     projectLocked: "projectLocked",
     projectMissingDescription: "projectMissingDescription",
-    projectMissingTitle: "projectMissingTitle",
-    loadingProjects: "loadingProjects",
-    projectUnavailable: "projectUnavailable",
     stayInPlan: "stayInPlan",
     sendFeedback: "sendFeedback",
     feedbackPlaceholder: "feedbackPlaceholder",

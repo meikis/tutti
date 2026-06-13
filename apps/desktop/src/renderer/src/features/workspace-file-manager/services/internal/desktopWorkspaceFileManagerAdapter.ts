@@ -9,7 +9,7 @@ import type {
   WorkspaceFileSearchResult
 } from "@tutti-os/workspace-file-manager/services";
 import { requestWorkspaceBrowserHostFileLaunch } from "../../../workspace-workbench/services/workspaceBrowserLaunchCoordinator.ts";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import { resolveDesktopErrorMessage } from "../../../../lib/desktopErrors.ts";
 import type { DesktopLocale } from "../../../../../../shared/i18n/index.ts";
 import { extractDesktopDroppedPaths } from "../desktopDroppedPaths.ts";
@@ -33,19 +33,19 @@ export function createDesktopWorkspaceFileManagerAdapter(
   }
 ): WorkspaceFileManagerHost {
   const hostFilesApi = dependencies.hostFilesApi;
-  const nextopdClient = dependencies.nextopdClient;
+  const tuttidClient = dependencies.tuttidClient;
   const platformApi = dependencies.platformApi;
 
   return {
     async createDirectory(input): Promise<WorkspaceFileEntry> {
-      const response = await nextopdClient.createWorkspaceFileDirectory(
+      const response = await tuttidClient.createWorkspaceFileDirectory(
         input.workspaceID,
         input.path
       );
       return fileEntryFromDesktop(response.entry);
     },
     async createFile(input): Promise<WorkspaceFileEntry> {
-      const response = await nextopdClient.createWorkspaceFile(
+      const response = await tuttidClient.createWorkspaceFile(
         input.workspaceID,
         input.path
       );
@@ -53,13 +53,13 @@ export function createDesktopWorkspaceFileManagerAdapter(
       return fileEntryFromDesktop(response.entry);
     },
     async deleteEntry(input): Promise<void> {
-      await nextopdClient.deleteWorkspaceFileEntry(input.workspaceID, {
+      await tuttidClient.deleteWorkspaceFileEntry(input.workspaceID, {
         kind: input.kind,
         path: input.path
       });
     },
     async moveEntry(input): Promise<WorkspaceFileEntry> {
-      const response = await nextopdClient.moveWorkspaceFileEntry(
+      const response = await tuttidClient.moveWorkspaceFileEntry(
         input.workspaceID,
         {
           path: input.path,
@@ -69,7 +69,7 @@ export function createDesktopWorkspaceFileManagerAdapter(
       return fileEntryFromDesktop(response.entry);
     },
     async renameEntry(input): Promise<WorkspaceFileEntry> {
-      const response = await nextopdClient.renameWorkspaceFileEntry(
+      const response = await tuttidClient.renameWorkspaceFileEntry(
         input.workspaceID,
         {
           newName: input.newName,
@@ -145,7 +145,7 @@ export function createDesktopWorkspaceFileManagerAdapter(
       return { disposition: "handled" };
     },
     async listDirectory(input): Promise<WorkspaceFileDirectoryListing> {
-      const response = await nextopdClient.listWorkspaceFileDirectory(
+      const response = await tuttidClient.listWorkspaceFileDirectory(
         input.workspaceID,
         { includeHidden: input.includeHidden, path: input.path }
       );
@@ -173,7 +173,7 @@ export function createDesktopWorkspaceFileManagerAdapter(
       return resolveDesktopErrorMessage(error, getLocale(), overrides);
     },
     async search(input): Promise<WorkspaceFileSearchResult> {
-      const response = await nextopdClient.searchWorkspaceFiles(
+      const response = await tuttidClient.searchWorkspaceFiles(
         input.workspaceID,
         {
           includeKinds: input.includeKinds,
@@ -201,7 +201,7 @@ export function createDesktopWorkspaceFileManagerAdapter(
     ): Promise<WorkspaceFileManagerHostActionResult> {
       const sourcePaths = await hostFilesApi.selectUploadFiles();
       return uploadSourcePaths(
-        nextopdClient,
+        tuttidClient,
         workspaceID,
         targetDirectoryPath,
         sourcePaths
@@ -213,7 +213,7 @@ export function createDesktopWorkspaceFileManagerAdapter(
       sourcePaths: string[]
     ): Promise<WorkspaceFileManagerHostActionResult> {
       return uploadSourcePaths(
-        nextopdClient,
+        tuttidClient,
         workspaceID,
         targetDirectoryPath,
         sourcePaths
@@ -223,16 +223,20 @@ export function createDesktopWorkspaceFileManagerAdapter(
 }
 
 function fileEntryFromDesktop(entry: {
+  createdTimeMs: number | null;
   hasChildren: boolean;
   kind: WorkspaceFileEntry["kind"];
+  lastOpenedMs: number | null;
   mtimeMs: number | null;
   name: string;
   path: string;
   sizeBytes: number | null;
 }): WorkspaceFileEntry {
   return {
+    createdTimeMs: entry.createdTimeMs,
     hasChildren: entry.hasChildren,
     kind: entry.kind,
+    lastOpenedMs: entry.lastOpenedMs,
     mtimeMs: entry.mtimeMs,
     name: entry.name,
     path: entry.path,
@@ -241,7 +245,7 @@ function fileEntryFromDesktop(entry: {
 }
 
 async function uploadSourcePaths(
-  nextopdClient: NextopdClient,
+  tuttidClient: TuttidClient,
   workspaceID: string,
   targetDirectoryPath: string,
   sourcePaths: string[]
@@ -250,7 +254,7 @@ async function uploadSourcePaths(
     return { supported: true };
   }
 
-  const preflight = await nextopdClient.preflightUploadWorkspaceFiles(
+  const preflight = await tuttidClient.preflightUploadWorkspaceFiles(
     workspaceID,
     {
       sourcePaths,
@@ -275,7 +279,7 @@ async function uploadSourcePaths(
         onConfirm: hasBlockedConflict
           ? undefined
           : async () => {
-              await nextopdClient.uploadWorkspaceFiles(workspaceID, {
+              await tuttidClient.uploadWorkspaceFiles(workspaceID, {
                 overwrite: true,
                 sourcePaths,
                 targetDirectoryPath
@@ -286,7 +290,7 @@ async function uploadSourcePaths(
     };
   }
 
-  await nextopdClient.uploadWorkspaceFiles(workspaceID, {
+  await tuttidClient.uploadWorkspaceFiles(workspaceID, {
     sourcePaths,
     targetDirectoryPath
   });

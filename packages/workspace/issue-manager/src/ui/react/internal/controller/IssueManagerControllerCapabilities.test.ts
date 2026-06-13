@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createDefaultWorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import type { IssueManagerFeature } from "../../../../core/index.ts";
 import {
   resolveIssueManagerAgentProviderOptions,
@@ -52,6 +53,44 @@ test("controller capabilities disable invite and file support when adapters are 
     canSelectExecutionDirectory: false,
     canUploadWorkspaceFiles: false
   });
+});
+
+test("controller capabilities detect execution directory support from the project service", () => {
+  assert.equal(
+    resolveIssueManagerControllerCapabilities(
+      createFeature({
+        executionDirectoryPicker: {
+          selectDirectory: async () => null
+        },
+        fileAdapter: undefined,
+        shareAdapter: undefined,
+        ui: {
+          showInviteCollaborator: false
+        }
+      })
+    ).canSelectExecutionDirectory,
+    false
+  );
+
+  assert.equal(
+    resolveIssueManagerControllerCapabilities(
+      createFeature({
+        executionDirectoryPicker: {
+          service: {} as NonNullable<
+            NonNullable<
+              IssueManagerFeature["executionDirectoryPicker"]
+            >["service"]
+          >
+        },
+        fileAdapter: undefined,
+        shareAdapter: undefined,
+        ui: {
+          showInviteCollaborator: false
+        }
+      })
+    ).canSelectExecutionDirectory,
+    true
+  );
 });
 
 test("agent provider options default to Codex only when no host adapter is configured", () => {
@@ -134,15 +173,18 @@ test("agent provider options trim labels and providers from the host adapter", (
 });
 
 function createFeature(
-  overrides: Pick<IssueManagerFeature, "fileAdapter" | "shareAdapter" | "ui">
+  overrides: Pick<IssueManagerFeature, "fileAdapter" | "shareAdapter" | "ui"> &
+    Pick<Partial<IssueManagerFeature>, "executionDirectoryPicker">
 ): IssueManagerFeature {
   return {
     agentRunner: {} as IssueManagerFeature["agentRunner"],
     backend: {} as IssueManagerFeature["backend"],
+    executionDirectoryPicker: overrides.executionDirectoryPicker,
     fileAdapter: overrides.fileAdapter,
     i18n: {} as IssueManagerFeature["i18n"],
     identityAdapter: {} as IssueManagerFeature["identityAdapter"],
     shareAdapter: overrides.shareAdapter,
+    workspaceUserProjectI18n: createDefaultWorkspaceUserProjectI18nRuntime(),
     ui: overrides.ui
   };
 }

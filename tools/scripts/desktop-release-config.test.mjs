@@ -130,7 +130,7 @@ test("desktop release workflow passes tsh-aligned Feishu card context", async ()
   );
   assert.match(
     workflow,
-    /NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL:\s+\${{\s*vars\.NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL\s*}}/
+    /TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL:\s+\${{\s*vars\.TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL\s*\|\|\s*vars\.NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL\s*}}/
   );
   assert.match(workflow, /RELEASE_ASSET_DIRECTORY:\s+release-assets/);
 });
@@ -185,11 +185,58 @@ test("desktop release workflow can mirror release assets to S3 and upsert direct
   assert.match(workflow, /aws-actions\/configure-aws-credentials@v4/);
   assert.match(
     workflow,
-    /NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL=https:\/\/\${NEXTOP_DESKTOP_RELEASE_ASSETS_S3_BUCKET}\.s3-accelerate\.amazonaws\.com\/\${NEXTOP_DESKTOP_RELEASE_ASSETS_S3_PREFIX%\/}/
+    /TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL=https:\/\/\${TUTTI_DESKTOP_RELEASE_ASSETS_S3_BUCKET}\.s3-accelerate\.amazonaws\.com\/\${TUTTI_DESKTOP_RELEASE_ASSETS_S3_PREFIX%\/}/
   );
   assert.match(
     workflow,
     /apps\/desktop\/scripts\/upsert-release-download-links\.mjs/
+  );
+});
+
+test("desktop release workflow falls back to legacy Nextop GitHub variables", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+
+  assert.match(
+    workflow,
+    /\(vars\.TUTTI_DESKTOP_RELEASE_WORKFLOW_ENABLED \|\| vars\.NEXTOP_DESKTOP_RELEASE_WORKFLOW_ENABLED\) == 'true'/
+  );
+  assert.match(
+    workflow,
+    /TUTTI_ARTIFACTS_AWS_ROLE_ARN:\s+\${{\s*vars\.TUTTI_ARTIFACTS_AWS_ROLE_ARN\s*\|\|\s*vars\.NEXTOP_ARTIFACTS_AWS_ROLE_ARN\s*}}/
+  );
+  assert.match(
+    workflow,
+    /TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL:\s+\${{\s*vars\.TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL\s*\|\|\s*vars\.NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL\s*}}/
+  );
+  assert.match(
+    workflow,
+    /TUTTI_DESKTOP_RELEASE_ASSETS_S3_BUCKET:\s+\${{\s*vars\.TUTTI_DESKTOP_RELEASE_ASSETS_S3_BUCKET\s*\|\|\s*vars\.NEXTOP_DESKTOP_RELEASE_ASSETS_S3_BUCKET\s*}}/
+  );
+  assert.match(
+    workflow,
+    /TUTTI_DESKTOP_RELEASE_ASSETS_S3_PREFIX:\s+\${{\s*vars\.TUTTI_DESKTOP_RELEASE_ASSETS_S3_PREFIX\s*\|\|\s*vars\.NEXTOP_DESKTOP_RELEASE_ASSETS_S3_PREFIX\s*}}/
+  );
+});
+
+test("desktop release workflow materializes macOS signing certificate before packaging", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+
+  assert.match(workflow, /name:\s+Prepare macOS signing certificate/);
+  assert.match(
+    workflow,
+    /MACOS_CSC_LINK:\s+\${{\s*secrets\.MACOS_CSC_LINK\s*}}/
+  );
+  assert.match(
+    workflow,
+    /certificate_path="\$\{RUNNER_TEMP\}\/macos-codesign-certificate\.p12"/
+  );
+  assert.match(
+    workflow,
+    /echo "CSC_LINK=\$\{certificate_path\}" >> "\$\{GITHUB_ENV\}"/
+  );
+  assert.doesNotMatch(
+    workflow,
+    /Build release artifacts[\s\S]*?CSC_LINK:\s+\${{\s*secrets\.MACOS_CSC_LINK\s*}}[\s\S]*?pnpm --filter @tutti-os\/desktop build:mac:signed/
   );
 });
 

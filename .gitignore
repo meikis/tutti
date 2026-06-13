@@ -33,10 +33,10 @@ __pycache__/
 *.pkg
 *.exe
 
-apps/desktop/build/nextopd/
-apps/desktop/build/nextopd-dev/
-apps/desktop/build/nextop/
+apps/desktop/build/tuttid/
+apps/desktop/build/tuttid-dev/
+apps/desktop/build/tutti/
 apps/cli/build/
 
-/nextopd
-/nextopd.exe
+/tuttid
+/tuttid.exe

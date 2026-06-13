@@ -80,7 +80,7 @@ export function WorkspaceAgentMessageCenterCard({
       className={cn(
         "workspace-agent-message-center__card group/message-card flex min-w-0 flex-col gap-2.5 rounded-lg border border-[var(--line-2)] bg-[var(--background-fronted)] p-3.5 outline outline-0 outline-offset-2 outline-transparent transition-[background-color,border-color,outline-color]",
         isWaitingMessageCenterItem(item) &&
-          "agent-gui-edge-glow border-[var(--border-focus)] bg-[var(--accent-bg)]",
+          "agent-gui-edge-glow border-[var(--tutti-purple-border)] bg-[var(--tutti-purple-bg)]",
         highlighted && "outline-2 outline-[var(--accent)]"
       )}
       data-highlighted={highlighted ? "true" : undefined}
@@ -94,7 +94,7 @@ export function WorkspaceAgentMessageCenterCard({
           <Tooltip>
             <TooltipTrigger asChild>
               <h3
-                className="workspace-agent-message-center__copy-text min-w-0 truncate text-sm font-bold leading-5 text-[var(--text-secondary)]"
+                className="workspace-agent-message-center__copy-text min-w-0 truncate text-[13px] font-bold leading-5 text-[var(--text-secondary)]"
                 onPointerDown={stopMessageCenterTextPointerPropagation}
               >
                 {displayTitle}
@@ -111,7 +111,7 @@ export function WorkspaceAgentMessageCenterCard({
           {item.cwd ? <ProjectPathInfo path={item.cwd} /> : null}
         </div>
         <span
-          className="workspace-agent-message-center__status inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold leading-4 text-[var(--text-secondary)]"
+          className="workspace-agent-message-center__status inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold leading-4 text-[var(--text-secondary)]"
           data-status={displayStatus}
           title={statusLabel}
         >
@@ -287,15 +287,11 @@ export function WorkspaceAgentMessageCenterStack({
             inert={cardsRegion.closing ? true : undefined}
           >
             <div className="flex min-w-0 items-center justify-between gap-2 px-0.5 pb-1.5">
-              <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold leading-4 text-[var(--text-tertiary)]">
-                <img
-                  src={managedAgentRoundedIconUrl(items[0]?.provider ?? "")}
-                  alt=""
-                  className="size-4 shrink-0 rounded-[4px]"
-                  decoding="async"
-                  loading="lazy"
-                  draggable={false}
-                  aria-hidden="true"
+              <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold leading-4 text-[var(--text-tertiary)]">
+                <MessageCenterIdentityAvatarMark
+                  identity={items[0]?.identity ?? null}
+                  provider={items[0]?.provider ?? ""}
+                  userId={items[0]?.userId ?? null}
                 />
                 <span className="min-w-0 truncate">
                   {t("agentHost.workspaceAgentMessageCenterStackSummaryCount", {
@@ -362,6 +358,7 @@ function MessageCenterStackSummary({
       )}
       data-stack-summary-count={items.length}
       data-stack-provider={firstItem.provider}
+      data-stack-user-id={firstItem.userId ?? ""}
       data-testid={`workspace-agent-message-stack-summary-${groupId}`}
       onClick={onExpand}
     >
@@ -371,21 +368,18 @@ function MessageCenterStackSummary({
           items.length > 2
             ? "shadow-[0_7px_0_-4px_var(--background-fronted),0_7px_0_-3px_var(--line-2),0_14px_0_-8px_var(--background-fronted),0_14px_0_-7px_var(--line-2)]"
             : "shadow-[0_7px_0_-4px_var(--background-fronted),0_7px_0_-3px_var(--line-2)]",
-          hasWaiting && "border-[var(--border-focus)] bg-[var(--accent-bg)]"
+          hasWaiting &&
+            "border-[var(--tutti-purple-border)] bg-[var(--tutti-purple-bg)]"
         )}
       >
         <span className="flex min-w-0 items-center justify-between gap-2.5">
           <span className="flex min-w-0 items-center gap-2">
-            <img
-              src={managedAgentRoundedIconUrl(firstItem.provider)}
-              alt=""
-              className="size-5 shrink-0 rounded-[4px]"
-              decoding="async"
-              loading="lazy"
-              draggable={false}
-              aria-hidden="true"
+            <MessageCenterIdentityAvatarMark
+              identity={firstItem.identity}
+              provider={firstItem.provider}
+              userId={firstItem.userId}
             />
-            <span className="min-w-0 truncate text-sm font-bold leading-5 text-[var(--text-secondary)]">
+            <span className="min-w-0 truncate text-[13px] font-bold leading-5 text-[var(--text-secondary)]">
               {t("agentHost.workspaceAgentMessageCenterStackSummaryCount", {
                 count: items.length
               })}
@@ -583,7 +577,7 @@ function MessageCenterSummary({
       {summary ? (
         <AgentMessageMarkdown
           content={summary}
-          className="[&_a]:text-[var(--accent)] [&_code]:text-[var(--text-secondary)] [&_hr]:border-t-[color-mix(in_srgb,var(--text-primary)_14%,transparent)] [&_ol]:!bg-transparent [&_p]:m-0 [&_th]:bg-[color-mix(in_srgb,var(--background-panel)_94%,var(--text-primary))] [&_th]:text-[var(--text-primary)] [&_ul]:!bg-transparent text-[var(--text-primary)]"
+          className="[&_a]:text-[var(--tutti-purple)] [&_code]:text-[var(--text-secondary)] [&_hr]:border-t-[color-mix(in_srgb,var(--text-primary)_14%,transparent)] [&_ol]:!bg-transparent [&_p]:m-0 [&_th]:bg-[color-mix(in_srgb,var(--background-panel)_94%,var(--text-primary))] [&_th]:text-[var(--text-primary)] [&_ul]:!bg-transparent text-[var(--text-primary)]"
           onLinkAction={handleLinkAction}
           workspaceLinkContext={{
             workspaceRoot: item.cwd || null,
@@ -647,7 +641,7 @@ function MessageCenterOpenChatButton({
   );
 }
 
-function MessageCenterIdentityLabel({
+export function MessageCenterIdentityLabel({
   identity,
   provider
 }: {
@@ -683,7 +677,44 @@ function MessageCenterIdentityLabel({
   );
 }
 
-function MessageCenterIdentityAvatarStack({
+export function MessageCenterIdentityAvatarMark({
+  identity,
+  provider,
+  userId
+}: {
+  identity: WorkspaceAgentMessageCenterIdentity | null;
+  provider: string;
+  userId?: string | null;
+}): JSX.Element {
+  "use memo";
+
+  const userName = identity?.userName.trim() || userId?.trim() || "";
+  if (!userName) {
+    return (
+      <img
+        src={managedAgentRoundedIconUrl(provider)}
+        alt=""
+        className="size-5 shrink-0 rounded-full"
+        decoding="async"
+        loading="lazy"
+        draggable={false}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return (
+    <MessageCenterIdentityAvatarStack
+      userAvatarUrl={identity?.userAvatarUrl}
+      userName={userName}
+      agentAvatarUrl={
+        identity?.agentAvatarUrl?.trim() || managedAgentRoundedIconUrl(provider)
+      }
+    />
+  );
+}
+
+export function MessageCenterIdentityAvatarStack({
   agentAvatarUrl,
   userAvatarUrl: rawUserAvatarUrl,
   userName
@@ -723,7 +754,7 @@ function MessageCenterIdentityAvatarStack({
           }}
         />
       </span>
-      <span className="-ml-1.5 inline-flex size-5 shrink-0 overflow-hidden rounded-[5px] bg-[var(--transparency-block)] ring-2 ring-[var(--background-fronted)]">
+      <span className="-ml-1.5 inline-flex size-5 shrink-0 overflow-hidden rounded-full bg-[var(--transparency-block)] ring-2 ring-[var(--background-fronted)]">
         <img
           src={agentAvatarUrl}
           alt=""
@@ -754,7 +785,7 @@ function ProjectPathInfo({ path }: { path: string }): JSX.Element {
       <TooltipContent
         side="top"
         align="start"
-        className="max-w-[320px] text-xs [overflow-wrap:anywhere]"
+        className="max-w-[320px] text-[11px] [overflow-wrap:anywhere]"
       >
         {path}
       </TooltipContent>
@@ -771,7 +802,7 @@ function AgentProviderLabel({ provider }: { provider: string }): JSX.Element {
       <img
         src={managedAgentRoundedIconUrl(provider)}
         alt=""
-        className="workspace-agent-message-center__provider-icon size-5 shrink-0 rounded-[4px]"
+        className="workspace-agent-message-center__provider-icon size-5 shrink-0 rounded-full"
         decoding="async"
         loading="lazy"
         draggable={false}

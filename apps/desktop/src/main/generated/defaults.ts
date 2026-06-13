@@ -1,14 +1,14 @@
 export const generatedDefaults = {
   state: {
-    productionDirName: ".nextop",
-    developmentDirName: ".nextop-dev",
+    productionDirName: ".tutti",
+    developmentDirName: ".tutti-dev",
     runDirName: "run",
     logsDirName: "logs",
-    dbFileName: "nextopd.db",
-    daemonLogFileName: "nextopd.log",
-    desktopLogFileName: "nextop-desktop.log",
-    listenerInfoFileName: "nextopd.listener.json",
-    pidFileName: "nextopd.pid"
+    dbFileName: "tuttid.db",
+    daemonLogFileName: "tuttid.log",
+    desktopLogFileName: "tutti-desktop.log",
+    listenerInfoFileName: "tuttid.listener.json",
+    pidFileName: "tuttid.pid"
   },
   transport: {
     defaultTCPAddr: "127.0.0.1:4545"

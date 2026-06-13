@@ -1,10 +1,10 @@
 import { createRequire } from "node:module";
 import type {
   AgentActivityUpdatedEventV1,
-  NextopdClient,
-  NextopdEventStreamClient,
+  TuttidClient,
+  TuttidEventStreamClient,
   WorkspaceAgentSession
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopSleepPreventionMode } from "../shared/preferences/index.ts";
 import type { DesktopHostPreferencesState } from "./desktopHostPreferences.ts";
 import type { DesktopLogger } from "./logging.ts";
@@ -22,10 +22,10 @@ export interface AgentPowerSaveBlockerRuntime {
 }
 
 export interface AgentPowerSaveBlockerDependencies {
-  eventStreamClient: NextopdEventStreamClient;
+  eventStreamClient: TuttidEventStreamClient;
   logger: DesktopLogger;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     "getWorkspaceAgentSession" | "listWorkspaceAgentSessions" | "listWorkspaces"
   >;
   preferences: DesktopHostPreferencesState;
@@ -116,7 +116,7 @@ export function connectAgentPowerSaveBlocker(
   ): Promise<void> {
     const { workspaceId, agentSessionId } = event.payload;
     try {
-      const session = await deps.nextopdClient.getWorkspaceAgentSession(
+      const session = await deps.tuttidClient.getWorkspaceAgentSession(
         workspaceId,
         agentSessionId
       );
@@ -138,10 +138,10 @@ export function connectAgentPowerSaveBlocker(
   async function refreshActiveSessions(): Promise<void> {
     const sequence = ++refreshSequence;
     try {
-      const workspaces = await deps.nextopdClient.listWorkspaces();
+      const workspaces = await deps.tuttidClient.listWorkspaces();
       const nextActiveSessionKeys = new Set<string>();
       for (const workspace of workspaces.workspaces) {
-        const sessions = await deps.nextopdClient.listWorkspaceAgentSessions(
+        const sessions = await deps.tuttidClient.listWorkspaceAgentSessions(
           workspace.id
         );
         for (const session of sessions.sessions) {

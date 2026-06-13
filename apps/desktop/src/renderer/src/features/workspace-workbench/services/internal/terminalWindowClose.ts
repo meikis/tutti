@@ -1,4 +1,4 @@
-import { getNextopdProtocolErrorCode } from "@tutti-os/client-nextopd-ts";
+import { getTuttidProtocolErrorCode } from "@tutti-os/client-tuttid-ts";
 import {
   closeTerminalSession,
   type TerminalNodeFeature
@@ -7,7 +7,7 @@ import type { TerminalNodeExternalState } from "@tutti-os/workspace-terminal/con
 import type { WorkbenchHostHandle } from "@tutti-os/workbench-surface";
 
 export function shouldCloseTerminalNodeAfterError(error: unknown): boolean {
-  switch (getNextopdProtocolErrorCode(error)) {
+  switch (getTuttidProtocolErrorCode(error)) {
     case "workspace_terminal_not_found":
     case "workspace_terminal_not_running":
       return true;

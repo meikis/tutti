@@ -1,4 +1,5 @@
 import {
+  Fragment,
   memo,
   type CSSProperties,
   type KeyboardEvent,
@@ -10,6 +11,7 @@ import {
   useRef,
   useState
 } from "react";
+import { useSnapshot } from "valtio";
 import { ChevronRight, Info, X } from "lucide-react";
 import type {
   WorkspaceFileReference,
@@ -27,6 +29,7 @@ import {
   cn
 } from "@tutti-os/ui-system";
 import { WorkspaceUserProjectSelect } from "@tutti-os/workspace-user-project/ui";
+import type { WorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import { BareIconButton, ScrollArea } from "@tutti-os/ui-system/components";
 import { Button } from "../../app/renderer/components/ui/button";
 import {
@@ -73,6 +76,7 @@ import { AgentSessionChrome } from "./AgentSessionChrome";
 import {
   AgentComposer,
   formatSlashStatusTokenCount,
+  type AgentComposerProps,
   type AgentComposerPromptTip,
   type AgentComposerSlashStatusLimit,
   type AgentComposerSlashStatus
@@ -82,6 +86,12 @@ import {
   USAGE_CRITICAL_PERCENT,
   USAGE_WARN_PERCENT
 } from "./model/agentUsageThresholds";
+import {
+  createAgentGUIBottomDockStore,
+  syncAgentGUIBottomDockStore,
+  type AgentGUIBottomDockStore,
+  type AgentGUIBottomDockStoreSnapshot
+} from "./AgentGUIBottomDockStore";
 import type { AgentMessageMarkdownWorkspaceAppIcon } from "../../shared/AgentMessageMarkdown";
 import { AgentInteractivePromptSurface } from "./AgentInteractivePromptSurface";
 import { AgentConversationListSkeleton } from "./AgentConversationListSkeleton";
@@ -90,29 +100,21 @@ import {
   ConversationMeta,
   groupConversations
 } from "./agentGuiNodeViewConversation";
-import PixelCard from "./PixelCard";
 import styles from "./AgentGUINode.styles";
 import type { AgentRichTextAtProvider } from "./agentRichTextAtProvider";
 
 const AGENT_GUI_STICK_TO_BOTTOM_THRESHOLD_PX = 24;
 
 const AGENT_GUI_TIMELINE_SCROLL_AREA_CONTENT_STYLE: CSSProperties = {
+  width: "100%",
   minWidth: "100%",
   display: "grid",
+  gridTemplateColumns:
+    "minmax(0, min(100%, var(--agent-gui-detail-flow-max-width)))",
+  justifyContent: "center",
   gap: "24px"
 };
 
-const AGENT_GUI_HERO_FALLBACK_PARTICLE_COLORS =
-  "#ecfeff,#a7f3d0,#22d3ee,#0f766e";
-
-const AGENT_GUI_HERO_PARTICLE_COLORS: Record<string, string> = {
-  "claude-code": "#fff7ed,#fed7aa,#fb923c,#9a3412",
-  codex: "#f8fafc,#bfdbfe,#7dd3fc,#6366f1",
-  gemini: "#eef2ff,#c4b5fd,#818cf8,#38bdf8",
-  hermes: "#f8fafc,#e5e7eb,#9ca3af,#111827",
-  nextop: AGENT_GUI_HERO_FALLBACK_PARTICLE_COLORS,
-  openclaw: "#f5f3ff,#c4b5fd,#a78bfa,#64748b"
-};
 const EMPTY_WORKSPACE_APP_ICONS: readonly AgentMessageMarkdownWorkspaceAppIcon[] =
   [];
 const AGENT_GUI_CONFIRMATION_DIALOG_CLASS_NAME =
@@ -120,25 +122,14 @@ const AGENT_GUI_CONFIRMATION_DIALOG_CLASS_NAME =
 const AGENT_GUI_CONFIRMATION_DIALOG_OVERLAY_CLASS_NAME =
   "nodrag tsh-desktop-no-drag [-webkit-app-region:no-drag]";
 
-export interface AgentGUIHeroParticleConfig {
-  normalizedProvider: string;
-  imageSrc: string;
-  colors: string;
-}
-
-export function resolveAgentGUIHeroParticleConfig(
+export function resolveAgentGUIHeroIconUrl(
   provider: string | undefined
-): AgentGUIHeroParticleConfig {
+): string {
   const normalizedProvider = normalizeManagedAgentProvider(provider);
-  return {
-    normalizedProvider,
-    imageSrc:
-      MANAGED_AGENT_ICON_URLS[normalizedProvider] ??
-      MANAGED_AGENT_ICON_FALLBACK_URL,
-    colors:
-      AGENT_GUI_HERO_PARTICLE_COLORS[normalizedProvider] ??
-      AGENT_GUI_HERO_FALLBACK_PARTICLE_COLORS
-  };
+  return (
+    MANAGED_AGENT_ICON_URLS[normalizedProvider] ??
+    MANAGED_AGENT_ICON_FALLBACK_URL
+  );
 }
 
 const fallbackWorkspaceFileReferenceCopy: WorkspaceFileReferenceCopy = {
@@ -155,10 +146,28 @@ function roundAgentGuiPerfMs(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function isDifferentKnownConversationOwner(input: {
+  conversationUserId?: string | null;
+  currentUserId?: string | null;
+}): boolean {
+  const conversationUserId = input.conversationUserId?.trim() ?? "";
+  const currentUserId = input.currentUserId?.trim() ?? "";
+  if (
+    !conversationUserId ||
+    !currentUserId ||
+    conversationUserId === "local" ||
+    currentUserId === "local"
+  ) {
+    return false;
+  }
+  return conversationUserId !== currentUserId;
+}
+
 export interface AgentGUIViewLabels {
   initialPlaceholder: string;
   followupPlaceholder: string;
   installRequiredPlaceholder: string;
+  collaboratorSessionReadOnlyPlaceholder: string;
   send: string;
   modelLabel: string;
   modelSelectionLabel: string;
@@ -299,26 +308,8 @@ export interface AgentGUIViewLabels {
   removeMention: string;
   addReference: string;
   referenceWorkspaceFiles: string;
-  projectLabel: string;
-  noProject: string;
-  addProject: string;
-  createProjectCancel: string;
-  createProjectConfirm: string;
-  createProjectDocumentsUnavailable: string;
-  createProjectFailed: string;
-  createProjectNameConflict: string;
-  createProjectNameInvalid: string;
-  createProjectNameLabel: string;
-  createProjectNamePlaceholder: string;
-  createProjectNameRequired: string;
-  createProjectPermissionDenied: string;
-  createProjectTitle: string;
-  linkExistingProject: string;
   projectLocked: string;
   projectMissingDescription: string;
-  projectMissingTitle: string;
-  loadingProjects: string;
-  projectUnavailable: string;
   syncPending: string;
   syncSynced: string;
   syncFailed: string;
@@ -343,6 +334,8 @@ interface AgentGUINodeViewProps {
   isAgentProviderReady: boolean;
   slashStatusLimits?: readonly AgentComposerSlashStatusLimit[];
   slashStatusLimitsLoading?: boolean;
+  previewMode?: boolean;
+  showProjectSelector?: boolean;
   onAgentProviderLogin?: (provider?: string | null) => void;
   actions: {
     createConversation: (options?: { projectPath?: string | null }) => void;
@@ -391,6 +384,7 @@ interface AgentGUINodeViewProps {
   ) => void | Promise<void>;
   onConversationRailWidthChanged: (widthPx: number) => void;
   labels: AgentGUIViewLabels;
+  workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
   workspaceFileReferenceAdapter?: WorkspaceFileReferenceAdapter | null;
   workspaceFileReferenceCopy?: WorkspaceFileReferenceCopy | null;
   richTextAtProviders?: readonly AgentRichTextAtProvider[];
@@ -615,6 +609,15 @@ function conversationHasActiveWork(
   );
 }
 
+function isSettledConversationStatus(
+  status:
+    | AgentGUINodeViewModel["conversations"][number]["status"]
+    | null
+    | undefined
+): boolean {
+  return status === "completed" || status === "failed" || status === "canceled";
+}
+
 function resolveActiveConversationBusyStatus(input: {
   conversationStatus:
     | AgentGUINodeViewModel["conversations"][number]["status"]
@@ -633,6 +636,12 @@ function resolveActiveConversationBusyStatus(input: {
     input.detailStatus === "working"
   ) {
     return "working";
+  }
+  if (
+    isSettledConversationStatus(input.conversationStatus) ||
+    isSettledConversationStatus(input.detailStatus)
+  ) {
+    return null;
   }
   if (conversationHasActiveWork(input.conversation)) {
     return "working";
@@ -677,6 +686,8 @@ export function AgentGUINodeView({
   isAgentProviderReady,
   slashStatusLimits = [],
   slashStatusLimitsLoading = false,
+  previewMode = false,
+  showProjectSelector = true,
   onAgentProviderLogin,
   actions,
   conversationRailCollapsed,
@@ -688,6 +699,7 @@ export function AgentGUINodeView({
   onWorkspaceFileReferencesAdded,
   onConversationRailWidthChanged,
   labels,
+  workspaceUserProjectI18n,
   workspaceFileReferenceAdapter = null,
   workspaceFileReferenceCopy = null,
   richTextAtProviders,
@@ -702,10 +714,17 @@ export function AgentGUINodeView({
   const [isRailResizing, setIsRailResizing] = useState(false);
   const [workspaceReferencePickerOpen, setWorkspaceReferencePickerOpen] =
     useState(false);
+  const [
+    localComposerFocusRequestSequence,
+    setLocalComposerFocusRequestSequence
+  ] = useState(0);
   const workspaceReferencePickerResolverRef = useRef<
     ((refs: WorkspaceFileReference[]) => void) | null
   >(null);
   const requestWorkspaceReferences = useCallback(async () => {
+    if (previewMode) {
+      return [];
+    }
     if (!workspaceFileReferenceAdapter || !workspaceFileReferenceCopy) {
       return [];
     }
@@ -713,7 +732,7 @@ export function AgentGUINodeView({
     return await new Promise<WorkspaceFileReference[]>((resolve) => {
       workspaceReferencePickerResolverRef.current = resolve;
     });
-  }, [workspaceFileReferenceAdapter, workspaceFileReferenceCopy]);
+  }, [previewMode, workspaceFileReferenceAdapter, workspaceFileReferenceCopy]);
   const closeWorkspaceReferencePicker = useCallback(() => {
     workspaceReferencePickerResolverRef.current?.([]);
     workspaceReferencePickerResolverRef.current = null;
@@ -739,6 +758,24 @@ export function AgentGUINodeView({
     openclawGateway !== null && openclawGateway.status !== "ready";
   const createConversationDisabled =
     viewModel.isCreatingConversation || isOpenclawGatewayBlocking;
+  const detailComposerFocusRequestSequence =
+    localComposerFocusRequestSequence === 0
+      ? composerFocusRequestSequence
+      : (composerFocusRequestSequence ?? 0) + localComposerFocusRequestSequence;
+  const requestCreateConversation = useCallback(
+    (options?: { projectPath?: string | null }) => {
+      if (previewMode) {
+        return;
+      }
+      if (options) {
+        actions.createConversation(options);
+      } else {
+        actions.createConversation();
+      }
+      setLocalComposerFocusRequestSequence((current) => current + 1);
+    },
+    [actions, previewMode]
+  );
   const effectiveWorkspaceAppIcons = useMemo(
     () =>
       mergeWorkspaceAppIconsFromCommands({
@@ -760,6 +797,9 @@ export function AgentGUINodeView({
 
   const handleConversationRailResizePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>): void => {
+      if (previewMode) {
+        return;
+      }
       if (conversationRailCollapsed || event.button !== 0) {
         return;
       }
@@ -773,11 +813,14 @@ export function AgentGUINodeView({
       };
       setIsRailResizing(true);
     },
-    [conversationRailCollapsed, conversationRailWidthPx]
+    [conversationRailCollapsed, conversationRailWidthPx, previewMode]
   );
 
   const handleConversationRailResizePointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>): void => {
+      if (previewMode) {
+        return;
+      }
       const resizeState = railResizeInteractionRef.current;
       if (!resizeState || resizeState.pointerId !== event.pointerId) {
         return;
@@ -788,7 +831,7 @@ export function AgentGUINodeView({
       );
       onConversationRailWidthChanged(nextWidthPx);
     },
-    [clampConversationRailWidth, onConversationRailWidthChanged]
+    [clampConversationRailWidth, onConversationRailWidthChanged, previewMode]
   );
 
   const endConversationRailResize = useCallback(
@@ -808,6 +851,9 @@ export function AgentGUINodeView({
 
   const handleConversationRailResizeKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>): void => {
+      if (previewMode) {
+        return;
+      }
       if (conversationRailCollapsed) {
         return;
       }
@@ -828,7 +874,8 @@ export function AgentGUINodeView({
       clampConversationRailWidth,
       conversationRailCollapsed,
       conversationRailWidthPx,
-      onConversationRailWidthChanged
+      onConversationRailWidthChanged,
+      previewMode
     ]
   );
 
@@ -842,7 +889,12 @@ export function AgentGUINodeView({
 
   return (
     <TooltipProvider>
-      <div className={styles.layout} style={layoutStyle}>
+      <div
+        className={styles.layout}
+        data-agent-gui-preview={previewMode ? "true" : undefined}
+        inert={previewMode ? true : undefined}
+        style={layoutStyle}
+      >
         <aside
           id="agent-gui-conversation-rail"
           className={`${styles.railPanel}${
@@ -864,11 +916,13 @@ export function AgentGUINodeView({
               viewModel.isDeletingProjectConversations
             }
             labels={labels}
+            workspaceUserProjectI18n={workspaceUserProjectI18n}
             uiLanguage={uiLanguage}
+            showProjectSelector={showProjectSelector}
             createConversationDisabled={createConversationDisabled}
             openclawGateway={openclawGateway}
             isCollapsed={conversationRailCollapsed}
-            onCreateConversation={actions.createConversation}
+            onCreateConversation={requestCreateConversation}
             onRetryOpenclawGateway={actions.retryOpenclawGateway}
             onSelectConversation={actions.selectConversation}
             onToggleConversationPinned={actions.toggleConversationPinned}
@@ -916,15 +970,17 @@ export function AgentGUINodeView({
             labels={labels}
             uiLanguage={uiLanguage}
             isActive={isActive}
-            composerFocusRequestSequence={composerFocusRequestSequence}
+            composerFocusRequestSequence={detailComposerFocusRequestSequence}
             isAgentProviderReady={isAgentProviderReady}
             slashStatusLimits={slashStatusLimits}
             slashStatusLimitsLoading={slashStatusLimitsLoading}
+            showProjectSelector={showProjectSelector}
             onLinkAction={onLinkAction}
             onAgentProviderLogin={onAgentProviderLogin}
             onRequestWorkspaceReferences={requestWorkspaceReferences}
             richTextAtProviders={richTextAtProviders}
             workspaceAppIcons={effectiveWorkspaceAppIcons}
+            workspaceUserProjectI18n={workspaceUserProjectI18n}
           />
         </section>
       </div>
@@ -945,12 +1001,14 @@ interface AgentGUIDetailPaneProps {
   viewModel: AgentGUINodeViewModel;
   actions: AgentGUINodeViewProps["actions"];
   labels: AgentGUIViewLabels;
+  workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
   uiLanguage: UiLanguage;
   isActive: boolean;
   composerFocusRequestSequence: number | null;
   isAgentProviderReady: boolean;
   slashStatusLimits: readonly AgentComposerSlashStatusLimit[];
   slashStatusLimitsLoading: boolean;
+  showProjectSelector: boolean;
   onLinkAction?: (action: WorkspaceLinkAction) => void;
   onAgentProviderLogin?: (provider?: string | null) => void;
   onRequestWorkspaceReferences?:
@@ -1030,12 +1088,14 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   viewModel,
   actions,
   labels,
+  workspaceUserProjectI18n,
   uiLanguage,
   isActive,
   composerFocusRequestSequence,
   isAgentProviderReady,
   slashStatusLimits,
   slashStatusLimitsLoading,
+  showProjectSelector,
   onLinkAction,
   onAgentProviderLogin,
   onRequestWorkspaceReferences,
@@ -1064,7 +1124,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   const activePrompt =
     viewModel.pendingInteractivePrompt ?? viewModel.pendingApproval;
   const activePromptRequestId = activePrompt?.requestId ?? null;
-  const sessionChrome = useMemo(
+  const sessionChrome = useMemo<AgentGUISessionChrome>(
     () => ({ ...viewModel.sessionChrome, approval: null }),
     [viewModel.sessionChrome]
   );
@@ -1179,11 +1239,21 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     viewModel.isSubmitting ||
     activeConversationTurnBusy ||
     (!hasActiveConversation && viewModel.isCreatingConversation);
-  const canQueueWhileBusy = viewModel.canQueueWhileBusy && isAgentProviderReady;
-  const composerDisabledReason = isAgentProviderReady
-    ? null
-    : labels.installRequiredPlaceholder;
+  const isCollaboratorConversation = isDifferentKnownConversationOwner({
+    conversationUserId: viewModel.activeConversation?.userId,
+    currentUserId: viewModel.currentUserId
+  });
+  const canQueueWhileBusy =
+    viewModel.canQueueWhileBusy &&
+    isAgentProviderReady &&
+    !isCollaboratorConversation;
+  const composerDisabledReason = isCollaboratorConversation
+    ? labels.collaboratorSessionReadOnlyPlaceholder
+    : isAgentProviderReady
+      ? null
+      : labels.installRequiredPlaceholder;
   const submitDisabled =
+    isCollaboratorConversation ||
     !isAgentProviderReady ||
     (!viewModel.canSubmit && !canQueueWhileBusy) ||
     viewModel.draftPrompt.trim() === "";
@@ -1192,6 +1262,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     sessionChrome.recovery.canRetry === false;
   const composerDisabled =
     hasNonRetryableRecoveryFailure ||
+    isCollaboratorConversation ||
     !isAgentProviderReady ||
     (!canQueueWhileBusy &&
       (viewModel.pendingApproval !== null ||
@@ -1357,27 +1428,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       removeMention: labels.removeMention,
       addReference: labels.addReference,
       referenceWorkspaceFiles: labels.referenceWorkspaceFiles,
-      projectLabel: labels.projectLabel,
-      noProject: labels.noProject,
-      addProject: labels.addProject,
-      createProjectCancel: labels.createProjectCancel,
-      createProjectConfirm: labels.createProjectConfirm,
-      createProjectDocumentsUnavailable:
-        labels.createProjectDocumentsUnavailable,
-      createProjectFailed: labels.createProjectFailed,
-      createProjectNameConflict: labels.createProjectNameConflict,
-      createProjectNameInvalid: labels.createProjectNameInvalid,
-      createProjectNameLabel: labels.createProjectNameLabel,
-      createProjectNamePlaceholder: labels.createProjectNamePlaceholder,
-      createProjectNameRequired: labels.createProjectNameRequired,
-      createProjectPermissionDenied: labels.createProjectPermissionDenied,
-      createProjectTitle: labels.createProjectTitle,
-      linkExistingProject: labels.linkExistingProject,
       projectLocked: labels.projectLocked,
       projectMissingDescription: labels.projectMissingDescription,
-      projectMissingTitle: labels.projectMissingTitle,
-      loadingProjects: labels.loadingProjects,
-      projectUnavailable: labels.projectUnavailable,
       promptTipsPrefix: labels.promptTipsPrefix,
       ...interactivePromptLabels
     }),
@@ -1397,21 +1449,6 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       labels.modelLabel,
       labels.modelDescriptions,
       labels.modelSelectionLabel,
-      labels.addProject,
-      labels.createProjectCancel,
-      labels.createProjectConfirm,
-      labels.createProjectDocumentsUnavailable,
-      labels.createProjectFailed,
-      labels.createProjectNameConflict,
-      labels.createProjectNameInvalid,
-      labels.createProjectNameLabel,
-      labels.createProjectNamePlaceholder,
-      labels.createProjectNameRequired,
-      labels.createProjectPermissionDenied,
-      labels.createProjectTitle,
-      labels.linkExistingProject,
-      labels.loadingProjects,
-      labels.noProject,
       labels.permissionLabel,
       labels.permissionModeAuto,
       labels.permissionModeFullAccess,
@@ -1420,11 +1457,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       labels.planModeOffLabel,
       labels.planModeOnLabel,
       labels.planUnavailable,
-      labels.projectLabel,
       labels.projectLocked,
       labels.projectMissingDescription,
-      labels.projectMissingTitle,
-      labels.projectUnavailable,
       labels.promptTipsPrefix,
       labels.queuedLabel,
       labels.queuedPromptMoreActions,
@@ -1457,11 +1491,42 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   );
   const handleInterruptCurrentTurn = useCallback(() => {
     actions.interruptCurrentTurn(labels.noRunningResponse);
-  }, [actions, labels.noRunningResponse]);
+  }, [actions.interruptCurrentTurn, labels.noRunningResponse]);
   const handleUsageAlertCompact = useCallback(() => {
     actions.submitCompact();
     actions.dismissUsageAlert();
   }, [actions]);
+  const submitApprovalOption = useStableEventCallback(
+    actions.submitApprovalOption
+  );
+  const retryActivation = useStableEventCallback(actions.retryActivation);
+  const continueInNewConversation = useStableEventCallback(
+    actions.continueInNewConversation
+  );
+  const updateDraftPrompt = useStableEventCallback(actions.updateDraftPrompt);
+  const updateSelectedProjectPath = useOptionalStableEventCallback(
+    actions.updateSelectedProjectPath
+  );
+  const updateComposerSettings = useStableEventCallback(
+    actions.updateComposerSettings
+  );
+  const submitPrompt = useStableEventCallback(actions.submitPrompt);
+  const showPromptImagesUnsupported = useStableEventCallback(
+    actions.showPromptImagesUnsupported
+  );
+  const sendQueuedPromptNext = useStableEventCallback(
+    actions.sendQueuedPromptNext
+  );
+  const removeQueuedPrompt = useStableEventCallback(actions.removeQueuedPrompt);
+  const editQueuedPrompt = useStableEventCallback(actions.editQueuedPrompt);
+  const submitInteractivePrompt = useStableEventCallback(
+    actions.submitInteractivePrompt
+  );
+  const stableLinkAction = useOptionalStableEventCallback(onLinkAction);
+  const stableRequestWorkspaceReferences = useOptionalStableEventCallback(
+    onRequestWorkspaceReferences
+  );
+  const authLogin = useOptionalStableEventCallback(onAgentProviderLogin);
   const submitBottomDockInteractivePrompt = useCallback(
     (input: {
       requestId: string;
@@ -1469,11 +1534,143 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       optionId?: string;
       payload?: Record<string, unknown>;
     }) => {
-      actions.submitInteractivePrompt(input);
+      submitInteractivePrompt(input);
       setBottomDockDismissedPromptRequestId(input.requestId);
     },
-    [actions]
+    [submitInteractivePrompt]
   );
+  const bottomDockComposerProps = useMemo<AgentComposerProps>(
+    () => ({
+      workspaceId: viewModel.workspaceId,
+      workspacePath: viewModel.workspacePath,
+      currentUserId: viewModel.currentUserId,
+      provider: viewModel.data.provider,
+      slashStatus,
+      draftPrompt: viewModel.draftPrompt,
+      availableCommands: viewModel.availableCommands,
+      hasCompactableContext: viewModel.hasSentUserMessage,
+      availableSkills: viewModel.availableSkills,
+      disabled: composerDisabled,
+      disabledReason: composerDisabledReason,
+      submitDisabled,
+      composerSettings: viewModel.composerSettings,
+      queuedPrompts: viewModel.queuedPrompts,
+      drainingQueuedPromptId: viewModel.drainingQueuedPromptId,
+      workspaceAppIcons,
+      canQueueWhileBusy,
+      placeholder: viewModel.hasSentUserMessage
+        ? labels.followupPlaceholder
+        : labels.initialPlaceholder,
+      showStopButton,
+      // Plan decisions replace the composer via bottomDockReplacementPrompt;
+      // approval / ask-user embed here (composerActivePrompt encodes that).
+      activePrompt: composerActivePrompt,
+      activePromptKeyboardShortcutsEnabled: isActive,
+      promptTips: labels.promptTips,
+      composerFocusRequestSequence,
+      isActive,
+      promptImagesSupported: viewModel.promptImagesSupported,
+      showProjectSelector,
+      isInterrupting: viewModel.isInterrupting,
+      isSendingTurn: isComposerSending,
+      isSubmittingPrompt: viewModel.isRespondingApproval,
+      labels: composerLabels,
+      workspaceUserProjectI18n,
+      onDraftChange: updateDraftPrompt,
+      onProjectPathChange: updateSelectedProjectPath,
+      onSettingsChange: updateComposerSettings,
+      onSubmit: submitPrompt,
+      onPromptImagesUnsupported: showPromptImagesUnsupported,
+      onSendQueuedPromptNext: sendQueuedPromptNext,
+      onRemoveQueuedPrompt: removeQueuedPrompt,
+      onEditQueuedPrompt: editQueuedPrompt,
+      onInterruptCurrentTurn: handleInterruptCurrentTurn,
+      onSubmitInteractivePrompt: submitInteractivePrompt,
+      onLinkAction: stableLinkAction,
+      onRequestWorkspaceReferences: stableRequestWorkspaceReferences,
+      richTextAtProviders
+    }),
+    [
+      canQueueWhileBusy,
+      composerDisabled,
+      composerDisabledReason,
+      composerFocusRequestSequence,
+      composerLabels,
+      handleInterruptCurrentTurn,
+      isActive,
+      isComposerSending,
+      labels.followupPlaceholder,
+      labels.initialPlaceholder,
+      labels.promptTips,
+      composerActivePrompt,
+      editQueuedPrompt,
+      richTextAtProviders,
+      removeQueuedPrompt,
+      sendQueuedPromptNext,
+      showPromptImagesUnsupported,
+      showProjectSelector,
+      showStopButton,
+      slashStatus,
+      submitDisabled,
+      submitInteractivePrompt,
+      submitPrompt,
+      stableLinkAction,
+      stableRequestWorkspaceReferences,
+      updateComposerSettings,
+      updateDraftPrompt,
+      updateSelectedProjectPath,
+      viewModel.availableCommands,
+      viewModel.availableSkills,
+      viewModel.composerSettings,
+      viewModel.currentUserId,
+      viewModel.data.provider,
+      viewModel.draftPrompt,
+      viewModel.drainingQueuedPromptId,
+      viewModel.hasSentUserMessage,
+      viewModel.isInterrupting,
+      viewModel.isRespondingApproval,
+      viewModel.promptImagesSupported,
+      viewModel.queuedPrompts,
+      viewModel.workspaceId,
+      viewModel.workspacePath,
+      workspaceUserProjectI18n,
+      workspaceAppIcons
+    ]
+  );
+  const bottomDockStoreState = useMemo<AgentGUIBottomDockStoreSnapshot>(
+    () => ({
+      // The lifted prompt is rendered from props on the pane; the store still
+      // carries it so the snapshot revision tracks prompt changes.
+      bottomDockActivePrompt: bottomDockLiftedPrompt,
+      composerProps: bottomDockComposerProps,
+      inlineNoticeChrome,
+      isRespondingApproval: viewModel.isRespondingApproval,
+      sessionChrome
+    }),
+    [
+      bottomDockLiftedPrompt,
+      bottomDockComposerProps,
+      inlineNoticeChrome,
+      sessionChrome,
+      viewModel.isRespondingApproval
+    ]
+  );
+  const bottomDockStoreRef = useRef<AgentGUIBottomDockStore | null>(null);
+  if (bottomDockStoreRef.current === null) {
+    bottomDockStoreRef.current =
+      createAgentGUIBottomDockStore(bottomDockStoreState);
+  }
+  const bottomDockStore = bottomDockStoreRef.current;
+  syncAgentGUIBottomDockStore(bottomDockStore, bottomDockStoreState);
+  const bottomDockStoreRevision = [
+    bottomDockLiftedPrompt?.requestId ?? "",
+    bottomDockReplacementPrompt?.requestId ?? "",
+    inlineNoticeChrome?.recovery?.message ?? "",
+    sessionChrome.auth?.message ?? "",
+    sessionChrome.recovery?.kind ?? "",
+    sessionChrome.recovery?.message ?? "",
+    viewModel.isRespondingApproval ? "1" : "0"
+  ].join("|");
 
   useEffect(() => {
     setBottomDockDismissedPromptRequestId(null);
@@ -1622,6 +1819,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
         onSubmitCompact={actions.submitCompact}
       />
       <ScrollArea
+        scrollbarMode="native"
         className="min-h-0 flex-1 [&_[data-orientation=vertical][data-slot=scroll-area-scrollbar]]:opacity-100"
         viewportRef={timelineRef}
         viewportTestId="agent-gui-timeline"
@@ -1639,10 +1837,10 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
             emptyProvider={labels.emptyProvider ?? ""}
             inlineNoticeChrome={inlineNoticeChrome}
             isRespondingApproval={viewModel.isRespondingApproval}
-            onSubmitApprovalOption={actions.submitApprovalOption}
-            onRetryActivation={actions.retryActivation}
-            onAuthLogin={onAgentProviderLogin}
-            onContinueInNewConversation={actions.continueInNewConversation}
+            onSubmitApprovalOption={submitApprovalOption}
+            onRetryActivation={retryActivation}
+            onAuthLogin={authLogin}
+            onContinueInNewConversation={continueInNewConversation}
             chromeLabels={chromeLabels}
             composerProps={{
               workspaceId: viewModel.workspaceId,
@@ -1673,22 +1871,24 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
               isActive,
               promptImagesSupported: viewModel.promptImagesSupported,
               promptTips: labels.promptTips,
+              showProjectSelector,
               isInterrupting: viewModel.isInterrupting,
               isSendingTurn: isComposerSending,
               isSubmittingPrompt: viewModel.isRespondingApproval,
               labels: composerLabels,
-              onDraftChange: actions.updateDraftPrompt,
-              onProjectPathChange: actions.updateSelectedProjectPath,
-              onSettingsChange: actions.updateComposerSettings,
-              onSubmit: actions.submitPrompt,
-              onPromptImagesUnsupported: actions.showPromptImagesUnsupported,
-              onSendQueuedPromptNext: actions.sendQueuedPromptNext,
-              onRemoveQueuedPrompt: actions.removeQueuedPrompt,
-              onEditQueuedPrompt: actions.editQueuedPrompt,
+              workspaceUserProjectI18n,
+              onDraftChange: updateDraftPrompt,
+              onProjectPathChange: updateSelectedProjectPath,
+              onSettingsChange: updateComposerSettings,
+              onSubmit: submitPrompt,
+              onPromptImagesUnsupported: showPromptImagesUnsupported,
+              onSendQueuedPromptNext: sendQueuedPromptNext,
+              onRemoveQueuedPrompt: removeQueuedPrompt,
+              onEditQueuedPrompt: editQueuedPrompt,
               onInterruptCurrentTurn: handleInterruptCurrentTurn,
-              onSubmitInteractivePrompt: actions.submitInteractivePrompt,
-              onLinkAction,
-              onRequestWorkspaceReferences,
+              onSubmitInteractivePrompt: submitInteractivePrompt,
+              onLinkAction: stableLinkAction,
+              onRequestWorkspaceReferences: stableRequestWorkspaceReferences,
               richTextAtProviders
             }}
           />
@@ -1698,8 +1898,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
             isLoading={showTimelineSkeleton}
             loadingLabel={labels.loadingConversation}
             empty={conversationFlowEmpty}
-            onLinkAction={onLinkAction}
-            onAuthLogin={onAgentProviderLogin}
+            onLinkAction={stableLinkAction}
+            onAuthLogin={authLogin}
             availableSkills={viewModel.availableSkills}
             workspaceAppIcons={workspaceAppIcons}
             labels={conversationFlowLabels}
@@ -1711,70 +1911,21 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
           bottomDockRef={bottomDockRef}
           bottomDockLiftedPrompt={bottomDockLiftedPrompt}
           bottomDockReplacementPrompt={bottomDockReplacementPrompt}
-          keyboardShortcutsEnabled={isActive}
-          inlineNoticeChrome={inlineNoticeChrome}
-          sessionChrome={sessionChrome}
-          isRespondingApproval={viewModel.isRespondingApproval}
           usageAlert={viewModel.usageAlert}
           usagePercent={viewModel.usage?.percentUsed ?? null}
           usageAlertShowCompactAction={viewModel.compactSupported !== false}
           usageAlertLabels={labels}
           onUsageAlertCompact={handleUsageAlertCompact}
           onUsageAlertDismiss={actions.dismissUsageAlert}
-          composerProps={{
-            workspaceId: viewModel.workspaceId,
-            workspacePath: viewModel.workspacePath,
-            currentUserId: viewModel.currentUserId,
-            provider: viewModel.data.provider,
-            slashStatus,
-            draftPrompt: viewModel.draftPrompt,
-            availableCommands: viewModel.availableCommands,
-            hasCompactableContext: viewModel.hasSentUserMessage,
-            compactSupported: viewModel.compactSupported,
-            availableSkills: viewModel.availableSkills,
-            disabled: composerDisabled,
-            disabledReason: composerDisabledReason,
-            submitDisabled,
-            composerSettings: viewModel.composerSettings,
-            queuedPrompts: viewModel.queuedPrompts,
-            drainingQueuedPromptId: viewModel.drainingQueuedPromptId,
-            workspaceAppIcons,
-            canQueueWhileBusy,
-            placeholder: viewModel.hasSentUserMessage
-              ? labels.followupPlaceholder
-              : labels.initialPlaceholder,
-            showStopButton,
-            // Plan decisions replace the composer via bottomDockReplacementPrompt;
-            // approval / ask-user prompts still embed here as a floating prompt.
-            activePrompt: composerActivePrompt,
-            activePromptKeyboardShortcutsEnabled: isActive,
-            composerFocusRequestSequence,
-            isActive,
-            promptImagesSupported: viewModel.promptImagesSupported,
-            isInterrupting: viewModel.isInterrupting,
-            isSendingTurn: isComposerSending,
-            isSubmittingPrompt: viewModel.isRespondingApproval,
-            labels: composerLabels,
-            onDraftChange: actions.updateDraftPrompt,
-            onProjectPathChange: actions.updateSelectedProjectPath,
-            onSettingsChange: actions.updateComposerSettings,
-            onSubmit: actions.submitPrompt,
-            onPromptImagesUnsupported: actions.showPromptImagesUnsupported,
-            onSendQueuedPromptNext: actions.sendQueuedPromptNext,
-            onRemoveQueuedPrompt: actions.removeQueuedPrompt,
-            onEditQueuedPrompt: actions.editQueuedPrompt,
-            onInterruptCurrentTurn: handleInterruptCurrentTurn,
-            onSubmitInteractivePrompt: actions.submitInteractivePrompt,
-            onLinkAction,
-            onRequestWorkspaceReferences,
-            richTextAtProviders
-          }}
+          store={bottomDockStore}
+          storeRevision={bottomDockStoreRevision}
+          keyboardShortcutsEnabled={isActive}
           chromeLabels={chromeLabels}
           promptLabels={interactivePromptLabels}
-          onSubmitApprovalOption={actions.submitApprovalOption}
-          onRetryActivation={actions.retryActivation}
-          onAuthLogin={onAgentProviderLogin}
-          onContinueInNewConversation={actions.continueInNewConversation}
+          onSubmitApprovalOption={submitApprovalOption}
+          onRetryActivation={retryActivation}
+          onAuthLogin={authLogin}
+          onContinueInNewConversation={continueInNewConversation}
           onSubmitBottomDockInteractivePrompt={
             submitBottomDockInteractivePrompt
           }
@@ -1913,7 +2064,7 @@ function AgentRunPathInfo({ path }: { path: string }): React.JSX.Element {
       <TooltipContent
         side="top"
         align="start"
-        className="max-w-[320px] text-xs [overflow-wrap:anywhere]"
+        className="max-w-[320px] text-[11px] [overflow-wrap:anywhere]"
       >
         {path}
       </TooltipContent>
@@ -2090,7 +2241,30 @@ type InteractivePromptLabels = {
   planImplementationSkip: string;
 };
 
-type AgentComposerProps = React.ComponentProps<typeof AgentComposer>;
+function useStableEventCallback<Args extends unknown[], Result>(
+  callback: (...args: Args) => Result
+): (...args: Args) => Result {
+  const callbackRef = useRef(callback);
+  useLayoutEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+  return useCallback((...args: Args) => callbackRef.current(...args), []);
+}
+
+function useOptionalStableEventCallback<Args extends unknown[], Result>(
+  callback: ((...args: Args) => Result) | null | undefined
+): ((...args: Args) => Result) | undefined {
+  const callbackRef = useRef(callback);
+  useLayoutEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+  return useMemo(() => {
+    if (callback == null) {
+      return undefined;
+    }
+    return (...args: Args) => callbackRef.current?.(...args) as Result;
+  }, [callback != null]);
+}
 
 interface AgentGUIEmptyHeroPaneProps {
   provider: AgentGUINodeViewModel["data"]["provider"];
@@ -2121,19 +2295,17 @@ const AgentGUIEmptyHeroPane = memo(function AgentGUIEmptyHeroPane({
 }: AgentGUIEmptyHeroPaneProps): React.JSX.Element {
   "use memo";
 
-  const agentParticleConfig = resolveAgentGUIHeroParticleConfig(provider);
+  const heroIconUrl = resolveAgentGUIHeroIconUrl(provider);
 
   return (
     <div className={styles.emptyHero}>
       <div className={styles.emptyHeroBody}>
-        <PixelCard
-          variant="blue"
-          gap={2}
-          speed={45}
-          colors={agentParticleConfig.colors}
-          imageSrc={agentParticleConfig.imageSrc}
-          noFocus
+        <img
+          aria-hidden="true"
           className={styles.emptyHeroIconEffect}
+          draggable={false}
+          src={heroIconUrl}
+          alt=""
         />
         <h2 className={styles.emptyHeroTitle}>
           <EmptyHeroTitle label={emptyLabel} providerLabel={emptyProvider} />
@@ -2262,17 +2434,17 @@ interface AgentGUIBottomDockPaneProps {
   bottomDockReplacementPrompt:
     | AgentGUIDetailPaneProps["viewModel"]["pendingApproval"]
     | AgentGUIDetailPaneProps["viewModel"]["pendingInteractivePrompt"];
+  // composerProps / inlineNoticeChrome / sessionChrome / isRespondingApproval
+  // are read from the bottom-dock store snapshot below.
+  store: AgentGUIBottomDockStore;
+  storeRevision: string;
   keyboardShortcutsEnabled: boolean;
-  inlineNoticeChrome: AgentGUISessionChrome | null;
-  sessionChrome: AgentGUISessionChrome;
-  isRespondingApproval: boolean;
   usageAlert: AgentGUINodeViewModel["usageAlert"];
   usagePercent: number | null;
   usageAlertShowCompactAction: boolean;
   usageAlertLabels: AgentUsageAlertBannerLabels;
   onUsageAlertCompact: () => void;
   onUsageAlertDismiss: () => void;
-  composerProps: AgentComposerProps;
   chromeLabels: ChromeLabels;
   promptLabels: InteractivePromptLabels;
   onSubmitApprovalOption: AgentGUINodeViewProps["actions"]["submitApprovalOption"];
@@ -2286,17 +2458,15 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
   bottomDockRef,
   bottomDockLiftedPrompt,
   bottomDockReplacementPrompt,
+  store,
+  storeRevision: _storeRevision,
   keyboardShortcutsEnabled,
-  inlineNoticeChrome,
-  sessionChrome,
-  isRespondingApproval,
   usageAlert,
   usagePercent,
   usageAlertShowCompactAction,
   usageAlertLabels,
   onUsageAlertCompact,
   onUsageAlertDismiss,
-  composerProps,
   chromeLabels,
   promptLabels,
   onSubmitApprovalOption,
@@ -2306,6 +2476,9 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
   onSubmitBottomDockInteractivePrompt
 }: AgentGUIBottomDockPaneProps): React.JSX.Element {
   "use memo";
+  const state = useSnapshot(store) as AgentGUIBottomDockStoreSnapshot;
+  const { composerProps, inlineNoticeChrome, isRespondingApproval, sessionChrome } =
+    state;
 
   return (
     <div
@@ -2390,7 +2563,9 @@ interface AgentGUIConversationRailPaneProps {
   isDeletingConversation: boolean;
   isDeletingProjectConversations: boolean;
   labels: AgentGUIViewLabels;
+  workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
   uiLanguage: UiLanguage;
+  showProjectSelector: boolean;
   createConversationDisabled: boolean;
   openclawGateway: OpenclawGatewayViewModel | null;
   isCollapsed: boolean;
@@ -2445,7 +2620,9 @@ const AgentGUIConversationRailPane = memo(
     isDeletingConversation,
     isDeletingProjectConversations,
     labels,
+    workspaceUserProjectI18n,
     uiLanguage,
+    showProjectSelector,
     createConversationDisabled,
     openclawGateway,
     isCollapsed,
@@ -2588,13 +2765,11 @@ const AgentGUIConversationRailPane = memo(
           </div>
         ) : null}
         <ScrollArea
+          scrollbarMode="native"
           className="min-h-0 flex-1 [&_[data-orientation=vertical][data-slot=scroll-area-scrollbar]]:opacity-100"
           viewportRef={conversationListRef}
           viewportClassName={styles.conversationList}
         >
-          {!conversationQuery.trim() ? (
-            <AgentGUIProjectRailHeader labels={labels} />
-          ) : null}
           {isLoadingConversations && conversations.length === 0 ? (
             <AgentConversationListSkeleton
               label={labels.loadingConversations}
@@ -2610,12 +2785,18 @@ const AgentGUIConversationRailPane = memo(
               </span>
             </div>
           ) : (
-            groupedConversations.map((section) => {
+            groupedConversations.map((section, sectionIndex) => {
               const projectPath =
                 section.kind === "project" ? (section.project?.path ?? "") : "";
               const projectLabel =
                 section.kind === "project" ? section.label : "";
               const isProjectSection = section.kind === "project";
+              const showProjectRailHeader =
+                showProjectSelector &&
+                !conversationQuery.trim() &&
+                section.kind !== "pinned" &&
+                (sectionIndex === 0 ||
+                  groupedConversations[sectionIndex - 1]?.kind === "pinned");
               const isSectionCollapsed =
                 isProjectSection && collapsedProjectSectionIds.has(section.id);
               const projectConversationCount = projectPath
@@ -2627,242 +2808,254 @@ const AgentGUIConversationRailPane = memo(
                   ).length
                 : 0;
               return (
-                <section
-                  key={section.id}
-                  className={styles.conversationSection}
-                  data-collapsed={isSectionCollapsed}
-                >
-                  <div className={styles.conversationSectionHeader}>
-                    {isProjectSection ? (
-                      <button
-                        type="button"
-                        className={styles.conversationSectionToggle}
-                        aria-expanded={!isSectionCollapsed}
-                        onClick={() =>
-                          toggleProjectSectionCollapsed(section.id)
-                        }
-                      >
-                        <ChevronRight
-                          aria-hidden="true"
-                          className={styles.conversationSectionChevron}
-                        />
-                        <span className={styles.conversationSectionLabel}>
-                          <FolderIcon
-                            aria-hidden="true"
-                            className={styles.conversationSectionLabelIcon}
-                          />
-                          <span>{section.label}</span>
-                        </span>
-                      </button>
-                    ) : (
-                      <div className={styles.conversationSectionToggle}>
-                        <span className={styles.conversationSectionLabel}>
-                          <span>{section.label}</span>
-                        </span>
-                      </div>
-                    )}
-                    {projectPath ? (
-                      <div className={styles.conversationSectionActions}>
-                        <BareIconButton
-                          className={styles.conversationSectionMoreButton}
-                          aria-label={labels.projectSectionEdit}
-                          title={labels.projectSectionEdit}
-                          size="sm"
-                          disabled={createConversationDisabled}
-                          onClick={() => onCreateConversation({ projectPath })}
-                        >
-                          <EditIcon aria-hidden="true" />
-                        </BareIconButton>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <BareIconButton
-                              className={styles.conversationSectionMoreButton}
-                              aria-label={labels.projectSectionMoreActions}
-                              title={labels.projectSectionMoreActions}
-                              size="sm"
-                            >
-                              <MoreHorizontalIcon aria-hidden="true" />
-                            </BareIconButton>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            align="end"
-                            className={`${styles.composerMenuContent} nodrag [-webkit-app-region:no-drag]`}
-                            sideOffset={6}
-                          >
-                            <DropdownMenuItem
-                              className={`${styles.composerMenuItem} nodrag [-webkit-app-region:no-drag]`}
-                              disabled={projectConversationCount === 0}
-                              onSelect={() => {
-                                const label = projectLabel || projectPath;
-                                setPendingProjectAction({
-                                  kind: "batch-delete",
-                                  conversationCount: projectConversationCount,
-                                  label,
-                                  path: projectPath
-                                });
-                              }}
-                            >
-                              <span>{labels.batchDeleteProjectSessions}</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className={`${styles.composerMenuItem} nodrag [-webkit-app-region:no-drag]`}
-                              onSelect={() => {
-                                const label = projectLabel || projectPath;
-                                setPendingProjectAction({
-                                  kind: "remove",
-                                  label,
-                                  path: projectPath
-                                });
-                              }}
-                            >
-                              <span>{labels.removeProject}</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div
-                    className={styles.conversationSectionItems}
-                    aria-hidden={isSectionCollapsed ? "true" : undefined}
+                <Fragment key={section.id}>
+                  {showProjectRailHeader ? (
+                    <AgentGUIProjectRailHeader
+                      labels={labels}
+                      workspaceUserProjectI18n={workspaceUserProjectI18n}
+                    />
+                  ) : null}
+                  <section
+                    className={styles.conversationSection}
+                    data-collapsed={isSectionCollapsed}
+                    data-kind={section.kind}
                   >
-                    <div className={styles.conversationSectionItemsInner}>
-                      {section.items.length === 0 ? (
-                        <div className={styles.conversationSectionEmpty}>
-                          {labels.emptyProjectConversations}
+                    <div className={styles.conversationSectionHeader}>
+                      {isProjectSection ? (
+                        <button
+                          type="button"
+                          className={styles.conversationSectionToggle}
+                          aria-expanded={!isSectionCollapsed}
+                          onClick={() =>
+                            toggleProjectSectionCollapsed(section.id)
+                          }
+                        >
+                          <ChevronRight
+                            aria-hidden="true"
+                            className={styles.conversationSectionChevron}
+                          />
+                          <span className={styles.conversationSectionLabel}>
+                            <FolderIcon
+                              aria-hidden="true"
+                              className={styles.conversationSectionLabelIcon}
+                            />
+                            <span>{section.label}</span>
+                          </span>
+                        </button>
+                      ) : (
+                        <div className={styles.conversationSectionToggle}>
+                          <span className={styles.conversationSectionLabel}>
+                            <span>{section.label}</span>
+                          </span>
+                        </div>
+                      )}
+                      {projectPath ? (
+                        <div className={styles.conversationSectionActions}>
+                          <BareIconButton
+                            className={styles.conversationSectionMoreButton}
+                            aria-label={labels.projectSectionEdit}
+                            title={labels.projectSectionEdit}
+                            size="sm"
+                            disabled={createConversationDisabled}
+                            onClick={() =>
+                              onCreateConversation({ projectPath })
+                            }
+                          >
+                            <EditIcon aria-hidden="true" />
+                          </BareIconButton>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <BareIconButton
+                                className={styles.conversationSectionMoreButton}
+                                aria-label={labels.projectSectionMoreActions}
+                                title={labels.projectSectionMoreActions}
+                                size="sm"
+                              >
+                                <MoreHorizontalIcon aria-hidden="true" />
+                              </BareIconButton>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className={`${styles.composerMenuContent} nodrag [-webkit-app-region:no-drag]`}
+                              sideOffset={6}
+                            >
+                              <DropdownMenuItem
+                                className={`${styles.composerMenuItem} nodrag [-webkit-app-region:no-drag]`}
+                                disabled={projectConversationCount === 0}
+                                onSelect={() => {
+                                  const label = projectLabel || projectPath;
+                                  setPendingProjectAction({
+                                    kind: "batch-delete",
+                                    conversationCount: projectConversationCount,
+                                    label,
+                                    path: projectPath
+                                  });
+                                }}
+                              >
+                                <span>{labels.batchDeleteProjectSessions}</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className={`${styles.composerMenuItem} nodrag [-webkit-app-region:no-drag]`}
+                                onSelect={() => {
+                                  const label = projectLabel || projectPath;
+                                  setPendingProjectAction({
+                                    kind: "remove",
+                                    label,
+                                    path: projectPath
+                                  });
+                                }}
+                              >
+                                <span>{labels.removeProject}</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       ) : null}
-                      {section.items.map((item) => {
-                        const isPendingDeleteConversation =
-                          pendingDeleteConversationId === item.id;
-
-                        return (
-                          <div
-                            key={item.id}
-                            ref={(element) => {
-                              if (element) {
-                                conversationItemElementsRef.current.set(
-                                  item.id,
-                                  element
-                                );
-                              } else {
-                                conversationItemElementsRef.current.delete(
-                                  item.id
-                                );
-                              }
-                            }}
-                            className={styles.conversationItem}
-                            data-active={item.id === activeConversationId}
-                            data-pinned={(item.pinnedAtUnixMs ?? 0) > 0}
-                            data-pending-delete={isPendingDeleteConversation}
-                            data-testid={`agent-gui-conversation-item-${item.id}`}
-                            onMouseLeave={() => {
-                              if (isPendingDeleteConversation) {
-                                onCancelDeleteConversation();
-                              }
-                            }}
-                          >
-                            <button
-                              type="button"
-                              className={styles.conversationSelect}
-                              onClick={() => onSelectConversation(item.id)}
-                            >
-                              <span className={styles.conversationTitle}>
-                                {conversationPlainTitle(
-                                  item,
-                                  labels,
-                                  uiLanguage
-                                )}
-                              </span>
-                              <ConversationMeta
-                                item={item}
-                                nowMs={currentTimeMs}
-                                labels={labels}
-                              />
-                            </button>
-                            <div className={styles.conversationActions}>
-                              {isPendingDeleteConversation ? (
-                                <button
-                                  type="button"
-                                  className={styles.conversationDeleteButton}
-                                  aria-label={labels.deleteSessionConfirm}
-                                  title={labels.deleteSessionConfirm}
-                                  disabled={isDeletingConversation}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    onConfirmDeleteConversation();
-                                  }}
-                                >
-                                  <span
-                                    className={
-                                      styles.conversationDeleteConfirmText
-                                    }
-                                  >
-                                    {labels.deleteSessionConfirm}
-                                  </span>
-                                </button>
-                              ) : (
-                                <>
-                                  <BareIconButton
-                                    className={styles.conversationPinButton}
-                                    aria-label={
-                                      (item.pinnedAtUnixMs ?? 0) > 0
-                                        ? labels.unpinSession
-                                        : labels.pinSession
-                                    }
-                                    title={
-                                      (item.pinnedAtUnixMs ?? 0) > 0
-                                        ? labels.unpinSession
-                                        : labels.pinSession
-                                    }
-                                    size="md"
-                                    onPointerDown={(event) => {
-                                      event.stopPropagation();
-                                    }}
-                                    onMouseDown={(event) => {
-                                      event.stopPropagation();
-                                    }}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      onToggleConversationPinned(
-                                        item.id,
-                                        (item.pinnedAtUnixMs ?? 0) <= 0
-                                      );
-                                    }}
-                                  >
-                                    {(item.pinnedAtUnixMs ?? 0) > 0 ? (
-                                      <PinFilledIcon aria-hidden="true" />
-                                    ) : (
-                                      <PinLinedIcon aria-hidden="true" />
-                                    )}
-                                  </BareIconButton>
-                                  <BareIconButton
-                                    className={styles.conversationDeleteButton}
-                                    aria-label={labels.deleteSession}
-                                    title={labels.deleteSession}
-                                    size="md"
-                                    onPointerDown={(event) => {
-                                      event.stopPropagation();
-                                    }}
-                                    onMouseDown={(event) => {
-                                      event.stopPropagation();
-                                    }}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      onRequestDeleteConversation(item.id);
-                                    }}
-                                  >
-                                    <CanvasNodeTrashLinedIcon aria-hidden="true" />
-                                  </BareIconButton>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
-                  </div>
-                </section>
+                    <div
+                      className={styles.conversationSectionItems}
+                      aria-hidden={isSectionCollapsed ? "true" : undefined}
+                    >
+                      <div className={styles.conversationSectionItemsInner}>
+                        {section.items.length === 0 ? (
+                          <div className={styles.conversationSectionEmpty}>
+                            {labels.emptyProjectConversations}
+                          </div>
+                        ) : null}
+                        {section.items.map((item) => {
+                          const isPendingDeleteConversation =
+                            pendingDeleteConversationId === item.id;
+
+                          return (
+                            <div
+                              key={item.id}
+                              ref={(element) => {
+                                if (element) {
+                                  conversationItemElementsRef.current.set(
+                                    item.id,
+                                    element
+                                  );
+                                } else {
+                                  conversationItemElementsRef.current.delete(
+                                    item.id
+                                  );
+                                }
+                              }}
+                              className={styles.conversationItem}
+                              data-active={item.id === activeConversationId}
+                              data-pinned={(item.pinnedAtUnixMs ?? 0) > 0}
+                              data-pending-delete={isPendingDeleteConversation}
+                              data-testid={`agent-gui-conversation-item-${item.id}`}
+                              onMouseLeave={() => {
+                                if (isPendingDeleteConversation) {
+                                  onCancelDeleteConversation();
+                                }
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className={styles.conversationSelect}
+                                onClick={() => onSelectConversation(item.id)}
+                              >
+                                <span className={styles.conversationTitle}>
+                                  {conversationPlainTitle(
+                                    item,
+                                    labels,
+                                    uiLanguage
+                                  )}
+                                </span>
+                                <ConversationMeta
+                                  item={item}
+                                  nowMs={currentTimeMs}
+                                  labels={labels}
+                                />
+                              </button>
+                              <div className={styles.conversationActions}>
+                                {isPendingDeleteConversation ? (
+                                  <button
+                                    type="button"
+                                    className={styles.conversationDeleteButton}
+                                    aria-label={labels.deleteSessionConfirm}
+                                    title={labels.deleteSessionConfirm}
+                                    disabled={isDeletingConversation}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onConfirmDeleteConversation();
+                                    }}
+                                  >
+                                    <span
+                                      className={
+                                        styles.conversationDeleteConfirmText
+                                      }
+                                    >
+                                      {labels.deleteSessionConfirm}
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <>
+                                    <BareIconButton
+                                      className={styles.conversationPinButton}
+                                      aria-label={
+                                        (item.pinnedAtUnixMs ?? 0) > 0
+                                          ? labels.unpinSession
+                                          : labels.pinSession
+                                      }
+                                      title={
+                                        (item.pinnedAtUnixMs ?? 0) > 0
+                                          ? labels.unpinSession
+                                          : labels.pinSession
+                                      }
+                                      size="md"
+                                      onPointerDown={(event) => {
+                                        event.stopPropagation();
+                                      }}
+                                      onMouseDown={(event) => {
+                                        event.stopPropagation();
+                                      }}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onToggleConversationPinned(
+                                          item.id,
+                                          (item.pinnedAtUnixMs ?? 0) <= 0
+                                        );
+                                      }}
+                                    >
+                                      {(item.pinnedAtUnixMs ?? 0) > 0 ? (
+                                        <PinFilledIcon aria-hidden="true" />
+                                      ) : (
+                                        <PinLinedIcon aria-hidden="true" />
+                                      )}
+                                    </BareIconButton>
+                                    <BareIconButton
+                                      className={
+                                        styles.conversationDeleteButton
+                                      }
+                                      aria-label={labels.deleteSession}
+                                      title={labels.deleteSession}
+                                      size="md"
+                                      onPointerDown={(event) => {
+                                        event.stopPropagation();
+                                      }}
+                                      onMouseDown={(event) => {
+                                        event.stopPropagation();
+                                      }}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onRequestDeleteConversation(item.id);
+                                      }}
+                                    >
+                                      <CanvasNodeTrashLinedIcon aria-hidden="true" />
+                                    </BareIconButton>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                </Fragment>
               );
             })
           )}
@@ -2924,30 +3117,14 @@ const AgentGUIConversationRailPane = memo(
 );
 
 function AgentGUIProjectRailHeader({
-  labels
+  labels,
+  workspaceUserProjectI18n
 }: {
   labels: Pick<
     AgentGUIViewLabels,
-    | "addProject"
-    | "createProjectCancel"
-    | "createProjectConfirm"
-    | "createProjectDocumentsUnavailable"
-    | "createProjectFailed"
-    | "createProjectNameConflict"
-    | "createProjectNameInvalid"
-    | "createProjectNameLabel"
-    | "createProjectNamePlaceholder"
-    | "createProjectNameRequired"
-    | "createProjectPermissionDenied"
-    | "loadingProjects"
-    | "noProject"
-    | "projectLabel"
-    | "projectLocked"
-    | "projectRailCreateProject"
-    | "projectRailLinkExistingProject"
-    | "projectMissingTitle"
-    | "projectUnavailable"
+    "projectRailCreateProject" | "projectRailLinkExistingProject"
   >;
+  workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
 }): React.JSX.Element {
   "use memo";
   const agentHostApi = useAgentHostApi();
@@ -2965,7 +3142,9 @@ function AgentGUIProjectRailHeader({
   return (
     <div className={styles.projectRailHeader}>
       <div className={styles.projectRailTitle}>
-        <span>{labels.projectLabel}</span>
+        <span>
+          {workspaceUserProjectI18n.tFirst(["projectSelect.projectLabel"])}
+        </span>
       </div>
       <div className={styles.projectRailAddProject}>
         <WorkspaceUserProjectSelect
@@ -2987,27 +3166,14 @@ function AgentGUIProjectRailHeader({
           contentAlign="end"
           contentSide="bottom"
           contentSideOffset={6}
+          i18n={workspaceUserProjectI18n}
           labels={{
             addProject: labels.projectRailCreateProject,
-            createProjectCancel: labels.createProjectCancel,
-            createProjectConfirm: labels.createProjectConfirm,
-            createProjectDocumentsUnavailable:
-              labels.createProjectDocumentsUnavailable,
-            createProjectFailed: labels.createProjectFailed,
-            createProjectNameConflict: labels.createProjectNameConflict,
-            createProjectNameInvalid: labels.createProjectNameInvalid,
-            createProjectNameLabel: labels.createProjectNameLabel,
-            createProjectNamePlaceholder: labels.createProjectNamePlaceholder,
-            createProjectNameRequired: labels.createProjectNameRequired,
-            createProjectPermissionDenied: labels.createProjectPermissionDenied,
             createProjectTitle: labels.projectRailCreateProject,
             linkExistingProject: labels.projectRailLinkExistingProject,
-            loadingProjects: labels.loadingProjects,
-            noProject: labels.noProject,
-            projectLabel: labels.addProject,
-            projectLocked: labels.projectLocked,
-            projectMissingTitle: labels.projectMissingTitle,
-            projectUnavailable: labels.projectUnavailable
+            projectLabel: workspaceUserProjectI18n.tFirst([
+              "projectSelect.addProject"
+            ])
           }}
           renderAddProjectIcon={() => (
             <NewWorkspaceLinedIcon
@@ -3017,6 +3183,7 @@ function AgentGUIProjectRailHeader({
             />
           )}
           selectedProjectPath={null}
+          service={agentHostApi.userProjects?.service ?? null}
           shouldApplyPreparedSelection={false}
           showCreateProjectAction
           showKnownProjectOptions={false}

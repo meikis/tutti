@@ -6,9 +6,9 @@ import type {
   AgentProviderStatusListResponse,
   AgentProviderProbeResponse,
   AgentProviderTerminalCommand,
-  NextopdClient,
+  TuttidClient,
   WorkspaceAgentProvider
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { NotificationService } from "@tutti-os/ui-notifications";
 import type { ReporterEventInput } from "../../../analytics/services/reporterService.interface.ts";
 import { DesktopAgentProviderStatusService } from "./desktopAgentProviderStatusService.ts";
@@ -18,7 +18,7 @@ test("runAction executes terminal commands and refreshes the provider status", a
   const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
   const pendingSnapshots: boolean[] = [];
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       onStatusRequest: (providers) => statusCalls.push(providers),
       snapshots: [
         createStatusResponse([
@@ -70,7 +70,7 @@ test("runAction executes terminal commands and refreshes the provider status", a
 test("runAction tracks provider login initiation and successful status result", async () => {
   const events: ReporterEventInput[] = [];
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       snapshots: [
         createStatusResponse([
           createProviderStatus({
@@ -138,7 +138,7 @@ test("runAction installs providers silently and refreshes the status", async () 
   const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
   const pendingSnapshots: boolean[] = [];
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       onRunActionRequest: (provider, actionID) =>
         actionCalls.push([provider, actionID]),
       onStatusRequest: (providers) => statusCalls.push(providers),
@@ -191,7 +191,7 @@ test("runAction reports daemon install action failures and skips refresh", async
   const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
   const service = new DesktopAgentProviderStatusService(
     {
-      nextopdClient: createNextopdClient({
+      tuttidClient: createTuttidClient({
         onStatusRequest: (providers) => statusCalls.push(providers),
         actionRuns: [
           {
@@ -246,7 +246,7 @@ test("runAction reports install failures and clears pending state", async () => 
   const notifications = createNotificationRecorder();
   const service = new DesktopAgentProviderStatusService(
     {
-      nextopdClient: createNextopdClient({
+      tuttidClient: createTuttidClient({
         actionRuns: [
           {
             actionID: "install",
@@ -300,7 +300,7 @@ test("runAction reports login launch failures and clears pending state", async (
   const notifications = createNotificationRecorder();
   const service = new DesktopAgentProviderStatusService(
     {
-      nextopdClient: createNextopdClient({
+      tuttidClient: createTuttidClient({
         snapshots: [
           createStatusResponse([
             createProviderStatus({
@@ -369,7 +369,7 @@ test("runAction refreshes when the action is a refresh action", async () => {
   const commands: AgentProviderTerminalCommand[] = [];
   const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       onStatusRequest: (providers) => statusCalls.push(providers),
       snapshots: [
         createStatusResponse([
@@ -403,7 +403,7 @@ test("runAction refreshes when the action is a refresh action", async () => {
 test("provider-scoped refresh merges the returned status into the existing snapshot", async () => {
   const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       onStatusRequest: (providers) => statusCalls.push(providers),
       snapshots: [
         createStatusResponse([
@@ -446,7 +446,7 @@ test("provider-scoped refresh merges the returned status into the existing snaps
 test("ensureLoaded reuses loaded provider statuses and only loads missing providers", async () => {
   const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       onStatusRequest: (providers) => statusCalls.push(providers),
       snapshots: [
         createStatusResponse([
@@ -482,14 +482,14 @@ test("ensureLoaded waits for unrelated in-flight loads before loading missing pr
   const firstStatusRequest = createDeferred<AgentProviderStatusListResponse>();
   const secondStatusRequest = createDeferred<AgentProviderStatusListResponse>();
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: {
+    tuttidClient: {
       async getAgentProviderStatuses(request) {
         calls.push(request?.providers);
         return calls.length === 1
           ? firstStatusRequest.promise
           : secondStatusRequest.promise;
       }
-    } as Partial<NextopdClient> as NextopdClient,
+    } as Partial<TuttidClient> as TuttidClient,
     terminalCommandRunner: {
       async runTerminalCommand() {}
     }
@@ -533,14 +533,14 @@ test("refresh waits for an in-flight load and then requests a fresh status", asy
   const firstStatusRequest = createDeferred<AgentProviderStatusListResponse>();
   const secondStatusRequest = createDeferred<AgentProviderStatusListResponse>();
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: {
+    tuttidClient: {
       async getAgentProviderStatuses(request) {
         calls.push(request?.providers);
         return calls.length === 1
           ? firstStatusRequest.promise
           : secondStatusRequest.promise;
       }
-    } as Partial<NextopdClient> as NextopdClient,
+    } as Partial<TuttidClient> as TuttidClient,
     terminalCommandRunner: {
       async runTerminalCommand() {}
     }
@@ -588,7 +588,7 @@ test("provider-scoped refresh confirms missing CLI downgrades before replacing a
     reasonCode: "cli_not_found"
   });
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       snapshots: [
         createStatusResponse([
           createProviderStatus({
@@ -641,7 +641,7 @@ test("provider-scoped refresh confirms auth downgrades before replacing a ready 
     provider: "claude-code"
   });
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       snapshots: [
         createStatusResponse([readyStatus]),
         createStatusResponse([authRequiredStatus]),
@@ -680,7 +680,7 @@ test("runAction refreshes and executes when the requested action appears", async
   const commands: AgentProviderTerminalCommand[] = [];
   const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       onStatusRequest: (providers) => statusCalls.push(providers),
       snapshots: [
         createStatusResponse([
@@ -730,7 +730,7 @@ test("runAction reports missing login actions after refresh", async () => {
   const notifications = createNotificationRecorder();
   const service = new DesktopAgentProviderStatusService(
     {
-      nextopdClient: createNextopdClient({
+      tuttidClient: createTuttidClient({
         snapshots: [
           createStatusResponse([
             createProviderStatus({
@@ -770,10 +770,10 @@ test("runAction reports missing login actions after refresh", async () => {
 
 test("refresh times out and releases the loading state when the status request hangs", async () => {
   const service = new DesktopAgentProviderStatusService({
-    nextopdClient: {
+    tuttidClient: {
       getAgentProviderStatuses: async () =>
         new Promise<AgentProviderStatusListResponse>(() => {})
-    } as Partial<NextopdClient> as NextopdClient,
+    } as Partial<TuttidClient> as TuttidClient,
     requestTimeoutMs: 1,
     terminalCommandRunner: {
       async runTerminalCommand() {}
@@ -786,7 +786,7 @@ test("refresh times out and releases the loading state when the status request h
   assert.notEqual(service.getSnapshot().error, null);
 });
 
-function createNextopdClient(input: {
+function createTuttidClient(input: {
   actionRuns?: AgentProviderActionRunResponse[];
   onProbeRequest?: (provider: WorkspaceAgentProvider) => void;
   onRunActionRequest?: (
@@ -798,7 +798,7 @@ function createNextopdClient(input: {
   ) => void;
   probes?: AgentProviderProbeResponse[];
   snapshots: AgentProviderStatusListResponse[];
-}): NextopdClient {
+}): TuttidClient {
   let index = 0;
   let actionRunIndex = 0;
   let probeIndex = 0;
@@ -830,7 +830,7 @@ function createNextopdClient(input: {
       actionRunIndex += 1;
       return actionRun;
     }
-  } as Partial<NextopdClient> as NextopdClient;
+  } as Partial<TuttidClient> as TuttidClient;
 }
 
 function createStatusResponse(

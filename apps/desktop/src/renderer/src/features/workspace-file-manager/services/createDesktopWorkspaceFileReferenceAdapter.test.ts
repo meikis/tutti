@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { DesktopHostFilesApi } from "@preload/types";
 import { createDesktopWorkspaceFileReferenceAdapter } from "./createDesktopWorkspaceFileReferenceAdapter.ts";
 
-test("desktop workspace file reference adapter lets nextopd resolve the local root", async () => {
+test("desktop workspace file reference adapter lets tuttid resolve the local root", async () => {
   const calls: Array<{
     method: string;
     request:
@@ -17,7 +17,7 @@ test("desktop workspace file reference adapter lets nextopd resolve the local ro
   }> = [];
   const adapter = createDesktopWorkspaceFileReferenceAdapter({
     hostFilesApi: {} as DesktopHostFilesApi,
-    nextopdClient: {
+    tuttidClient: {
       async getWorkspaceFileTreeSnapshot(
         _workspaceId: string,
         request:
@@ -32,19 +32,19 @@ test("desktop workspace file reference adapter lets nextopd resolve the local ro
         return {
           budgetExceeded: false,
           directory: {
-            directoryPath: "/Users/test/project/nextop",
+            directoryPath: "/Users/test/project/tutti",
             entries: [
               {
                 kind: "directory",
                 name: "superpowers",
-                path: "/Users/test/project/nextop/superpowers"
+                path: "/Users/test/project/tutti/superpowers"
               }
             ],
             prefetchState: "loaded"
           },
           prefetchBudgetMs: 500,
           prefetchDepth: 4,
-          root: "/Users/test/project/nextop"
+          root: "/Users/test/project/tutti"
         };
       },
       async listWorkspaceFileDirectory(
@@ -53,19 +53,19 @@ test("desktop workspace file reference adapter lets nextopd resolve the local ro
       ) {
         calls.push({ method: "list", request });
         return {
-          directoryPath: "/Users/test/project/nextop",
+          directoryPath: "/Users/test/project/tutti",
           entries: [
             {
               kind: "directory",
               name: "superpowers",
-              path: "/Users/test/project/nextop/superpowers"
+              path: "/Users/test/project/tutti/superpowers"
             }
           ],
-          root: "/Users/test/project/nextop",
+          root: "/Users/test/project/tutti",
           workspaceId: "workspace-1"
         };
       }
-    } as unknown as NextopdClient,
+    } as unknown as TuttidClient,
     workspaceId: "workspace-1"
   });
 
@@ -92,43 +92,43 @@ test("desktop workspace file reference adapter lets nextopd resolve the local ro
       }
     }
   ]);
-  assert.equal(snapshot?.rootPath, "/Users/test/project/nextop");
+  assert.equal(snapshot?.rootPath, "/Users/test/project/tutti");
   assert.equal(
     snapshot?.directory.entries[0]?.path,
-    "/Users/test/project/nextop/superpowers"
+    "/Users/test/project/tutti/superpowers"
   );
-  assert.equal(listing?.rootPath, "/Users/test/project/nextop");
-  assert.equal(listing?.directoryPath, "/Users/test/project/nextop");
+  assert.equal(listing?.rootPath, "/Users/test/project/tutti");
+  assert.equal(listing?.directoryPath, "/Users/test/project/tutti");
   assert.equal(
     listing?.entries[0]?.path,
-    "/Users/test/project/nextop/superpowers"
+    "/Users/test/project/tutti/superpowers"
   );
 });
 
-test("desktop workspace file reference adapter passes search abort signals to nextopd", async () => {
+test("desktop workspace file reference adapter passes search abort signals to tuttid", async () => {
   const abortController = new AbortController();
   let observedSignal: AbortSignal | undefined;
   const adapter = createDesktopWorkspaceFileReferenceAdapter({
     hostFilesApi: {} as DesktopHostFilesApi,
-    nextopdClient: {
+    tuttidClient: {
       async searchWorkspaceFiles(
         _workspaceId: string,
-        _request: Parameters<NextopdClient["searchWorkspaceFiles"]>[1],
-        requestOptions?: Parameters<NextopdClient["searchWorkspaceFiles"]>[2]
+        _request: Parameters<TuttidClient["searchWorkspaceFiles"]>[1],
+        requestOptions?: Parameters<TuttidClient["searchWorkspaceFiles"]>[2]
       ) {
         observedSignal = requestOptions?.signal ?? undefined;
         return {
           entries: [],
-          root: "/Users/test/project/nextop",
+          root: "/Users/test/project/tutti",
           workspaceId: "workspace-1"
         };
       }
-    } as unknown as NextopdClient,
+    } as unknown as TuttidClient,
     workspaceId: "workspace-1"
   });
 
   await adapter.searchReferences?.({
-    query: "nextop",
+    query: "tutti",
     signal: abortController.signal,
     workspaceId: "workspace-1"
   });

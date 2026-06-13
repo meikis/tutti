@@ -10,8 +10,8 @@ import { workspaceBrowserNodeID } from "./workspaceWorkbenchComposition.ts";
 
 test("resolveWorkspaceBrowserSearchUrl encodes search queries", () => {
   assert.equal(
-    resolveWorkspaceBrowserSearchUrl("nextop browser contribution"),
-    "https://www.google.com/search?q=nextop+browser+contribution"
+    resolveWorkspaceBrowserSearchUrl("tutti browser contribution"),
+    "https://www.google.com/search?q=tutti+browser+contribution"
   );
 });
 
@@ -115,7 +115,7 @@ test("createWorkspaceBrowserNodeExternalStateSource exposes runtime state for wo
     const dispose = source.subscribe?.(() => {});
     runtimeSnapshot["browser:node-2"] = createBrowserRuntimeState({
       title: "Tutti",
-      url: "https://nextop.example"
+      url: "https://tutti.example"
     });
     listenerRef.current?.();
 
@@ -128,7 +128,7 @@ test("createWorkspaceBrowserNodeExternalStateSource exposes runtime state for wo
       }),
       {
         title: "Tutti",
-        url: "https://nextop.example"
+        url: "https://tutti.example"
       }
     );
 

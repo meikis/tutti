@@ -7,13 +7,13 @@ Use OpenAPI as the single source of truth for daemon HTTP contracts.
 The canonical daemon API contract lives at:
 
 ```text
-services/nextopd/api/openapi/nextopd.v1.yaml
+services/tuttid/api/openapi/tuttid.v1.yaml
 ```
 
 Generated outputs derive from that spec for:
 
-- Go transport types and server contract code under `services/nextopd/api/generated`
-- TypeScript client output under `packages/clients/nextopd-ts/src/generated`
+- Go transport types and server contract code under `services/tuttid/api/generated`
+- TypeScript client output under `packages/clients/tuttid-ts/src/generated`
 
 Shared workbench snapshot schemas are the one exception inside the OpenAPI
 components section. Their canonical source lives at:
@@ -24,7 +24,7 @@ packages/workbench/snapshot/src/schema.json
 
 The OpenAPI `WorkbenchSnapshot*` component schemas are synchronized from that
 shared package so the open-source desktop and TSH can reuse the same workbench
-snapshot contract while `nextopd` still exposes a normal OpenAPI transport
+snapshot contract while `tuttid` still exposes a normal OpenAPI transport
 contract. The daemon workspace service also consumes a generated Go contract
 file derived from the same shared snapshot sources for schema-version, enum,
 and limit validation.
@@ -32,7 +32,7 @@ and limit validation.
 `WorkbenchSnapshot*` is an explicit shared-contract exception to the usual
 "generated code stays in transport" default. When it avoids duplicate
 hand-maintained mirrors, the synchronized Go snapshot contract may be reused
-inside `packages/workbench/service`, with `services/nextopd/service/workspace`
+inside `packages/workbench/service`, with `services/tuttid/service/workspace`
 consuming that shared package as a host adapter. This exception applies to the
 shared workbench snapshot contract only, not to arbitrary generated request or
 response DTOs.
@@ -51,13 +51,13 @@ Those file-based sources generate:
 - TypeScript protocol contracts, validators, and topic registry metadata under
   `packages/events/protocol/src/generated`
 - Go transport contracts and topic registry metadata under
-  `services/nextopd/api/events/generated`
+  `services/tuttid/api/events/generated`
 
 This exception is limited to the shared business event protocol boundary. The
 shared package owns the schema-first event sources and the generated
 TypeScript-facing protocol surface. The daemon still owns its WebSocket route,
 its authoritative event catalog composition, and the generated Go transport
-outputs that live under `services/nextopd/api/events/generated`.
+outputs that live under `services/tuttid/api/events/generated`.
 
 This exception does not create a second source of truth for daemon HTTP routes
 or a license to hand-maintain competing event DTOs in desktop or daemon code.
@@ -79,11 +79,11 @@ or a license to hand-maintain competing event DTOs in desktop or daemon code.
 - keep generated code limited to the transport layer
 - exception: the synchronized Go `WorkbenchSnapshot*` contract may be reused in
   `packages/workbench/service`, with host adapters such as
-  `services/nextopd/service/workspace` consuming that shared package, because it
+  `services/tuttid/service/workspace` consuming that shared package, because it
   is a repository-owned shared contract rather than an arbitrary route-local DTO
 - exception: the shared business event protocol sources live in
   `packages/events/protocol`, while daemon-owned generated Go transport outputs
-  live in `services/nextopd/api/events/generated`; keep daemon-side event-route
+  live in `services/tuttid/api/events/generated`; keep daemon-side event-route
   orchestration, catalog composition, and business workflows hand-written
 - keep business rules, orchestration, and persistence hand-written
 - keep compatibility aliases such as `/healthz` out of the versioned generated client surface unless they are part of the intended public contract
@@ -95,7 +95,7 @@ Daemon API failures should use the shared protocol-error shape in
 
 Rules:
 
-- classify daemon-facing API failures through `services/nextopd/apierrors`
+- classify daemon-facing API failures through `services/tuttid/apierrors`
 - treat `code` as the stable top-level contract for programmatic handling
 - use `reason` to narrow copy lookup within a stable `code`
 - use `params` only for structured interpolation or machine-readable context
@@ -114,7 +114,7 @@ Current canonical `ApiErrorDetails` fields are:
 - `correlationId`
 
 TypeScript consumers should normalize transport failures through
-`@tutti-os/client-nextopd-ts` instead of re-inspecting raw response payloads in
+`@tutti-os/client-tuttid-ts` instead of re-inspecting raw response payloads in
 each feature. Renderer and preload code may use `code`, `reason`, `params`, and
 `retryable` for behavior and i18n lookup, while `developerMessage` and
 `correlationId` remain diagnostic support fields.

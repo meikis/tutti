@@ -379,7 +379,7 @@ describe("agentGuiConversationModel", () => {
               role: "user",
               payload: {
                 content:
-                  "Create a local system dashboard inspired by btop. <nextop_app_factory_context>..."
+                  "Create a local system dashboard inspired by btop. <tutti_app_factory_context>..."
               },
               occurredAtUnixMs: 10
             })
@@ -546,7 +546,7 @@ describe("agentGuiConversationModel", () => {
             itemType: "message.user",
             role: "user",
             payload: {
-              text: "Create a local system dashboard inspired by btop. <nextop_app_factory_context>..."
+              text: "Create a local system dashboard inspired by btop. <tutti_app_factory_context>..."
             },
             occurredAtUnixMs: 10
           })
@@ -574,7 +574,7 @@ describe("agentGuiConversationModel", () => {
         itemType: "message.user",
         role: "user",
         payload: {
-          text: "Create a local system dashboard inspired by btop. <nextop_app_factory_context>..."
+          text: "Create a local system dashboard inspired by btop. <tutti_app_factory_context>..."
         },
         occurredAtUnixMs: 10
       }),
@@ -710,7 +710,7 @@ describe("agentGuiConversationModel", () => {
           role: "assistant",
           callType: "approval",
           callId: "call_ySuHUYSLqzwC2DXTSZk2hNbk",
-          name: "nextop-cli --help",
+          name: "tutti-cli --help",
           status: "waiting_approval",
           payload: {
             callId: "call_ySuHUYSLqzwC2DXTSZk2hNbk",

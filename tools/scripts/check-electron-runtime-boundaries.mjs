@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultWorkspaceRoot = join(scriptDirectory, "..", "..");
-const workspaceRoot = process.env.NEXTOP_WORKSPACE_ROOT ?? defaultWorkspaceRoot;
+const workspaceRoot = process.env.TUTTI_WORKSPACE_ROOT ?? defaultWorkspaceRoot;
 const ts = await loadTypeScriptModule();
 const desktopRoot = "apps/desktop";
 const runtimeRoots = ["apps/desktop/src/main", "apps/desktop/src/preload"];
@@ -881,7 +881,7 @@ async function loadTypeScriptModule() {
     ),
     join(
       defaultWorkspaceRoot,
-      "packages/clients/nextopd-ts/node_modules/typescript/lib/typescript.js"
+      "packages/clients/tuttid-ts/node_modules/typescript/lib/typescript.js"
     ),
     join(
       defaultWorkspaceRoot,

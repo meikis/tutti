@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
+import type { DesktopRendererDiagnosticPayload } from "@shared/contracts/ipc";
 import type { ReporterEventInput } from "../../../analytics/services/reporterService.interface.ts";
 import type {
   WorkspaceAppCenterApp,
@@ -144,6 +145,212 @@ test("WorkspaceAppCenterService tracks app install when the success snapshot omi
       }
     ]
   ]);
+});
+
+test("WorkspaceAppCenterService merges catalog refresh fields without regressing runtime state", async () => {
+  const service = new WorkspaceAppCenterService({
+    eventStreamClient: createEventStreamClient(),
+    gateway: createGateway({
+      listWorkspaceApps: async () =>
+        createSnapshot({
+          apps: [
+            createApp({
+              appId: "app-1",
+              availableVersion: null,
+              runtimeStatus: "running",
+              source: "builtin",
+              stateRevision: 3,
+              updateAvailable: false,
+              version: "1.0.0"
+            })
+          ]
+        }),
+      refreshWorkspaceAppCatalog: async () =>
+        createSnapshot({
+          apps: [
+            createApp({
+              appId: "app-1",
+              availableVersion: "1.1.0",
+              runtimeStatus: "idle",
+              source: "builtin",
+              stateRevision: 3,
+              updateAvailable: true,
+              version: "1.0.0"
+            })
+          ]
+        })
+    }),
+    hostFilesApi: createHostFilesApi(),
+    hostWorkspaceApi: createHostWorkspaceApi()
+  });
+
+  await service.refresh("workspace-1");
+  await service.refreshCatalog("workspace-1");
+
+  assert.equal(service.store.apps[0]?.availableVersion, "1.1.0");
+  assert.equal(service.store.apps[0]?.updateAvailable, true);
+  assert.equal(service.store.apps[0]?.runtimeStatus, "running");
+});
+
+test("WorkspaceAppCenterService keeps factory jobs when catalog refresh supersedes app refresh", async () => {
+  const diagnostics: DesktopRendererDiagnosticPayload[] = [];
+  const appRefresh = createDeferred<WorkspaceAppCenterSnapshot>();
+  const factoryRefresh = createDeferred<WorkspaceAppFactorySnapshot>();
+  const service = new WorkspaceAppCenterService({
+    eventStreamClient: createEventStreamClient(),
+    gateway: createGateway({
+      listWorkspaceAppFactoryJobs: async () => factoryRefresh.promise,
+      listWorkspaceApps: async () => appRefresh.promise,
+      refreshWorkspaceAppCatalog: async () =>
+        createSnapshot({
+          apps: [
+            createApp({
+              appId: "app-from-catalog",
+              name: "Catalog App",
+              stateRevision: 2
+            })
+          ]
+        })
+    }),
+    hostFilesApi: createHostFilesApi(),
+    hostWorkspaceApi: createHostWorkspaceApi(),
+    runtimeApi: {
+      async logRendererDiagnostic(payload) {
+        diagnostics.push(payload);
+      }
+    }
+  });
+
+  const refreshPromise = service.refresh("workspace-1");
+  await service.refreshCatalog("workspace-1");
+
+  appRefresh.resolve(
+    createSnapshot({
+      apps: [
+        createApp({
+          appId: "app-from-refresh",
+          name: "Refresh App",
+          stateRevision: 1
+        })
+      ]
+    })
+  );
+  factoryRefresh.resolve(
+    createFactorySnapshot({
+      jobs: [
+        createFactoryJob({
+          jobId: "job-visible",
+          status: "generating"
+        })
+      ]
+    })
+  );
+  await refreshPromise;
+
+  assert.equal(service.store.apps[0]?.appId, "app-from-catalog");
+  assert.equal(service.store.factoryJobs[0]?.jobId, "job-visible");
+  assert.equal(service.store.factoryJobs[0]?.status, "generating");
+
+  const discardDiagnostic = diagnostics.find(
+    (diagnostic) =>
+      diagnostic.event === "workspace_app_center_refresh_snapshot_discarded"
+  );
+  assert.deepEqual(discardDiagnostic?.details, {
+    currentSequence: 2,
+    itemCount: 1,
+    operation: "app_center.refresh",
+    sequence: 1,
+    snapshotKind: "apps"
+  });
+  const factoryDiagnostic = diagnostics.find(
+    (diagnostic) =>
+      diagnostic.event === "workspace_app_center_factory_snapshot_applied"
+  );
+  assert.deepEqual(factoryDiagnostic?.details, {
+    afterCount: 1,
+    beforeCount: 0,
+    jobs: [
+      {
+        jobId: "job-visible",
+        status: "generating",
+        updatedAtUnixMs: 1749124800000
+      }
+    ],
+    truncated: false
+  });
+});
+
+test("WorkspaceAppCenterService keeps update disabled while update install is pending", async () => {
+  let installCalls = 0;
+  let listCalls = 0;
+  const service = new WorkspaceAppCenterService({
+    eventStreamClient: createEventStreamClient(),
+    gateway: createGateway({
+      installWorkspaceApp: async () => {
+        installCalls += 1;
+        return createSnapshot({
+          apps: [
+            createApp({
+              appId: "app-1",
+              availableVersion: "1.1.0",
+              installed: true,
+              runtimeStatus: "running",
+              source: "builtin",
+              stateRevision: 3,
+              updateAvailable: true,
+              version: "1.0.0"
+            })
+          ]
+        });
+      },
+      listWorkspaceApps: async () => {
+        listCalls += 1;
+        return createSnapshot({
+          apps: [
+            createApp({
+              appId: "app-1",
+              availableVersion: listCalls > 1 ? null : "1.1.0",
+              installed: true,
+              runtimeStatus: listCalls > 1 ? "running" : "idle",
+              source: "builtin",
+              stateRevision: listCalls > 1 ? 4 : 3,
+              updateAvailable: listCalls <= 1,
+              version: listCalls > 1 ? "1.1.0" : "1.0.0"
+            })
+          ]
+        });
+      }
+    }),
+    hostFilesApi: createHostFilesApi(),
+    hostWorkspaceApi: createHostWorkspaceApi()
+  });
+
+  await service.refresh("workspace-1");
+  const firstUpdate = service.updateApp({
+    appId: "app-1",
+    trigger: "primary_action",
+    workspaceId: "workspace-1"
+  });
+  await waitFor(() => service.store.apps[0]?.runtimeStatus === "installing");
+  await service.updateApp({
+    appId: "app-1",
+    trigger: "primary_action",
+    workspaceId: "workspace-1"
+  });
+
+  assert.equal(installCalls, 1);
+  assert.equal(service.store.apps[0]?.availableVersion, "1.1.0");
+  assert.equal(service.store.apps[0]?.runtimeStatus, "installing");
+  assert.equal(service.store.apps[0]?.updateAvailable, true);
+  assert.equal(service.store.apps[0]?.version, "1.0.0");
+
+  await firstUpdate;
+  await service.refresh("workspace-1");
+
+  assert.equal(installCalls, 1);
+  assert.equal(service.store.apps[0]?.runtimeStatus, "running");
+  assert.equal(service.store.apps[0]?.updateAvailable, false);
+  assert.equal(service.store.apps[0]?.version, "1.1.0");
 });
 
 test("WorkspaceAppCenterService waits for async install completion before tracking app install", async () => {
@@ -519,7 +726,7 @@ test("WorkspaceAppCenterService consumes operation errors once", async () => {
       }
     }),
     hostFilesApi: createHostFilesApi({
-      selectAppArchive: async () => "/tmp/app.nextopapp"
+      selectAppArchive: async () => "/tmp/app.tuttiapp"
     }),
     hostWorkspaceApi: createHostWorkspaceApi()
   });
@@ -539,6 +746,48 @@ test("WorkspaceAppCenterService consumes operation errors once", async () => {
   assert.equal(service.consumeError(), secondError);
 });
 
+test("WorkspaceAppCenterService uses publish-specific workspace operation error copy", async () => {
+  const diagnostics: unknown[] = [];
+  const service = new WorkspaceAppCenterService({
+    eventStreamClient: createEventStreamClient(),
+    gateway: createGateway({
+      publishWorkspaceAppFactoryJob: async () => {
+        throw Object.assign(new Error("workspace operation failed"), {
+          code: "workspace_operation_failed",
+          developerMessage: "read AGENTS.md: no such file or directory",
+          reason: "workspace_operation_failed"
+        });
+      }
+    }),
+    hostFilesApi: createHostFilesApi(),
+    hostWorkspaceApi: createHostWorkspaceApi(),
+    runtimeApi: {
+      async logRendererDiagnostic(input) {
+        diagnostics.push(input);
+      }
+    }
+  });
+
+  await service.publishFactoryJob({
+    jobId: "job-1",
+    workspaceId: "workspace-1"
+  });
+
+  assert.equal(
+    service.store.error,
+    "The app draft did not pass its pre-publish check. Fix it from App Center before publishing."
+  );
+  assert.deepEqual(
+    diagnostics.map(
+      (entry) =>
+        (entry as { details: { toastMessage: string } }).details.toastMessage
+    ),
+    [
+      "The app draft did not pass its pre-publish check. Fix it from App Center before publishing."
+    ]
+  );
+});
+
 test("WorkspaceAppCenterService tracks import failure and catalog refresh result", async () => {
   const reporterCalls: ReporterEventInput[][] = [];
   const service = new WorkspaceAppCenterService({
@@ -555,7 +804,7 @@ test("WorkspaceAppCenterService tracks import failure and catalog refresh result
         })
     }),
     hostFilesApi: createHostFilesApi({
-      selectAppArchive: async () => "/tmp/app.nextopapp"
+      selectAppArchive: async () => "/tmp/app.tuttiapp"
     }),
     hostWorkspaceApi: createHostWorkspaceApi(),
     reporterNow: () => 1749124800000,
@@ -680,7 +929,7 @@ test("WorkspaceAppCenterService normalizes provider configuration", async () => 
     gateway: createGateway(),
     hostFilesApi: createHostFilesApi(),
     hostWorkspaceApi: createHostWorkspaceApi(),
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async getAgentProviderComposerOptions(provider) {
         assert.equal(provider, "codex");
         return {
@@ -759,7 +1008,7 @@ test("WorkspaceAppCenterService makes effective permission default visible", asy
     gateway: createGateway(),
     hostFilesApi: createHostFilesApi(),
     hostWorkspaceApi: createHostWorkspaceApi(),
-    nextopdClient: createNextopdClient({
+    tuttidClient: createTuttidClient({
       async getAgentProviderComposerOptions(provider) {
         return {
           effectiveSettings: {
@@ -875,6 +1124,20 @@ function createFactorySnapshot(
   };
 }
 
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  reject: (reason?: unknown) => void;
+  resolve: (value: T) => void;
+} {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, reject, resolve };
+}
+
 function createGateway(
   overrides: Partial<WorkspaceAppCenterGateway> = {}
 ): WorkspaceAppCenterGateway {
@@ -894,7 +1157,7 @@ function createGateway(
     async exportWorkspaceApp() {
       return {
         appId: "app-1",
-        archivePath: "/tmp/app.nextopapp",
+        archivePath: "/tmp/app.tuttiapp",
         artifactSha256: "sha",
         artifactSizeBytes: 1,
         version: "1.0.0",
@@ -1036,11 +1299,9 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   assert.equal(predicate(), true);
 }
 
-function createNextopdClient(
-  overrides: Partial<
-    Pick<NextopdClient, "getAgentProviderComposerOptions">
-  > = {}
-): Pick<NextopdClient, "getAgentProviderComposerOptions"> {
+function createTuttidClient(
+  overrides: Partial<Pick<TuttidClient, "getAgentProviderComposerOptions">> = {}
+): Pick<TuttidClient, "getAgentProviderComposerOptions"> {
   return {
     async getAgentProviderComposerOptions(provider) {
       return {

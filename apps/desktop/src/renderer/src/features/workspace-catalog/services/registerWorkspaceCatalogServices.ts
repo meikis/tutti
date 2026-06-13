@@ -1,5 +1,5 @@
 import type { ServiceRegistry } from "@zk-tech/bedrock/di";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { DesktopHostWorkspaceApi } from "@preload/types";
 import type { IReporterService } from "../../analytics/services/reporterService.interface";
 import { IWorkspaceCatalogService } from "./workspaceCatalogService.interface";
@@ -11,7 +11,7 @@ export interface WorkspaceCatalogServiceRegistrationInput {
     platform: NodeJS.Platform;
     workspace: DesktopHostWorkspaceApi;
   };
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   reporterService: Pick<IReporterService, "trackEvents">;
 }
 
@@ -24,7 +24,7 @@ export function registerWorkspaceCatalogServices(
     new WorkspaceCatalogService({
       gateway: createDesktopWorkspaceCatalogGateway(
         input.hostApi.workspace,
-        input.nextopdClient
+        input.tuttidClient
       ),
       platform: input.hostApi.platform,
       reporterService: input.reporterService

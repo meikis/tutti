@@ -1,6 +1,6 @@
 # Workspace Domain
 
-This document defines the current `workspace` domain boundaries inside `services/nextopd`.
+This document defines the current `workspace` domain boundaries inside `services/tuttid`.
 
 ## Purpose
 
@@ -12,7 +12,7 @@ The current workspace record includes:
 - `name`
 - `lastOpenedAt`
 
-The domain supports catalog CRUD plus "open workspace" semantics through `nextopd` HTTP APIs and persists data in the local SQLite database.
+The domain supports catalog CRUD plus "open workspace" semantics through `tuttid` HTTP APIs and persists data in the local SQLite database.
 
 A workspace record is not a persisted binding to one host-local directory. Local
 workspace file access is resolved at runtime by workspace-scoped capabilities
@@ -22,7 +22,7 @@ and should use the resolved host absolute root instead of the legacy
 ## Current Code Layout
 
 ```text
-services/nextopd/
+services/tuttid/
   api/workspace/
     files.go
     service.go
@@ -50,7 +50,7 @@ Owns workspace transport support for the generated daemon HTTP adapter:
 - mapping between generated workspace file DTOs and shared
   `packages/workspace/files` domain values
 
-Request and response DTOs are generated from `services/nextopd/api/openapi/nextopd.v1.yaml`.
+Request and response DTOs are generated from `services/tuttid/api/openapi/tuttid.v1.yaml`.
 Do not reintroduce hand-maintained workspace HTTP DTOs or a parallel workspace HTTP handler.
 
 `api/workspace` should not contain SQL or local file access.
@@ -113,7 +113,7 @@ Current responsibilities:
 OpenAPI is the single source of truth for exact request and response shapes, as described in [API Contracts](./api-contracts.md):
 
 ```text
-services/nextopd/api/openapi/nextopd.v1.yaml
+services/tuttid/api/openapi/tuttid.v1.yaml
 ```
 
 This section records the workspace domain semantics behind the current generated HTTP surface, not a parallel schema.
@@ -146,7 +146,7 @@ alias.
 
 Workspace file routes operate on logical paths only. They must not imply that a
 workspace catalog record persists a bound host directory. In the current
-`nextopd` local-host implementation, the logical root is the user's home
+`tuttid` local-host implementation, the logical root is the user's home
 directory at runtime.
 
 ## Workspace File Search Ranking Rules
@@ -219,7 +219,7 @@ Current rules:
 - unexpected store failures return `502`
 
 Workspace API handlers should classify domain and adapter failures through
-`services/nextopd/apierrors` before writing HTTP responses. For this domain:
+`services/tuttid/apierrors` before writing HTTP responses. For this domain:
 
 - stable client behavior should depend on protocol `code` plus optional `reason`
 - interpolation context should flow through structured `params` when needed
@@ -236,7 +236,7 @@ The shared workspace file domain owns file-specific sentinels such as
 
 The `workspace` domain currently persists to the daemon-local SQLite database:
 
-- default path: `<state-dir>/nextopd.db`
+- default path: `<state-dir>/tuttid.db`
 - state root rules are defined in [Local State Storage](./local-state-storage.md)
 
 Current schema in `data/workspace/migrations.go`:

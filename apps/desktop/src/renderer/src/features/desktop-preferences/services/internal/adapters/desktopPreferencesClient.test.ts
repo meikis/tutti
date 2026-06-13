@@ -2,16 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type {
   DesktopPreferencesStateResponse,
-  NextopdEventStreamClient,
-  NextopdClient,
+  TuttidEventStreamClient,
+  TuttidClient,
   PutDesktopPreferencesRequest
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import { createDesktopPreferencesClient } from "./desktopPreferencesClient.ts";
 
 test("desktop preferences client resolves writes from the authoritative event", async () => {
   const eventStreamClient = createFakeEventStreamClient();
   const client = createDesktopPreferencesClient(
-    createFakeNextopdClient(),
+    createFakeTuttidClient(),
     eventStreamClient
   );
 
@@ -77,7 +77,7 @@ test("desktop preferences client resolves writes from the authoritative event", 
 test("desktop preferences client fans out authoritative preference updates", async () => {
   const eventStreamClient = createFakeEventStreamClient();
   const client = createDesktopPreferencesClient(
-    createFakeNextopdClient(),
+    createFakeTuttidClient(),
     eventStreamClient
   );
   const receivedUpdates: DesktopPreferencesStateResponse["preferences"][] = [];
@@ -122,7 +122,7 @@ test("desktop preferences client fans out authoritative preference updates", asy
 test("desktop preferences client rejects pending writes when disposed", async () => {
   const eventStreamClient = createFakeEventStreamClient();
   const client = createDesktopPreferencesClient(
-    createFakeNextopdClient(),
+    createFakeTuttidClient(),
     eventStreamClient
   );
 
@@ -146,7 +146,7 @@ test("desktop preferences client rejects pending writes when disposed", async ()
 });
 
 test("desktop preferences client confirms writes from HTTP when the event does not arrive", async () => {
-  const nextopdClient = createFakeNextopdClient({
+  const tuttidClient = createFakeTuttidClient({
     initialized: true,
     preferences: {
       agentComposerDefaultsByProvider: {},
@@ -161,7 +161,7 @@ test("desktop preferences client confirms writes from HTTP when the event does n
   });
   const eventStreamClient = createFakeEventStreamClient();
   const client = createDesktopPreferencesClient(
-    nextopdClient,
+    tuttidClient,
     eventStreamClient,
     {
       authoritativeEventTimeoutMs: 0
@@ -191,13 +191,13 @@ test("desktop preferences client confirms writes from HTTP when the event does n
     sleepPreventionMode: "never",
     themeSource: "dark"
   });
-  assert.equal(nextopdClient.getDesktopPreferencesCalls, 1);
+  assert.equal(tuttidClient.getDesktopPreferencesCalls, 1);
 
   client.dispose();
 });
 
 test("desktop preferences client notifies subscribers when HTTP confirmation succeeds without an event", async () => {
-  const nextopdClient = createFakeNextopdClient({
+  const tuttidClient = createFakeTuttidClient({
     initialized: true,
     preferences: {
       agentComposerDefaultsByProvider: {},
@@ -212,7 +212,7 @@ test("desktop preferences client notifies subscribers when HTTP confirmation suc
   });
   const eventStreamClient = createFakeEventStreamClient();
   const client = createDesktopPreferencesClient(
-    nextopdClient,
+    tuttidClient,
     eventStreamClient,
     {
       authoritativeEventTimeoutMs: 0
@@ -254,7 +254,7 @@ test("desktop preferences client notifies subscribers when HTTP confirmation suc
 });
 
 test("desktop preferences client rejects writes when the authoritative state cannot be confirmed", async () => {
-  const nextopdClient = createFakeNextopdClient({
+  const tuttidClient = createFakeTuttidClient({
     initialized: true,
     preferences: {
       agentComposerDefaultsByProvider: {},
@@ -269,7 +269,7 @@ test("desktop preferences client rejects writes when the authoritative state can
   });
   const eventStreamClient = createFakeEventStreamClient();
   const client = createDesktopPreferencesClient(
-    nextopdClient,
+    tuttidClient,
     eventStreamClient,
     {
       authoritativeEventTimeoutMs: 0
@@ -290,16 +290,16 @@ test("desktop preferences client rejects writes when the authoritative state can
   });
 
   await assert.rejects(completion, /authoritative update did not arrive/);
-  assert.equal(nextopdClient.getDesktopPreferencesCalls, 1);
+  assert.equal(tuttidClient.getDesktopPreferencesCalls, 1);
 
   client.dispose();
 });
 
 test("desktop preferences client coalesces concurrent identical writes", async () => {
-  const nextopdClient = createFakeNextopdClient();
+  const tuttidClient = createFakeTuttidClient();
   const eventStreamClient = createFakeEventStreamClient();
   const client = createDesktopPreferencesClient(
-    nextopdClient,
+    tuttidClient,
     eventStreamClient,
     {
       authoritativeEventTimeoutMs: 5_000
@@ -356,7 +356,7 @@ test("desktop preferences client coalesces concurrent identical writes", async (
   client.dispose();
 });
 
-function createFakeNextopdClient(
+function createFakeTuttidClient(
   response: DesktopPreferencesStateResponse = {
     initialized: true,
     preferences: {
@@ -370,7 +370,7 @@ function createFakeNextopdClient(
       themeSource: "system"
     }
   }
-): Pick<NextopdClient, "getDesktopPreferences"> & {
+): Pick<TuttidClient, "getDesktopPreferences"> & {
   getDesktopPreferencesCalls: number;
 } {
   let getDesktopPreferencesCalls = 0;
@@ -386,7 +386,7 @@ function createFakeNextopdClient(
   };
 }
 
-function createFakeEventStreamClient(): NextopdEventStreamClient & {
+function createFakeEventStreamClient(): TuttidEventStreamClient & {
   disposeCalls: number;
   emitDesktopPreferencesUpdated(
     payload: Extract<DesktopPreferencesStateResponse, { initialized: boolean }>

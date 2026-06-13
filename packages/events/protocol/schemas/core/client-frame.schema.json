@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nextop.dev/schemas/events/client-frame.schema.json",
+  "$id": "https://tutti.dev/schemas/events/client-frame.schema.json",
   "title": "BusinessEventClientFrame",
   "oneOf": [
     {

@@ -64,18 +64,18 @@ describe("parseAgentMentionMarkdown", () => {
   it("keeps trailing-slash local paths as directory mentions", () => {
     expect(
       parseAgentMentionMarkdown(
-        "[@superpowers](/Users/test/project/nextop/superpowers/)"
+        "[@superpowers](/Users/test/project/tutti/superpowers/)"
       )
     ).toEqual({
       item: {
         kind: "file",
-        href: "/Users/test/project/nextop/superpowers/",
-        path: "/Users/test/project/nextop/superpowers/",
+        href: "/Users/test/project/tutti/superpowers/",
+        path: "/Users/test/project/tutti/superpowers/",
         name: "superpowers",
         entryKind: "directory",
-        directoryPath: "/Users/test/project/nextop"
+        directoryPath: "/Users/test/project/tutti"
       },
-      end: 55
+      end: 54
     });
   });
 

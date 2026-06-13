@@ -1,8 +1,8 @@
 import type { ServiceRegistry } from "@zk-tech/bedrock/di";
 import type {
-  NextopdClient,
-  NextopdEventStreamClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidClient,
+  TuttidEventStreamClient
+} from "@tutti-os/client-tuttid-ts";
 import { applyLocale, getActiveLocale } from "@renderer/i18n";
 import {
   applyTheme,
@@ -16,13 +16,13 @@ import { DesktopPreferencesService } from "./internal/desktopPreferencesService.
 
 export function registerDesktopPreferencesServices(
   registry: ServiceRegistry,
-  nextopdClient: NextopdClient,
-  eventStreamClient: NextopdEventStreamClient
+  tuttidClient: TuttidClient,
+  eventStreamClient: TuttidEventStreamClient
 ): IDesktopPreferencesService {
   const service = new DesktopPreferencesService({
     applyLocale,
     applyTheme,
-    client: createDesktopPreferencesClient(nextopdClient, eventStreamClient),
+    client: createDesktopPreferencesClient(tuttidClient, eventStreamClient),
     initialDockPlacement: readInitialDockPlacementFromLocation(),
     initialLocale: getActiveLocale(),
     initialTheme: getActiveTheme(),

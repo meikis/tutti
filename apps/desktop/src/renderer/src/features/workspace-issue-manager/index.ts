@@ -1,7 +1,7 @@
 import type {
-  NextopdClient,
-  NextopdEventStreamClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidClient,
+  TuttidEventStreamClient
+} from "@tutti-os/client-tuttid-ts";
 import type {
   IssueManagerAgentProviderOptionsAdapter,
   IssueManagerFileReference
@@ -13,7 +13,7 @@ import {
   createDesktopIssueManagerAgentBreakdownLauncher,
   createDesktopIssueManagerAgentRunner,
   type DesktopIssueManagerAgentGuiLaunchInput,
-  type DesktopIssueManagerAgentHostApi
+  type DesktopIssueManagerAgentSessionCreator
 } from "./internal/adapters/desktopIssueManagerAgentRunner.ts";
 import { createDesktopIssueManagerAnalytics } from "./internal/desktopIssueManagerAnalytics.ts";
 import { createDesktopIssueManagerBackend } from "./internal/adapters/desktopIssueManagerBackend.ts";
@@ -26,15 +26,15 @@ import type { IWorkspaceUserProjectService } from "../workspace-user-project";
 export { createDesktopIssueManagerNodeStateSource } from "./internal/desktopIssueManagerNodeState.ts";
 
 export function createDesktopIssueManagerFeature(input: {
-  agentHostApi: DesktopIssueManagerAgentHostApi;
   agentProviderOptions?: IssueManagerAgentProviderOptionsAdapter;
+  agentSessionCreator?: DesktopIssueManagerAgentSessionCreator;
   hostFilesApi: DesktopHostFilesApi;
   i18n: I18nRuntime<string>;
-  eventStreamClient?: NextopdEventStreamClient;
+  eventStreamClient?: TuttidEventStreamClient;
   launchAgentGui?: (
     input: DesktopIssueManagerAgentGuiLaunchInput
   ) => Promise<void> | void;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   openWorkspaceFileManager?: (
     reference: IssueManagerFileReference
   ) => Promise<boolean> | boolean;
@@ -45,13 +45,14 @@ export function createDesktopIssueManagerFeature(input: {
 }) {
   const fileAdapter = createDesktopIssueManagerFileAdapter({
     hostFilesApi: input.hostFilesApi,
-    nextopdClient: input.nextopdClient,
+    tuttidClient: input.tuttidClient,
     openWorkspaceFileManager: input.openWorkspaceFileManager,
     workspaceId: input.workspaceId
   });
 
   return createIssueManagerFeature({
     agentBreakdownLauncher: createDesktopIssueManagerAgentBreakdownLauncher({
+      agentSessionCreator: input.agentSessionCreator,
       i18n: input.i18n,
       launchAgentGui: input.launchAgentGui,
       workspaceId: input.workspaceId
@@ -62,7 +63,7 @@ export function createDesktopIssueManagerFeature(input: {
     }),
     agentProviderOptions: input.agentProviderOptions,
     agentRunner: createDesktopIssueManagerAgentRunner({
-      agentHostApi: input.agentHostApi,
+      agentSessionCreator: input.agentSessionCreator,
       i18n: input.i18n,
       launchAgentGui: input.launchAgentGui,
       workspaceId: input.workspaceId
@@ -77,17 +78,11 @@ export function createDesktopIssueManagerFeature(input: {
             })
         }
       : undefined,
-    backend: createDesktopIssueManagerBackend(input.nextopdClient),
+    backend: createDesktopIssueManagerBackend(input.tuttidClient),
     eventSource: input.eventStreamClient
       ? createDesktopIssueManagerEventSource(input.eventStreamClient)
       : undefined,
     executionDirectoryPicker: {
-      list: async () => {
-        await input.workspaceUserProjectService.ensureLoaded();
-        return {
-          projects: [...input.workspaceUserProjectService.store.projects]
-        };
-      },
       selectDirectory: () =>
         input.workspaceUserProjectService.selectDirectory(),
       service: input.workspaceUserProjectService,

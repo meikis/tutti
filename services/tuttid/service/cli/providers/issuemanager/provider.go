@@ -1,0 +1,84 @@
+package issuemanager
+
+import (
+	"context"
+
+	workspaceissues "github.com/tutti-os/tutti/packages/workspace/issues"
+	cliservice "github.com/tutti-os/tutti/services/tuttid/service/cli"
+	workspaceservice "github.com/tutti-os/tutti/services/tuttid/service/workspace"
+)
+
+const appID = "issue-manager"
+
+type IssueManager interface {
+	ListTopics(context.Context, string) (workspaceissues.TopicList, error)
+	CreateTopic(context.Context, string, workspaceservice.CreateIssueManagerTopicInput) (workspaceissues.Topic, error)
+	UpdateTopic(context.Context, string, string, workspaceservice.UpdateIssueManagerTopicInput) (workspaceissues.Topic, error)
+	DeleteTopic(context.Context, string, string) (bool, error)
+	ListIssues(context.Context, string, workspaceservice.ListIssueManagerItemsInput) (workspaceissues.IssueList, error)
+	CreateIssue(context.Context, string, workspaceservice.CreateIssueManagerIssueInput) (workspaceissues.Issue, error)
+	GetIssueDetail(context.Context, string, string) (workspaceissues.IssueDetail, error)
+	UpdateIssue(context.Context, string, string, workspaceservice.UpdateIssueManagerIssueInput) (workspaceissues.Issue, error)
+	DeleteIssue(context.Context, string, string) (bool, error)
+	ListTasks(context.Context, string, string, workspaceservice.ListIssueManagerItemsInput) (workspaceissues.TaskList, error)
+	CreateTask(context.Context, string, string, workspaceservice.CreateIssueManagerTaskInput) (workspaceissues.Task, error)
+	GetTaskDetail(context.Context, string, string, string) (workspaceissues.TaskDetail, error)
+	UpdateTask(context.Context, string, string, string, workspaceservice.UpdateIssueManagerTaskInput) (workspaceissues.Task, error)
+	DeleteTask(context.Context, string, string, string) (bool, error)
+	ListRuns(context.Context, string, string, string) ([]workspaceissues.Run, error)
+	CreateRun(context.Context, string, string, string, workspaceservice.CreateIssueManagerRunInput) (workspaceissues.Run, error)
+	GetRunDetail(context.Context, string, string, string, string) (workspaceissues.RunDetail, error)
+	CompleteRun(context.Context, string, string, string, string, workspaceservice.CompleteIssueManagerRunInput) (workspaceissues.RunDetail, error)
+}
+
+type Provider struct {
+	workspaces cliservice.WorkspaceCatalog
+	issues     IssueManager
+}
+
+func NewProvider(workspaces cliservice.WorkspaceCatalog, issues IssueManager) Provider {
+	return Provider{workspaces: workspaces, issues: issues}
+}
+
+func (Provider) AppID() string {
+	return appID
+}
+
+func (p Provider) Commands() []cliservice.Command {
+	return []cliservice.Command{
+		p.newTopicListCommand(),
+		p.newTopicCreateCommand(),
+		p.newTopicUpdateCommand(),
+		p.newTopicDeleteCommand(),
+		p.newIssueListCommand(),
+		p.newIssueGetCommand(),
+		p.newIssueCreateCommand(),
+		p.newIssueUpdateCommand(),
+		p.newIssueDeleteCommand(),
+		p.newTaskListCommand(),
+		p.newTaskGetCommand(),
+		p.newTaskCreateCommand(),
+		p.newTaskUpdateCommand(),
+		p.newTaskDeleteCommand(),
+		p.newIssueRunCreateCommand(),
+		p.newIssueRunCompleteCommand(),
+		p.newRunListCommand(),
+		p.newRunGetCommand(),
+		p.newRunCreateCommand(),
+		p.newRunCompleteCommand(),
+	}
+}
+
+func (p Provider) workspaceID(ctx context.Context, request cliservice.InvokeRequest) (string, error) {
+	if p.workspaces == nil {
+		return "", workspaceissues.ErrInvalidArgument
+	}
+	return cliservice.ResolveWorkspaceID(ctx, p.workspaces, request.Context.WorkspaceID)
+}
+
+func (p Provider) requireIssueManager() error {
+	if p.issues == nil {
+		return workspaceissues.ErrInvalidArgument
+	}
+	return nil
+}

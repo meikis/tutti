@@ -30,7 +30,7 @@ import type {
 } from "./types.ts";
 
 const initializedMetadataKeys = [
-  "nextopWorkbenchInitialized",
+  "tuttiWorkbenchInitialized",
   "workbenchHostInitialized"
 ] as const;
 export const COMPACT_LAUNCH_WIDTH_THRESHOLD = 1440;

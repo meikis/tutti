@@ -623,7 +623,7 @@ describe("AgentRichTextEditor", () => {
     act(() => {
       ref.current?.insertWorkspaceReferences([
         {
-          path: "/Users/test/project/nextop/docs/README.md",
+          path: "/Users/test/project/tutti/docs/README.md",
           displayName: "README.md",
           kind: "file"
         }
@@ -632,7 +632,7 @@ describe("AgentRichTextEditor", () => {
 
     await waitFor(() =>
       expect(onChange).toHaveBeenLastCalledWith(
-        "Read [@README.md](/Users/test/project/nextop/docs/README.md) "
+        "Read [@README.md](/Users/test/project/tutti/docs/README.md) "
       )
     );
   });
@@ -795,7 +795,7 @@ describe("AgentRichTextEditor", () => {
         appId: "vibe-design",
         name: "Vibe Design",
         description: "Create prototypes",
-        iconUrl: "nextop://workspace-apps/vibe-design/icon.png"
+        iconUrl: "tutti://workspace-apps/vibe-design/icon.png"
       });
     });
 
@@ -810,7 +810,7 @@ describe("AgentRichTextEditor", () => {
       editor.querySelector(
         '[data-slot="mention-pill"][data-agent-mention-kind="workspace-app"] img'
       )
-    ).toHaveAttribute("src", "nextop://workspace-apps/vibe-design/icon.png");
+    ).toHaveAttribute("src", "tutti://workspace-apps/vibe-design/icon.png");
     expect(
       editor.querySelector(
         '[data-slot="mention-pill"][data-agent-mention-kind="workspace-app"] button[aria-label="Remove mention"]'
@@ -837,7 +837,7 @@ describe("AgentRichTextEditor", () => {
           '<a data-agent-file-mention="true"',
           ' data-agent-mention-kind="workspace-app"',
           ' data-agent-mention-href="mention://workspace-app?appId=daily-product-radar&amp;workspaceId=workspace-1"',
-          ' data-agent-mention-icon-url="nextop://workspace-apps/daily-product-radar/icon.png">',
+          ' data-agent-mention-icon-url="tutti://workspace-apps/daily-product-radar/icon.png">',
           "Daily Product Radar",
           "</a>"
         ].join("")
@@ -857,7 +857,7 @@ describe("AgentRichTextEditor", () => {
       )
     ).toHaveAttribute(
       "src",
-      "nextop://workspace-apps/daily-product-radar/icon.png"
+      "tutti://workspace-apps/daily-product-radar/icon.png"
     );
   });
 
@@ -924,7 +924,7 @@ describe("AgentRichTextEditor", () => {
   it("preserves selected local folders as folder mentions in readonly hydration", async () => {
     const onChange = vi.fn();
     const ref = createRef<AgentRichTextEditorHandle>();
-    const localFolderPath = "/Users/test/project/nextop/superpowers";
+    const localFolderPath = "/Users/test/project/tutti/superpowers";
     const { unmount } = render(
       <AgentRichTextEditor
         ref={ref}
@@ -950,14 +950,14 @@ describe("AgentRichTextEditor", () => {
 
     await waitFor(() =>
       expect(onChange).toHaveBeenLastCalledWith(
-        "[@superpowers](/Users/test/project/nextop/superpowers/) "
+        "[@superpowers](/Users/test/project/tutti/superpowers/) "
       )
     );
 
     unmount();
     render(
       <AgentRichTextEditor
-        value="[@superpowers](/Users/test/project/nextop/superpowers/) "
+        value="[@superpowers](/Users/test/project/tutti/superpowers/) "
         disabled={true}
         placeholder="Prompt"
         onChange={vi.fn()}

@@ -11,8 +11,8 @@ const shutdownTimeoutMs = 5_000;
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = join(scriptDir, "..", "..");
-const nextopdDir = join(workspaceRoot, "services", "nextopd");
-const defaultsPath = join(workspaceRoot, "config", "nextop.defaults.json");
+const tuttidDir = join(workspaceRoot, "services", "tuttid");
+const defaultsPath = join(workspaceRoot, "config", "tutti.defaults.json");
 const generatedDefaults = JSON.parse(await readFile(defaultsPath, "utf8"));
 const installDevCliScriptPath = join(
   workspaceRoot,
@@ -21,7 +21,7 @@ const installDevCliScriptPath = join(
   "install-dev-cli.mjs"
 );
 
-const stateDirOverride = process.env.NEXTOP_STATE_DIR?.trim();
+const stateDirOverride = process.env.TUTTI_STATE_DIR?.trim();
 const stateDir = stateDirOverride || resolveDevelopmentStateRoot();
 const listenerInfoPath = join(
   stateDir,
@@ -36,29 +36,29 @@ let exitCode = 0;
 installDevCli();
 
 const daemon = spawn(resolveCommand("go"), ["run", "."], {
-  cwd: nextopdDir,
+  cwd: tuttidDir,
   env: {
     ...process.env,
-    NEXTOPD_ACCESS_TOKEN: accessToken,
-    NEXTOPD_ADDR: "127.0.0.1:0",
-    NEXTOPD_LISTENER_INFO_PATH: listenerInfoPath,
-    NEXTOPD_LOG_OUTPUT: process.env.NEXTOPD_LOG_OUTPUT?.trim() || "tee",
-    NEXTOP_ANALYTICS_DEBUG:
-      process.env.NEXTOP_ANALYTICS_DEBUG?.trim() ||
-      process.env.VITE_NEXTOP_ANALYTICS_DEBUG?.trim() ||
+    TUTTID_ACCESS_TOKEN: accessToken,
+    TUTTID_ADDR: "127.0.0.1:0",
+    TUTTID_LISTENER_INFO_PATH: listenerInfoPath,
+    TUTTID_LOG_OUTPUT: process.env.TUTTID_LOG_OUTPUT?.trim() || "tee",
+    TUTTI_ANALYTICS_DEBUG:
+      process.env.TUTTI_ANALYTICS_DEBUG?.trim() ||
+      process.env.VITE_TUTTI_ANALYTICS_DEBUG?.trim() ||
       "",
-    NEXTOP_ENV: "development",
-    NEXTOP_STATE_DIR: stateDir
+    TUTTI_ENV: "development",
+    TUTTI_STATE_DIR: stateDir
   },
   stdio: ["ignore", "pipe", "pipe"]
 });
 
 daemon.stdout?.on("data", (chunk) => {
-  process.stdout.write(`[nextopd] ${chunk.toString()}`);
+  process.stdout.write(`[tuttid] ${chunk.toString()}`);
 });
 
 daemon.stderr?.on("data", (chunk) => {
-  process.stderr.write(`[nextopd] ${chunk.toString()}`);
+  process.stderr.write(`[tuttid] ${chunk.toString()}`);
 });
 
 let vite = null;
@@ -74,11 +74,11 @@ try {
     accessToken
   );
 
-  console.log(`[dev-web] nextopd backend ready at ${baseUrl}`);
+  console.log(`[dev-web] tuttid backend ready at ${baseUrl}`);
   console.log(`[dev-web] State root: ${stateDir}`);
   console.log(`[dev-web] Do not open that backend URL in the browser.`);
   console.log(`[dev-web] Open the Vite Local URL printed below instead.`);
-  console.log(`[dev-web] CLI endpoint ready: nextop-dev status`);
+  console.log(`[dev-web] CLI endpoint ready: tutti-dev status`);
   if (startupWorkspaceID) {
     console.log(
       `[dev-web] Startup workspace is injected automatically: ${startupWorkspaceID}`
@@ -92,11 +92,11 @@ try {
       cwd: workspaceRoot,
       env: {
         ...process.env,
-        VITE_NEXTOPD_ACCESS_TOKEN: accessToken,
-        VITE_NEXTOPD_BASE_URL: baseUrl,
-        VITE_NEXTOP_WEB_DEV: "1",
+        VITE_TUTTID_ACCESS_TOKEN: accessToken,
+        VITE_TUTTID_BASE_URL: baseUrl,
+        VITE_TUTTI_WEB_DEV: "1",
         ...(startupWorkspaceID
-          ? { VITE_NEXTOP_WEB_WORKSPACE_ID: startupWorkspaceID }
+          ? { VITE_TUTTI_WEB_WORKSPACE_ID: startupWorkspaceID }
           : {})
       },
       stdio: "inherit"
@@ -129,7 +129,7 @@ try {
   ]);
 
   if (result.source === "daemon" && isAlive(vite) && result.code !== 0) {
-    console.error("[dev-web] nextopd exited before Vite stopped.");
+    console.error("[dev-web] tuttid exited before Vite stopped.");
     exitCode = result.code || 1;
   } else {
     exitCode = result.code;
@@ -154,13 +154,13 @@ function installDevCli() {
     cwd: workspaceRoot,
     env: {
       ...process.env,
-      NEXTOP_ENV: "development"
+      TUTTI_ENV: "development"
     },
     stdio: "inherit"
   });
   if (result.status !== 0) {
     throw new Error(
-      `install nextop-dev failed with exit code ${result.status ?? "unknown"}`
+      `install tutti-dev failed with exit code ${result.status ?? "unknown"}`
     );
   }
 }
@@ -176,7 +176,7 @@ async function waitForHealthyBaseUrl(
   while (Date.now() < deadline) {
     if (!isProcessAlive()) {
       throw new Error(
-        `nextopd exited before health check succeeded: ${String(lastError ?? "unknown error")}`
+        `tuttid exited before health check succeeded: ${String(lastError ?? "unknown error")}`
       );
     }
 
@@ -197,7 +197,7 @@ async function waitForHealthyBaseUrl(
   }
 
   throw new Error(
-    `timed out waiting for nextopd health: ${String(lastError ?? "unknown error")}`
+    `timed out waiting for tuttid health: ${String(lastError ?? "unknown error")}`
   );
 }
 

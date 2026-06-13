@@ -13,6 +13,7 @@ function promptItem(
   return {
     id: `message-center-${overrides.agentSessionId}`,
     provider: "codex",
+    userId: null,
     title: overrides.agentSessionId,
     identity: null,
     cwd: "/workspace",

@@ -33,9 +33,9 @@ import type {
 import type { DesktopCustomWallpaperImage } from "@shared/contracts/ipc";
 import { processCustomWallpaperImage } from "./customWallpaperImageProcessing";
 import type {
-  NextopdClient,
-  NextopdEventStreamClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidClient,
+  TuttidEventStreamClient
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopWorkspaceWorkbenchRepository } from "./adapters/desktopWorkspaceWorkbenchRepository";
 import { createDesktopWorkspaceWorkbenchRepository } from "./adapters/desktopWorkspaceWorkbenchRepository";
 import { IDesktopRichTextAtService } from "../../../rich-text-at/services/richTextAtService.interface.ts";
@@ -47,6 +47,10 @@ import {
   IWorkspaceAgentActivityService,
   type IWorkspaceAgentActivityService as WorkspaceAgentActivityService
 } from "../../../workspace-agent/services/workspaceAgentActivityService.interface.ts";
+import {
+  IWorkspaceAgentPromptSessionService,
+  type IWorkspaceAgentPromptSessionService as WorkspaceAgentPromptSessionService
+} from "../../../workspace-agent/services/workspaceAgentPromptSessionService.interface.ts";
 import {
   createWorkspaceAppCenterDockEntries,
   IWorkspaceAppCenterService,
@@ -91,6 +95,11 @@ import {
   type WorkspaceDockIconSet
 } from "../workspaceDockIconStyle.ts";
 
+const workspaceDockNativePreviewMaxWidthPx = 260;
+const workspaceDockNativePreviewMaxHeightPx = 170;
+const workspaceDockNativePreviewTimeoutMs = 2_500;
+let isolatedWorkspaceWindowPreviewQueue: Promise<void> = Promise.resolve();
+
 export interface WorkspaceWorkbenchHostServiceDependencies {
   agentProviderStatusService: AgentProviderStatusService;
   appCenterService: IWorkspaceAppCenterService;
@@ -104,8 +113,9 @@ export interface WorkspaceWorkbenchHostServiceDependencies {
   workspaceFileManagerService: IWorkspaceFileManagerService;
   workspaceUserProjectService: IWorkspaceUserProjectService;
   workspaceAgentActivityService: WorkspaceAgentActivityService;
-  eventStreamClient?: NextopdEventStreamClient;
-  nextopdClient: NextopdClient;
+  workspaceAgentPromptSessionService: WorkspaceAgentPromptSessionService;
+  eventStreamClient?: TuttidEventStreamClient;
+  tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"
@@ -120,12 +130,12 @@ export interface WorkspaceWorkbenchHostServiceDependencies {
 export interface WorkspaceWorkbenchHostExternalDependencies {
   browserApi?: DesktopBrowserApi;
   dockPreviewCacheApi: DesktopDockPreviewCacheApi;
-  eventStreamClient?: NextopdEventStreamClient;
+  eventStreamClient?: TuttidEventStreamClient;
   hostFilesApi: DesktopHostFilesApi;
   hostNotificationsApi: Pick<DesktopHostNotificationsApi, "onNavigate">;
   hostWindowApi: DesktopHostWindowApi;
   hostWorkspaceApi: Pick<DesktopHostWorkspaceApi, "onOpenSettingsRequest">;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"
@@ -170,12 +180,13 @@ export class WorkspaceWorkbenchHostService implements IWorkspaceWorkbenchHostSer
     richTextAtService: IDesktopRichTextAtService,
     agentProviderStatusService: AgentProviderStatusService,
     workspaceAgentActivityService: WorkspaceAgentActivityService,
+    workspaceAgentPromptSessionService: WorkspaceAgentPromptSessionService,
     appCenterService: IWorkspaceAppCenterService,
     workspaceFileManagerService: IWorkspaceFileManagerService,
     workspaceUserProjectService: IWorkspaceUserProjectService
   ) {
     const repository = createDesktopWorkspaceWorkbenchRepository(
-      externalDependencies.nextopdClient
+      externalDependencies.tuttidClient
     );
     this.dependencies = {
       agentProviderStatusService,
@@ -193,7 +204,8 @@ export class WorkspaceWorkbenchHostService implements IWorkspaceWorkbenchHostSer
       workspaceFileManagerService,
       workspaceUserProjectService,
       workspaceAgentActivityService,
-      nextopdClient: externalDependencies.nextopdClient,
+      workspaceAgentPromptSessionService,
+      tuttidClient: externalDependencies.tuttidClient,
       platformApi: externalDependencies.platformApi,
       repository,
       reporterService: externalDependencies.reporterService,
@@ -581,7 +593,9 @@ export class WorkspaceWorkbenchHostService implements IWorkspaceWorkbenchHostSer
             this.dependencies.workspaceUserProjectService,
           workspaceAgentActivityService:
             this.dependencies.workspaceAgentActivityService,
-          nextopdClient: this.dependencies.nextopdClient,
+          workspaceAgentPromptSessionService:
+            this.dependencies.workspaceAgentPromptSessionService,
+          tuttidClient: this.dependencies.tuttidClient,
           platformApi: this.dependencies.platformApi,
           reporterService: this.dependencies.reporterService,
           renderFilesNodeBody: (context) =>
@@ -594,6 +608,11 @@ export class WorkspaceWorkbenchHostService implements IWorkspaceWorkbenchHostSer
       });
 
     const baseHostInput: WorkspaceWorkbenchHostInput = {
+      captureNodePreviewImage: createDesktopWorkspaceNodePreviewCapture(
+        this.dependencies.hostWindowApi,
+        this.dependencies.runtimeApi,
+        input.workspaceId
+      ),
       contributions: contributionRegistry.contributions,
       debugDiagnostics: createWorkspaceWorkbenchDebugDiagnostics(
         this.dependencies.runtimeApi,
@@ -710,13 +729,342 @@ export class WorkspaceWorkbenchHostService implements IWorkspaceWorkbenchHostSer
   }
 }
 
+function createDesktopWorkspaceNodePreviewCapture(
+  hostWindowApi: DesktopHostWindowApi,
+  runtimeApi: Pick<DesktopRuntimeApi, "logRendererDiagnostic">,
+  workspaceId: string
+): NonNullable<WorkspaceWorkbenchHostInput["captureNodePreviewImage"]> {
+  return async (node) => {
+    if (node.isMinimized || document.visibilityState !== "visible") {
+      logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+        details: {
+          documentVisibilityState: document.visibilityState,
+          isMinimized: node.isMinimized,
+          nodeId: node.id,
+          typeId: node.data.typeId
+        },
+        event: "dock_preview_capture.skipped",
+        level: "debug"
+      });
+      return null;
+    }
+
+    const captureContext = resolveWorkspaceNodeCaptureTarget(node.id);
+    if (!captureContext) {
+      logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+        details: {
+          nodeId: node.id,
+          typeId: node.data.typeId
+        },
+        event: "dock_preview_capture.target_missing",
+        level: "warn"
+      });
+      return null;
+    }
+
+    const { captureTarget, windowElement } = captureContext;
+    const rect = captureTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+        details: {
+          height: rect.height,
+          nodeId: node.id,
+          typeId: node.data.typeId,
+          width: rect.width,
+          x: rect.left,
+          y: rect.top
+        },
+        event: "dock_preview_capture.invalid_rect",
+        level: "warn"
+      });
+      return null;
+    }
+
+    const nativeCaptureBlockReason = resolveNativeCaptureBlockReason(
+      captureTarget,
+      rect
+    );
+    if (nativeCaptureBlockReason) {
+      logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+        details: {
+          height: rect.height,
+          nodeId: node.id,
+          reason: nativeCaptureBlockReason,
+          typeId: node.data.typeId,
+          width: rect.width,
+          x: rect.left,
+          y: rect.top
+        },
+        event: "dock_preview_capture.native_skipped",
+        level: "debug"
+      });
+      return null;
+    }
+
+    const captureStartedAt = performance.now();
+    logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+      details: {
+        height: rect.height,
+        nodeId: node.id,
+        timeoutMs: workspaceDockNativePreviewTimeoutMs,
+        typeId: node.data.typeId,
+        width: rect.width,
+        x: rect.left,
+        y: rect.top
+      },
+      event: "dock_preview_capture.started",
+      level: "info"
+    });
+
+    let captureResult: DockPreviewCaptureResult;
+    try {
+      const capturePromise = captureIsolatedWorkspaceWindowPreview(
+        windowElement,
+        () =>
+          hostWindowApi.capturePreview({
+            maxHeight: workspaceDockNativePreviewMaxHeightPx,
+            maxWidth: workspaceDockNativePreviewMaxWidthPx,
+            rect: {
+              height: rect.height,
+              width: rect.width,
+              x: rect.left,
+              y: rect.top
+            }
+          })
+      );
+      capturePromise.catch(() => undefined);
+      captureResult = await resolveDockPreviewCaptureWithTimeout(
+        capturePromise,
+        workspaceDockNativePreviewTimeoutMs
+      );
+    } catch (error) {
+      logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+        details: {
+          durationMs: Math.round(performance.now() - captureStartedAt),
+          error: error instanceof Error ? error.message : String(error),
+          nodeId: node.id,
+          typeId: node.data.typeId
+        },
+        event: "dock_preview_capture.ipc_failed",
+        level: "warn"
+      });
+      return null;
+    }
+
+    if (captureResult.status === "timeout") {
+      logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+        details: {
+          durationMs: Math.round(performance.now() - captureStartedAt),
+          nodeId: node.id,
+          timeoutMs: workspaceDockNativePreviewTimeoutMs,
+          typeId: node.data.typeId
+        },
+        event: "dock_preview_capture.timed_out",
+        level: "warn"
+      });
+      return null;
+    }
+
+    const previewImageUrl = captureResult.previewImageUrl;
+
+    if (!previewImageUrl) {
+      logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+        details: {
+          durationMs: Math.round(performance.now() - captureStartedAt),
+          height: rect.height,
+          nodeId: node.id,
+          typeId: node.data.typeId,
+          width: rect.width,
+          x: rect.left,
+          y: rect.top
+        },
+        event: "dock_preview_capture.empty_result",
+        level: "warn"
+      });
+    } else {
+      logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
+        details: {
+          durationMs: Math.round(performance.now() - captureStartedAt),
+          nodeId: node.id,
+          previewLength: previewImageUrl.length,
+          typeId: node.data.typeId
+        },
+        event: "dock_preview_capture.succeeded",
+        level: "info"
+      });
+    }
+
+    return previewImageUrl;
+  };
+}
+
+function resolveNativeCaptureBlockReason(
+  _target: HTMLElement,
+  rect: DOMRect
+): "outside_viewport" | null {
+  if (
+    rect.left < 0 ||
+    rect.top < 0 ||
+    rect.right > window.innerWidth ||
+    rect.bottom > window.innerHeight
+  ) {
+    return "outside_viewport";
+  }
+  return null;
+}
+
+function captureIsolatedWorkspaceWindowPreview(
+  windowElement: HTMLElement,
+  capturePreview: () => Promise<string | null>
+): Promise<string | null> {
+  return enqueueIsolatedWorkspaceWindowPreviewCapture(() =>
+    runIsolatedWorkspaceWindowPreviewCapture(windowElement, capturePreview)
+  );
+}
+
+function enqueueIsolatedWorkspaceWindowPreviewCapture(
+  task: () => Promise<string | null>
+): Promise<string | null> {
+  const result = isolatedWorkspaceWindowPreviewQueue.then(task, task);
+  isolatedWorkspaceWindowPreviewQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
+
+function runIsolatedWorkspaceWindowPreviewCapture(
+  windowElement: HTMLElement,
+  capturePreview: () => Promise<string | null>
+): Promise<string | null> {
+  const activeAttribute = "data-workbench-preview-capture-active";
+  const targetAttribute = "data-workbench-preview-capture-target";
+  const styleElement = document.createElement("style");
+  styleElement.textContent = `
+html[${activeAttribute}="true"] [data-workbench-window-id]:not([${targetAttribute}="true"]),
+html[${activeAttribute}="true"] [data-desktop-dock-popup-root],
+html[${activeAttribute}="true"] [data-radix-popper-content-wrapper] {
+  visibility: hidden !important;
+}
+`;
+
+  const previousActiveValue =
+    document.documentElement.getAttribute(activeAttribute);
+  const previousTargetValue = windowElement.getAttribute(targetAttribute);
+  document.head.appendChild(styleElement);
+  windowElement.setAttribute(targetAttribute, "true");
+  document.documentElement.setAttribute(activeAttribute, "true");
+
+  return waitForAnimationFrame()
+    .then(waitForAnimationFrame)
+    .then(capturePreview)
+    .finally(() => {
+      if (previousTargetValue === null) {
+        windowElement.removeAttribute(targetAttribute);
+      } else {
+        windowElement.setAttribute(targetAttribute, previousTargetValue);
+      }
+      if (previousActiveValue === null) {
+        document.documentElement.removeAttribute(activeAttribute);
+      } else {
+        document.documentElement.setAttribute(
+          activeAttribute,
+          previousActiveValue
+        );
+      }
+      styleElement.remove();
+    });
+}
+
+function waitForAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+type DockPreviewCaptureResult =
+  | {
+      previewImageUrl: string | null;
+      status: "resolved";
+    }
+  | {
+      status: "timeout";
+    };
+
+function resolveDockPreviewCaptureWithTimeout(
+  capturePromise: Promise<string | null>,
+  timeoutMs: number
+): Promise<DockPreviewCaptureResult> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<DockPreviewCaptureResult>((resolve) => {
+    timeout = setTimeout(() => resolve({ status: "timeout" }), timeoutMs);
+  });
+  return Promise.race([
+    capturePromise.then((previewImageUrl) => ({
+      previewImageUrl,
+      status: "resolved" as const
+    })),
+    timeoutPromise
+  ]).finally(() => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  });
+}
+
+function logDockPreviewCaptureDiagnostic(
+  runtimeApi: Pick<DesktopRuntimeApi, "logRendererDiagnostic">,
+  workspaceId: string,
+  input: {
+    details: Record<string, unknown>;
+    event: string;
+    level: "debug" | "info" | "warn";
+  }
+): void {
+  void runtimeApi
+    .logRendererDiagnostic({
+      details: input.details,
+      event: input.event,
+      level: input.level,
+      source: "workspace-workbench",
+      workspaceId
+    })
+    .catch(() => undefined);
+}
+
+function resolveWorkspaceNodeCaptureTarget(nodeId: string): {
+  captureTarget: HTMLElement;
+  windowElement: HTMLElement;
+} | null {
+  const windowElement =
+    Array.from(
+      document.querySelectorAll<HTMLElement>("[data-workbench-window-id]")
+    ).find((candidate) => candidate.dataset.workbenchWindowId === nodeId) ??
+    null;
+  if (!windowElement) {
+    return null;
+  }
+  const captureTarget =
+    windowElement.querySelector<HTMLElement>(
+      '[data-workbench-window-capture="true"]'
+    ) ??
+    windowElement.querySelector<HTMLElement>(".workbench-window") ??
+    windowElement;
+  return { captureTarget, windowElement };
+}
+
 // Avoid decorator syntax so the renderer Babel pass can parse this file.
 IDesktopRichTextAtService(WorkspaceWorkbenchHostService, undefined, 1);
 IAgentProviderStatusService(WorkspaceWorkbenchHostService, undefined, 2);
 IWorkspaceAgentActivityService(WorkspaceWorkbenchHostService, undefined, 3);
-IWorkspaceAppCenterService(WorkspaceWorkbenchHostService, undefined, 4);
-IWorkspaceFileManagerService(WorkspaceWorkbenchHostService, undefined, 5);
-IWorkspaceUserProjectService(WorkspaceWorkbenchHostService, undefined, 6);
+IWorkspaceAgentPromptSessionService(
+  WorkspaceWorkbenchHostService,
+  undefined,
+  4
+);
+IWorkspaceAppCenterService(WorkspaceWorkbenchHostService, undefined, 5);
+IWorkspaceFileManagerService(WorkspaceWorkbenchHostService, undefined, 6);
+IWorkspaceUserProjectService(WorkspaceWorkbenchHostService, undefined, 7);
 
 interface CachedWorkspaceWorkbenchHostInput {
   appI18n: I18nRuntime<string>;
@@ -754,7 +1102,7 @@ function createWorkspaceWorkbenchDebugDiagnostics(
     isEnabled() {
       try {
         return (
-          globalThis.localStorage?.getItem("nextopWorkbenchDebugFrames") === "1"
+          globalThis.localStorage?.getItem("tuttiWorkbenchDebugFrames") === "1"
         );
       } catch {
         return false;

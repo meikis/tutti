@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createI18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import {
-  NextopdProtocolError,
-  type NextopdClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidProtocolError,
+  type TuttidClient
+} from "@tutti-os/client-tuttid-ts";
 import {
   createWorkspaceFileManagerI18nRuntime,
   type WorkspaceFileManagerPersistedState,
@@ -101,7 +101,7 @@ test("workspace file manager service falls back to home when restored state is i
 
 test("workspace file manager service notifies only restorable snapshot changes", async () => {
   const dependencies = createDependenciesStub();
-  dependencies.nextopdClient.listWorkspaceFileDirectory = async (
+  dependencies.tuttidClient.listWorkspaceFileDirectory = async (
     workspaceId,
     input
   ) => ({
@@ -138,7 +138,7 @@ test("workspace file manager service notifies only restorable snapshot changes",
 test("workspace file manager service sends mutation errors through error notifications", async () => {
   applyLocale("en");
   const dependencies = createDependenciesStub();
-  dependencies.nextopdClient.listWorkspaceFileDirectory = async (
+  dependencies.tuttidClient.listWorkspaceFileDirectory = async (
     workspaceId,
     input
   ) => ({
@@ -147,8 +147,8 @@ test("workspace file manager service sends mutation errors through error notific
     root: "/Users/demo/project",
     workspaceId
   });
-  dependencies.nextopdClient.createWorkspaceFile = async () => {
-    throw new NextopdProtocolError({
+  dependencies.tuttidClient.createWorkspaceFile = async () => {
+    throw new TuttidProtocolError({
       code: "invalid_request",
       reason: "entry_already_exists",
       statusCode: 400
@@ -182,8 +182,8 @@ test("workspace file manager service sends mutation errors through error notific
 test("workspace file manager service leaves list failures in file manager state", async () => {
   applyLocale("en");
   const dependencies = createDependenciesStub();
-  dependencies.nextopdClient.listWorkspaceFileDirectory = async () => {
-    throw new NextopdProtocolError({
+  dependencies.tuttidClient.listWorkspaceFileDirectory = async () => {
+    throw new TuttidProtocolError({
       code: "invalid_request",
       reason: "invalid_path",
       statusCode: 400
@@ -210,13 +210,15 @@ test("workspace file manager service leaves list failures in file manager state"
 test("workspace file manager service reports file created after successful file creation", async () => {
   const reporterCalls: ReporterEventInput[][] = [];
   const dependencies = createDependenciesStub();
-  dependencies.nextopdClient.createWorkspaceFile = async (
+  dependencies.tuttidClient.createWorkspaceFile = async (
     workspaceId,
     path
   ) => ({
     entry: {
+      createdTimeMs: null,
       hasChildren: false,
       kind: "file",
+      lastOpenedMs: null,
       mtimeMs: null,
       name: "notes.txt",
       path,
@@ -225,7 +227,7 @@ test("workspace file manager service reports file created after successful file 
     root: "/Users/demo/project",
     workspaceId
   });
-  dependencies.nextopdClient.listWorkspaceFileDirectory = async (
+  dependencies.tuttidClient.listWorkspaceFileDirectory = async (
     workspaceId,
     input
   ) => ({
@@ -336,9 +338,9 @@ test("workspace file manager service does not report opened after failed file ac
 test("workspace file manager service includes hidden entries for direct reveal into a hidden path", async () => {
   const dependencies = createDependenciesStub();
   let capturedRequest:
-    | Parameters<NextopdClient["listWorkspaceFileDirectory"]>[1]
+    | Parameters<TuttidClient["listWorkspaceFileDirectory"]>[1]
     | undefined;
-  dependencies.nextopdClient.listWorkspaceFileDirectory = async (
+  dependencies.tuttidClient.listWorkspaceFileDirectory = async (
     workspaceId,
     input
   ) => {
@@ -347,11 +349,13 @@ test("workspace file manager service includes hidden entries for direct reveal i
       directoryPath: input?.path || "/Users/demo",
       entries: [
         {
+          createdTimeMs: null,
           hasChildren: false,
           kind: "file",
+          lastOpenedMs: null,
           mtimeMs: null,
           name: "image.png",
-          path: "/Users/demo/.nextop-dev/agent/runs/generated_images/image.png",
+          path: "/Users/demo/.tutti-dev/agent/runs/generated_images/image.png",
           sizeBytes: 5
         }
       ],
@@ -368,17 +372,17 @@ test("workspace file manager service includes hidden entries for direct reveal i
   const session = service.getSession("workspace-1", copy);
 
   await session.revealPath(
-    "/Users/demo/.nextop-dev/agent/runs/generated_images/image.png"
+    "/Users/demo/.tutti-dev/agent/runs/generated_images/image.png"
   );
 
   assert.equal(capturedRequest?.includeHidden, true);
   assert.equal(
     capturedRequest?.path,
-    "/Users/demo/.nextop-dev/agent/runs/generated_images"
+    "/Users/demo/.tutti-dev/agent/runs/generated_images"
   );
   assert.equal(
     session.store.selectedPath,
-    "/Users/demo/.nextop-dev/agent/runs/generated_images/image.png"
+    "/Users/demo/.tutti-dev/agent/runs/generated_images/image.png"
   );
 });
 
@@ -411,7 +415,7 @@ function installForbiddenLocalStorage(): () => void {
 
 function createDependenciesStub(): {
   hostFilesApi: DesktopHostFilesApi;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"
@@ -438,6 +442,7 @@ function createDependenciesStub(): {
       openTerminalLink: fail,
       readLocalFileText: fail,
       readPreviewFile: fail,
+      resolveEntryIcon: async () => null,
       selectAppArchive: fail,
       selectAppArchiveExportPath: fail,
       selectAppIconImage: fail,
@@ -445,7 +450,7 @@ function createDependenciesStub(): {
       selectUploadFiles: fail,
       copyFilesToClipboard: fail
     },
-    nextopdClient: {
+    tuttidClient: {
       listCliCapabilities: fail,
       addWorkspaceIssueContextRefs: fail,
       addWorkspaceIssueTaskContextRefs: fail,
@@ -529,6 +534,7 @@ function createDependenciesStub(): {
       publishWorkspaceAppFactoryJob: fail,
       rollbackWorkspaceApp: fail,
       cancelWorkspaceAgentSession: fail,
+      cancelWorkspaceAgentSessionWithResult: fail,
       sendWorkspaceAgentSessionInput: fail,
       readWorkspaceAgentSessionAttachment: fail,
       updateWorkspaceAgentSessionSettings: fail,

@@ -14,32 +14,32 @@
     "description": "禁止把主按钮、输入框、大卡片默认做成 pill",
     "tokens": [
       {
-        "label": "--nextop-radius-xs",
+        "label": "--tutti-radius-xs",
         "value": "2px",
         "usage": "微小高亮、内嵌刻度"
       },
       {
-        "label": "--nextop-radius-sm",
+        "label": "--tutti-radius-sm",
         "value": "4px",
         "usage": "工具按钮、紧凑按钮、chip"
       },
       {
-        "label": "--nextop-radius-md",
+        "label": "--tutti-radius-md",
         "value": "6px",
         "usage": "高度不超过 32px 的输入框、普通按钮、节点控件"
       },
       {
-        "label": "--nextop-radius-lg",
+        "label": "--tutti-radius-lg",
         "value": "8px",
         "usage": "高度超过 32px 的输入框、普通按钮、节点控件"
       },
       {
-        "label": "--nextop-radius-xl",
+        "label": "--tutti-radius-xl",
         "value": "12px",
         "usage": "卡片、菜单、popover、浮层"
       },
       {
-        "label": "--nextop-radius-max",
+        "label": "--tutti-radius-max",
         "value": "16px",
         "usage": "大型 modal 或特殊入口面板上限"
       }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { workspaceProtocolErrorCodes } from "@tutti-os/client-nextopd-ts";
+import { workspaceProtocolErrorCodes } from "@tutti-os/client-tuttid-ts";
 import { desktopErrorCodes } from "../../../shared/errors/desktopErrors.ts";
 import { resolveDesktopErrorMessage } from "./desktopErrors.ts";
 

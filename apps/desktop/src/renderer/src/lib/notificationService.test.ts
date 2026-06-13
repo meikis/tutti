@@ -99,14 +99,14 @@ test("host background notification presenter forwards title and description", as
   });
 
   await presenter.show({
-    description: "Open Nextop OS for details",
+    description: "Open Tutti OS for details",
     level: "warning",
     title: "Action required"
   });
 
   assert.deepEqual(calls, [
     {
-      body: "Open Nextop OS for details",
+      body: "Open Tutti OS for details",
       level: "warning",
       title: "Action required"
     }

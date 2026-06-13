@@ -23,7 +23,7 @@ async function main() {
   const releaseTagNames = await resolveReleaseTagNames(releaseVersion);
   const publishArguments = createPublishArguments({
     withProvenance: readBooleanEnvironmentVariable(
-      process.env.NEXTOP_NPM_PROVENANCE
+      process.env.TUTTI_NPM_PROVENANCE
     )
   });
 
@@ -216,7 +216,7 @@ function readBooleanEnvironmentVariable(value) {
   }
 
   throw new Error(
-    `Expected NEXTOP_NPM_PROVENANCE to be "true" or "false", received ${JSON.stringify(value)}`
+    `Expected TUTTI_NPM_PROVENANCE to be "true" or "false", received ${JSON.stringify(value)}`
   );
 }
 

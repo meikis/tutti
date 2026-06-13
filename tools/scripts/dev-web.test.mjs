@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const scriptPath = join(dirname(fileURLToPath(import.meta.url)), "dev-web.mjs");
 const source = readFileSync(scriptPath, "utf8");
 
-test("dev-web passes the analytics debug flag to nextopd", () => {
-  assert.match(source, /NEXTOP_ANALYTICS_DEBUG:/);
-  assert.match(source, /VITE_NEXTOP_ANALYTICS_DEBUG/);
+test("dev-web passes the analytics debug flag to tuttid", () => {
+  assert.match(source, /TUTTI_ANALYTICS_DEBUG:/);
+  assert.match(source, /VITE_TUTTI_ANALYTICS_DEBUG/);
 });

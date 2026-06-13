@@ -4,7 +4,7 @@ import {
   createDesktopAppLifecycleHandlers,
   type DesktopAppLifecycleRuntime
 } from "./desktopAppLifecycle.ts";
-import type { NextopdManager } from "./daemon/nextopdManager";
+import type { TuttidManager } from "./daemon/tuttidManager";
 import type { WorkspaceLaunch } from "./host/workspaceLaunch";
 import type { DesktopLogger } from "./logging";
 import type { AppUpdateService } from "./update/appUpdateService";
@@ -72,7 +72,7 @@ function createRuntime(events: string[]): DesktopAppLifecycleRuntime {
   };
 }
 
-function createNextopdManager(stop: () => Promise<void>): NextopdManager {
+function createTuttidManager(stop: () => Promise<void>): TuttidManager {
   return {
     async getHealth() {
       throw new Error("not used");
@@ -84,7 +84,7 @@ function createNextopdManager(stop: () => Promise<void>): NextopdManager {
   };
 }
 
-test("before quit waits for managed nextopd stop before quitting the app", async () => {
+test("before quit waits for managed tuttid stop before quitting the app", async () => {
   const events: string[] = [];
   const stopSignal: { resolve: null | (() => void) } = { resolve: null };
   const stopPromise = new Promise<void>((resolve) => {
@@ -93,10 +93,10 @@ test("before quit waits for managed nextopd stop before quitting the app", async
   const handlers = createDesktopAppLifecycleHandlers(
     {
       logger: createLogger(events),
-      nextopd: createNextopdManager(async () => {
-        events.push("nextopd:stop:start");
+      tuttid: createTuttidManager(async () => {
+        events.push("tuttid:stop:start");
         await stopPromise;
-        events.push("nextopd:stop:done");
+        events.push("tuttid:stop:done");
       }),
       updateService: createUpdateService(events),
       workspaceLaunch: createWorkspaceLaunch()
@@ -121,7 +121,7 @@ test("before quit waits for managed nextopd stop before quitting the app", async
     [
       "quit:prevented",
       "info:desktop app before quit",
-      "nextopd:stop:start"
+      "tuttid:stop:start"
     ].join("|")
   );
 
@@ -139,10 +139,10 @@ test("before quit waits for managed nextopd stop before quitting the app", async
     [
       "quit:prevented",
       "info:desktop app before quit",
-      "nextopd:stop:start"
+      "tuttid:stop:start"
     ].join("|")
   );
-  assert.equal(events.includes("nextopd:stop:done"), true);
+  assert.equal(events.includes("tuttid:stop:done"), true);
   assert.equal(events.includes("windows:destroy-all"), true);
   assert.equal(events.at(-1), "app:quit");
 });
@@ -152,8 +152,8 @@ test("before quit does not trigger a second stop while shutdown is already in pr
   const handlers = createDesktopAppLifecycleHandlers(
     {
       logger: createLogger(events),
-      nextopd: createNextopdManager(async () => {
-        events.push("nextopd:stop");
+      tuttid: createTuttidManager(async () => {
+        events.push("tuttid:stop");
       }),
       updateService: createUpdateService(events),
       workspaceLaunch: createWorkspaceLaunch()
@@ -182,7 +182,7 @@ test("before quit does not trigger a second stop while shutdown is already in pr
     [
       "quit:prevented",
       "info:desktop app before quit",
-      "nextopd:stop",
+      "tuttid:stop",
       "windows:destroy-all",
       "app:quit"
     ].join("|")

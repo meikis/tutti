@@ -11,7 +11,7 @@ import {
 } from "./agentGuiProviderIdentity";
 
 describe("agentGuiProviderIdentity", () => {
-  it("normalizes known providers and nextop alias", () => {
+  it("normalizes known providers and tutti alias", () => {
     expect(normalizeAgentGUIProviderIdentity("codex")).toBe("codex");
     expect(normalizeAgentGUIProviderIdentity("claude-code")).toBe(
       "claude-code"
@@ -20,7 +20,7 @@ describe("agentGuiProviderIdentity", () => {
     expect(normalizeAgentGUIProviderIdentity("Claude Code")).toBe(
       "claude-code"
     );
-    expect(normalizeAgentGUIProviderIdentity("nextop")).toBe("nexight");
+    expect(normalizeAgentGUIProviderIdentity("tutti")).toBe("nexight");
     expect(normalizeAgentGUIProviderIdentity("mystery")).toBe("unknown");
   });
 

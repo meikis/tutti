@@ -76,9 +76,28 @@ test("promoted base primitives register stable ui-system metadata ids", () => {
 test("promoted base primitive sources stay on the shared workbench contract", () => {
   const buttonSource = readComponentSource("button.tsx");
   assert.match(buttonSource, /data-slot="button"/);
+  assert.match(buttonSource, /React\.forwardRef<HTMLButtonElement/);
+  assert.match(buttonSource, /ref=\{ref\}/);
   assert.match(buttonSource, /cursor-pointer/);
   assert.match(buttonSource, /h-8 gap-\[6px\]/);
+  assert.match(
+    buttonSource,
+    /\[&_svg\[data-icon=inline-start\]:not\(\[class\*='size-'\]\)\]:size-3\.5/
+  );
+  assert.match(
+    buttonSource,
+    /\[&_svg\[data-icon=inline-start\]:not\(\[class\*='size-'\]\)\]:size-3/
+  );
+  assert.match(
+    buttonSource,
+    /\[&_svg\[data-icon=inline-start\]:not\(\[class\*='size-'\]\)\]:size-2\.5/
+  );
   assert.doesNotMatch(buttonSource, /h-8 gap-2/);
+
+  const bareIconButtonSource = readComponentSource("bare-icon-button.tsx");
+  assert.match(bareIconButtonSource, /data-slot="bare-icon-button"/);
+  assert.match(bareIconButtonSource, /React\.forwardRef<HTMLButtonElement/);
+  assert.match(bareIconButtonSource, /ref=\{ref\}/);
 
   const checkboxSource = readComponentSource("checkbox.tsx");
   assert.match(checkboxSource, /data-slot="checkbox"/);
@@ -103,7 +122,8 @@ test("promoted base primitive sources stay on the shared workbench contract", ()
   const switchSource = readComponentSource("switch.tsx");
   assert.match(switchSource, /data-slot="switch"/);
   assert.match(switchSource, /data-\[state=checked\]/);
-  assert.match(switchSource, /--accent/);
+  assert.match(switchSource, /--tutti-purple/);
+  assert.doesNotMatch(switchSource, /--accent/);
   assert.match(switchSource, /--text-disabled/);
   assert.match(switchSource, /--border-focus/);
   assert.match(switchSource, /--state-danger/);
@@ -123,7 +143,7 @@ test("promoted base primitive sources stay on the shared workbench contract", ()
   assert.match(tooltipSource, /gap-2/);
   assert.match(tooltipSource, /px-2/);
   assert.match(tooltipSource, /py-1/);
-  assert.match(tooltipSource, /text-sm/);
+  assert.match(tooltipSource, /text-\[13px\]/);
   assert.match(tooltipSource, /leading-\[1\.3\]/);
   assert.match(tooltipSource, /--border-1/);
   assert.match(tooltipSource, /--background-fronted/);
@@ -191,8 +211,8 @@ test("promoted base primitive sources stay on the shared workbench contract", ()
   );
   assert.match(baseStylesSource, /button:not\(:disabled\)/);
   assert.match(baseStylesSource, /cursor: pointer/);
-  assert.match(baseStylesSource, /@keyframes nextop-dropdown-open/);
-  assert.match(baseStylesSource, /@keyframes nextop-dropdown-close/);
+  assert.match(baseStylesSource, /@keyframes tutti-dropdown-open/);
+  assert.match(baseStylesSource, /@keyframes tutti-dropdown-close/);
   assert.match(baseStylesSource, /--dropdown-open-dur/);
   assert.match(baseStylesSource, /--dropdown-close-dur/);
   assert.match(baseStylesSource, /--dropdown-pre-scale/);
@@ -285,7 +305,7 @@ test("promoted base primitive sources stay on the shared workbench contract", ()
   assert.match(textareaSource, /data-slot="textarea"/);
   assert.match(textareaSource, /bg-\[var\(--transparency-block\)\]/);
   assert.match(textareaSource, /px-3 py-3/);
-  assert.match(textareaSource, /text-sm/);
+  assert.match(textareaSource, /text-\[13px\]/);
   assert.match(textareaSource, /leading-\[1\.3\]/);
   assert.match(textareaSource, /text-\[var\(--text-primary\)\]/);
   assert.match(

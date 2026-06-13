@@ -8,7 +8,7 @@ export interface MenuBoundaryRect {
 }
 
 const MENU_BOUNDARY_SELECTOR =
-  '.nextop-window, .workspace-node-window, [data-workspace-node-window-root="true"]';
+  '.tutti-window, .workspace-node-window, [data-workspace-node-window-root="true"]';
 
 function viewportBoundary(): MenuBoundaryRect {
   return {

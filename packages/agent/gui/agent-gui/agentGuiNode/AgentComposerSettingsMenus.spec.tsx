@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from "@testing-library/react";
 import { TooltipProvider } from "@tutti-os/ui-system";
+import type { WorkspaceUserProjectService } from "@tutti-os/workspace-user-project/contracts";
+import { createDefaultWorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
+import { proxy } from "valtio/vanilla";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AgentModelReasoningDropdown,
@@ -25,6 +34,8 @@ const { mockAgentHostApi } = vi.hoisted(() => ({
           isNoProjectPath?: ReturnType<typeof vi.fn>;
           list: ReturnType<typeof vi.fn>;
           rememberDefaultSelection?: ReturnType<typeof vi.fn>;
+          service?: WorkspaceUserProjectService;
+          subscribe?: ReturnType<typeof vi.fn>;
           use: ReturnType<typeof vi.fn>;
         };
     workspace: {
@@ -32,6 +43,8 @@ const { mockAgentHostApi } = vi.hoisted(() => ({
     };
   }
 }));
+
+const workspaceUserProjectI18n = createDefaultWorkspaceUserProjectI18nRuntime();
 
 vi.mock("../../agentActivityHost", () => ({
   useAgentHostApi: () => mockAgentHostApi
@@ -59,6 +72,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={vi.fn()}
       />
     );
@@ -79,8 +93,8 @@ describe("AgentProjectDropdown", () => {
         projects: [
           {
             id: "dir-1",
-            path: "/workspace/nextop",
-            label: "nextop"
+            path: "/workspace/tutti",
+            label: "tutti"
           }
         ]
       }),
@@ -99,6 +113,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={vi.fn()}
       />
     );
@@ -117,15 +132,19 @@ describe("AgentProjectDropdown", () => {
     });
 
     const projectOption = await screen.findByRole("option", {
-      name: /nextop/
+      name: /tutti/
     });
     expect(projectOption.closest('[data-slot="select-content"]')).toHaveClass(
       "data-[side=top]:!translate-y-0"
     );
     expect(projectOption).toBeVisible();
-    expect(projectOption.querySelector(".truncate")).not.toBeNull();
-    expect(projectOption).toHaveTextContent("nextop");
-    expect(projectOption).not.toHaveTextContent("/workspace/nextop");
+    expect(
+      projectOption.querySelector(
+        '[data-workspace-user-project-overflow-label="true"]'
+      )
+    ).not.toBeNull();
+    expect(projectOption).toHaveTextContent("tutti");
+    expect(projectOption).not.toHaveTextContent("/workspace/tutti");
     expect(
       document.querySelector('[data-slot="select-separator"]')
     ).not.toBeNull();
@@ -134,7 +153,7 @@ describe("AgentProjectDropdown", () => {
     });
     const options = screen.getAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual([
-      "nextop",
+      "tutti",
       "Use existing project",
       "Add project",
       "No project"
@@ -188,6 +207,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={vi.fn()}
       />
     );
@@ -225,8 +245,8 @@ describe("AgentProjectDropdown", () => {
     mockAgentHostApi.userProjects = {
       create: vi.fn().mockResolvedValue({
         id: "dir-1",
-        path: "/Users/local/Documents/nextop/Nextop Demo",
-        label: "Nextop Demo"
+        path: "/Users/local/Documents/tutti/Tutti Demo",
+        label: "Tutti Demo"
       }),
       list: vi
         .fn()
@@ -235,8 +255,8 @@ describe("AgentProjectDropdown", () => {
           projects: [
             {
               id: "dir-1",
-              path: "/Users/local/Documents/nextop/Nextop Demo",
-              label: "Nextop Demo"
+              path: "/Users/local/Documents/tutti/Tutti Demo",
+              label: "Tutti Demo"
             }
           ]
         }),
@@ -250,6 +270,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
@@ -269,17 +290,17 @@ describe("AgentProjectDropdown", () => {
     expect(await screen.findByRole("dialog")).toBeVisible();
 
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
-      target: { value: "Nextop Demo" }
+      target: { value: "Tutti Demo" }
     });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() =>
       expect(mockAgentHostApi.userProjects?.create).toHaveBeenCalledWith({
-        name: "Nextop Demo"
+        name: "Tutti Demo"
       })
     );
     expect(mockAgentHostApi.workspace.selectDirectory).not.toHaveBeenCalled();
     expect(onProjectPathChange).toHaveBeenCalledWith(
-      "/Users/local/Documents/nextop/Nextop Demo",
+      "/Users/local/Documents/tutti/Tutti Demo",
       { action: "create_new" }
     );
 
@@ -304,6 +325,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
@@ -321,7 +343,7 @@ describe("AgentProjectDropdown", () => {
     });
     fireEvent.click(await screen.findByRole("option", { name: "Add project" }));
     fireEvent.change(await screen.findByPlaceholderText("Project name"), {
-      target: { value: "Nextop Demo" }
+      target: { value: "Tutti Demo" }
     });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -354,6 +376,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
@@ -371,13 +394,13 @@ describe("AgentProjectDropdown", () => {
     });
     fireEvent.click(await screen.findByRole("option", { name: "Add project" }));
     fireEvent.change(await screen.findByPlaceholderText("Project name"), {
-      target: { value: "Nextop Demo" }
+      target: { value: "Tutti Demo" }
     });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     expect(
       await screen.findByText(
-        "Nextop does not have permission to create folders in Documents."
+        "Tutti does not have permission to create folders in Documents."
       )
     ).toBeVisible();
     expect(onProjectPathChange).not.toHaveBeenCalled();
@@ -397,6 +420,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={vi.fn()}
       />
     );
@@ -426,6 +450,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={vi.fn()}
       />
     );
@@ -467,6 +492,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
@@ -503,8 +529,8 @@ describe("AgentProjectDropdown", () => {
         projects: [
           {
             id: "dir-1",
-            path: "/workspace/nextop",
-            label: "nextop"
+            path: "/workspace/tutti",
+            label: "tutti"
           }
         ]
       }),
@@ -518,12 +544,13 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
 
     await waitFor(() =>
-      expect(onProjectPathChange).toHaveBeenCalledWith("/workspace/nextop")
+      expect(onProjectPathChange).toHaveBeenCalledWith("/workspace/tutti")
     );
   });
 
@@ -535,8 +562,8 @@ describe("AgentProjectDropdown", () => {
         projects: [
           {
             id: "dir-1",
-            path: "/workspace/nextop",
-            label: "nextop"
+            path: "/workspace/tutti",
+            label: "tutti"
           }
         ]
       }),
@@ -550,6 +577,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
@@ -563,6 +591,89 @@ describe("AgentProjectDropdown", () => {
     expect(screen.getByRole("combobox", { name: "Project" })).toHaveTextContent(
       "No project"
     );
+  });
+
+  it("reacts to Valtio service project updates", async () => {
+    const store = proxy({
+      error: null,
+      initialized: true,
+      isLoading: false,
+      projects: [
+        {
+          id: "dir-old",
+          path: "/workspace/old",
+          label: "Old"
+        }
+      ],
+      revision: 1
+    }) as WorkspaceUserProjectService["store"];
+    const service: WorkspaceUserProjectService = {
+      store,
+      async prepareSelection() {
+        return {
+          isSelectedPathMissing: false,
+          projects: [...store.projects],
+          selection: { kind: "none" }
+        };
+      },
+      async refresh() {}
+    };
+    const listProjects = vi.fn(async () => ({
+      projects: [
+        {
+          id: "dir-api",
+          path: "/workspace/api",
+          label: "Api"
+        }
+      ]
+    }));
+    mockAgentHostApi.userProjects = {
+      list: listProjects,
+      service,
+      use: vi.fn()
+    };
+
+    render(
+      <AgentProjectDropdown
+        composerSettings={{
+          selectedProjectPath: "/workspace/old",
+          projectLocked: false
+        }}
+        labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
+        onProjectPathChange={vi.fn()}
+      />
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Project" })
+      ).toHaveTextContent("Old")
+    );
+    expect(listProjects).not.toHaveBeenCalled();
+
+    act(() => {
+      store.projects = [
+        ...store.projects,
+        {
+          id: "dir-new",
+          path: "/workspace/new",
+          label: "New"
+        }
+      ];
+      store.revision += 1;
+    });
+
+    ensurePointerCaptureApi();
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: "Project" }), {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse"
+    });
+
+    expect(await screen.findByRole("option", { name: "New" })).toBeVisible();
+    expect(screen.queryByRole("option", { name: "Api" })).toBeNull();
   });
 
   it("clears an unlocked selected project when it disappears from recents", async () => {
@@ -583,6 +694,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
@@ -624,6 +736,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: true
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectMissingChange={onProjectMissingChange}
         onProjectPathChange={vi.fn()}
       />
@@ -665,6 +778,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: true
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectMissingChange={onProjectMissingChange}
         onProjectPathChange={vi.fn()}
       />
@@ -686,7 +800,7 @@ describe("AgentProjectDropdown", () => {
 
   it("shows locked no-project paths as No project", async () => {
     const noProjectPath =
-      "/Users/local/Documents/nextop/session-44444444-4444-4444-8444-444444444444";
+      "/Users/local/Documents/tutti/session-44444444-4444-4444-8444-444444444444";
     mockAgentHostApi.userProjects = {
       list: vi.fn().mockResolvedValue({
         projects: []
@@ -707,6 +821,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: true
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={vi.fn()}
       />
     );
@@ -730,8 +845,8 @@ describe("AgentProjectDropdown", () => {
       projects: [
         {
           id: "dir-1",
-          path: "/workspace/nextop",
-          label: "nextop"
+          path: "/workspace/tutti",
+          label: "tutti"
         }
       ]
     });
@@ -746,10 +861,11 @@ describe("AgentProjectDropdown", () => {
     const { rerender } = render(
       <AgentProjectDropdown
         composerSettings={{
-          selectedProjectPath: "/workspace/nextop",
+          selectedProjectPath: "/workspace/tutti",
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
@@ -779,6 +895,7 @@ describe("AgentProjectDropdown", () => {
           projectLocked: false
         }}
         labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
         onProjectPathChange={onProjectPathChange}
       />
     );
@@ -1622,30 +1739,7 @@ const labels = {
 } satisfies Parameters<typeof AgentModelReasoningDropdown>[0]["labels"];
 
 const projectLabels = {
-  addProject: "Add project",
-  createProjectCancel: "Cancel",
-  createProjectConfirm: "Create",
-  createProjectDocumentsUnavailable:
-    "Documents is unavailable. Choose an existing project instead.",
-  createProjectFailed: "Unable to create project",
-  createProjectNameConflict:
-    "A project with this name already exists. Use another name.",
-  createProjectNameInvalid:
-    "Project names cannot contain path separators or empty values.",
-  createProjectNameLabel:
-    "Enter a project name. A folder will be created in Documents/nextop",
-  createProjectNamePlaceholder: "Project name",
-  createProjectNameRequired: "Project name is required",
-  createProjectPermissionDenied:
-    "Nextop does not have permission to create folders in Documents.",
-  createProjectTitle: "Add project",
-  linkExistingProject: "Use existing project",
-  loadingProjects: "Loading projects",
-  noProject: "No project",
-  projectLabel: "Project",
   projectLocked: "Project locked",
   projectMissingDescription:
-    "This conversation's working directory no longer exists",
-  projectMissingTitle: "Current working directory missing",
-  projectUnavailable: "Project unavailable"
+    "This conversation's working directory no longer exists"
 } satisfies Parameters<typeof AgentProjectDropdown>[0]["labels"];

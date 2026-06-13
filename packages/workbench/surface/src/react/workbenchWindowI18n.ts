@@ -8,7 +8,7 @@ import {
 
 type WorkbenchWindowChromeI18nLocale = "en" | "zh-CN";
 export const workbenchWindowChromeI18nNamespace = "workbenchWindowChrome";
-export const nextopI18nModule = createScopedLocaleObjectsI18nModuleManifest({
+export const tuttiI18nModule = createScopedLocaleObjectsI18nModuleManifest({
   localeObjectByLocale: {
     en: "workbenchWindowChromeEn",
     "zh-CN": "workbenchWindowChromeZhCN"

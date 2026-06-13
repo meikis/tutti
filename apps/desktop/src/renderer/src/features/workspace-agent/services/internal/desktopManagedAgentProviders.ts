@@ -2,7 +2,7 @@ import type {
   AgentProviderStatus,
   AgentProviderStatusListResponse,
   WorkspaceAgentProvider
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { AgentHostManagedAgentsState } from "@shared/contracts/dto";
 import type {
   AgentProviderStatusSnapshot,

@@ -35,7 +35,7 @@ func ReadEndpointFile(path string) (Endpoint, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Endpoint{}, fmt.Errorf("daemon endpoint is not available; start the Nextop desktop app")
+			return Endpoint{}, fmt.Errorf("daemon endpoint is not available; start the Tutti desktop app")
 		}
 		return Endpoint{}, fmt.Errorf("read daemon endpoint: %w", err)
 	}
@@ -78,5 +78,5 @@ func (endpoint Endpoint) BaseURL() (string, error) {
 }
 
 func ListenerInfoPath() string {
-	return defaults.ResolveDefaultsFromEnv().State.NextopdListenerInfoPath
+	return defaults.ResolveDefaultsFromEnv().State.TuttidListenerInfoPath
 }

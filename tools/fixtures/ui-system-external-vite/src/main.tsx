@@ -9,7 +9,7 @@ export function FixtureApp() {
     <main className="fixture-shell">
       <section className="fixture-panel" aria-labelledby="fixture-title">
         <p className="fixture-kicker">External Vite fixture</p>
-        <h1 id="fixture-title">Nextop UI System</h1>
+        <h1 id="fixture-title">Tutti UI System</h1>
         <p className="fixture-copy">
           This app consumes the stable package entrypoints and renders a real UI
           system button.

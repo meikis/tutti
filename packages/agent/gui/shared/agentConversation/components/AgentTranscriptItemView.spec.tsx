@@ -12,6 +12,7 @@ import type { AgentToolGroupRowVM } from "../contracts/agentToolGroupRowVM";
 
 const mockState = vi.hoisted(() => ({
   markdownOnLinkClicks: [] as Array<((href: string) => void) | undefined>,
+  markdownStreamingFlags: [] as Array<boolean | undefined>,
   toolGroupOnLinkClicks: [] as Array<((href: string) => void) | undefined>
 }));
 
@@ -25,12 +26,15 @@ vi.mock("../../../i18n/index", () => ({
 vi.mock("../../AgentMessageMarkdown", () => ({
   AgentMessageMarkdown: ({
     content,
-    onLinkClick
+    onLinkClick,
+    streaming
   }: {
     content: string;
     onLinkClick?: (href: string) => void;
+    streaming?: boolean;
   }) => {
     mockState.markdownOnLinkClicks.push(onLinkClick);
+    mockState.markdownStreamingFlags.push(streaming);
     return <div>{content}</div>;
   }
 }));
@@ -117,6 +121,43 @@ describe("AgentTranscriptItemView render stability", () => {
     expect(mockState.markdownOnLinkClicks[1]).toBe(
       mockState.markdownOnLinkClicks[0]
     );
+  });
+
+  it("enables streaming markdown only for working assistant messages", () => {
+    render(
+      <AgentMessageBlock
+        workspaceRoot="/workspace/demo"
+        basePath="/workspace/demo"
+        row={assistantMessageRow({
+          kind: "message-content",
+          id: "assistant-working-1",
+          turnId: "turn-1",
+          body: "Streaming answer",
+          statusKind: "working",
+          occurredAtUnixMs: 1
+        })}
+        thinkingLabel="Thought process"
+      />
+    );
+
+    render(
+      <AgentMessageBlock
+        workspaceRoot="/workspace/demo"
+        basePath="/workspace/demo"
+        row={assistantMessageRow({
+          kind: "message-content",
+          id: "assistant-completed-1",
+          turnId: "turn-1",
+          body: "Completed answer",
+          statusKind: "completed",
+          occurredAtUnixMs: 1
+        })}
+        thinkingLabel="Thought process"
+      />
+    );
+
+    expect(mockState.markdownStreamingFlags.at(-2)).toBe(true);
+    expect(mockState.markdownStreamingFlags.at(-1)).toBe(false);
   });
 
   it("renders plain user messages as direct flow children without an extra group", () => {
@@ -216,20 +257,84 @@ describe("AgentTranscriptItemView render stability", () => {
     delete (window as { agentActivityRuntime?: unknown }).agentActivityRuntime;
   });
 
-  it("keeps assistant conversation markdown on the carried TSH reading scale", () => {
+  it("keeps assistant conversation markdown on the compact reading scale", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
     expect(css).toMatch(
-      /\.agent-gui-conversation__assistant-markdown\s*{[^}]*font-size:\s*15px[^}]*line-height:\s*1\.72/s
+      /\.agent-gui-conversation__assistant-markdown\s*{[^}]*font-size:\s*13px[^}]*line-height:\s*1\.72/s
     );
     expect(css).toMatch(
       /\.workspace-agents-status-panel__detail-markdown\.agent-gui-conversation__assistant-markdown\s+p\s*{[^}]*margin:\s*0[^}]*}/s
     );
     expect(css).toMatch(
-      /\.workspace-agents-status-panel__detail-markdown\.agent-gui-conversation__assistant-markdown\s+hr\s*{[^}]*height:\s*1px[^}]*margin:\s*14px 0[^}]*border:\s*0[^}]*background:\s*var\(--line-2,\s*var\(--nextop-line-2\)\)/s
+      /\.workspace-agents-status-panel__detail-markdown\.agent-gui-conversation__assistant-markdown\s+hr\s*{[^}]*height:\s*1px[^}]*margin:\s*14px 0[^}]*border:\s*0[^}]*background:\s*var\(--line-2,\s*var\(--tutti-line-2\)\)/s
     );
     expect(css).not.toMatch(
-      /\.workspace-agents-status-panel__detail-markdown\.agent-gui-conversation__assistant-markdown\s+:is\(h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6,\s*ul,\s*ol,\s*li\)\s*{[^}]*font-size:\s*14px/s
+      /\.workspace-agents-status-panel__detail-markdown\.agent-gui-conversation__assistant-markdown\s+:is\(h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6,\s*ul,\s*ol,\s*li\)\s*{[^}]*font-size:\s*\d+(?:\.\d+)?px/s
+    );
+  });
+
+  it("keeps conversation flow secondary text on the 13px compact scale", () => {
+    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
+    const markdownSource = readFileSync(
+      resolve("shared/AgentMessageMarkdown.tsx"),
+      "utf8"
+    );
+    const thinkingDisclosureSource = readFileSync(
+      resolve("shared/WorkspaceAgentSessionThinkingDisclosure.tsx"),
+      "utf8"
+    );
+    const toolRendererSource = readFileSync(
+      resolve(
+        "shared/agentConversation/components/tool-renderers/code/AgentCodeBlock.tsx"
+      ),
+      "utf8"
+    );
+
+    expect(markdownSource).toContain("text-[13px]");
+    expect(markdownSource).toContain("max-h-[calc(13px*1.5*8)]");
+    expect(markdownSource).toContain("[&_code]:text-[11px]");
+    expect(thinkingDisclosureSource).toContain("text-[13px]");
+    expect(thinkingDisclosureSource).toContain("text-[11px]");
+    expect(toolRendererSource).toContain("text-[11px]");
+    expect(css).toMatch(
+      /\.workspace-agents-status-panel__detail-tool-count\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.workspace-agents-status-panel__detail-tool-row\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-conversation__interactive-prompt-question\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.workspace-agents-status-panel__detail-user-message\.agent-gui-conversation__user-message-bubble\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.tsh-agent-object-token--file\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.tsh-agent-object-token--entity\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__message-bubble\s*{[^}]*font-size:\s*13px/s
+    );
+    expect(css).toMatch(
+      /\.workspace-agents-status-panel__detail-tool-body\s*{[^}]*font-size:\s*11px/s
+    );
+    expect(css).toMatch(
+      /\.workspace-agents-status-panel__detail-tool-markdown\s*{[^}]*font-size:\s*11px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-conversation__interactive-option-description\s*{[^}]*font-size:\s*11px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-conversation__interactive-prompt-actions button\s*{[^}]*font-size:\s*11px/s
+    );
+    expect(css).toMatch(
+      /\.tsh-agent-object-token__kind\s*{[^}]*font-size:\s*11px/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__row-meta\s*{[^}]*font-size:\s*11px/s
     );
   });
 

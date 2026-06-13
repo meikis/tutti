@@ -1,4 +1,4 @@
-import type { WorkspaceAgentSession } from "@tutti-os/client-nextopd-ts";
+import type { WorkspaceAgentSession } from "@tutti-os/client-tuttid-ts";
 import type {
   AgentActivityMessage,
   AgentActivitySession
@@ -118,7 +118,7 @@ export function resolveComposerPermissionMode(
   return normalizedOptionalString(settings?.permissionModeId);
 }
 
-export function toNextopdComposerSettings(
+export function toTuttidComposerSettings(
   settings: AgentHostAgentSessionComposerSettings | null | undefined
 ): AgentHostAgentSessionComposerSettings {
   const normalizedSettings = normalizeComposerSettings(settings);

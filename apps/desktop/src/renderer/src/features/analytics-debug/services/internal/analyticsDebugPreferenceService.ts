@@ -4,7 +4,7 @@ import type {
   IAnalyticsDebugPreferenceService
 } from "../analyticsDebugPreferenceService.interface";
 
-const analyticsDebugEnabledStorageKey = "nextop.analyticsDebug.enabled";
+const analyticsDebugEnabledStorageKey = "tutti.analyticsDebug.enabled";
 
 export interface AnalyticsDebugPreferenceStorage {
   getItem(key: string): string | null;

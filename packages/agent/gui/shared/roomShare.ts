@@ -9,7 +9,7 @@ import type {
   AgentHostRoomSummary
 } from "./contracts/dto";
 
-export const NEXTOP_SHARE_PRODUCTION_ORIGIN = "https://nextop.sh";
+export const TUTTI_SHARE_PRODUCTION_ORIGIN = "https://tutti.sh";
 
 export interface ParsedRoomShareJoinInput {
   roomId: string;
@@ -53,7 +53,7 @@ export function requestExplicitRoomShareInvite(
 }
 
 /**
- * Parses a pasted room share link (https …/nextop-share/…, legacy …/nextop/share/…, nextop:// …/join…),
+ * Parses a pasted room share link (https …/tutti-share/…, legacy …/tutti/share/…, tutti:// or legacy nextop:// …/join…),
  * optional multiline invite-code line, or a bare room UUID in text.
  */
 export function parseRoomShareJoinInput(
@@ -81,7 +81,7 @@ export function parseRoomShareJoinInput(
     const url = new URL(candidate);
     const sharePath = url.pathname.replace(/\/+$/, "");
     const shareMatch = sharePath.match(
-      /^\/(?:nextop\/share|nextop-share)\/(.+)$/
+      /^\/(?:tutti\/share|tutti-share)\/(.+)$/
     );
     if (shareMatch) {
       const roomId = decodeURIComponent(shareMatch[1] ?? "");
@@ -98,7 +98,7 @@ export function parseRoomShareJoinInput(
       }
     }
     if (
-      url.protocol === "nextop:" &&
+      isSupportedRoomShareProtocol(url.protocol) &&
       (url.hostname === "room" || url.hostname === "workspace")
     ) {
       const pathname = url.pathname.replace(/\/+$/, "");
@@ -121,7 +121,10 @@ export function parseRoomShareJoinInput(
         }
       }
     }
-    if (url.protocol === "nextop:" && url.hostname === "invite") {
+    if (
+      isSupportedRoomShareProtocol(url.protocol) &&
+      url.hostname === "invite"
+    ) {
       const roomId = decodeURIComponent(
         url.pathname.replace(/^\/+|\/+$/g, "")
       ).trim();
@@ -155,6 +158,10 @@ export function parseRoomShareJoinInput(
   }
 
   return null;
+}
+
+function isSupportedRoomShareProtocol(protocol: string): boolean {
+  return protocol === "tutti:" || protocol === "nextop:";
 }
 
 export interface RoomShareMemberView {
@@ -224,8 +231,8 @@ export function buildRoomShareWebLink(
   issueId?: string | null
 ): string {
   const url = new URL(
-    `/nextop-share/${encodeURIComponent(roomId)}`,
-    NEXTOP_SHARE_PRODUCTION_ORIGIN
+    `/tutti-share/${encodeURIComponent(roomId)}`,
+    TUTTI_SHARE_PRODUCTION_ORIGIN
   );
   const normalizedInviteCode = inviteCode?.trim();
   if (normalizedInviteCode) {
@@ -249,7 +256,7 @@ export function buildRoomVisitorShareWebLink(
 ): string {
   const url = new URL(
     `/room/${encodeURIComponent(roomId)}`,
-    NEXTOP_SHARE_PRODUCTION_ORIGIN
+    TUTTI_SHARE_PRODUCTION_ORIGIN
   );
   url.searchParams.set("shareToken", shareToken.trim());
   const normalizedName = roomName?.trim();

@@ -1,4 +1,4 @@
-import { normalizeNextopdError } from "@tutti-os/client-nextopd-ts";
+import { normalizeTuttidError } from "@tutti-os/client-tuttid-ts";
 import type { DesktopRuntimeApi } from "@preload/types";
 import { getDesktopErrorCode } from "../../../../lib/desktopErrors.ts";
 
@@ -50,7 +50,7 @@ export function recordWorkspaceAppCenterOperationFailure(input: {
     return;
   }
 
-  const protocolError = normalizeNextopdError(input.error);
+  const protocolError = normalizeTuttidError(input.error);
   void input.runtimeApi
     .logRendererDiagnostic({
       details: {

@@ -9,7 +9,7 @@ export const filePreviewWorkbenchContributionFactory: DesktopWorkbenchContributi
       return createWorkspaceFilePreviewContribution({
         appI18n: context.appI18n,
         i18n: context.i18n,
-        nextopdClient: context.nextopdClient,
+        tuttidClient: context.tuttidClient,
         reporterService: context.reporterService,
         workspaceId: context.workspaceId
       });

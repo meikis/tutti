@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nextop.dev/schemas/events/preferences/desktop-preferences.schema.json",
+  "$id": "https://tutti.dev/schemas/events/preferences/desktop-preferences.schema.json",
   "title": "DesktopPreferences",
   "type": "object",
   "additionalProperties": false,

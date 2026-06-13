@@ -10,7 +10,7 @@ workspace-scoped instance.
 
 Hosts provide backend capabilities through `WorkspaceFileManagerHost`. The
 package keeps shared state in logical workspace paths such as
-`/workspace/src/index.ts` and does not depend on nextopd, TSH, TACH, VM paths,
+`/workspace/src/index.ts` and does not depend on tuttid, TSH, TACH, VM paths,
 or host absolute paths.
 
 This package is intentionally a reusable frontend workspace-domain surface, not
@@ -28,7 +28,7 @@ Hosts now provide one app-level i18n runtime and scope it into the file-manager
 namespace, rather than hand-assembling package-local message objects.
 
 What stays outside this package is concrete host integration: desktop preload
-calls, nextopd transport wiring, host absolute paths, and product-specific
+calls, tuttid transport wiring, host absolute paths, and product-specific
 integration details belong in the owning host adapter.
 
 ## Host Reuse Pattern

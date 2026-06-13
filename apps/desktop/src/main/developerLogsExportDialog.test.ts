@@ -11,7 +11,7 @@ test("developer logs export dialog offers copy prompt and open folder actions", 
   const options = createDeveloperLogsExportSuccessDialogOptions({
     canceled: false,
     fileCount: 3,
-    filePath: "/Users/demo/Downloads/nextop-logs.zip"
+    filePath: "/Users/demo/Downloads/tutti-logs.zip"
   });
 
   assert.deepEqual(options.buttons, ["Copy Agent Prompt", "Open Folder", "OK"]);
@@ -19,7 +19,7 @@ test("developer logs export dialog offers copy prompt and open folder actions", 
   assert.equal(options.cancelId, 2);
   assert.equal(options.message, "Logs saved");
   assert.equal(
-    options.detail.includes("/Users/demo/Downloads/nextop-logs.zip"),
+    options.detail.includes("/Users/demo/Downloads/tutti-logs.zip"),
     true
   );
 });
@@ -33,7 +33,7 @@ test("developer logs export dialog copies an agent prompt for the exported archi
     {
       canceled: false,
       fileCount: 2,
-      filePath: "/Users/demo/Downloads/nextop-logs.zip"
+      filePath: "/Users/demo/Downloads/tutti-logs.zip"
     },
     {
       showItemInFolder(path) {
@@ -49,14 +49,14 @@ test("developer logs export dialog copies an agent prompt for the exported archi
   assert.equal(
     copiedText,
     buildDeveloperLogsAgentPrompt({
-      filePath: "/Users/demo/Downloads/nextop-logs.zip"
+      filePath: "/Users/demo/Downloads/tutti-logs.zip"
     })
   );
 });
 
 test("developer logs agent prompt follows the requested locale", () => {
   const englishPrompt = buildDeveloperLogsAgentPrompt({
-    filePath: "/Users/demo/Downloads/nextop-logs.zip",
+    filePath: "/Users/demo/Downloads/tutti-logs.zip",
     translator: createTranslator("en")
   });
   assert.match(englishPrompt, /Log archive: \/Users\/demo\/Downloads/);
@@ -64,7 +64,7 @@ test("developer logs agent prompt follows the requested locale", () => {
   assert.doesNotMatch(englishPrompt, /日志压缩包/);
 
   const chinesePrompt = buildDeveloperLogsAgentPrompt({
-    filePath: "/Users/demo/Downloads/nextop-logs.zip",
+    filePath: "/Users/demo/Downloads/tutti-logs.zip",
     translator: createTranslator("zh-CN")
   });
   assert.match(chinesePrompt, /日志压缩包：\/Users\/demo\/Downloads/);
@@ -80,7 +80,7 @@ test("developer logs export dialog copies the localized agent prompt", () => {
     {
       canceled: false,
       fileCount: 2,
-      filePath: "/Users/demo/Downloads/nextop-logs.zip"
+      filePath: "/Users/demo/Downloads/tutti-logs.zip"
     },
     {
       showItemInFolder() {},
@@ -104,7 +104,7 @@ test("developer logs export dialog reveals the exported archive from the open fo
     {
       canceled: false,
       fileCount: 2,
-      filePath: "/Users/demo/Downloads/nextop-logs.zip"
+      filePath: "/Users/demo/Downloads/tutti-logs.zip"
     },
     {
       showItemInFolder(path) {
@@ -117,5 +117,5 @@ test("developer logs export dialog reveals the exported archive from the open fo
   );
 
   assert.equal(copiedText, "");
-  assert.equal(revealedPath, "/Users/demo/Downloads/nextop-logs.zip");
+  assert.equal(revealedPath, "/Users/demo/Downloads/tutti-logs.zip");
 });

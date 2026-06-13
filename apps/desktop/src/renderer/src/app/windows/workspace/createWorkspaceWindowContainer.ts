@@ -29,9 +29,9 @@ import {
 } from "@renderer/lib/compositeNotificationService";
 import { installRendererDiagnostics } from "@renderer/lib/rendererDiagnostics";
 import { resolveDesktopEnvironment } from "@renderer/platform/desktop/resolveDesktopEnvironment";
-import { createDesktopNextopdEventStreamClient } from "@renderer/platform/nextopd/createDesktopNextopdEventStreamClient";
-import { createDesktopNextopdClient } from "@renderer/platform/nextopd/createDesktopNextopdClient";
-import { startDesktopDaemonConnectionAnalytics } from "@renderer/platform/nextopd/desktopDaemonConnectionAnalytics";
+import { createDesktopTuttidEventStreamClient } from "@renderer/platform/tuttid/createDesktopTuttidEventStreamClient";
+import { createDesktopTuttidClient } from "@renderer/platform/tuttid/createDesktopTuttidClient";
+import { startDesktopDaemonConnectionAnalytics } from "@renderer/platform/tuttid/desktopDaemonConnectionAnalytics";
 
 export interface WorkspaceWindowContainerResult {
   container: InstantiationService;
@@ -40,10 +40,10 @@ export interface WorkspaceWindowContainerResult {
 }
 
 export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult {
-  const environment = resolveDesktopEnvironment(window.nextop);
+  const environment = resolveDesktopEnvironment(window.tutti);
   const desktopApi = environment.desktopApi;
-  const nextopdClient = createDesktopNextopdClient(desktopApi.runtime);
-  const nextopdEventStreamClient = createDesktopNextopdEventStreamClient(
+  const tuttidClient = createDesktopTuttidClient(desktopApi.runtime);
+  const tuttidEventStreamClient = createDesktopTuttidEventStreamClient(
     desktopApi.runtime
   );
   const registry = new ServiceRegistry();
@@ -69,10 +69,10 @@ export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult
   });
   registerAnalyticsDebugServices(registry, {
     available: analyticsDebugAvailable,
-    eventStreamClient: nextopdEventStreamClient
+    eventStreamClient: tuttidEventStreamClient
   });
   const reporterService = registerReporterServices(registry, {
-    nextopdClient
+    tuttidClient
   });
   const predefinePageviewAnalytics = startPredefinePageviewAnalytics({
     reporterService
@@ -84,11 +84,11 @@ export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult
   );
   registerDesktopPreferencesServices(
     registry,
-    nextopdClient,
-    nextopdEventStreamClient
+    tuttidClient,
+    tuttidEventStreamClient
   );
   const daemonConnectionAnalytics = startDesktopDaemonConnectionAnalytics({
-    eventStreamClient: nextopdEventStreamClient,
+    eventStreamClient: tuttidEventStreamClient,
     reporterService
   });
   let releasedWindowAnalytics = false;
@@ -110,32 +110,32 @@ export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult
       platform: desktopApi.platform.os,
       workspace: desktopApi.host.workspace
     },
-    nextopdClient,
+    tuttidClient,
     reporterService
   });
   registerWorkspaceFileManagerServices(registry, {
     hostFilesApi: desktopApi.host.files,
-    nextopdClient,
+    tuttidClient,
     platformApi: desktopApi.platform,
     reporterService
   });
   registerRichTextAtServices(registry, {
-    nextopdClient
+    tuttidClient
   });
   const workspaceUserProjectService = registerWorkspaceUserProjectServices(
     registry,
     {
       hostFilesApi: desktopApi.host.files,
-      nextopdClient,
+      tuttidClient,
       notifications: notificationService,
       platformApi: desktopApi.platform,
       workspaceId: environment.startupWorkspaceID ?? "__default__"
     }
   );
   registerWorkspaceAgentServices(registry, {
-    eventStreamClient: nextopdEventStreamClient,
+    eventStreamClient: tuttidEventStreamClient,
     hostFilesApi: desktopApi.host.files,
-    nextopdClient,
+    tuttidClient,
     reporterService,
     runtimeApi: desktopApi.runtime,
     terminalCommandRunner: createAgentProviderTerminalCommandRunner(
@@ -144,10 +144,10 @@ export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult
     workspaceUserProjectService
   });
   registerWorkspaceAppCenterServices(registry, {
-    eventStreamClient: nextopdEventStreamClient,
+    eventStreamClient: tuttidEventStreamClient,
     hostFilesApi: desktopApi.host.files,
     hostWorkspaceApi: desktopApi.host.workspace,
-    nextopdClient,
+    tuttidClient,
     reporterService,
     runtimeApi: desktopApi.runtime
   });
@@ -155,12 +155,12 @@ export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult
     browserApi: desktopApi.browser,
     developerApi: desktopApi.developer,
     dockPreviewCacheApi: desktopApi.dockPreviewCache,
-    eventStreamClient: nextopdEventStreamClient,
+    eventStreamClient: tuttidEventStreamClient,
     hostFilesApi: desktopApi.host.files,
     hostNotificationsApi: desktopApi.host.notifications,
     hostWindowApi: desktopApi.host.window,
     hostWorkspaceApi: desktopApi.host.workspace,
-    nextopdClient,
+    tuttidClient,
     platformApi: desktopApi.platform,
     reporterService,
     runtimeApi: desktopApi.runtime,

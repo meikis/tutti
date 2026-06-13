@@ -29,7 +29,7 @@ The desktop release workflow is currently soft-disabled.
 `.github/workflows/desktop-release.yml` only runs release jobs when this repository variable is set:
 
 ```text
-NEXTOP_DESKTOP_RELEASE_WORKFLOW_ENABLED=true
+TUTTI_DESKTOP_RELEASE_WORKFLOW_ENABLED=true
 ```
 
 When the variable is missing or set to any other value, the workflow may be triggered by GitHub, but the release jobs are skipped.
@@ -79,19 +79,19 @@ Packaging is driven by:
 tools/scripts/build-desktop-package.sh
 ```
 
-Before running `electron-builder`, the script builds `services/nextopd` and places the daemon under:
+Before running `electron-builder`, the script builds `services/tuttid` and places the daemon under:
 
 ```text
-apps/desktop/build/nextopd/
+apps/desktop/build/tuttid/
 ```
 
 `electron-builder` then packages that daemon into the desktop app as:
 
 ```text
-Contents/Resources/bin/nextopd
+Contents/Resources/bin/tuttid
 ```
 
-On Windows the bundled daemon filename is `nextopd.exe`.
+On Windows the bundled daemon filename is `tuttid.exe`.
 
 Expected release artifacts include:
 
@@ -139,7 +139,7 @@ If the webhook secret is missing, the workflow skips notification instead of fai
 
 The card links to available macOS, Windows, Linux, GitHub Release, and workflow run URLs.
 
-When `NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL` is configured, the download buttons prefer the mirrored release asset base URL instead of GitHub asset URLs. If the explicit base URL is absent but S3 mirroring is configured, the workflow falls back to the S3 accelerate base URL.
+When `TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL` is configured, the download buttons prefer the mirrored release asset base URL instead of GitHub asset URLs. If the explicit base URL is absent but S3 mirroring is configured, the workflow falls back to the S3 accelerate base URL.
 
 After a successful mirrored upload, the workflow also upserts a managed `Direct Downloads` section into the GitHub Release body so the release description matches the Feishu direct links.
 
@@ -166,17 +166,17 @@ Desktop release assets can optionally be mirrored to AWS S3 and exposed through 
 Repository variables:
 
 - `AWS_REGION`
-- `NEXTOP_ARTIFACTS_AWS_ROLE_ARN`
-- `NEXTOP_DESKTOP_RELEASE_ASSETS_S3_BUCKET`
-- `NEXTOP_DESKTOP_RELEASE_ASSETS_S3_PREFIX`
-- `NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL`
+- `TUTTI_ARTIFACTS_AWS_ROLE_ARN`
+- `TUTTI_DESKTOP_RELEASE_ASSETS_S3_BUCKET`
+- `TUTTI_DESKTOP_RELEASE_ASSETS_S3_PREFIX`
+- `TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL`
 
 Recommended setup:
 
-- set `NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL` to the CloudFront distribution path, such as `https://d111111abcdef8.cloudfront.net/desktop-release-assets`
+- set `TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL` to the CloudFront distribution path, such as `https://d111111abcdef8.cloudfront.net/desktop-release-assets`
 - keep the S3 bucket and prefix configured so the workflow can upload mirrored assets
 
-If `NEXTOP_DESKTOP_RELEASE_ASSETS_BASE_URL` is omitted, the workflow falls back to:
+If `TUTTI_DESKTOP_RELEASE_ASSETS_BASE_URL` is omitted, the workflow falls back to:
 
 ```text
 https://<bucket>.s3-accelerate.amazonaws.com/<prefix>
@@ -194,7 +194,7 @@ pnpm --filter @tutti-os/desktop build:unpack
 pnpm check:full
 ```
 
-Use `build:unpack` to verify that the Electron bundle can be assembled locally and that `nextopd` is present under the packaged app resources.
+Use `build:unpack` to verify that the Electron bundle can be assembled locally and that `tuttid` is present under the packaged app resources.
 
 ## Operational Notes
 

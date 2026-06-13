@@ -76,7 +76,7 @@ export async function bootstrapDesktopApp(): Promise<void> {
     exportDeveloperLogs: () =>
       exportDesktopDeveloperLogsAndNotify(
         desktopAppServices.preferences,
-        desktopAppServices.nextopdClient
+        desktopAppServices.tuttidClient
       ),
     getLocale: () => desktopAppServices.preferences.getLocale(),
     logger
@@ -86,7 +86,7 @@ export async function bootstrapDesktopApp(): Promise<void> {
     daemonEndpoint: desktopAppServices.daemonEndpoint,
     fileDialogs: desktopAppServices.fileDialogs,
     logger,
-    nextopdClient: desktopAppServices.nextopdClient,
+    tuttidClient: desktopAppServices.tuttidClient,
     openWorkspaceAppFolder: openDesktopWorkspaceAppFolder,
     preferences: desktopAppServices.preferences,
     updateService: desktopAppServices.updateService,
@@ -106,12 +106,12 @@ export async function bootstrapDesktopApp(): Promise<void> {
       desktopAppServices.daemonEndpoint
     ),
     logger,
-    nextopdClient: desktopAppServices.nextopdClient,
+    tuttidClient: desktopAppServices.tuttidClient,
     preferences: desktopAppServices.preferences
   });
 
   const appUpdateAnalytics = startDesktopAppUpdateAnalytics({
-    nextopdClient: desktopAppServices.nextopdClient,
+    tuttidClient: desktopAppServices.tuttidClient,
     onError(error) {
       logger.warn("failed to record app update analytics", {
         error: error instanceof Error ? error.message : String(error)
@@ -129,7 +129,7 @@ export async function bootstrapDesktopApp(): Promise<void> {
 
   registerDesktopAppLifecycle({
     logger,
-    nextopd: desktopAppServices.nextopd,
+    tuttid: desktopAppServices.tuttid,
     disposables: [
       hostPreferencesEventStream,
       agentPowerSaveBlocker,

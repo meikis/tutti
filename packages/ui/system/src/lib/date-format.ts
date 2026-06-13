@@ -1,11 +1,11 @@
-export type NextopDateLocale = "en" | "zh-CN";
+export type TuttiDateLocale = "en" | "zh-CN";
 
 const fullDateTimeFormatterByLocale = new Map<string, Intl.DateTimeFormat>();
 const shortDateTimeFormatterByLocale = new Map<string, Intl.DateTimeFormat>();
 
-export function getCurrentNextopDateLocale(): NextopDateLocale {
+export function getCurrentTuttiDateLocale(): TuttiDateLocale {
   if (typeof document !== "undefined") {
-    const locale = normalizeNextopDateLocale(document.documentElement.lang);
+    const locale = normalizeTuttiDateLocale(document.documentElement.lang);
     if (locale) {
       return locale;
     }
@@ -14,22 +14,22 @@ export function getCurrentNextopDateLocale(): NextopDateLocale {
   return "en";
 }
 
-export function formatNextopDateTime(
+export function formatTuttiDateTime(
   value: Date | number,
-  locale = getCurrentNextopDateLocale()
+  locale = getCurrentTuttiDateLocale()
 ): string {
   return getFullDateTimeFormatter(locale).format(value);
 }
 
-export function formatNextopShortDateTime(
+export function formatTuttiShortDateTime(
   value: Date | number,
-  locale = getCurrentNextopDateLocale()
+  locale = getCurrentTuttiDateLocale()
 ): string {
   return getShortDateTimeFormatter(locale).format(value);
 }
 
 function getFullDateTimeFormatter(locale: string): Intl.DateTimeFormat {
-  const normalizedLocale = normalizeNextopDateLocale(locale) ?? "en";
+  const normalizedLocale = normalizeTuttiDateLocale(locale) ?? "en";
   const cached = fullDateTimeFormatterByLocale.get(normalizedLocale);
   if (cached) {
     return cached;
@@ -47,7 +47,7 @@ function getFullDateTimeFormatter(locale: string): Intl.DateTimeFormat {
 }
 
 function getShortDateTimeFormatter(locale: string): Intl.DateTimeFormat {
-  const normalizedLocale = normalizeNextopDateLocale(locale) ?? "en";
+  const normalizedLocale = normalizeTuttiDateLocale(locale) ?? "en";
   const cached = shortDateTimeFormatterByLocale.get(normalizedLocale);
   if (cached) {
     return cached;
@@ -64,9 +64,9 @@ function getShortDateTimeFormatter(locale: string): Intl.DateTimeFormat {
   return formatter;
 }
 
-function normalizeNextopDateLocale(
+function normalizeTuttiDateLocale(
   locale: string | null | undefined
-): NextopDateLocale | null {
+): TuttiDateLocale | null {
   const normalized = locale?.trim().toLowerCase() ?? "";
   if (!normalized) {
     return null;

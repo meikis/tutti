@@ -6,12 +6,12 @@ Thank you for your interest in contributing to Tutti! This guide covers everythi
 
 By participating in this project, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-> Note: this codebase uses the internal codename `nextop` — you will see it in directory and binary names such as `services/nextopd`.
+> Note: this codebase uses the internal codename `tutti` — you will see it in directory and binary names such as `services/tuttid`.
 
 ## Repository Layout
 
 - `apps/desktop`: Electron desktop shell, renderer UI, preload bridge, and native desktop integration
-- `services/nextopd`: long-running local daemon and primary business core
+- `services/tuttid`: long-running local daemon and primary business core
 - `packages/clients/*`: shared domain-specific clients
 - `packages/configs/*`: shared engineering config
 - `packages/ui/*`: shared visual system boundaries
@@ -43,7 +43,7 @@ Check local prerequisites:
 pnpm setup:dev
 ```
 
-Start the desktop app in development with prerequisite checks and a prebuilt `nextopd`:
+Start the desktop app in development with prerequisite checks and a prebuilt `tuttid`:
 
 ```sh
 make dev-gui
@@ -76,7 +76,7 @@ pnpm check:full
 
 ## Repository Rules
 
-- Business logic belongs in `services/nextopd`
+- Business logic belongs in `services/tuttid`
 - UI and desktop integration belong in `apps/desktop`
 - Code should move into `packages/` only when there is a real shared boundary
 - Business-code files should stay at or below `800` lines; crossing the limit is a refactoring signal

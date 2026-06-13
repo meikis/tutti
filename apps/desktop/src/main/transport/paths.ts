@@ -17,13 +17,13 @@ export interface DesktopTerminalStreamUrlInput {
 
 export function resolveDesktopDaemonEndpoint(): DesktopDaemonEndpoint {
   const defaults = resolveDesktopDefaultsFromEnv();
-  const requestedAddr = process.env.NEXTOPD_ADDR?.trim() || "127.0.0.1:0";
+  const requestedAddr = process.env.TUTTID_ADDR?.trim() || "127.0.0.1:0";
 
   return {
     accessToken: randomBytes(32).toString("base64url"),
     boundAddr: null,
-    listenerInfoPath: defaults.state.nextopdListenerInfoPath,
-    pidPath: defaults.state.nextopdPIDPath,
+    listenerInfoPath: defaults.state.tuttidListenerInfoPath,
+    pidPath: defaults.state.tuttidPIDPath,
     requestedAddr
   };
 }

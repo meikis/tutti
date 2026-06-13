@@ -15,7 +15,7 @@ If the durable desktop directory shape or ownership model changes, update this d
 
 ## Purpose
 
-The desktop app is an Electron shell around `nextopd`.
+The desktop app is an Electron shell around `tuttid`.
 
 Its job is to provide:
 
@@ -136,7 +136,7 @@ Do not duplicate package default strings inside `apps/desktop/src/shared/i18n/*`
 
 ### `src/main`
 
-`main` owns Electron-specific capabilities and the controlled bridge to `nextopd`.
+`main` owns Electron-specific capabilities and the controlled bridge to `tuttid`.
 
 Current responsibilities include:
 
@@ -153,14 +153,14 @@ Current responsibilities include:
 `main` may:
 
 - know managed loopback backend details
-- supervise `nextopd`
+- supervise `tuttid`
 - call Electron-native APIs
 
 `main` must not:
 
 - implement business rules
 - reinterpret business workflows
-- hold complex business state that belongs in `nextopd`
+- hold complex business state that belongs in `tuttid`
 
 If logic is not Electron-specific, it should usually move out of `apps/desktop`.
 
@@ -183,7 +183,7 @@ the boundaries exist.
 Lifecycle-specific rule:
 
 - when desktop shutdown depends on daemon cleanup, `before-quit` should act as an async gate instead of firing cleanup and exiting immediately
-- managed `nextopd` shutdown, listener-info cleanup, and similar teardown work should finish before the final app quit path resumes
+- managed `tuttid` shutdown, listener-info cleanup, and similar teardown work should finish before the final app quit path resumes
 - lifecycle tests should cover the quit gate whenever desktop changes alter daemon-stop timing
 
 ### Main IPC Rule
@@ -217,7 +217,7 @@ Current state:
 
 It should:
 
-- expose typed APIs such as `window.nextop.runtime.getBackendConfig()`
+- expose typed APIs such as `window.tutti.runtime.getBackendConfig()`
 - hide IPC channel names
 - define capability surfaces per window when needed
 
@@ -250,7 +250,7 @@ It should:
 - prefer the `@tutti-os/ui-system` root export for runtime imports instead of reaching into package internals
 - load `@tutti-os/ui-system/styles.css` once from the renderer style entrypoint
 - call typed preload APIs
-- consume a typed nextopd client created by renderer window or platform composition from preload-provided runtime config
+- consume a typed tuttid client created by renderer window or platform composition from preload-provided runtime config
 
 It should not:
 
@@ -337,7 +337,7 @@ Rules:
   contributions that need agent activity
 - keep controller/cache ownership inside `WorkspaceAgentActivityService`
 - use the shared business-event stream only as a live update signal
-- reconcile session and message state through the normal `nextopd` HTTP client
+- reconcile session and message state through the normal `tuttid` HTTP client
   APIs, including message `afterVersion` reads after reconnect
 
 Do not reintroduce a per-session SSE client, a workspace-scoped SSE client, or a
@@ -358,7 +358,7 @@ When a component needs an effect to keep local state in sync with other state, p
 
 Treat render stability as a feature-boundary concern, not as a late micro-optimization pass.
 
-The renderer is not a traditional React app where components are expected to absorb most orchestration and synchronization work. `nextop` prefers logic and view separation: services own commands and side effects, stores own UI-facing state, selectors own derived render data, and React stays focused on subscriptions, DOM events, and presentation.
+The renderer is not a traditional React app where components are expected to absorb most orchestration and synchronization work. `tutti` prefers logic and view separation: services own commands and side effects, stores own UI-facing state, selectors own derived render data, and React stays focused on subscriptions, DOM events, and presentation.
 
 Rules:
 
@@ -410,7 +410,7 @@ Renderer DI should distinguish feature services from host adapters:
 
 - use `@I<Feature>Service` tokens for public feature services that other renderer features may depend on
 - use `@I<Capability>Service` tokens for shared renderer capabilities that are host-agnostic and reusable across feature services, such as `INotificationService`
-- pass external capabilities as explicit adapter or registration parameters when they are not renderer feature services, including `nextopd` clients, event-stream clients, preload host APIs, platform APIs, runtime APIs, browser APIs, and terminal command runners
+- pass external capabilities as explicit adapter or registration parameters when they are not renderer feature services, including `tuttid` clients, event-stream clients, preload host APIs, platform APIs, runtime APIs, browser APIs, and terminal command runners
 - keep host-specific adaptation at the window composition or feature registration boundary, then inject public service dependencies through the DI container
 - do not create thin DI wrapper services only to rename a preload or daemon client; add a service token only when there is a real renderer-owned contract or shared capability
 
@@ -439,14 +439,14 @@ public service or controller seams instead of importing
 
 ## Renderer Preload Access Rule
 
-Treat `window.nextop` as a renderer composition-root input.
+Treat `window.tutti` as a renderer composition-root input.
 
 Rules:
 
-- window container files under `renderer/src/app/windows/**/create*Container.ts` may read `window.nextop` to pass the typed preload API into feature registrations
+- window container files under `renderer/src/app/windows/**/create*Container.ts` may read `window.tutti` to pass the typed preload API into feature registrations
 - feature services should receive preload capabilities through explicit adapters created by their registration function
-- feature UI, feature services, renderer libraries, and ordinary app files must not read `window.nextop` directly
-- `renderer/src/global.d.ts` may declare `Window.nextop` for type support
+- feature UI, feature services, renderer libraries, and ordinary app files must not read `window.tutti` directly
+- `renderer/src/global.d.ts` may declare `Window.tutti` for type support
 
 The mechanical guard is part of:
 
@@ -471,9 +471,9 @@ Do not turn `shared` into a generic bucket for convenience extraction.
 Desktop feature calls should choose one of three paths by responsibility:
 
 ```text
-renderer -> managed localhost nextopd
+renderer -> managed localhost tuttid
 renderer -> preload -> IPC -> main native capability -> OS
-renderer -> preload -> IPC -> main host-assisted flow -> nextopd and OS
+renderer -> preload -> IPC -> main host-assisted flow -> tuttid and OS
 ```
 
 This rule keeps the layers understandable:
@@ -483,7 +483,7 @@ This rule keeps the layers understandable:
 - main stays focused on Electron, daemon supervision, local process integration, and narrow host-assisted flows
 
 Ordinary business queries, mutations, and streams should use the typed
-renderer-side `nextopd` client. Host capabilities such as file pickers, shell
+renderer-side `tuttid` client. Host capabilities such as file pickers, shell
 open, updater, preferences, and window lifecycle should go through preload and
 main. Flows that need both native host authority and daemon authority should
 stay explicit and few.
@@ -568,7 +568,7 @@ See [Desktop Windows](../architecture/desktop-windows.md) for the current window
 
 When reviewing desktop changes, ask:
 
-1. Does this logic belong to Electron, or does it belong to `nextopd`?
+1. Does this logic belong to Electron, or does it belong to `tuttid`?
 2. Is transport knowledge leaking upward into preload or renderer?
 3. Is `main` acting as a thin bridge, or is it starting to accumulate business logic?
 4. Is a new shared helper truly cross-cutting, or should it stay local to its layer?

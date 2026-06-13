@@ -1,6 +1,6 @@
 # Workspace Terminal
 
-Reusable terminal node contracts and shared frontend surface for Nextop
+Reusable terminal node contracts and shared frontend surface for Tutti
 workspace hosts.
 
 The package owns host-agnostic terminal semantics. Hosts own concrete process

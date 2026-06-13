@@ -90,7 +90,7 @@ export function createBrowserDesktopApi(): DesktopBrowserApi {
 
 function isBrowserDevToolsEnabled(): boolean {
   return isDesktopDevelopmentRuntime({
-    nextopEnv: process.env.NEXTOP_ENV,
+    tuttiEnv: process.env.TUTTI_ENV,
     nodeEnv: process.env.NODE_ENV
   });
 }

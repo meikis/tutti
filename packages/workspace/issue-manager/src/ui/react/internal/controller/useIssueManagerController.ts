@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { RichTextAtProvider } from "@tutti-os/ui-rich-text/types";
-import type { WorkspaceUserProjectServiceLike } from "@tutti-os/workspace-user-project/contracts";
+import type { WorkspaceUserProjectService } from "@tutti-os/workspace-user-project/contracts";
+import type { WorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import type {
   IssueManagerAgentProviderOption,
   IssueManagerContextRef,
   IssueManagerFileReference,
   IssueManagerIssueDetail,
   IssueManagerIssueSummary,
-  IssueManagerExecutionDirectoryProject,
   IssueManagerNodeState,
   IssueManagerOpenSource,
   IssueManagerPriority,
@@ -83,10 +83,7 @@ export interface IssueManagerController {
   openAgentSession: (run: IssueManagerRun) => Promise<void>;
   openReference: (reference: IssueManagerFileReference) => Promise<void>;
   providerOptions: readonly IssueManagerAgentProviderOption[];
-  executionDirectoryProjectService: WorkspaceUserProjectServiceLike | null;
-  listExecutionDirectoryProjects: () => Promise<{
-    projects: IssueManagerExecutionDirectoryProject[];
-  }>;
+  executionDirectoryProjectService: WorkspaceUserProjectService | null;
   reportIssueSearchUsage: (query: string) => void;
   refreshAll: () => void;
   referenceTarget: IssueManagerReferenceTarget | null;
@@ -94,6 +91,10 @@ export interface IssueManagerController {
   runTask: (providerOverride?: string) => Promise<void>;
   saveIssue: () => Promise<void>;
   saveTask: () => Promise<void>;
+  setTaskStatus: (
+    taskId: string,
+    status: "completed" | "not_started"
+  ) => Promise<void>;
   setSelectedTaskStatus: (status: "completed" | "not_started") => Promise<void>;
   resolveRichTextAtProviders: (
     surface: IssueManagerRichTextSurface
@@ -134,6 +135,7 @@ export interface IssueManagerController {
     parentKind: "issue" | "task",
     mode: "files" | "folder"
   ) => Promise<void>;
+  workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
   workspaceId: string;
 }
 
@@ -283,9 +285,7 @@ export function useIssueManagerController({
     providerOptions,
     executionDirectoryProjectService:
       feature.executionDirectoryPicker?.service ?? null,
-    listExecutionDirectoryProjects: () =>
-      feature.executionDirectoryPicker?.list() ??
-      Promise.resolve({ projects: [] }),
+    workspaceUserProjectI18n: feature.workspaceUserProjectI18n,
     referenceTarget,
     selectTopic(topicId: string) {
       const trimmedTopicId = topicId.trim();

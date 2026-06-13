@@ -12,7 +12,7 @@ import (
 
 const ServiceGroup = "agent-context"
 
-var DefaultAgentContextConfigPath = runtimepaths.Default().AgentPath("codex", "nextop", "current", "agent-context.json")
+var DefaultAgentContextConfigPath = runtimepaths.Default().AgentPath("codex", "tutti", "current", "agent-context.json")
 
 type ConfigInput struct {
 	RoomID     string
@@ -32,9 +32,9 @@ type Config struct {
 }
 
 func ResolveConfig(input ConfigInput) (Config, error) {
-	roomID := firstNonEmpty(strings.TrimSpace(input.RoomID), strings.TrimSpace(os.Getenv("NEXTOP_WORKSPACE_ID")))
+	roomID := firstNonEmpty(strings.TrimSpace(input.RoomID), strings.TrimSpace(os.Getenv("TUTTI_WORKSPACE_ID")))
 	cwd := strings.TrimSpace(input.CWD)
-	configPath := firstNonEmpty(strings.TrimSpace(input.ConfigPath), strings.TrimSpace(os.Getenv("NEXTOP_AGENT_CONTEXT_CONFIG")))
+	configPath := firstNonEmpty(strings.TrimSpace(input.ConfigPath), strings.TrimSpace(os.Getenv("TUTTI_AGENT_CONTEXT_CONFIG")))
 
 	var cfg Config
 	if configPath != "" {

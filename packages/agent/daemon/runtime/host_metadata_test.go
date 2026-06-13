@@ -9,8 +9,8 @@ func TestHostMetadataDefaultsMatchLegacyBehavior(t *testing.T) {
 	if host.ClientInfo.Name != "tsh-desktop" || host.ClientInfo.Title != "tsh" || host.ClientInfo.Version != "0.1.0" {
 		t.Fatalf("client info = %#v, want legacy tsh desktop metadata", host.ClientInfo)
 	}
-	if got := workspaceEnv(Session{RoomID: "workspace-1"}, host); len(got) != 1 || got[0] != "NEXTOP_WORKSPACE_ID=workspace-1" {
-		t.Fatalf("workspace env = %#v, want NEXTOP_WORKSPACE_ID", got)
+	if got := workspaceEnv(Session{RoomID: "workspace-1"}, host); len(got) != 1 || got[0] != "TUTTI_WORKSPACE_ID=workspace-1" {
+		t.Fatalf("workspace env = %#v, want TUTTI_WORKSPACE_ID", got)
 	}
 	if got := openclawGatewayChatSessionKey(Session{AgentSessionID: "session-1"}, host); got != "agent:main:tsh-session-1" {
 		t.Fatalf("session key = %q, want legacy tsh key", got)

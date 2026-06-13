@@ -23,6 +23,7 @@ import type {
   DesktopWorkspaceAppFolderKind,
   DesktopManagedModelGrantRequest,
   DesktopManagedModelGrantResult,
+  DesktopHostWindowCapturePreviewInput,
   DesktopRendererDiagnosticPayload,
   DesktopTerminalDiagnosticPayload,
   DesktopTerminalStreamUrlRequest,
@@ -94,6 +95,9 @@ export interface DesktopWorkspaceAppWorkspaceApi {
 
 export interface DesktopHostWindowApi {
   approveClose(): Promise<void>;
+  capturePreview(
+    input: DesktopHostWindowCapturePreviewInput
+  ): Promise<string | null>;
   onCloseRequest(listener: () => void): () => void;
 }
 
@@ -139,6 +143,14 @@ export interface DesktopHostFilesApi {
   }): Promise<void>;
   readLocalFileText(path: string): Promise<DesktopLocalFileTextResult>;
   readPreviewFile(workspaceID: string, path: string): Promise<Uint8Array>;
+  resolveEntryIcon(
+    workspaceID: string,
+    entry: {
+      kind: string;
+      name: string;
+      path: string;
+    }
+  ): Promise<string | null>;
   selectUploadFiles(): Promise<string[]>;
   copyFilesToClipboard(paths: string[]): Promise<void>;
 }

@@ -3,16 +3,16 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DESKTOP_APP_DIR="${ROOT_DIR}/apps/desktop"
-NEXTOPD_DIR="${ROOT_DIR}/services/nextopd"
-NEXTOPD_BIN_DIR="${DESKTOP_APP_DIR}/build/nextopd"
+TUTTID_DIR="${ROOT_DIR}/services/tuttid"
+TUTTID_BIN_DIR="${DESKTOP_APP_DIR}/build/tuttid"
 NODE_VERSION_FILE="${ROOT_DIR}/.node-version"
-GO_MOD_FILE="${NEXTOPD_DIR}/go.mod"
+GO_MOD_FILE="${TUTTID_DIR}/go.mod"
 PACKAGE_JSON_FILE="${ROOT_DIR}/package.json"
 
 GO_BIN=""
 DEV_GUI_CHILD_PID=""
 DEV_GUI_PID_PATH=""
-DEV_GUI_INITIAL_NEXTOPD_PID=""
+DEV_GUI_INITIAL_TUTTID_PID=""
 DEV_GUI_DESKTOP_STARTED=0
 DEV_GUI_SHUTDOWN_STARTED=0
 DEV_GUI_SHUTDOWN_TIMEOUT_SECONDS="${DEV_GUI_SHUTDOWN_TIMEOUT_SECONDS:-10}"
@@ -67,7 +67,7 @@ resolve_dev_gui_process_group_id() {
 restore_terminal_foreground() {
   local pgid
 
-  [[ -r /dev/tty ]] || return
+  [[ -t 0 && -e /dev/tty ]] || return
 
   pgid="$(resolve_dev_gui_process_group_id)"
   [[ "${pgid}" =~ ^[0-9]+$ ]] || return
@@ -117,7 +117,10 @@ stop_process_tree() {
     return
   fi
 
-  mapfile -t pids < <(
+  while IFS= read -r child_pid; do
+    [[ -n "${child_pid}" ]] || continue
+    pids+=("${child_pid}")
+  done < <(
     {
       collect_child_processes "${pid}"
       printf '%s\n' "${pid}"
@@ -137,7 +140,7 @@ read_process_command() {
   ps -p "${pid}" -o comm= -o args= 2>/dev/null | tr -d '\n'
 }
 
-is_likely_nextopd_process() {
+is_likely_tuttid_process() {
   local command="$1"
   local part
 
@@ -145,7 +148,7 @@ is_likely_nextopd_process() {
 
   for part in ${command}; do
     case "${part##*/}" in
-      nextopd|nextopd.exe)
+      tuttid|tuttid.exe)
         return 0
         ;;
     esac
@@ -154,7 +157,7 @@ is_likely_nextopd_process() {
   return 1
 }
 
-stop_nextopd_from_pid_file() {
+stop_tuttid_from_pid_file() {
   local pid_path="${DEV_GUI_PID_PATH}"
   local raw_pid
   local pid
@@ -167,8 +170,8 @@ stop_nextopd_from_pid_file() {
   [[ "${raw_pid}" =~ ^[0-9]+$ ]] || return
 
   pid="${raw_pid}"
-  if [[ -n "${DEV_GUI_INITIAL_NEXTOPD_PID}" ]] && [[ "${pid}" == "${DEV_GUI_INITIAL_NEXTOPD_PID}" ]]; then
-    log "leaving pre-existing nextopd pid ${pid} alone"
+  if [[ -n "${DEV_GUI_INITIAL_TUTTID_PID}" ]] && [[ "${pid}" == "${DEV_GUI_INITIAL_TUTTID_PID}" ]]; then
+    log "leaving pre-existing tuttid pid ${pid} alone"
     return
   fi
 
@@ -178,15 +181,15 @@ stop_nextopd_from_pid_file() {
   fi
 
   command="$(read_process_command "${pid}" || true)"
-  if ! is_likely_nextopd_process "${command}"; then
-    log "leaving pid ${pid} alone because it is not a nextopd process"
+  if ! is_likely_tuttid_process "${command}"; then
+    log "leaving pid ${pid} alone because it is not a tuttid process"
     return
   fi
 
-  log "stopping managed nextopd pid ${pid}"
+  log "stopping managed tuttid pid ${pid}"
   stop_process_tree "${pid}" TERM
   if ! wait_for_process_exit "${pid}" "${DEV_GUI_SHUTDOWN_TIMEOUT_SECONDS}"; then
-    log "force stopping managed nextopd pid ${pid}"
+    log "force stopping managed tuttid pid ${pid}"
     stop_process_tree "${pid}" KILL
     wait_for_process_exit "${pid}" 2 >/dev/null 2>&1 || true
   fi
@@ -209,12 +212,12 @@ cleanup_dev_gui() {
   fi
 
   if [[ "${DEV_GUI_DESKTOP_STARTED}" == "1" ]]; then
-    stop_nextopd_from_pid_file
+    stop_tuttid_from_pid_file
   fi
 
 }
 
-read_nextopd_pid_file() {
+read_tuttid_pid_file() {
   local pid_path="$1"
 
   [[ -n "${pid_path}" ]] || return 0
@@ -222,20 +225,20 @@ read_nextopd_pid_file() {
   tr -d '[:space:]' < "${pid_path}" 2>/dev/null || true
 }
 
-resolve_nextopd_pid_path() {
-  node - "${ROOT_DIR}/config/nextop.defaults.json" <<'NODE'
+resolve_tuttid_pid_path() {
+  node - "${ROOT_DIR}/config/tutti.defaults.json" <<'NODE'
 const { readFileSync } = require("node:fs");
 const { homedir } = require("node:os");
 const { join } = require("node:path");
 
 const defaults = JSON.parse(readFileSync(process.argv[2], "utf8"));
-const explicitPIDPath = process.env.NEXTOPD_PID_PATH?.trim();
+const explicitPIDPath = process.env.TUTTID_PID_PATH?.trim();
 if (explicitPIDPath) {
   console.log(explicitPIDPath);
   process.exit(0);
 }
 
-const envValue = process.env.NEXTOP_ENV?.trim().toLowerCase();
+const envValue = process.env.TUTTI_ENV?.trim().toLowerCase();
 const isDevelopment =
   envValue === "" ||
   envValue === undefined ||
@@ -243,7 +246,7 @@ const isDevelopment =
   envValue === "development" ||
   envValue === "local";
 const stateDir =
-  process.env.NEXTOP_STATE_DIR?.trim() ||
+  process.env.TUTTI_STATE_DIR?.trim() ||
   join(
     homedir(),
     isDevelopment
@@ -251,7 +254,7 @@ const stateDir =
       : defaults.state.productionDirName
   );
 const runDir =
-  process.env.NEXTOPD_RUN_DIR?.trim() ||
+  process.env.TUTTID_RUN_DIR?.trim() ||
   join(stateDir, defaults.state.runDirName);
 
 console.log(join(runDir, defaults.state.pidFileName));
@@ -259,8 +262,8 @@ NODE
 }
 
 prepare_dev_gui_runtime() {
-  DEV_GUI_PID_PATH="$(resolve_nextopd_pid_path)"
-  DEV_GUI_INITIAL_NEXTOPD_PID="$(read_nextopd_pid_file "${DEV_GUI_PID_PATH}")"
+  DEV_GUI_PID_PATH="$(resolve_tuttid_pid_path)"
+  DEV_GUI_INITIAL_TUTTID_PID="$(read_tuttid_pid_file "${DEV_GUI_PID_PATH}")"
 }
 
 resolve_required_node_major() {
@@ -389,13 +392,13 @@ check_runtime_prerequisites() {
   ensure_go_runtime
 }
 
-resolve_nextopd_binary_name() {
+resolve_tuttid_binary_name() {
   case "$(uname -s)" in
     CYGWIN*|MINGW*|MSYS*)
-      printf 'nextopd.exe\n'
+      printf 'tuttid.exe\n'
       ;;
     *)
-      printf 'nextopd\n'
+      printf 'tuttid\n'
       ;;
   esac
 }
@@ -421,29 +424,29 @@ ensure_workspace_dependencies() {
   )
 }
 
-prepare_nextopd_binary() {
+prepare_tuttid_binary() {
   local binary_name="$1"
-  local binary_path="${NEXTOPD_BIN_DIR}/${binary_name}"
+  local binary_path="${TUTTID_BIN_DIR}/${binary_name}"
 
-  mkdir -p "${NEXTOPD_BIN_DIR}"
+  mkdir -p "${TUTTID_BIN_DIR}"
 
   log "downloading daemon Go modules"
   (
-    cd "${NEXTOPD_DIR}"
+    cd "${TUTTID_DIR}"
     run_go mod download
   )
 
   log "building daemon dev binary at ${binary_path}"
   (
-    cd "${NEXTOPD_DIR}"
+    cd "${TUTTID_DIR}"
     run_go build -o "${binary_path}" .
   )
 
-  NEXTOPD_BINARY_PATH="${binary_path}"
+  TUTTID_BINARY_PATH="${binary_path}"
 }
 
 install_dev_cli() {
-  log "installing nextop-dev CLI"
+  log "installing tutti-dev CLI"
   (
     cd "${ROOT_DIR}"
     GO_BIN="${GO_BIN}" node ./tools/scripts/install-dev-cli.mjs
@@ -451,22 +454,24 @@ install_dev_cli() {
 }
 
 start_desktop_dev() {
-  local nextopd_bin_path="$1"
+  local tuttid_bin_path="$1"
   local status
 
-  log "starting desktop dev with prebuilt nextopd"
+  log "starting desktop dev with prebuilt tuttid"
   prepare_dev_gui_runtime
   DEV_GUI_DESKTOP_STARTED=1
   (
     cd "${ROOT_DIR}"
-    NEXTOPD_BIN="${nextopd_bin_path}" \
-      NEXTOPD_LOG_OUTPUT="${NEXTOPD_LOG_OUTPUT:-tee}" \
+    TUTTID_BIN="${tuttid_bin_path}" \
+      TUTTID_LOG_OUTPUT="${TUTTID_LOG_OUTPUT:-tee}" \
       pnpm dev:desktop < /dev/null
   ) &
   DEV_GUI_CHILD_PID="$!"
 
+  set +e
   wait_for_desktop_dev_exit "${DEV_GUI_CHILD_PID}"
   status="$?"
+  set -e
   DEV_GUI_CHILD_PID=""
   return "${status}"
 }
@@ -477,8 +482,8 @@ main() {
   check_runtime_prerequisites
   ensure_workspace_dependencies
 
-  binary_name="$(resolve_nextopd_binary_name)"
-  prepare_nextopd_binary "${binary_name}"
+  binary_name="$(resolve_tuttid_binary_name)"
+  prepare_tuttid_binary "${binary_name}"
   install_dev_cli
 
   if [[ "${DEV_GUI_SKIP_START:-0}" == "1" ]]; then
@@ -486,7 +491,7 @@ main() {
     return
   fi
 
-  start_desktop_dev "${NEXTOPD_BINARY_PATH}"
+  start_desktop_dev "${TUTTID_BINARY_PATH}"
 }
 
 trap 'exit 130' INT

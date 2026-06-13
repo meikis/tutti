@@ -30,13 +30,13 @@ export default defineConfig(
     ignores: [
       "**/.git/**",
       "**/.codex/**",
-      "**/.nextop-ui-system-dev/**",
+      "**/.tutti-ui-system-dev/**",
       "**/.turbo/**",
       "**/dist/**",
       "**/generated/**",
       "**/node_modules/**",
       "**/out/**",
-      "services/nextopd/builtin-apps/**",
+      "services/tuttid/builtin-apps/**",
       "**/src/internal/ported-source/**",
       "**/tsup.config.ts"
     ]

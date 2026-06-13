@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { workspaceProtocolErrorCodes } from "@tutti-os/client-nextopd-ts";
-import { normalizeNextopdError } from "@tutti-os/client-nextopd-ts";
+import { workspaceProtocolErrorCodes } from "@tutti-os/client-tuttid-ts";
+import { normalizeTuttidError } from "@tutti-os/client-tuttid-ts";
 import { DesktopApiError } from "./desktopApiError.ts";
 
 test("DesktopApiError keeps protocol metadata available for normalization", () => {
@@ -15,7 +15,7 @@ test("DesktopApiError keeps protocol metadata available for normalization", () =
     retryable: true
   });
 
-  const normalized = normalizeNextopdError(error);
+  const normalized = normalizeTuttidError(error);
 
   assert.ok(normalized);
   assert.equal(normalized.code, workspaceProtocolErrorCodes.workspaceNotFound);

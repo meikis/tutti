@@ -140,6 +140,7 @@ export function AgentMessageBlock({
               workspaceAppIcons={workspaceAppIcons}
               deferLongContentRender
               enableImageZoom
+              streaming={message.statusKind === "working"}
             />
           );
 
@@ -374,7 +375,7 @@ function AgentVisibleErrorMessage({
         <div className="min-w-0 flex-1">
           <div className="font-medium text-[var(--text-primary)]">{title}</div>
           {hint ? (
-            <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
+            <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
               {hint}
             </div>
           ) : null}
@@ -408,7 +409,7 @@ function AgentMessageDetailsDisclosure({
   "use memo";
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className={`${className} text-[12px] text-[var(--state-danger)]`}>
+    <div className={`${className} text-[11px] text-[var(--state-danger)]`}>
       <button
         type="button"
         className="inline-flex w-fit max-w-full min-w-0 cursor-pointer select-none items-center gap-1.5 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] transition-colors duration-150 hover:text-[var(--state-danger-hover)]"

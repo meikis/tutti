@@ -54,7 +54,7 @@ test("desktop release notes replace the managed direct download section in place
   const nextBody = buildUpdatedReleaseBody({
     assetNames: ["Tutti-1.0.0-mac-arm64.dmg"],
     existingBody,
-    releaseAssetBaseUrl: "https://downloads.example.com/nextop",
+    releaseAssetBaseUrl: "https://downloads.example.com/tutti",
     releaseTag: "tutti-desktop-v1.0.0"
   });
 
@@ -62,7 +62,7 @@ test("desktop release notes replace the managed direct download section in place
   assert.doesNotMatch(nextBody, /old\.example/);
   assert.match(
     nextBody,
-    /\[macOS\]\(https:\/\/downloads\.example\.com\/nextop\/tutti-desktop-v1\.0\.0\/Tutti-1\.0\.0-mac-arm64\.dmg\)/
+    /\[macOS\]\(https:\/\/downloads\.example\.com\/tutti\/tutti-desktop-v1\.0\.0\/Tutti-1\.0\.0-mac-arm64\.dmg\)/
   );
 });
 

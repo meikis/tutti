@@ -45,13 +45,13 @@ The host daemon owns:
 
 ## Legacy Defaults
 
-The legacy runtime constructors still default to `NEXTOP_WORKSPACE_ID`,
+The legacy runtime constructors still default to `TUTTI_WORKSPACE_ID`,
 `tsh-desktop` ACP client metadata, and `agent:main:tsh-` OpenClaw session keys
 for compatibility. New host integrations must use `agentdaemon.NewRuntime` with
 explicit `HostMetadata`; the root facade does not apply legacy host identity
 defaults. `ProcessTransport` is also required when using the built-in provider
 adapters; hosts that pass custom `Adapters` own that transport setup themselves.
 
-State directory defaults still follow the historical `NEXTOP_STATE_DIR` /
-`.nextop` behavior. State-dir injection is intentionally left for a later
+State directory defaults still follow the historical `TUTTI_STATE_DIR` /
+`.tutti` behavior. State-dir injection is intentionally left for a later
 host-boundary pass.

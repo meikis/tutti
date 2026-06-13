@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nextop.dev/schemas/events/event-definition.schema.json",
+  "$id": "https://tutti.dev/schemas/events/event-definition.schema.json",
   "title": "BusinessEventDefinition",
   "type": "object",
   "additionalProperties": false,

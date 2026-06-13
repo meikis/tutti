@@ -1,10 +1,10 @@
 import type { ServiceRegistry } from "@zk-tech/bedrock/di";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import { ReporterService } from "./internal/reporterService";
 import { IReporterService } from "./reporterService.interface";
 
 export interface ReporterServiceRegistrationInput {
-  nextopdClient: Pick<NextopdClient, "trackEvents">;
+  tuttidClient: Pick<TuttidClient, "trackEvents">;
 }
 
 export function registerReporterServices(
@@ -12,7 +12,7 @@ export function registerReporterServices(
   input: ReporterServiceRegistrationInput
 ): IReporterService {
   const reporterService = new ReporterService({
-    nextopdClient: input.nextopdClient
+    tuttidClient: input.tuttidClient
   });
   registry.registerInstance(IReporterService, reporterService);
   return reporterService;

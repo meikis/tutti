@@ -341,7 +341,7 @@ function isDirectAgentGeneratedImagePath(path: string): boolean {
   }
   const segments = path.split("/").filter(Boolean);
   const stateRootIndex = segments.findIndex(
-    (segment) => segment === ".nextop" || segment === ".nextop-dev"
+    (segment) => segment === ".tutti" || segment === ".tutti-dev"
   );
   if (stateRootIndex < 0) {
     return false;

@@ -1,4 +1,4 @@
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import { AGENT_GUI_MENTION_PROVIDER_IDS } from "@tutti-os/agent-gui/agent-rich-text-at-provider";
 import { normalizeAgentTitleText } from "@tutti-os/agent-gui/agent-title-text";
 import { buildWorkspaceIssueMentionHref } from "@tutti-os/workspace-issue-manager/core";
@@ -22,7 +22,7 @@ interface DesktopRichTextAtContributor {
 }
 
 export interface DesktopRichTextAtServiceDependencies {
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
 }
 
 interface WorkspaceFileAtItem {
@@ -87,10 +87,10 @@ export class DesktopRichTextAtService implements IDesktopRichTextAtService {
 
   constructor(dependencies: DesktopRichTextAtServiceDependencies) {
     this.contributors = [
-      createWorkspaceFileAtContributor(dependencies.nextopdClient),
-      createWorkspaceIssueAtContributor(dependencies.nextopdClient),
-      createAgentSessionAtContributor(dependencies.nextopdClient),
-      createWorkspaceAppAtContributor(dependencies.nextopdClient)
+      createWorkspaceFileAtContributor(dependencies.tuttidClient),
+      createWorkspaceIssueAtContributor(dependencies.tuttidClient),
+      createAgentSessionAtContributor(dependencies.tuttidClient),
+      createWorkspaceAppAtContributor(dependencies.tuttidClient)
     ];
   }
 
@@ -126,7 +126,7 @@ export class DesktopRichTextAtService implements IDesktopRichTextAtService {
 }
 
 function createWorkspaceAppAtContributor(
-  nextopdClient: NextopdClient
+  tuttidClient: TuttidClient
 ): DesktopRichTextAtContributor {
   return {
     capability: "workspace-app",
@@ -138,7 +138,7 @@ function createWorkspaceAppAtContributor(
             if (searchInput.abortSignal?.aborted) {
               return [];
             }
-            const response = await nextopdClient.listCliCapabilities(
+            const response = await tuttidClient.listCliCapabilities(
               input.workspaceId
             );
             if (searchInput.abortSignal?.aborted) {
@@ -184,7 +184,7 @@ function createWorkspaceAppAtContributor(
 
 function workspaceAppAtItemsFromCapabilities(input: {
   commands: Awaited<
-    ReturnType<NextopdClient["listCliCapabilities"]>
+    ReturnType<TuttidClient["listCliCapabilities"]>
   >["commands"];
   keyword: string;
   maxResults?: number;
@@ -275,7 +275,7 @@ function workspaceAppMatchesKeyword(
 
 function workspaceAppDescriptionFromCapability(
   command: Awaited<
-    ReturnType<NextopdClient["listCliCapabilities"]>
+    ReturnType<TuttidClient["listCliCapabilities"]>
   >["commands"][number]
 ): string {
   return (
@@ -345,7 +345,7 @@ function isIssueWorkspaceRuntimePath(path: string, root: string): boolean {
 }
 
 function createWorkspaceFileAtContributor(
-  nextopdClient: NextopdClient
+  tuttidClient: TuttidClient
 ): DesktopRichTextAtContributor {
   return {
     capability: "workspace-file",
@@ -357,7 +357,7 @@ function createWorkspaceFileAtContributor(
             if (searchInput.abortSignal?.aborted) {
               return [];
             }
-            const response = await nextopdClient.searchWorkspaceFiles(
+            const response = await tuttidClient.searchWorkspaceFiles(
               input.workspaceId,
               {
                 limit: searchInput.maxResults,
@@ -400,7 +400,7 @@ function createWorkspaceFileAtContributor(
 }
 
 function createWorkspaceIssueAtContributor(
-  nextopdClient: NextopdClient
+  tuttidClient: TuttidClient
 ): DesktopRichTextAtContributor {
   return {
     capability: "workspace-issue",
@@ -412,7 +412,7 @@ function createWorkspaceIssueAtContributor(
             if (searchInput.abortSignal?.aborted) {
               return [];
             }
-            const topicResponse = await nextopdClient.listWorkspaceIssueTopics(
+            const topicResponse = await tuttidClient.listWorkspaceIssueTopics(
               input.workspaceId
             );
             if (searchInput.abortSignal?.aborted) {
@@ -422,7 +422,7 @@ function createWorkspaceIssueAtContributor(
             if (!topicId) {
               return [];
             }
-            const response = await nextopdClient.listWorkspaceIssues(
+            const response = await tuttidClient.listWorkspaceIssues(
               input.workspaceId,
               {
                 pageSize: searchInput.maxResults,
@@ -475,7 +475,7 @@ function createWorkspaceIssueAtContributor(
 }
 
 function createAgentSessionAtContributor(
-  nextopdClient: NextopdClient
+  tuttidClient: TuttidClient
 ): DesktopRichTextAtContributor {
   return {
     capability: "agent-session",
@@ -491,7 +491,7 @@ function createAgentSessionAtContributor(
               searchInput.context.metadata,
               "currentUserId"
             );
-            const response = await nextopdClient.listWorkspaceAgentSessions(
+            const response = await tuttidClient.listWorkspaceAgentSessions(
               input.workspaceId,
               {
                 limit: searchInput.maxResults,

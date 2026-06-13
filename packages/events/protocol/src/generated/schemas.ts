@@ -2,7 +2,7 @@
 
 export const preferencesDesktopPreferencesSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://nextop.dev/schemas/events/preferences/desktop-preferences.schema.json",
+  $id: "https://tutti.dev/schemas/events/preferences/desktop-preferences.schema.json",
   title: "DesktopPreferences",
   type: "object",
   additionalProperties: false,
@@ -158,7 +158,7 @@ export const preferencesDesktopPreferencesSchema = {
 
 export const workspaceWorkspaceAppFactoryJobSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://nextop.dev/schemas/events/workspace/workspace-app-factory-job.schema.json",
+  $id: "https://tutti.dev/schemas/events/workspace/workspace-app-factory-job.schema.json",
   title: "WorkspaceAppFactoryJob",
   type: "object",
   additionalProperties: false,
@@ -250,7 +250,7 @@ export const workspaceWorkspaceAppFactoryJobSchema = {
 
 export const workspaceWorkspaceAppSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://nextop.dev/schemas/events/workspace/workspace-app.schema.json",
+  $id: "https://tutti.dev/schemas/events/workspace/workspace-app.schema.json",
   title: "WorkspaceApp",
   type: "object",
   additionalProperties: false,
@@ -808,7 +808,7 @@ export const preferencesDesktopUpdateRequestedPayloadSchema = {
   properties: {
     preferences: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://nextop.dev/schemas/events/preferences/desktop-preferences.schema.json",
+      $id: "https://tutti.dev/schemas/events/preferences/desktop-preferences.schema.json",
       title: "DesktopPreferences",
       type: "object",
       additionalProperties: false,
@@ -981,7 +981,7 @@ export const preferencesDesktopUpdatedPayloadSchema = {
     },
     preferences: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://nextop.dev/schemas/events/preferences/desktop-preferences.schema.json",
+      $id: "https://tutti.dev/schemas/events/preferences/desktop-preferences.schema.json",
       title: "DesktopPreferences",
       type: "object",
       additionalProperties: false,
@@ -1151,7 +1151,7 @@ export const workspaceAppUpdatedPayloadSchema = {
   properties: {
     app: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://nextop.dev/schemas/events/workspace/workspace-app.schema.json",
+      $id: "https://tutti.dev/schemas/events/workspace/workspace-app.schema.json",
       title: "WorkspaceApp",
       type: "object",
       additionalProperties: false,
@@ -1307,7 +1307,7 @@ export const workspaceAppfactoryJobUpdatedPayloadSchema = {
   properties: {
     job: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://nextop.dev/schemas/events/workspace/workspace-app-factory-job.schema.json",
+      $id: "https://tutti.dev/schemas/events/workspace/workspace-app-factory-job.schema.json",
       title: "WorkspaceAppFactoryJob",
       type: "object",
       additionalProperties: false,
@@ -1440,7 +1440,7 @@ export const workspaceIssueUpdatedPayloadSchema = {
 
 export const businessEventEnvelopeSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://nextop.dev/schemas/events/event-envelope.schema.json",
+  $id: "https://tutti.dev/schemas/events/event-envelope.schema.json",
   title: "BusinessEventEnvelope",
   type: "object",
   additionalProperties: false,
@@ -1479,7 +1479,7 @@ export const businessEventEnvelopeSchema = {
 
 export const businessEventClientFrameSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://nextop.dev/schemas/events/client-frame.schema.json",
+  $id: "https://tutti.dev/schemas/events/client-frame.schema.json",
   title: "BusinessEventClientFrame",
   oneOf: [
     {
@@ -1560,7 +1560,7 @@ export const businessEventClientFrameSchema = {
         },
         event: {
           $schema: "https://json-schema.org/draft/2020-12/schema",
-          $id: "https://nextop.dev/schemas/events/event-envelope.schema.json",
+          $id: "https://tutti.dev/schemas/events/event-envelope.schema.json",
           title: "BusinessEventEnvelope",
           type: "object",
           additionalProperties: false,
@@ -1622,7 +1622,7 @@ export const businessEventClientFrameSchema = {
 
 export const businessEventServerFrameSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://nextop.dev/schemas/events/server-frame.schema.json",
+  $id: "https://tutti.dev/schemas/events/server-frame.schema.json",
   title: "BusinessEventServerFrame",
   oneOf: [
     {
@@ -1676,7 +1676,7 @@ export const businessEventServerFrameSchema = {
         },
         event: {
           $schema: "https://json-schema.org/draft/2020-12/schema",
-          $id: "https://nextop.dev/schemas/events/event-envelope.schema.json",
+          $id: "https://tutti.dev/schemas/events/event-envelope.schema.json",
           title: "BusinessEventEnvelope",
           type: "object",
           additionalProperties: false,

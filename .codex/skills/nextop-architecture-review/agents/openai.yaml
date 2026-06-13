@@ -1,7 +1,0 @@
-interface:
-  display_name: "Nextop Architecture Review"
-  short_description: "Review nextop layering and event-center ownership"
-  default_prompt: "Use $nextop-architecture-review to review the current git diff, or focus the review on a user-named nextop module when the request calls for it."
-
-policy:
-  allow_implicit_invocation: true

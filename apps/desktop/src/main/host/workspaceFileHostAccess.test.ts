@@ -84,7 +84,7 @@ test("workspace file host access resolves and opens workspace files", async () =
 
 test("workspace file host access treats missing default applications as handled", async () => {
   const workspaceRoot = await createWorkspaceRootWithFile(
-    "exports/report.nextop-unknown",
+    "exports/report.tutti-unknown",
     "opaque"
   );
   const restoreHome = installHomeDirectory(workspaceRoot);
@@ -99,7 +99,7 @@ test("workspace file host access treats missing default applications as handled"
     });
 
     await hostAccess.openFile({
-      path: path.join(workspaceRoot, "exports/report.nextop-unknown"),
+      path: path.join(workspaceRoot, "exports/report.tutti-unknown"),
       workspaceID: "workspace-1"
     });
   } finally {
@@ -109,7 +109,7 @@ test("workspace file host access treats missing default applications as handled"
 
 test("workspace file host access treats generic openPath failures for existing files as handled", async () => {
   const workspaceRoot = await createWorkspaceRootWithFile(
-    "exports/report.nextop-unknown",
+    "exports/report.tutti-unknown",
     "opaque"
   );
   const restoreHome = installHomeDirectory(workspaceRoot);
@@ -119,7 +119,7 @@ test("workspace file host access treats generic openPath failures for existing f
     });
 
     await hostAccess.openFile({
-      path: path.join(workspaceRoot, "exports/report.nextop-unknown"),
+      path: path.join(workspaceRoot, "exports/report.tutti-unknown"),
       workspaceID: "workspace-1"
     });
   } finally {
@@ -274,8 +274,8 @@ test("workspace file host access reads local text files through explicit local c
   });
 });
 
-test("workspace file host access creates project directories under Documents/nextop", async () => {
-  const documentsRoot = await mkdtemp(path.join(tmpdir(), "nextop-documents-"));
+test("workspace file host access creates project directories under Documents/tutti", async () => {
+  const documentsRoot = await mkdtemp(path.join(tmpdir(), "tutti-documents-"));
   const createdPaths: string[] = [];
   const hostAccess = createWorkspaceFileHostAccess({
     getDocumentsPath: () => documentsRoot,
@@ -291,17 +291,17 @@ test("workspace file host access creates project directories under Documents/nex
   });
 
   assert.deepEqual(result, {
-    path: path.join(documentsRoot, "nextop", "Demo project")
+    path: path.join(documentsRoot, "tutti", "Demo project")
   });
   assert.deepEqual(createdPaths, [
-    path.join(documentsRoot, "nextop"),
-    path.join(documentsRoot, "nextop", "Demo project")
+    path.join(documentsRoot, "tutti"),
+    path.join(documentsRoot, "tutti", "Demo project")
   ]);
 });
 
 test("workspace file host access rejects an existing project directory name", async () => {
-  const documentsRoot = await mkdtemp(path.join(tmpdir(), "nextop-documents-"));
-  await mkdir(path.join(documentsRoot, "nextop", "Demo project"), {
+  const documentsRoot = await mkdtemp(path.join(tmpdir(), "tutti-documents-"));
+  await mkdir(path.join(documentsRoot, "tutti", "Demo project"), {
     recursive: true
   });
   const hostAccess = createWorkspaceFileHostAccess({
@@ -325,7 +325,7 @@ test("workspace file host access rejects an existing project directory name", as
 });
 
 test("workspace file host access gives project-specific codes for create failures", async () => {
-  const documentsRoot = await mkdtemp(path.join(tmpdir(), "nextop-documents-"));
+  const documentsRoot = await mkdtemp(path.join(tmpdir(), "tutti-documents-"));
   const hostAccess = createWorkspaceFileHostAccess({
     getDocumentsPath: () => documentsRoot,
     mkdir: async () => {
@@ -352,7 +352,7 @@ test("workspace file host access gives project-specific codes for create failure
 });
 
 test("workspace file host access rejects project names that escape Documents", async () => {
-  const documentsRoot = await mkdtemp(path.join(tmpdir(), "nextop-documents-"));
+  const documentsRoot = await mkdtemp(path.join(tmpdir(), "tutti-documents-"));
   const hostAccess = createWorkspaceFileHostAccess({
     getDocumentsPath: () => documentsRoot
   });
@@ -428,7 +428,7 @@ async function createWorkspaceRootWithFile(
   content: string
 ): Promise<string> {
   const workspaceRoot = await mkdtemp(
-    path.join(tmpdir(), "nextop-workspace-file-host-access-")
+    path.join(tmpdir(), "tutti-workspace-file-host-access-")
   );
   const absolutePath = path.join(workspaceRoot, relativePath);
   await mkdir(path.dirname(absolutePath), { recursive: true });

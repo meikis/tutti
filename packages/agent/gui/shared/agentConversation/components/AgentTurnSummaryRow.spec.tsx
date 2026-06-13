@@ -62,7 +62,7 @@ describe("AgentTurnSummaryRow", () => {
       screen
         .getByText("agentHost.agentGui.turnSummaryFilesChanged:2")
         .closest("div")?.className
-    ).toContain("text-[16px]");
+    ).toContain("text-[15px]");
     expect(
       screen
         .getByText("agentHost.agentGui.turnSummaryFilesChanged:2")
@@ -137,6 +137,7 @@ describe("AgentTurnSummaryRow", () => {
     expect(screen.getByTitle("src/app.ts").className).toContain(
       "text-[var(--text-secondary)]"
     );
+    expect(screen.getByTitle("src/app.ts").className).toContain("text-[13px]");
     expect(
       screen
         .getByText("agentHost.agentGui.turnSummaryFilesChanged:2")
@@ -189,11 +190,11 @@ describe("AgentTurnSummaryRow", () => {
     fireEvent.click(openFileButton);
 
     expect(
-      openFileButton.querySelector('svg[data-nextop-chrome-glyph="fill"]')
+      openFileButton.querySelector('svg[data-tutti-chrome-glyph="fill"]')
     ).toBeTruthy();
     expect(
       openFileButton
-        .querySelector('svg[data-nextop-chrome-glyph="fill"]')
+        .querySelector('svg[data-tutti-chrome-glyph="fill"]')
         ?.getAttribute("class")
     ).toContain("text-[var(--text-secondary)]");
 

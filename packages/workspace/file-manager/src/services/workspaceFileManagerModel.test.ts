@@ -81,7 +81,7 @@ test("filters hidden directories and sorts directories first", () => {
 test("detects paths inside hidden directory segments", () => {
   assert.equal(
     workspaceFilePathHasHiddenSegment(
-      "/Users/demo/.nextop-dev/agent/runs/image.png"
+      "/Users/demo/.tutti-dev/agent/runs/image.png"
     ),
     true
   );

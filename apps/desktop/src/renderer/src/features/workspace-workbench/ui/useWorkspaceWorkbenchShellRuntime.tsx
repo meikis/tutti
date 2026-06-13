@@ -6,7 +6,7 @@ import {
   useSyncExternalStore
 } from "react";
 import { useService } from "@zk-tech/bedrock/di";
-import type { WorkspaceSummary } from "@tutti-os/client-nextopd-ts";
+import type { WorkspaceSummary } from "@tutti-os/client-tuttid-ts";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import type {
   WorkbenchDockPlacement,

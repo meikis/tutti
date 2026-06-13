@@ -13,7 +13,7 @@ import type {
 } from "../../../../../../../../packages/workspace/app-center/src/ui/AppCard.tsx";
 import { AppCenterPanel } from "../../../../../../../../packages/workspace/app-center/src/ui/AppCenterPanel.tsx";
 import { agentGuiDockIconUrls } from "@tutti-os/agent-gui";
-import type { AgentProviderStatus } from "@tutti-os/client-nextopd-ts";
+import type { AgentProviderStatus } from "@tutti-os/client-tuttid-ts";
 import { useService } from "@zk-tech/bedrock/di";
 import type { AppCenterAppTab } from "../../../../../../../../packages/workspace/app-center/src/ui/AppCenterPanel.tsx";
 import {
@@ -137,7 +137,12 @@ export function WorkspaceAppCenterPane({
   );
   const { i18n, locale } = useTranslation();
   const copy = useMemo(() => createAppCenterI18nRuntime(i18n), [i18n]);
-  const viewState = service.getViewState(workspaceId, restoredViewState);
+  const normalizedWorkspaceId = workspaceId.trim();
+  const storedViewState = normalizedWorkspaceId
+    ? state.viewStateByWorkspaceId[normalizedWorkspaceId]
+    : undefined;
+  const viewState =
+    storedViewState ?? service.getViewState(workspaceId, restoredViewState);
   useEffect(() => {
     void service.refreshCatalog(workspaceId);
   }, [service, workspaceId]);
@@ -271,6 +276,7 @@ export function WorkspaceAppCenterPane({
         },
         publishFactoryJob: (jobId) =>
           service.publishFactoryJob({ jobId, workspaceId }),
+        refreshCatalog: () => service.refreshCatalog(workspaceId),
         retryFactoryValidation: (jobId) =>
           service.retryFactoryValidation({ jobId, workspaceId }),
         retryApp: (appId) => service.retryApp({ appId, workspaceId }),

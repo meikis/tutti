@@ -1,6 +1,6 @@
 # @tutti-os/agent-activity-core
 
-Shared agent activity state, merge rules, and selectors for Nextop agent UIs.
+Shared agent activity state, merge rules, and selectors for Tutti agent UIs.
 
 This package owns the frontend-side session snapshot model used by surfaces such
 as `@tutti-os/agent-gui` and the future message center. It does not know about

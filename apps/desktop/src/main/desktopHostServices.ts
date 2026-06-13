@@ -14,7 +14,7 @@ import {
 import { createWorkspaceLaunchDesktopAdapters } from "./host/workspaceLaunchDesktopAdapters";
 import type { DesktopLogger } from "./logging";
 import { getDesktopThemeState } from "./desktopTheme";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 
 export interface DesktopHostServices {
   fileDialogs: DesktopFileDialogAccess;
@@ -27,8 +27,8 @@ export interface CreateDesktopHostServicesOptions {
   enableDevelopmentReloadShortcut?: boolean;
   fallbackLocale: DesktopLocale;
   logger: DesktopLogger;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     "getDesktopPreferences" | "getStartupWorkspace" | "putDesktopPreferences"
   >;
   preloadPath: string;
@@ -42,7 +42,7 @@ export async function createDesktopHostServices(
   const preferences = await createDesktopHostPreferencesState({
     fallbackLocale: options.fallbackLocale,
     logger: options.logger,
-    nextopdClient: options.nextopdClient
+    tuttidClient: options.tuttidClient
   });
   const fileDialogs = createDesktopFileDialogAccess({
     getLocale: () => preferences.getLocale()
@@ -59,7 +59,7 @@ export async function createDesktopHostServices(
       rendererUrl: options.rendererUrl,
       workspaceAppPreloadPath: options.workspaceAppPreloadPath
     }),
-    nextopdClient: options.nextopdClient
+    tuttidClient: options.tuttidClient
   });
 
   return {

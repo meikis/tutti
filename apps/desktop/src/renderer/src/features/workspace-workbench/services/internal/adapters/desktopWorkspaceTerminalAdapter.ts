@@ -1,8 +1,8 @@
 import {
-  getNextopdProtocolErrorCode,
-  normalizeNextopdError,
-  type NextopdClient
-} from "@tutti-os/client-nextopd-ts";
+  getTuttidProtocolErrorCode,
+  normalizeTuttidError,
+  type TuttidClient
+} from "@tutti-os/client-tuttid-ts";
 import type {
   TerminalCloseGuardResult,
   TerminalCloseGuardService,
@@ -50,7 +50,7 @@ interface ManagedTerminalSocket {
 
 export interface CreateDesktopWorkspaceTerminalAdapterInput {
   hostFilesApi: DesktopHostFilesApi;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   openBrowserUrl?: (request: {
     reuseIfOpen?: boolean;
     source?: "terminal";
@@ -67,7 +67,7 @@ type Listener<TEvent> = (event: TEvent) => void;
 
 export function createDesktopWorkspaceTerminalAdapter({
   hostFilesApi,
-  nextopdClient,
+  tuttidClient,
   openBrowserUrl,
   platformApi,
   runtimeApi,
@@ -159,7 +159,7 @@ export function createDesktopWorkspaceTerminalAdapter({
       sockets.get(input.sessionId)?.socket.close();
 
       try {
-        const session = await nextopdClient.getWorkspaceTerminal(
+        const session = await tuttidClient.getWorkspaceTerminal(
           workspaceId,
           input.sessionId
         );
@@ -444,7 +444,7 @@ export function createDesktopWorkspaceTerminalAdapter({
         return;
       }
       try {
-        await nextopdClient.resizeWorkspaceTerminal(
+        await tuttidClient.resizeWorkspaceTerminal(
           workspaceId,
           input.sessionId,
           {
@@ -471,7 +471,7 @@ export function createDesktopWorkspaceTerminalAdapter({
         workspaceId
       });
       try {
-        const snapshot = await nextopdClient.getWorkspaceTerminalSnapshot(
+        const snapshot = await tuttidClient.getWorkspaceTerminalSnapshot(
           workspaceId,
           input.sessionId
         );
@@ -541,7 +541,7 @@ export function createDesktopWorkspaceTerminalAdapter({
           } satisfies TerminalCloseGuardResult;
         }
         try {
-          const guard = await nextopdClient.checkWorkspaceTerminalCloseGuard(
+          const guard = await tuttidClient.checkWorkspaceTerminalCloseGuard(
             workspaceId,
             input.sessionId
           );
@@ -586,7 +586,7 @@ export function createDesktopWorkspaceTerminalAdapter({
     },
     launchService: {
       async create(input: TerminalLaunchInput) {
-        const session = await nextopdClient.createWorkspaceTerminal(
+        const session = await tuttidClient.createWorkspaceTerminal(
           workspaceId,
           {
             cwd: input.cwd,
@@ -600,7 +600,7 @@ export function createDesktopWorkspaceTerminalAdapter({
       },
       async get(sessionId) {
         try {
-          const session = await nextopdClient.getWorkspaceTerminal(
+          const session = await tuttidClient.getWorkspaceTerminal(
             workspaceId,
             sessionId
           );
@@ -612,7 +612,7 @@ export function createDesktopWorkspaceTerminalAdapter({
         }
       },
       async terminate(input) {
-        const session = await nextopdClient.terminateWorkspaceTerminal(
+        const session = await tuttidClient.terminateWorkspaceTerminal(
           workspaceId,
           input.sessionId
         );
@@ -656,8 +656,8 @@ export function createDesktopWorkspaceTerminalAdapter({
 }
 
 function isMissingTerminalError(error: unknown): boolean {
-  const normalizedError = normalizeNextopdError(error);
-  const code = normalizedError?.code ?? getNextopdProtocolErrorCode(error);
+  const normalizedError = normalizeTuttidError(error);
+  const code = normalizedError?.code ?? getTuttidProtocolErrorCode(error);
   const reason = normalizedError?.reason ?? null;
   return (
     code === "workspace_terminal_not_found" ||
@@ -666,7 +666,7 @@ function isMissingTerminalError(error: unknown): boolean {
 }
 
 function toTerminalSessionDescriptor(
-  session: Awaited<ReturnType<NextopdClient["createWorkspaceTerminal"]>>
+  session: Awaited<ReturnType<TuttidClient["createWorkspaceTerminal"]>>
 ): TerminalSessionDescriptor {
   return {
     cwd: session.cwd,

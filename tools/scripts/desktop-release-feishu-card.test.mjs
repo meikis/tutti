@@ -43,14 +43,14 @@ test("release Feishu card includes tsh-aligned release context fields", () => {
   const payload = buildCardPayload({
     actor: "jomeswang",
     branch: "main",
-    linuxUrl: "https://example.com/nextop.AppImage",
-    macUrl: "https://example.com/nextop.dmg",
+    linuxUrl: "https://example.com/tutti.AppImage",
+    macUrl: "https://example.com/tutti.dmg",
     releaseUrl:
       "https://github.com/tutti-os/tutti/releases/tag/tutti-desktop-v1.12.20",
     runUrl: "https://github.com/tutti-os/tutti/actions/runs/1",
     tag: "tutti-desktop-v1.12.20",
     target: "4039186abcdef0",
-    winUrl: "https://example.com/nextop.exe"
+    winUrl: "https://example.com/tutti.exe"
   });
 
   const fields = extractFieldMap(payload);
@@ -76,7 +76,7 @@ test("release Feishu card includes tsh-aligned release context fields", () => {
 test("release Feishu card can prefer mirrored asset links over GitHub asset URLs", () => {
   assert.equal(
     resolveReleaseAssetBaseUrl({
-      bucket: "nextop-release-assets",
+      bucket: "tutti-release-assets",
       explicitBaseUrl:
         "https://d111111abcdef8.cloudfront.net/desktop-release-assets",
       prefix: "desktop-release-assets"
@@ -86,11 +86,11 @@ test("release Feishu card can prefer mirrored asset links over GitHub asset URLs
 
   assert.equal(
     resolveReleaseAssetBaseUrl({
-      bucket: "nextop-release-assets",
+      bucket: "tutti-release-assets",
       explicitBaseUrl: "",
       prefix: "desktop-release-assets"
     }),
-    "https://nextop-release-assets.s3-accelerate.amazonaws.com/desktop-release-assets"
+    "https://tutti-release-assets.s3-accelerate.amazonaws.com/desktop-release-assets"
   );
 });
 

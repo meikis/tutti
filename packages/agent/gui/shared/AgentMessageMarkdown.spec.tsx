@@ -9,7 +9,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AgentMessageMarkdown,
-  resetCachedMarkdownImagesForTests
+  resetCachedMarkdownImagesForTests,
+  splitStreamingMarkdownBlocks
 } from "./AgentMessageMarkdown";
 
 describe("AgentMessageMarkdown", () => {
@@ -54,10 +55,11 @@ describe("AgentMessageMarkdown", () => {
     );
     expect(markdown?.className).not.toContain("hover:[&_a]:underline");
     expect(markdown?.className).toContain("text-[var(--text-primary)]");
-    expect(markdown?.className).toContain("[&_a]:text-[var(--accent)]");
+    expect(markdown?.className).toContain("[&_a]:cursor-pointer");
+    expect(markdown?.className).toContain("[&_a]:text-[var(--tutti-purple)]");
     expect(markdown?.className).toContain("[&_a:hover]:underline");
     expect(markdown?.className).toContain("[&_strong]:font-semibold");
-    expect(markdown?.className).toContain("[&_code]:text-[12px]");
+    expect(markdown?.className).toContain("[&_code]:text-[11px]");
     expect(markdown?.className).toContain(
       "[&_code]:text-[var(--text-primary)]"
     );
@@ -219,7 +221,7 @@ describe("AgentMessageMarkdown", () => {
     render(
       <AgentMessageMarkdown
         content={
-          "图片在这里： `/Users/local/.nextop-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png`"
+          "图片在这里： `/Users/local/.tutti-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png`"
         }
         onLinkAction={onLinkAction}
         workspaceLinkContext={{
@@ -232,15 +234,15 @@ describe("AgentMessageMarkdown", () => {
 
     fireEvent.click(
       screen.getByRole("link", {
-        name: "/Users/local/.nextop-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png"
+        name: "/Users/local/.tutti-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png"
       })
     );
 
     expect(onLinkAction).toHaveBeenCalledWith({
       type: "open-workspace-file",
-      path: "/Users/local/.nextop-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png",
+      path: "/Users/local/.tutti-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen/ig_123.png",
       directoryPath:
-        "/Users/local/.nextop-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen",
+        "/Users/local/.tutti-dev/agent/runs/run-1/session-1/codex-home/generated_images/imagegen",
       workspaceRoot: "/Users/local/project",
       source: "agent-markdown"
     });
@@ -925,7 +927,7 @@ describe("AgentMessageMarkdown", () => {
     );
 
     const expandButton = screen.getByRole("button", { name: "展开全部" });
-    expect(expandButton.className).toContain("text-[var(--accent)]");
+    expect(expandButton.className).toContain("text-[var(--tutti-purple)]");
     const markdown = expandButton.parentElement?.querySelector(
       '[data-workspace-agent-markdown="true"]'
     );
@@ -972,5 +974,29 @@ describe("AgentMessageMarkdown", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("splitStreamingMarkdownBlocks", () => {
+  it("splits stable markdown blocks without splitting fenced code", () => {
+    expect(
+      splitStreamingMarkdownBlocks(
+        [
+          "Intro paragraph.",
+          "",
+          "```ts",
+          "const value = 1;",
+          "",
+          "console.log(value);",
+          "```",
+          "",
+          "- Tail item"
+        ].join("\n")
+      ).map((block) => block.content)
+    ).toEqual([
+      "Intro paragraph.\n",
+      "```ts\nconst value = 1;\n\nconsole.log(value);\n```\n",
+      "- Tail item"
+    ]);
   });
 });

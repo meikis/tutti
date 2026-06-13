@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type {
   DesktopPreferencesStateResponse,
-  NextopdEventStreamClient
-} from "@tutti-os/client-nextopd-ts";
+  TuttidEventStreamClient
+} from "@tutti-os/client-tuttid-ts";
 import type { DesktopThemeSource } from "../shared/theme";
 import type { DesktopHostPreferencesState } from "./desktopHostPreferences";
 import type { DesktopLogger } from "./logging";
@@ -140,7 +140,7 @@ function createLogger(): DesktopLogger {
   };
 }
 
-function createFakeEventStreamClient(): NextopdEventStreamClient & {
+function createFakeEventStreamClient(): TuttidEventStreamClient & {
   connectCalls: number;
   disposeCalls: number;
   emitDesktopPreferencesUpdated(payload: DesktopPreferencesStateResponse): void;

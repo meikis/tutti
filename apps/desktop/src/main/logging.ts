@@ -197,7 +197,7 @@ function formatLogLine(
   const base = [
     `time=${new Date().toISOString()}`,
     `level=${level}`,
-    `component=${JSON.stringify("nextop-desktop")}`,
+    `component=${JSON.stringify("tutti-desktop")}`,
     `pid=${process.pid}`,
     `session_id=${JSON.stringify(sessionID)}`,
     `msg=${JSON.stringify(message)}`
@@ -225,7 +225,7 @@ function formatFieldValue(value: unknown): string {
 }
 
 function resolveDesktopLogOutput(): DesktopLogOutput {
-  const override = process.env.NEXTOP_DESKTOP_LOG_OUTPUT?.trim().toLowerCase();
+  const override = process.env.TUTTI_DESKTOP_LOG_OUTPUT?.trim().toLowerCase();
   if (override === "stdout" || override === "tee" || override === "file") {
     return override;
   }
@@ -234,7 +234,7 @@ function resolveDesktopLogOutput(): DesktopLogOutput {
 }
 
 function resolveDesktopLogLevel(): DesktopLogLevel {
-  const override = process.env.NEXTOP_DESKTOP_LOG_LEVEL?.trim().toLowerCase();
+  const override = process.env.TUTTI_DESKTOP_LOG_LEVEL?.trim().toLowerCase();
   if (
     override === "debug" ||
     override === "info" ||
@@ -248,7 +248,7 @@ function resolveDesktopLogLevel(): DesktopLogLevel {
 }
 
 function resolveDesktopLogPath(): string {
-  const override = process.env.NEXTOP_DESKTOP_LOG_PATH?.trim();
+  const override = process.env.TUTTI_DESKTOP_LOG_PATH?.trim();
   if (override) {
     return override;
   }
@@ -257,13 +257,13 @@ function resolveDesktopLogPath(): string {
 }
 
 function resolveDesktopLogSessionID(): string {
-  const existing = process.env.NEXTOP_SESSION_ID?.trim();
+  const existing = process.env.TUTTI_SESSION_ID?.trim();
   if (existing) {
     return existing;
   }
 
   const generated = randomUUID();
-  process.env.NEXTOP_SESSION_ID = generated;
+  process.env.TUTTI_SESSION_ID = generated;
   return generated;
 }
 
@@ -281,13 +281,13 @@ function rotatingFileWriterOptionsFromEnv(): RotatingFileWriterOptions {
   const defaults = resolveDesktopDefaultsFromEnv().logging;
   return {
     maxSizeBytes:
-      envIntOrDefault("NEXTOP_LOG_MAX_SIZE_MB", defaults.maxSizeMB) *
+      envIntOrDefault("TUTTI_LOG_MAX_SIZE_MB", defaults.maxSizeMB) *
       1024 *
       1024,
-    maxBackups: envIntOrDefault("NEXTOP_LOG_MAX_BACKUPS", defaults.maxBackups),
-    maxAgeDays: envIntOrDefault("NEXTOP_LOG_MAX_AGE_DAYS", defaults.maxAgeDays),
+    maxBackups: envIntOrDefault("TUTTI_LOG_MAX_BACKUPS", defaults.maxBackups),
+    maxAgeDays: envIntOrDefault("TUTTI_LOG_MAX_AGE_DAYS", defaults.maxAgeDays),
     maxTotalBytes:
-      envIntOrDefault("NEXTOP_LOG_MAX_TOTAL_MB", defaults.maxTotalMB) *
+      envIntOrDefault("TUTTI_LOG_MAX_TOTAL_MB", defaults.maxTotalMB) *
       1024 *
       1024
   };

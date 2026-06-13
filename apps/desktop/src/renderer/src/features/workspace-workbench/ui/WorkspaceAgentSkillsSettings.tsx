@@ -195,7 +195,7 @@ function resolveWorkspaceAgentSkillSourceKindLabel(
       return t("workspace.settings.agent.skills.sourceKinds.plugin");
     case "system":
       return t("workspace.settings.agent.skills.sourceKinds.system");
-    case "nextop-injected":
-      return t("workspace.settings.agent.skills.sourceKinds.nextopInjected");
+    case "tutti-injected":
+      return t("workspace.settings.agent.skills.sourceKinds.tuttiInjected");
   }
 }

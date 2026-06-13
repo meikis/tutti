@@ -10,7 +10,7 @@
     "./dist/styles.css"
   ],
   "bin": {
-    "nextop-ui-system-install-skill": "./agent/install-skill.mjs"
+    "tutti-ui-system-install-skill": "./agent/install-skill.mjs"
   },
   "imports": {
     "#components/*": "./src/components/*/index.tsx",
@@ -69,7 +69,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
-  "nextop": {
+  "tutti": {
     "tailwindSourceRoot": "src"
   },
   "publishConfig": {

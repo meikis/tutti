@@ -4,9 +4,9 @@ package defaults
 
 var generatedDefaults = generatedDefaultsSpec{
 	State: generatedStateDefaults{
-		ProductionDirName:    ".nextop",
-		DevelopmentDirName:   ".nextop-dev",
+		ProductionDirName:    ".tutti",
+		DevelopmentDirName:   ".tutti-dev",
 		RunDirName:           "run",
-		ListenerInfoFileName: "nextopd.listener.json",
+		ListenerInfoFileName: "tuttid.listener.json",
 	},
 }

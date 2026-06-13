@@ -4,7 +4,7 @@ import {
   type WorkbenchSnapshotV1
 } from "./types.ts";
 
-export const nextopWorkbenchSnapshotFixture: WorkbenchSnapshotV1 = {
+export const tuttiWorkbenchSnapshotFixture: WorkbenchSnapshotV1 = {
   schemaVersion: workbenchSnapshotSchemaVersion,
   nodes: [
     {

@@ -46,7 +46,7 @@ test("formatPackageGoModuleReleaseTag uses Go submodule tag shape", () => {
 
 test("formatPackageGoModuleReleaseTag rejects non-package directories", () => {
   assert.throws(
-    () => formatPackageGoModuleReleaseTag("services/nextopd", "0.0.25"),
+    () => formatPackageGoModuleReleaseTag("services/tuttid", "0.0.25"),
     /must be under packages/
   );
 });

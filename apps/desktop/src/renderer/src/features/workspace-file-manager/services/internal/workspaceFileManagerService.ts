@@ -1,5 +1,6 @@
 import {
   createWorkspaceFileManagerService,
+  type WorkspaceFileEntry,
   type WorkspaceFileManagerI18nRuntime,
   type WorkspaceFileManagerPersistedState,
   type WorkspaceFileManagerMutationErrorMessage
@@ -11,7 +12,7 @@ import type {
   WorkspaceFileManagerCanvasPreviewLauncher,
   WorkspaceFileManagerSession
 } from "../workspaceFileManagerService.interface";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import {
   INotificationService,
   type NotificationService
@@ -25,7 +26,7 @@ import type { IReporterService } from "../../../analytics/services/reporterServi
 
 export interface WorkspaceFileManagerServiceDependencies {
   hostFilesApi: DesktopHostFilesApi;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"
@@ -114,6 +115,17 @@ export class WorkspaceFileManagerService implements IWorkspaceFileManagerService
     workspaceID: string
   ): WorkspaceFileManagerPersistedState | null {
     return this.sessions.get(workspaceID)?.getPersistedState() ?? null;
+  }
+
+  resolveEntryIconUrl(
+    workspaceID: string,
+    entry: WorkspaceFileEntry
+  ): Promise<string | null> {
+    return this.dependencies.hostFilesApi.resolveEntryIcon(workspaceID, {
+      kind: entry.kind,
+      name: entry.name,
+      path: entry.path
+    });
   }
 
   setCanvasFilePreviewLauncher(

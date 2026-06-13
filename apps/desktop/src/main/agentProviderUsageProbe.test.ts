@@ -8,7 +8,7 @@ import { listDesktopWorkspaceAgentProbes } from "./agentProviderUsageProbe.ts";
 test("listDesktopWorkspaceAgentProbes maps Codex OAuth usage windows", async () => {
   const previousCodexHome = process.env.CODEX_HOME;
   const previousFetch = globalThis.fetch;
-  const directory = await mkdtemp(join(tmpdir(), "nextop-codex-usage-"));
+  const directory = await mkdtemp(join(tmpdir(), "tutti-codex-usage-"));
   try {
     process.env.CODEX_HOME = directory;
     await writeFile(
@@ -116,7 +116,7 @@ test("listDesktopWorkspaceAgentProbes maps Codex OAuth usage windows", async () 
 test("listDesktopWorkspaceAgentProbes maps Claude Code OAuth usage windows", async () => {
   const previousHome = process.env.HOME;
   const previousFetch = globalThis.fetch;
-  const directory = await mkdtemp(join(tmpdir(), "nextop-claude-usage-"));
+  const directory = await mkdtemp(join(tmpdir(), "tutti-claude-usage-"));
   try {
     process.env.HOME = directory;
     await mkdir(join(directory, ".claude"), { recursive: true });

@@ -9,8 +9,8 @@ import {
 const endpoint: DesktopDaemonEndpoint = {
   accessToken: "desktop-token",
   boundAddr: "127.0.0.1:4545",
-  listenerInfoPath: "/tmp/nextopd.listener.json",
-  pidPath: "/tmp/nextopd.pid",
+  listenerInfoPath: "/tmp/tuttid.listener.json",
+  pidPath: "/tmp/tuttid.pid",
   requestedAddr: "127.0.0.1:0"
 };
 

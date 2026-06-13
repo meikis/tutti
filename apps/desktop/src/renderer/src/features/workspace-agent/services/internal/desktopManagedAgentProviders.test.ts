@@ -3,7 +3,7 @@ import test from "node:test";
 import type {
   AgentProviderStatus,
   WorkspaceAgentProvider
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import type { IAgentProviderStatusService } from "../agentProviderStatusService.interface.ts";
 import {
   desktopManagedAgentProviders,

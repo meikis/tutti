@@ -1,33 +1,33 @@
 # Logging
 
-This document defines the current logging conventions for `nextop`.
+This document defines the current logging conventions for `tutti`.
 
 The repository-owned default values for log file names and rotation budgets now live in:
 
-- `config/nextop.defaults.json`
+- `config/tutti.defaults.json`
 
 Go and desktop code should consume generated defaults from that source instead of carrying duplicate literal values.
 
 ## Purpose
 
-`nextopd` is a long-running local daemon.
+`tuttid` is a long-running local daemon.
 
 Its normal operational logs should be durable and reviewable even when the desktop shell is the process supervisor.
 
 `apps/desktop` main process should also keep a durable local log for Electron-shell concerns.
 
-## `nextopd` Default Behavior
+## `tuttid` Default Behavior
 
-`nextopd` defaults to file-based logging.
+`tuttid` defaults to file-based logging.
 
 Current default:
 
 - log output mode: `file`
-- log path: `<state-dir>/logs/nextopd.log`
+- log path: `<state-dir>/logs/tuttid.log`
 - log format: structured `slog` text output
 - default level: `info`
 - active file name stays stable for tailing
-- rotated history uses date-indexed names such as `nextopd.2026-05-21.log`
+- rotated history uses date-indexed names such as `tuttid.2026-05-21.log`
 
 This means normal development and product runs should treat the daemon log file as the primary source for runtime analysis.
 
@@ -38,10 +38,10 @@ Desktop main-process logging also defaults to file output.
 Current default:
 
 - log output mode: `file`
-- log path: `<state-dir>/logs/nextop-desktop.log`
+- log path: `<state-dir>/logs/tutti-desktop.log`
 - default level: `info`
 - active file name stays stable for tailing
-- rotated history uses date-indexed names such as `nextop-desktop.2026-05-21.log`
+- rotated history uses date-indexed names such as `tutti-desktop.2026-05-21.log`
 
 Desktop logging is intended for:
 
@@ -50,7 +50,7 @@ Desktop logging is intended for:
 - shell-level errors
 - Electron lifecycle issues
 
-It is not a replacement for `nextopd` business and runtime logs.
+It is not a replacement for `tuttid` business and runtime logs.
 
 ## Correlation Fields
 
@@ -58,9 +58,9 @@ Desktop and daemon logs should be easy to align during one local run.
 
 Current shared correlation behavior:
 
-- desktop generates or adopts `NEXTOP_SESSION_ID` at startup
-- when desktop manages `nextopd`, it passes the same `NEXTOP_SESSION_ID` into the daemon process
-- both `nextop-desktop.log` and `nextopd.log` now include `session_id` in each structured line when available
+- desktop generates or adopts `TUTTI_SESSION_ID` at startup
+- when desktop manages `tuttid`, it passes the same `TUTTI_SESSION_ID` into the daemon process
+- both `tutti-desktop.log` and `tuttid.log` now include `session_id` in each structured line when available
 
 This is intentionally lightweight:
 
@@ -107,17 +107,17 @@ Rules:
 
 ## Output Modes
 
-`nextopd` currently supports:
+`tuttid` currently supports:
 
-- `NEXTOPD_LOG_OUTPUT=file`
-- `NEXTOPD_LOG_OUTPUT=stdout`
-- `NEXTOPD_LOG_OUTPUT=tee`
+- `TUTTID_LOG_OUTPUT=file`
+- `TUTTID_LOG_OUTPUT=stdout`
+- `TUTTID_LOG_OUTPUT=tee`
 
 Desktop main currently supports:
 
-- `NEXTOP_DESKTOP_LOG_OUTPUT=file`
-- `NEXTOP_DESKTOP_LOG_OUTPUT=stdout`
-- `NEXTOP_DESKTOP_LOG_OUTPUT=tee`
+- `TUTTI_DESKTOP_LOG_OUTPUT=file`
+- `TUTTI_DESKTOP_LOG_OUTPUT=stdout`
+- `TUTTI_DESKTOP_LOG_OUTPUT=tee`
 
 Rules:
 
@@ -127,31 +127,31 @@ Rules:
 
 Default:
 
-- `NEXTOPD_LOG_OUTPUT` unset behaves as `file`
+- `TUTTID_LOG_OUTPUT` unset behaves as `file`
 
 ## Log Levels
 
-`nextopd` supports:
+`tuttid` supports:
 
-- `NEXTOPD_LOG_LEVEL=debug`
-- `NEXTOPD_LOG_LEVEL=info`
-- `NEXTOPD_LOG_LEVEL=warn`
-- `NEXTOPD_LOG_LEVEL=error`
+- `TUTTID_LOG_LEVEL=debug`
+- `TUTTID_LOG_LEVEL=info`
+- `TUTTID_LOG_LEVEL=warn`
+- `TUTTID_LOG_LEVEL=error`
 
 Default:
 
-- `NEXTOPD_LOG_LEVEL` unset behaves as `info`
+- `TUTTID_LOG_LEVEL` unset behaves as `info`
 
 Desktop main supports:
 
-- `NEXTOP_DESKTOP_LOG_LEVEL=debug`
-- `NEXTOP_DESKTOP_LOG_LEVEL=info`
-- `NEXTOP_DESKTOP_LOG_LEVEL=warn`
-- `NEXTOP_DESKTOP_LOG_LEVEL=error`
+- `TUTTI_DESKTOP_LOG_LEVEL=debug`
+- `TUTTI_DESKTOP_LOG_LEVEL=info`
+- `TUTTI_DESKTOP_LOG_LEVEL=warn`
+- `TUTTI_DESKTOP_LOG_LEVEL=error`
 
 Default:
 
-- `NEXTOP_DESKTOP_LOG_LEVEL` unset behaves as `info`
+- `TUTTI_DESKTOP_LOG_LEVEL` unset behaves as `info`
 
 ## Rotation
 
@@ -163,11 +163,11 @@ Both daemon and desktop main now follow the same rotation convention:
 
 Shared rotation controls:
 
-- `NEXTOP_LOG_DIR`
-- `NEXTOP_LOG_MAX_SIZE_MB`
-- `NEXTOP_LOG_MAX_BACKUPS`
-- `NEXTOP_LOG_MAX_AGE_DAYS`
-- `NEXTOP_LOG_MAX_TOTAL_MB`
+- `TUTTI_LOG_DIR`
+- `TUTTI_LOG_MAX_SIZE_MB`
+- `TUTTI_LOG_MAX_BACKUPS`
+- `TUTTI_LOG_MAX_AGE_DAYS`
+- `TUTTI_LOG_MAX_TOTAL_MB`
 
 Default budgets:
 
@@ -178,7 +178,7 @@ Default budgets:
 
 ## Desktop Supervision Rules
 
-When desktop manages `nextopd`:
+When desktop manages `tuttid`:
 
 - daemon logs still default to file output
 - desktop does not forward daemon stdout by default
@@ -188,9 +188,9 @@ This keeps normal daemon logs in the file while still allowing focused debugging
 
 Desktop-side debug options:
 
-- set `NEXTOPD_LOG_OUTPUT=stdout` or `tee`
-- or set `NEXTOPD_FORWARD_STDIO=1` when you want desktop to forward daemon stdout explicitly
-- set `NEXTOP_DESKTOP_LOG_OUTPUT=stdout` or `tee` when you want desktop shell logs on standard output
+- set `TUTTID_LOG_OUTPUT=stdout` or `tee`
+- or set `TUTTID_FORWARD_STDIO=1` when you want desktop to forward daemon stdout explicitly
+- set `TUTTI_DESKTOP_LOG_OUTPUT=stdout` or `tee` when you want desktop shell logs on standard output
 
 These environment variables are override and diagnostics controls, not the primary source of default logging policy.
 
@@ -198,26 +198,26 @@ These environment variables are override and diagnostics controls, not the prima
 
 Current supported logging override surface:
 
-- `NEXTOP_LOG_DIR`
-- `NEXTOP_LOG_MAX_SIZE_MB`
-- `NEXTOP_LOG_MAX_BACKUPS`
-- `NEXTOP_LOG_MAX_AGE_DAYS`
-- `NEXTOP_LOG_MAX_TOTAL_MB`
-- `NEXTOPD_LOG_PATH`
-- `NEXTOPD_LOG_OUTPUT`
-- `NEXTOPD_LOG_LEVEL`
-- `NEXTOP_DESKTOP_LOG_PATH`
-- `NEXTOP_DESKTOP_LOG_OUTPUT`
-- `NEXTOP_DESKTOP_LOG_LEVEL`
-- `NEXTOPD_FORWARD_STDIO`
-- `NEXTOP_SESSION_ID`
+- `TUTTI_LOG_DIR`
+- `TUTTI_LOG_MAX_SIZE_MB`
+- `TUTTI_LOG_MAX_BACKUPS`
+- `TUTTI_LOG_MAX_AGE_DAYS`
+- `TUTTI_LOG_MAX_TOTAL_MB`
+- `TUTTID_LOG_PATH`
+- `TUTTID_LOG_OUTPUT`
+- `TUTTID_LOG_LEVEL`
+- `TUTTI_DESKTOP_LOG_PATH`
+- `TUTTI_DESKTOP_LOG_OUTPUT`
+- `TUTTI_DESKTOP_LOG_LEVEL`
+- `TUTTID_FORWARD_STDIO`
+- `TUTTI_SESSION_ID`
 
 Rules:
 
 - these variables exist for local debugging, tests, packaging, and diagnostics
 - do not introduce a new logging environment variable unless existing shared defaults or existing override hooks are insufficient
-- prefer shared controls such as `NEXTOP_LOG_DIR` and the rotation budget variables over component-specific one-off flags
-- if a new logging override is added, update this document and `config/nextop.defaults.json` if the change also affects the repository-owned defaults
+- prefer shared controls such as `TUTTI_LOG_DIR` and the rotation budget variables over component-specific one-off flags
+- if a new logging override is added, update this document and `config/tutti.defaults.json` if the change also affects the repository-owned defaults
 
 ## Failure Visibility
 

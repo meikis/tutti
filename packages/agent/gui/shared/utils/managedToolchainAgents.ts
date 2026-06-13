@@ -48,12 +48,12 @@ export const AGENT_HOST_MANAGED_TOOLCHAIN_AGENTS: readonly AgentHostManagedToolc
       helperProvider: "codex"
     },
     {
-      id: "nextop",
+      id: "tutti",
       // i18n-check-ignore: Provider brand name.
-      label: "Nextop",
+      label: "Tutti",
       actionAgentId: "nexight",
       toolIds: ["nexight-cli"],
-      agentIds: ["nexight", "nextop"],
+      agentIds: ["nexight", "tutti"],
       runtimeManaged: false,
       helperProvider: "nexight"
     },
@@ -94,7 +94,7 @@ export const AGENT_HOST_MANAGED_TOOLCHAIN_AGENTS: readonly AgentHostManagedToolc
  */
 export const WORKSPACE_DESKTOP_MANAGED_AGENT_DOCK_PROVIDER_ORDER: readonly AgentProvider[] =
   AGENT_HOST_MANAGED_TOOLCHAIN_AGENTS.map((agent) =>
-    agent.id === "nextop" ? "nexight" : (agent.id as AgentProvider)
+    agent.id === "tutti" ? "nexight" : (agent.id as AgentProvider)
   );
 
 function normalizeKey(value: string | null | undefined): string {

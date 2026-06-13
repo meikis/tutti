@@ -14,7 +14,7 @@ export const agentGuiWorkbenchContributionFactory: DesktopWorkbenchContributionF
         dockPreviewCache: context.dockPreviewCache,
         hostFilesApi: context.hostFilesApi,
         i18n: context.i18n,
-        nextopdClient: context.nextopdClient,
+        tuttidClient: context.tuttidClient,
         platformApi: context.platformApi,
         resolveAppIconUrl: context.dockIcons.appIconUrl,
         reporterService: context.reporterService,

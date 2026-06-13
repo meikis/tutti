@@ -4,7 +4,7 @@
 
 This file applies to `apps/cli/*`.
 
-`apps/cli` owns the bundled `nextop` terminal entrypoint.
+`apps/cli` owns the bundled `tutti` terminal entrypoint.
 
 The CLI should stay thin:
 
@@ -13,7 +13,7 @@ The CLI should stay thin:
 - parse terminal arguments
 - render daemon command output
 
-Business rules, workspace resolution, permission filtering, command metadata, and command execution belong in `services/nextopd`.
+Business rules, workspace resolution, permission filtering, command metadata, and command execution belong in `services/tuttid`.
 
 ## Setup Commands
 
@@ -23,7 +23,7 @@ Business rules, workspace resolution, permission filtering, command metadata, an
 
 ## Action Rules
 
-- keep daemon HTTP contract changes in `services/nextopd/api/openapi/nextopd.v1.yaml` first
+- keep daemon HTTP contract changes in `services/tuttid/api/openapi/tuttid.v1.yaml` first
 - keep the hand-written daemon transport model covered by contract tests against the OpenAPI spec
 - derive local state paths from generated defaults instead of adding new hardcoded `$HOME` paths
 - do not expose workspace flags or workspace help copy in personal edition commands

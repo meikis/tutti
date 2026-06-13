@@ -17,7 +17,7 @@ test("desktop issue-manager node state source keeps whitelisted live node state 
       issueSearchQuery: "render",
       issueStatusFilter: "running",
       selectedAgentProvider: "codex",
-      selectedExecutionDirectory: "/Users/example/project/nextop",
+      selectedExecutionDirectory: "/Users/example/project/tutti",
       selectedIssueId: "issue-1",
       selectedTaskId: "task-1",
       taskDraftTitle: "Port renderer"
@@ -36,7 +36,7 @@ test("desktop issue-manager node state source keeps whitelisted live node state 
       issueSearchQuery: "render",
       issueStatusFilter: "running",
       selectedAgentProvider: "codex",
-      selectedExecutionDirectory: "/Users/example/project/nextop",
+      selectedExecutionDirectory: "/Users/example/project/tutti",
       selectedIssueId: "issue-1",
       selectedTaskId: "task-1",
       taskListCollapsed: false
@@ -53,7 +53,7 @@ test("desktop issue-manager node state source keeps whitelisted live node state 
       issueSearchQuery: "render",
       issueStatusFilter: "running",
       selectedAgentProvider: "codex",
-      selectedExecutionDirectory: "/Users/example/project/nextop",
+      selectedExecutionDirectory: "/Users/example/project/tutti",
       selectedIssueId: "issue-1",
       taskListCollapsed: false
     }

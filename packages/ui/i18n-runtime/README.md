@@ -1,6 +1,6 @@
 # @tutti-os/ui-i18n-runtime
 
-Host-agnostic i18n runtime helpers for shared Nextop frontend packages.
+Host-agnostic i18n runtime helpers for shared Tutti frontend packages.
 
 This package is published to npm as `@tutti-os/ui-i18n-runtime`.
 

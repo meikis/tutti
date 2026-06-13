@@ -38,6 +38,7 @@ import {
 } from "@tutti-os/ui-system";
 import { X } from "lucide-react";
 import type { WorkspaceFileReference } from "@tutti-os/workspace-file-reference/contracts";
+import type { WorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import {
   clampSlashCommandHighlight,
   filterSlashCommands,
@@ -115,7 +116,7 @@ import {
 import type { AgentRichTextAtProvider } from "./agentRichTextAtProvider";
 import { hasWorkspaceFileDropData } from "../terminalNode/workspaceFileDrop";
 
-interface AgentComposerProps {
+export interface AgentComposerProps {
   workspaceId: string;
   workspacePath?: string | null;
   currentUserId?: string | null;
@@ -146,6 +147,7 @@ interface AgentComposerProps {
   promptImagesSupported?: boolean;
   composerFocusRequestSequence?: number | null;
   layoutMode?: "dock" | "hero";
+  showProjectSelector?: boolean;
   labels: {
     send: string;
     modelLabel: string;
@@ -224,28 +226,11 @@ interface AgentComposerProps {
     removeMention: string;
     addReference: string;
     referenceWorkspaceFiles: string;
-    projectLabel: string;
-    noProject: string;
-    addProject: string;
-    createProjectCancel: string;
-    createProjectConfirm: string;
-    createProjectDocumentsUnavailable: string;
-    createProjectFailed: string;
-    createProjectNameConflict: string;
-    createProjectNameInvalid: string;
-    createProjectNameLabel: string;
-    createProjectNamePlaceholder: string;
-    createProjectNameRequired: string;
-    createProjectPermissionDenied: string;
-    createProjectTitle: string;
-    linkExistingProject: string;
     projectLocked: string;
     projectMissingDescription: string;
-    projectMissingTitle: string;
-    loadingProjects: string;
-    projectUnavailable: string;
     promptTipsPrefix: string;
   };
+  workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
   onDraftChange: (prompt: string) => void;
   onProjectPathChange?: (
     path: string | null,
@@ -309,8 +294,8 @@ const composerStyles = {
   slashDropdown: "overflow-hidden"
 };
 
-const workspaceReferenceSelectValue = "__nextop_workspace_reference_idle__";
-const workspaceReferenceOptionValue = "__nextop_workspace_reference_add__";
+const workspaceReferenceSelectValue = "__tutti_workspace_reference_idle__";
+const workspaceReferenceOptionValue = "__tutti_workspace_reference_add__";
 const composerPaletteZIndex = "var(--z-popover)";
 const SLASH_PALETTE_HEIGHT_PX = 280;
 const MENTION_PALETTE_MIN_HEIGHT_PX = 280;
@@ -459,11 +444,11 @@ function AgentSlashStatusPanel({
       role="status"
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="truncate text-[12px] font-semibold leading-4">
+        <h3 className="truncate text-[11px] font-semibold leading-4">
           {labels.slashStatusTitle}
         </h3>
         <button
-          className="nodrag shrink-0 rounded-[5px] px-1.5 py-0.5 text-[12px] leading-4 text-muted-foreground transition-colors hover:bg-background-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-app-region:no-drag]"
+          className="nodrag shrink-0 rounded-[5px] px-1.5 py-0.5 text-[11px] leading-4 text-muted-foreground transition-colors hover:bg-background-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-app-region:no-drag]"
           type="button"
           onClick={onClose}
         >
@@ -574,7 +559,9 @@ export function AgentComposer({
   promptImagesSupported = true,
   composerFocusRequestSequence = null,
   layoutMode = "dock",
+  showProjectSelector = true,
   labels,
+  workspaceUserProjectI18n,
   onDraftChange,
   onProjectPathChange = () => {},
   onSettingsChange,
@@ -1566,11 +1553,6 @@ export function AgentComposer({
   );
   const composerClassName =
     layoutMode === "hero" ? styles.composerHero : styles.composer;
-  const showProjectRow = layoutMode === "hero";
-  const showProjectMissingProbe =
-    !showProjectRow &&
-    Boolean(composerSettings.projectLocked) &&
-    selectedProjectPath !== "";
   const inputShellClassName = cn(
     styles.composerInputShell,
     layoutMode === "hero" && styles.composerInputShellHero
@@ -1691,6 +1673,14 @@ export function AgentComposer({
   const showEdgeGlow = layoutMode === "hero" && !inputDisabled;
   const showPromptTips = layoutMode === "hero" && promptTips.length > 0;
   const activePromptTip = showPromptTips ? (promptTips[0] ?? null) : null;
+  const showHeroProjectSelector = layoutMode === "hero" && showProjectSelector;
+  const showProjectRow =
+    layoutMode === "hero" && (showHeroProjectSelector || activePromptTip);
+  const showProjectMissingProbe =
+    !showProjectRow &&
+    showProjectSelector &&
+    Boolean(composerSettings.projectLocked) &&
+    selectedProjectPath !== "";
   const activePromptTipId = activePromptTip?.id ?? null;
   const activePromptTipText = activePromptTip
     ? `${labels.promptTipsPrefix}${activePromptTip.label} · ${activePromptTip.prompt}`
@@ -1925,7 +1915,9 @@ export function AgentComposer({
             tone="danger"
             role="alert"
             testId="agent-gui-missing-project-notice"
-            title={labels.projectMissingTitle}
+            title={workspaceUserProjectI18n.tFirst([
+              "projectSelect.projectMissingTitle"
+            ])}
             description={labels.projectMissingDescription}
           />
         ) : null}
@@ -1951,6 +1943,9 @@ export function AgentComposer({
           ref={inputShellRef}
           className={cn(inputShellClassName, "relative")}
           data-input-disabled={inputDisabled ? "true" : undefined}
+          title={
+            inputDisabled && disabledReasonText ? disabledReasonText : undefined
+          }
           style={inputShellStyle}
         >
           <Popover
@@ -2234,36 +2229,18 @@ export function AgentComposer({
             className={styles.composerProjectRow}
             data-project-missing={isSelectedProjectMissing ? "true" : undefined}
           >
-            <AgentProjectDropdown
-              composerSettings={composerSettings}
-              labels={{
-                addProject: labels.addProject,
-                createProjectCancel: labels.createProjectCancel,
-                createProjectConfirm: labels.createProjectConfirm,
-                createProjectDocumentsUnavailable:
-                  labels.createProjectDocumentsUnavailable,
-                createProjectFailed: labels.createProjectFailed,
-                createProjectNameConflict: labels.createProjectNameConflict,
-                createProjectNameInvalid: labels.createProjectNameInvalid,
-                createProjectNameLabel: labels.createProjectNameLabel,
-                createProjectNamePlaceholder:
-                  labels.createProjectNamePlaceholder,
-                createProjectNameRequired: labels.createProjectNameRequired,
-                createProjectPermissionDenied:
-                  labels.createProjectPermissionDenied,
-                createProjectTitle: labels.createProjectTitle,
-                linkExistingProject: labels.linkExistingProject,
-                loadingProjects: labels.loadingProjects,
-                noProject: labels.noProject,
-                projectLabel: labels.projectLabel,
-                projectLocked: labels.projectLocked,
-                projectMissingDescription: labels.projectMissingDescription,
-                projectMissingTitle: labels.projectMissingTitle,
-                projectUnavailable: labels.projectUnavailable
-              }}
-              onProjectMissingChange={setIsSelectedProjectMissing}
-              onProjectPathChange={onProjectPathChange}
-            />
+            {showHeroProjectSelector ? (
+              <AgentProjectDropdown
+                composerSettings={composerSettings}
+                i18n={workspaceUserProjectI18n}
+                labels={{
+                  projectLocked: labels.projectLocked,
+                  projectMissingDescription: labels.projectMissingDescription
+                }}
+                onProjectMissingChange={setIsSelectedProjectMissing}
+                onProjectPathChange={onProjectPathChange}
+              />
+            ) : null}
             {activePromptTip ? (
               <div
                 className={styles.composerPromptTips}

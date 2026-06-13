@@ -1,4 +1,4 @@
-export const workspaceAppManifestSchemaVersion = "nextop.app.manifest.v1";
+export const workspaceAppManifestSchemaVersion = "tutti.app.manifest.v1";
 
 export type WorkspaceAppManifestSchemaVersion =
   typeof workspaceAppManifestSchemaVersion;

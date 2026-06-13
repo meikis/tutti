@@ -1,7 +1,0 @@
-interface:
-  display_name: "Nextop App Release"
-  short_description: "Publish external Nextop workspace apps"
-  default_prompt: "Use $nextop-app-release to set up or review an external repository's Nextop App Release GitHub Actions workflow."
-
-policy:
-  allow_implicit_invocation: true

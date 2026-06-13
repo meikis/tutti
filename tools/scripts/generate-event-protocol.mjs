@@ -21,7 +21,7 @@ const definitionsDir = resolve(protocolRoot, "definitions");
 const tsGeneratedDir = resolve(protocolRoot, "src/generated");
 const goOutputPath = resolve(
   repoRoot,
-  "services/nextopd/api/events/generated/protocol.gen.go"
+  "services/tuttid/api/events/generated/protocol.gen.go"
 );
 const prettierConfigPath = resolve(
   repoRoot,

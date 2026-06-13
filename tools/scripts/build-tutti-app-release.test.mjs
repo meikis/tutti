@@ -1,0 +1,614 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, writeFile, chmod, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+
+import {
+  buildTuttiAppRelease,
+  validateCLIManifest,
+  validateManifest
+} from "./build-tutti-app-release.mjs";
+import { buildTuttiAppCatalog } from "./build-tutti-app-catalog.mjs";
+import { bumpTuttiAppVersion } from "../../packages/workspace/app-release-tools/bin/bump-tutti-app-version.mjs";
+import { verifyTuttiAppReleaseArtifacts } from "../../packages/workspace/app-release-tools/bin/verify-tutti-app-release-artifacts.mjs";
+
+const reusableWorkflowPath = new URL(
+  "../../.github/workflows/publish-tutti-app-release.yml",
+  import.meta.url
+);
+const catalogWorkflowPath = new URL(
+  "../../.github/workflows/publish-tutti-app-catalog.yml",
+  import.meta.url
+);
+const stagingCatalogWorkflowPath = new URL(
+  "../../.github/workflows/publish-tutti-app-catalog-staging.yml",
+  import.meta.url
+);
+
+test("buildTuttiAppRelease writes immutable release and latest metadata", async () => {
+  const packageDir = await createPackageForTest("vibe-design");
+  const outputDir = await mkdtemp(path.join(tmpdir(), "tutti-release-"));
+
+  const result = await buildTuttiAppRelease({
+    appId: "vibe-design",
+    packageDir,
+    outputDir,
+    baseUrl: "https://cdn.example.test/tutti-apps/",
+    version: "0.1.0+abc123",
+    gitSha: "abc123",
+    publishedAt: "2026-06-04T00:00:00Z"
+  });
+
+  assert.equal(result.release.appId, "vibe-design");
+  assert.equal(result.release.version, "0.1.0+abc123");
+  assert.equal(result.release.manifest.version, "0.1.0+abc123");
+  assert.equal(
+    result.release.artifactUrl,
+    "https://cdn.example.test/tutti-apps/apps/vibe-design/0.1.0%2Babc123/vibe-design-0.1.0%2Babc123.zip"
+  );
+  assert.match(result.release.artifactSha256, /^[a-f0-9]{64}$/);
+  assert.ok(result.release.artifactSizeBytes > 0);
+  assert.equal(
+    result.release.iconUrl,
+    "https://cdn.example.test/tutti-apps/apps/vibe-design/0.1.0%2Babc123/icon.svg"
+  );
+
+  const latest = JSON.parse(await readFile(result.latestJsonPath, "utf8"));
+  assert.deepEqual(latest, result.release);
+
+  const manifest = JSON.parse(
+    await readFile(path.join(packageDir, "tutti.app.json"), "utf8")
+  );
+  assert.equal(manifest.version, "0.1.0+abc123");
+});
+
+test("buildTuttiAppCatalog merges release files into remote catalog", async () => {
+  const alpha = await releaseFileForTest("alpha-app");
+  const beta = await releaseFileForTest("beta-app");
+  const outputDir = await mkdtemp(path.join(tmpdir(), "tutti-catalog-"));
+  const outputPath = path.join(outputDir, "catalog.json");
+
+  const result = await buildTuttiAppCatalog({
+    releaseFiles: [beta, alpha],
+    outputPath
+  });
+
+  assert.equal(result.catalog.schemaVersion, "tutti.app.catalog.v1");
+  assert.deepEqual(
+    result.catalog.apps.map((app) => app.manifest.appId),
+    ["alpha-app", "beta-app"]
+  );
+  assert.equal(result.catalog.apps[0].distribution.kind, "remote");
+  assert.equal(
+    result.catalog.apps[0].distribution.iconUrl,
+    "https://cdn.example.test/apps/alpha-app/icon.svg"
+  );
+
+  const written = JSON.parse(await readFile(outputPath, "utf8"));
+  assert.deepEqual(written, result.catalog);
+});
+
+test("buildTuttiAppCatalog merges release files into an existing catalog", async () => {
+  const alpha = await releaseFileForTest("alpha-app", "0.2.0");
+  const existingCatalog = await catalogFileForTest([
+    catalogAppForTest("alpha-app", "0.1.0"),
+    catalogAppForTest("gamma-app", "0.1.0")
+  ]);
+  const outputDir = await mkdtemp(path.join(tmpdir(), "tutti-catalog-"));
+  const outputPath = path.join(outputDir, "catalog.json");
+
+  const result = await buildTuttiAppCatalog({
+    existingCatalogPath: existingCatalog,
+    releaseFiles: [alpha],
+    outputPath
+  });
+
+  assert.deepEqual(
+    result.catalog.apps.map((app) => app.manifest.appId),
+    ["alpha-app", "gamma-app"]
+  );
+  assert.equal(result.catalog.apps[0].manifest.version, "0.2.0");
+  assert.equal(result.catalog.apps[1].manifest.version, "0.1.0");
+});
+
+test("buildTuttiAppCatalog can refresh an existing catalog without release files", async () => {
+  const existingCatalog = await catalogFileForTest([
+    catalogAppForTest("gamma-app", "0.1.0"),
+    catalogAppForTest("alpha-app", "0.1.0")
+  ]);
+  const outputDir = await mkdtemp(path.join(tmpdir(), "tutti-catalog-"));
+  const outputPath = path.join(outputDir, "catalog.json");
+
+  const result = await buildTuttiAppCatalog({
+    existingCatalogPath: existingCatalog,
+    releaseFiles: [],
+    outputPath
+  });
+
+  assert.deepEqual(
+    result.catalog.apps.map((app) => app.manifest.appId),
+    ["alpha-app", "gamma-app"]
+  );
+});
+
+test("buildTuttiAppCatalog rejects duplicate app ids", async () => {
+  const first = await releaseFileForTest("duplicate-app");
+  const second = await releaseFileForTest("duplicate-app");
+
+  await assert.rejects(
+    () =>
+      buildTuttiAppCatalog({
+        releaseFiles: [first, second],
+        outputPath: path.join(tmpdir(), "unused-catalog.json")
+      }),
+    /duplicate release appId duplicate-app/
+  );
+});
+
+test("bumpTuttiAppVersion applies a stable semver patch bump", async () => {
+  const packageDir = await createPackageForTest("bumped-app");
+  const manifestPath = path.join(packageDir, "tutti.app.json");
+
+  const result = await bumpTuttiAppVersion({
+    appId: "bumped-app",
+    manifestPath,
+    bump: "patch"
+  });
+
+  assert.equal(result.previousVersion, "0.1.0");
+  assert.equal(result.version, "0.1.1");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  assert.equal(manifest.version, "0.1.1");
+});
+
+test("bumpTuttiAppVersion rejects prerelease versions for automatic bumps", async () => {
+  const packageDir = await createPackageForTest("bumped-app");
+  const manifestPath = path.join(packageDir, "tutti.app.json");
+  const manifest = manifestForTest("bumped-app", "0.1.0-beta.1");
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  await assert.rejects(
+    () =>
+      bumpTuttiAppVersion({
+        appId: "bumped-app",
+        manifestPath,
+        bump: "patch"
+      }),
+    /stable semver x\.y\.z/
+  );
+});
+
+test("verifyTuttiAppReleaseArtifacts validates release artifact hash and size", async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), "tutti-release-verify-"));
+  const artifactPath = path.join(tempDir, "app.zip");
+  const artifactBytes = Buffer.from("release artifact");
+  await writeFile(artifactPath, artifactBytes);
+  const releasePath = await releaseFileForTest("verified-app", "0.1.0", {
+    artifactUrl: pathToFileURL(artifactPath).href,
+    artifactSha256: createHash("sha256").update(artifactBytes).digest("hex"),
+    artifactSizeBytes: artifactBytes.length
+  });
+
+  const result = await verifyTuttiAppReleaseArtifacts({
+    releaseFiles: [releasePath]
+  });
+
+  assert.equal(result.checkedArtifactCount, 1);
+});
+
+test("verifyTuttiAppReleaseArtifacts rejects catalog artifact sha mismatches", async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), "tutti-catalog-verify-"));
+  const artifactPath = path.join(tempDir, "app.zip");
+  const artifactBytes = Buffer.from("release artifact");
+  await writeFile(artifactPath, artifactBytes);
+  const releasePath = await releaseFileForTest("verified-app", "0.1.0", {
+    artifactUrl: pathToFileURL(artifactPath).href,
+    artifactSha256: createHash("sha256").update(artifactBytes).digest("hex"),
+    artifactSizeBytes: artifactBytes.length
+  });
+  const catalogPath = await catalogFileForTest([
+    catalogAppForTest("verified-app", "0.1.0", {
+      artifactUrl: pathToFileURL(artifactPath).href,
+      artifactSha256: "b".repeat(64)
+    })
+  ]);
+
+  await assert.rejects(
+    () =>
+      verifyTuttiAppReleaseArtifacts({
+        catalogFile: catalogPath,
+        releaseFiles: [releasePath]
+      }),
+    /artifactSha256 must match latest release metadata/
+  );
+});
+
+test("validateManifest rejects packages without manifest icon assets", () => {
+  assert.throws(
+    () =>
+      validateManifest({
+        schemaVersion: "tutti.app.manifest.v1",
+        appId: "bad-app",
+        version: "0.1.0",
+        name: "Bad App",
+        description: "Bad app",
+        runtime: {
+          bootstrap: "bootstrap.sh",
+          healthcheckPath: "/"
+        }
+      }),
+    /icon is required/
+  );
+});
+
+test("validateManifest accepts managed runtime manifests without launch metadata", () => {
+  assert.doesNotThrow(() => validateManifest(manifestForTest("managed-app")));
+});
+
+test("validateCLIManifest accepts the app CLI HTTP bridge contract", () => {
+  assert.doesNotThrow(() =>
+    validateCLIManifest(cliManifestForTest(), "tutti.cli.json")
+  );
+});
+
+test("buildTuttiAppRelease validates declared CLI manifests", async () => {
+  const packageDir = await createPackageForTest("cli-app");
+  const manifest = manifestForTest("cli-app");
+  manifest.cli = { manifest: "tutti.cli.json" };
+  await writeFile(
+    path.join(packageDir, "tutti.app.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`
+  );
+  await writeFile(
+    path.join(packageDir, "tutti.cli.json"),
+    `${JSON.stringify({ ...cliManifestForTest(), commands: [] }, null, 2)}\n`
+  );
+  const outputDir = path.join(
+    await mkdtemp(path.join(tmpdir(), "tutti-release-")),
+    "out"
+  );
+
+  await assert.rejects(
+    () =>
+      buildTuttiAppRelease({
+        appId: "cli-app",
+        packageDir,
+        outputDir,
+        baseUrl: "https://cdn.example.test/tutti-apps/"
+      }),
+    /commands must be a non-empty array/
+  );
+});
+
+test("buildTuttiAppRelease rejects unsafe release path segments", async () => {
+  const packageDir = await createPackageForTest("vibe-design");
+  const outputDir = await mkdtemp(path.join(tmpdir(), "tutti-release-"));
+
+  await assert.rejects(
+    () =>
+      buildTuttiAppRelease({
+        appId: "vibe-design",
+        packageDir,
+        outputDir,
+        baseUrl: "https://cdn.example.test/tutti-apps/",
+        version: "0.1.0/abc123"
+      }),
+    /version must use only/
+  );
+});
+
+test("Tutti app release workflow is reusable by external app repositories", async () => {
+  const workflow = await readFile(reusableWorkflowPath, "utf8");
+
+  assert.match(workflow, /workflow_call:/);
+  assert.match(workflow, /contents: write/);
+  assert.match(workflow, /auto_bump_version:/);
+  assert.match(workflow, /version_bump:/);
+  assert.match(workflow, /default: patch/);
+  assert.match(workflow, /version_manifest_path:/);
+  assert.match(workflow, /publish_catalog:/);
+  assert.match(workflow, /catalog_only:/);
+  assert.match(workflow, /catalog_cloudfront_distribution_id:/);
+  assert.match(workflow, /Validate release inputs/);
+  assert.match(
+    workflow,
+    /package_command is required unless catalog_only is true/
+  );
+  assert.match(
+    workflow,
+    /release_assets_base_url is required unless catalog_only is true/
+  );
+  assert.match(workflow, /concurrency:/);
+  assert.match(workflow, /tutti-app-catalog-\{0\}-\{1\}/);
+  assert.match(workflow, /tutti-app-release-\{0\}-\{1\}/);
+  assert.match(workflow, /cancel-in-progress: false/);
+  assert.match(workflow, /\[skip release\]/);
+  assert.match(workflow, /release_tools_package:/);
+  assert.match(workflow, /default:\s+"@tutti-os\/app-release-tools@latest"/);
+  assert.match(workflow, /Prepare release branch/);
+  assert.match(
+    workflow,
+    /git checkout -B "\$\{REF_NAME\}" "origin\/\$\{REF_NAME\}"/
+  );
+  assert.match(workflow, /Bump app version/);
+  assert.match(workflow, /bump-tutti-app-version/);
+  assert.match(workflow, /Commit app version bump/);
+  assert.match(workflow, /git push origin "HEAD:\$\{GITHUB_REF_NAME\}"/);
+  assert.match(workflow, /release_version="\$\{manifest_version\}"/);
+  assert.match(
+    workflow,
+    /release_version="\$\{manifest_version\}\+\$\{git_sha:0:12\}"/
+  );
+  assert.match(
+    workflow,
+    /pnpm --package "\$\{RELEASE_TOOLS_PACKAGE\}" dlx build-tutti-app-release/
+  );
+  assert.doesNotMatch(workflow, /Checkout Tutti release tools/);
+  assert.match(
+    workflow,
+    /aws s3 sync "tutti-app-release\/apps\/\$\{APP_ID\}\/\$\{RELEASE_VERSION\}\/"/
+  );
+  assert.match(
+    workflow,
+    /aws s3 cp "tutti-app-release\/apps\/\$\{APP_ID\}\/latest\.json"/
+  );
+  assert.match(workflow, /aws s3api head-object/);
+  assert.match(workflow, /matching immutable metadata/);
+  assert.match(workflow, /different immutable metadata/);
+  assert.match(workflow, /Repairing mutable latest\/catalog state/);
+  assert.match(workflow, /const comparedKeys = \[/);
+  assert.match(workflow, /Verify published app release artifact/);
+  assert.match(workflow, /verify-tutti-app-release-artifacts/);
+  assert.match(
+    workflow,
+    /--release-file "tutti-app-release\/apps\/\$\{APP_ID\}\/latest\.json"/
+  );
+  assert.match(workflow, /Publish app catalog/);
+  assert.match(workflow, /build-tutti-app-catalog/);
+  assert.match(workflow, /CATALOG_ONLY:/);
+  assert.match(workflow, /tutti-app-catalog\/releases\/\$\{APP_ID\}\.json/);
+  assert.match(workflow, /apps\/\$\{APP_ID\}\/latest\.json/);
+  assert.match(
+    workflow,
+    /--existing-catalog tutti-app-catalog\/existing-catalog\.json/
+  );
+  assert.match(workflow, /--release-file "\$\{release_file\}"/);
+  assert.match(workflow, /aws s3 cp tutti-app-catalog\/catalog\.json/);
+  assert.match(workflow, /Invalidate app catalog/);
+  assert.match(workflow, /cloudfront create-invalidation/);
+});
+
+test("Tutti app catalog workflow aggregates latest release metadata", async () => {
+  const workflow = await readFile(catalogWorkflowPath, "utf8");
+
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /catalog_mode:/);
+  assert.match(workflow, /default:\s*merge/);
+  assert.doesNotMatch(workflow, /app_ids_preset/);
+  assert.doesNotMatch(workflow, /APP_IDS_PRESET/);
+  assert.match(
+    workflow,
+    /--existing-catalog tutti-app-releases\/existing-catalog\.json/
+  );
+  assert.match(workflow, /aws s3api head-object/);
+  assert.match(workflow, /Refusing to publish a partial merge catalog/);
+  assertCatalogWorkflowRefreshesExistingAppLatestMetadata(workflow);
+  assert.match(workflow, /apps\/\$\{app_id\}\/latest\.json/);
+  assert.match(workflow, /tools\/scripts\/build-tutti-app-catalog\.mjs/);
+  assert.match(workflow, /Verify app catalog artifacts/);
+  assert.match(
+    workflow,
+    /packages\/workspace\/app-release-tools\/bin\/verify-tutti-app-release-artifacts\.mjs/
+  );
+  assert.match(workflow, /--catalog-file tutti-app-catalog\/catalog\.json/);
+  assert.match(workflow, /aws s3 cp tutti-app-catalog\/catalog\.json/);
+  assert.match(workflow, /cloudfront create-invalidation/);
+});
+
+test("Tutti app catalog workflow falls back to legacy Nextop GitHub variables", async () => {
+  const workflow = await readFile(catalogWorkflowPath, "utf8");
+
+  assert.match(
+    workflow,
+    /AWS_REGION_VALUE:\s+\${{\s*inputs\.aws_region\s*\|\|\s*vars\.TUTTI_APP_RELEASES_AWS_REGION\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_AWS_REGION\s*}}/
+  );
+  assert.match(
+    workflow,
+    /AWS_ROLE_ARN_VALUE:\s+\${{\s*inputs\.aws_role_arn\s*\|\|\s*vars\.TUTTI_APP_RELEASES_AWS_ROLE_ARN\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_AWS_ROLE_ARN\s*}}/
+  );
+  assert.match(
+    workflow,
+    /S3_BUCKET_VALUE:\s+\${{\s*inputs\.s3_bucket\s*\|\|\s*vars\.TUTTI_APP_RELEASES_S3_BUCKET\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_S3_BUCKET\s*}}/
+  );
+  assert.match(
+    workflow,
+    /S3_PREFIX_VALUE:\s+\${{\s*inputs\.s3_prefix\s*\|\|\s*vars\.TUTTI_APP_RELEASES_S3_PREFIX\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_S3_PREFIX\s*}}/
+  );
+  assert.match(
+    workflow,
+    /CLOUDFRONT_DISTRIBUTION_ID_VALUE:\s+\${{\s*inputs\.cloudfront_distribution_id\s*\|\|\s*vars\.TUTTI_APP_RELEASES_CLOUDFRONT_DISTRIBUTION_ID\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_CLOUDFRONT_DISTRIBUTION_ID\s*}}/
+  );
+});
+
+test("Tutti app staging catalog workflow uses an isolated prefix", async () => {
+  const workflow = await readFile(stagingCatalogWorkflowPath, "utf8");
+
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /TUTTI_APP_RELEASES_STAGING_S3_PREFIX/);
+  assert.match(workflow, /tutti-app-releases-staging/);
+  assert.match(workflow, /catalog_mode:/);
+  assert.doesNotMatch(workflow, /app_ids_preset/);
+  assert.doesNotMatch(workflow, /APP_IDS_PRESET/);
+  assert.match(
+    workflow,
+    /--existing-catalog tutti-app-releases\/existing-catalog\.json/
+  );
+  assert.match(workflow, /aws s3api head-object/);
+  assert.match(workflow, /Refusing to publish a partial merge catalog/);
+  assertCatalogWorkflowRefreshesExistingAppLatestMetadata(workflow);
+  assert.match(workflow, /apps\/\$\{app_id\}\/latest\.json/);
+  assert.match(workflow, /tools\/scripts\/build-tutti-app-catalog\.mjs/);
+  assert.match(workflow, /Verify app catalog artifacts/);
+  assert.match(
+    workflow,
+    /packages\/workspace\/app-release-tools\/bin\/verify-tutti-app-release-artifacts\.mjs/
+  );
+  assert.match(workflow, /--catalog-file tutti-app-catalog\/catalog\.json/);
+});
+
+test("Tutti app staging catalog workflow falls back to legacy Nextop GitHub variables", async () => {
+  const workflow = await readFile(stagingCatalogWorkflowPath, "utf8");
+
+  assert.match(
+    workflow,
+    /AWS_REGION_VALUE:\s+\${{\s*inputs\.aws_region\s*\|\|\s*vars\.TUTTI_APP_RELEASES_STAGING_AWS_REGION\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_STAGING_AWS_REGION\s*\|\|\s*vars\.TUTTI_APP_RELEASES_AWS_REGION\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_AWS_REGION\s*}}/
+  );
+  assert.match(
+    workflow,
+    /AWS_ROLE_ARN_VALUE:\s+\${{\s*inputs\.aws_role_arn\s*\|\|\s*vars\.TUTTI_APP_RELEASES_STAGING_AWS_ROLE_ARN\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_STAGING_AWS_ROLE_ARN\s*\|\|\s*vars\.TUTTI_APP_RELEASES_AWS_ROLE_ARN\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_AWS_ROLE_ARN\s*}}/
+  );
+  assert.match(
+    workflow,
+    /S3_BUCKET_VALUE:\s+\${{\s*inputs\.s3_bucket\s*\|\|\s*vars\.TUTTI_APP_RELEASES_STAGING_S3_BUCKET\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_STAGING_S3_BUCKET\s*\|\|\s*vars\.TUTTI_APP_RELEASES_S3_BUCKET\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_S3_BUCKET\s*}}/
+  );
+  assert.match(
+    workflow,
+    /S3_PREFIX_VALUE:\s+\${{\s*inputs\.s3_prefix\s*\|\|\s*vars\.TUTTI_APP_RELEASES_STAGING_S3_PREFIX\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_STAGING_S3_PREFIX\s*\|\|\s*'tutti-app-releases-staging'\s*}}/
+  );
+  assert.match(
+    workflow,
+    /CLOUDFRONT_DISTRIBUTION_ID_VALUE:\s+\${{\s*inputs\.cloudfront_distribution_id\s*\|\|\s*vars\.TUTTI_APP_RELEASES_STAGING_CLOUDFRONT_DISTRIBUTION_ID\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_STAGING_CLOUDFRONT_DISTRIBUTION_ID\s*\|\|\s*vars\.TUTTI_APP_RELEASES_CLOUDFRONT_DISTRIBUTION_ID\s*\|\|\s*vars\.NEXTOP_APP_RELEASES_CLOUDFRONT_DISTRIBUTION_ID\s*}}/
+  );
+});
+
+function assertCatalogWorkflowRefreshesExistingAppLatestMetadata(workflow) {
+  assert.match(
+    workflow,
+    /\[ -z "\$\{app_ids_value\}" \] && \[ "\$\{CATALOG_MODE\}" = "merge" \]/
+  );
+  assert.match(workflow, /existing-catalog\.json/);
+  assert.match(workflow, /manifest\??\.appId/);
+  assert.match(workflow, /app_ids_value="\$\{existing_app_ids\}"/);
+}
+
+async function releaseFileForTest(appId, version = "0.1.0", overrides = {}) {
+  const tempDir = await mkdtemp(path.join(tmpdir(), "tutti-release-file-"));
+  const release = {
+    schemaVersion: "tutti.app.release.v1",
+    appId,
+    version,
+    name: appId,
+    description: `${appId} description`,
+    manifest: manifestForTest(appId, version),
+    artifactUrl:
+      overrides.artifactUrl ??
+      `https://cdn.example.test/apps/${appId}/${appId}.zip`,
+    artifactSha256: overrides.artifactSha256 ?? "a".repeat(64),
+    artifactSizeBytes: overrides.artifactSizeBytes ?? 123,
+    iconUrl: `https://cdn.example.test/apps/${appId}/icon.svg`,
+    publishedAt: "2026-06-04T00:00:00Z",
+    gitSha: "abc123"
+  };
+  const releasePath = path.join(tempDir, "release.json");
+  await writeFile(releasePath, `${JSON.stringify(release, null, 2)}\n`);
+  return releasePath;
+}
+
+async function catalogFileForTest(apps) {
+  const tempDir = await mkdtemp(path.join(tmpdir(), "tutti-catalog-file-"));
+  const catalogPath = path.join(tempDir, "catalog.json");
+  await writeFile(
+    catalogPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: "tutti.app.catalog.v1",
+        apps
+      },
+      null,
+      2
+    )}\n`
+  );
+  return catalogPath;
+}
+
+function catalogAppForTest(appId, version, overrides = {}) {
+  return {
+    manifest: manifestForTest(appId, version),
+    distribution: {
+      kind: "remote",
+      artifactUrl:
+        overrides.artifactUrl ??
+        `https://cdn.example.test/apps/${appId}/${appId}.zip`,
+      artifactSha256: overrides.artifactSha256 ?? "b".repeat(64),
+      iconUrl: `https://cdn.example.test/apps/${appId}/icon.svg`
+    }
+  };
+}
+
+async function createPackageForTest(appId) {
+  const packageDir = await mkdtemp(path.join(tmpdir(), "tutti-app-package-"));
+  await mkdir(path.join(packageDir, "web"), { recursive: true });
+  await writeFile(
+    path.join(packageDir, "tutti.app.json"),
+    `${JSON.stringify(manifestForTest(appId), null, 2)}\n`
+  );
+  await writeFile(path.join(packageDir, "AGENTS.md"), "App instructions\n");
+  await writeFile(path.join(packageDir, "icon.svg"), `<${"svg"}></${"svg"}>\n`);
+  await writeFile(path.join(packageDir, "web", "index.html"), "<div></div>\n");
+  const bootstrapPath = path.join(packageDir, "bootstrap.sh");
+  await writeFile(bootstrapPath, "#!/usr/bin/env bash\nexit 0\n");
+  await chmod(bootstrapPath, 0o755);
+  return packageDir;
+}
+
+function manifestForTest(appId, version = "0.1.0") {
+  return {
+    schemaVersion: "tutti.app.manifest.v1",
+    appId,
+    version,
+    name: appId,
+    description: `${appId} description`,
+    icon: {
+      type: "asset",
+      src: "icon.svg"
+    },
+    runtime: {
+      bootstrap: "bootstrap.sh",
+      healthcheckPath: "/"
+    }
+  };
+}
+
+function cliManifestForTest() {
+  return {
+    schemaVersion: "tutti.app.cli.v1",
+    scope: "automation",
+    commands: [
+      {
+        path: ["run"],
+        summary: "Run automation",
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            "dry-run": { type: "boolean" }
+          },
+          required: ["name"]
+        },
+        output: {
+          defaultMode: "json",
+          json: true
+        },
+        handler: {
+          kind: "http",
+          method: "POST",
+          path: "/tutti/cli/run",
+          timeoutMs: 30000
+        }
+      }
+    ]
+  };
+}

@@ -15,9 +15,9 @@ test("desktop issue-manager share adapter creates encoded local links", async ()
     workspaceId: "workspace/1"
   });
 
-  assert.equal(issueOnly, "nextop://workspace/workspace%2F1/issues/issue%201");
+  assert.equal(issueOnly, "tutti://workspace/workspace%2F1/issues/issue%201");
   assert.equal(
     issueTask,
-    "nextop://workspace/workspace%2F1/issues/issue%201/tasks/task%2F1"
+    "tutti://workspace/workspace%2F1/issues/issue%201/tasks/task%2F1"
   );
 });

@@ -7,13 +7,13 @@ const workspaceRoot = join(scriptDirectory, "..", "..");
 const sharedConfigPath = join(
   workspaceRoot,
   "services",
-  "nextopd",
+  "tuttid",
   ".golangci.yml"
 );
 const goModuleRoots = [
   join(workspaceRoot, "packages", "workbench", "service"),
   join(workspaceRoot, "packages", "workspace", "files"),
-  join(workspaceRoot, "services", "nextopd")
+  join(workspaceRoot, "services", "tuttid")
 ];
 const args = [
   "run",

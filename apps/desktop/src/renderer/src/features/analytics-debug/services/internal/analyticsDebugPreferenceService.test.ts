@@ -4,7 +4,7 @@ import { AnalyticsDebugPreferenceService } from "./analyticsDebugPreferenceServi
 
 test("AnalyticsDebugPreferenceService restores enabled state from local storage in dev", () => {
   const storage = createStorage({
-    "nextop.analyticsDebug.enabled": "1"
+    "tutti.analyticsDebug.enabled": "1"
   });
   const service = new AnalyticsDebugPreferenceService({
     available: true,
@@ -33,16 +33,16 @@ test("AnalyticsDebugPreferenceService writes local storage when toggled", () => 
 
   service.setEnabled(true);
   assert.equal(service.store.enabled, true);
-  assert.equal(storage.getItem("nextop.analyticsDebug.enabled"), "1");
+  assert.equal(storage.getItem("tutti.analyticsDebug.enabled"), "1");
 
   service.setEnabled(false);
   assert.equal(service.store.enabled, false);
-  assert.equal(storage.getItem("nextop.analyticsDebug.enabled"), "0");
+  assert.equal(storage.getItem("tutti.analyticsDebug.enabled"), "0");
 });
 
 test("AnalyticsDebugPreferenceService stays unavailable and disabled outside dev", () => {
   const storage = createStorage({
-    "nextop.analyticsDebug.enabled": "1"
+    "tutti.analyticsDebug.enabled": "1"
   });
   const service = new AnalyticsDebugPreferenceService({
     available: false,
@@ -54,7 +54,7 @@ test("AnalyticsDebugPreferenceService stays unavailable and disabled outside dev
 
   service.setEnabled(true);
   assert.equal(service.store.enabled, false);
-  assert.equal(storage.getItem("nextop.analyticsDebug.enabled"), "1");
+  assert.equal(storage.getItem("tutti.analyticsDebug.enabled"), "1");
 });
 
 function createStorage(initial: Record<string, string>) {

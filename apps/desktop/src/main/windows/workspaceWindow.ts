@@ -19,7 +19,7 @@ import { desktopIpcChannels } from "../../shared/contracts/ipc";
 import { installWorkspaceWindowDevelopmentReloadShortcut } from "./workspaceWindowReload.ts";
 import { resolvePackagedWorkspaceRendererIndexPath } from "./workspaceWindowPaths.ts";
 
-export const workspaceAppBrowserPartitionPrefix = "persist:nextop-app:";
+export const workspaceAppBrowserPartitionPrefix = "persist:tutti-app:";
 
 export interface CreateWorkspaceWindowOptions {
   browserNodeGuestPreloadPath?: string;

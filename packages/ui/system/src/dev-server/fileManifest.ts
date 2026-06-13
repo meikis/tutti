@@ -23,7 +23,7 @@ const allowedRootFiles = new Set([
   "ui-system.md",
   "package.json"
 ]);
-const allowedSkillPathPrefix = "agent/nextop-ui-system/";
+const allowedSkillPathPrefix = "agent/tutti-ui-system/";
 
 export function getPackageRoot(): string {
   return packageRoot;
@@ -169,8 +169,8 @@ export async function getSyncFiles(): Promise<UISystemDevFile[]> {
     ...Array.from(allowedRootFiles, (syncPath) => getSyncFile(syncPath)),
     ...(
       await listSyncPaths(
-        path.join(packageRoot, "agent", "nextop-ui-system"),
-        "agent/nextop-ui-system"
+        path.join(packageRoot, "agent", "tutti-ui-system"),
+        "agent/tutti-ui-system"
       )
     ).map((syncPath) => getSyncFile(syncPath)),
     ...(await listSyncPaths(path.join(packageRoot, "src"), "src")).map(

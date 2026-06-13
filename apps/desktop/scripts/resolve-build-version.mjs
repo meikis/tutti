@@ -40,7 +40,7 @@ const fallbackVersion =
 const version = resolveDesktopBuildVersion({
   describeVersion: readGitDescribeVersion(),
   fallbackVersion,
-  releaseTag: process.env.NEXTOP_DESKTOP_RELEASE_TAG
+  releaseTag: process.env.TUTTI_DESKTOP_RELEASE_TAG
 });
 
 if (!version) {

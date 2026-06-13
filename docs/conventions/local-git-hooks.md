@@ -98,7 +98,7 @@ Renderer feature internals are enforced in two modes:
 - `pnpm check:renderer-boundaries:staged` for `pre-commit`
 - `pnpm check:renderer-boundaries` for `pre-push` and CI
 
-The script prevents files outside a feature from importing that feature's `services/internal/**` implementation surface. It also prevents ordinary renderer files from reading `window.nextop` directly; window container files pass that preload API into feature registrations instead.
+The script prevents files outside a feature from importing that feature's `services/internal/**` implementation surface. It also prevents ordinary renderer files from reading `window.tutti` directly; window container files pass that preload API into feature registrations instead.
 
 ## Electron Runtime Boundary Enforcement
 

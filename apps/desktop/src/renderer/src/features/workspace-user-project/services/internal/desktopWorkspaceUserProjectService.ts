@@ -1,4 +1,4 @@
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { NotificationService } from "@tutti-os/ui-notifications";
 import type {
   WorkspaceUserProject,
@@ -22,8 +22,8 @@ export interface DesktopWorkspaceUserProjectServiceDependencies {
     DesktopHostFilesApi,
     "createUserDocumentsProjectDirectory" | "selectDirectory"
   >;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     | "checkUserProjectPath"
     | "deleteUserProject"
     | "listUserProjects"
@@ -67,7 +67,7 @@ export class DesktopWorkspaceUserProjectService implements IWorkspaceUserProject
   }
 
   async checkProjectPath(path: string): Promise<WorkspaceUserProjectPathCheck> {
-    return this.dependencies.nextopdClient.checkUserProjectPath({ path });
+    return this.dependencies.tuttidClient.checkUserProjectPath({ path });
   }
 
   async createProject(name: string): Promise<WorkspaceUserProject> {
@@ -213,7 +213,7 @@ export class DesktopWorkspaceUserProjectService implements IWorkspaceUserProject
   }
 
   async registerProjectPath(path: string): Promise<WorkspaceUserProject> {
-    const project = await this.dependencies.nextopdClient.useUserProject({
+    const project = await this.dependencies.tuttidClient.useUserProject({
       path
     });
     this.loadSequence += 1;
@@ -235,7 +235,7 @@ export class DesktopWorkspaceUserProjectService implements IWorkspaceUserProject
     if (!normalizedPath) {
       return;
     }
-    await this.dependencies.nextopdClient.deleteUserProject({
+    await this.dependencies.tuttidClient.deleteUserProject({
       path: normalizedPath
     });
     const previousProjectCount = this.store.projects.length;
@@ -281,7 +281,7 @@ export class DesktopWorkspaceUserProjectService implements IWorkspaceUserProject
 
   private async loadProjects(sequence: number): Promise<void> {
     try {
-      const response = await this.dependencies.nextopdClient.listUserProjects();
+      const response = await this.dependencies.tuttidClient.listUserProjects();
       if (sequence !== this.loadSequence) {
         return;
       }
@@ -361,7 +361,7 @@ function isGeneratedNoProjectCwd(input: {
   if (!isGeneratedNoProjectSessionDirectoryName(leaf)) {
     return false;
   }
-  const expectedRootSegments = [...homeSegments, "Documents", "nextop"];
+  const expectedRootSegments = [...homeSegments, "Documents", "tutti"];
   const candidateRootSegments = segments.slice(0, -1);
   if (expectedRootSegments.length !== candidateRootSegments.length) {
     return false;

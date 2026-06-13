@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TrackEvent } from "@tutti-os/client-nextopd-ts";
+import type { TrackEvent } from "@tutti-os/client-tuttid-ts";
 import type { AppUpdateState } from "../shared/contracts/ipc.ts";
 import {
   createAppUpdateStatusChangedEvent,
@@ -33,7 +33,7 @@ test("app update analytics tracks only real status transitions", async () => {
   const events: TrackEvent[][] = [];
   const updateService = createUpdateServiceStub();
   const analytics = startDesktopAppUpdateAnalytics({
-    nextopdClient: {
+    tuttidClient: {
       async trackEvents(nextEvents) {
         events.push(nextEvents);
       }

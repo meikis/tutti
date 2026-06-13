@@ -140,7 +140,7 @@ test("controller actions surface clipboard unavailable errors", async (t) => {
     },
     shareAdapter: {
       async createIssueLink() {
-        return "nextop://workspace/workspace-1/issues/issue-1/tasks/task-1";
+        return "tutti://workspace/workspace-1/issues/issue-1/tasks/task-1";
       }
     }
   });

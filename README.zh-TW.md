@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/tutti-logo.png" alt="Tutti logo" width="120" />
+
 # Tutti
 
 **人與 Agent「同步協作」的工作空間。**
@@ -141,6 +143,6 @@ make dev-gui
 
 Tutti 基於 [Apache License 2.0](LICENSE) 開放原始碼。
 
-> 註：本程式碼庫使用內部代號 `nextop`，你會在目錄與二進位檔命名中看到它（如 `services/nextopd`）。
+> 註：本程式碼庫使用內部代號 `tutti`，你會在目錄與二進位檔命名中看到它（如 `services/tuttid`）。
 
 > 翻譯說明：本文件與英文版內容同步，如有出入，以[英文版](README.md)為準。

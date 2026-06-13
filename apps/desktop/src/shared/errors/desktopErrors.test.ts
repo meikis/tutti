@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  NextopdProtocolError,
+  TuttidProtocolError,
   workspaceProtocolErrorCodes
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 import {
   classifyDesktopErrorCode,
   desktopErrorCodes
@@ -64,7 +64,7 @@ test("classifyDesktopErrorCode detects broken Node linker failures", () => {
 });
 
 test("classifyDesktopErrorCode preserves daemon protocol codes", () => {
-  const error = new NextopdProtocolError({
+  const error = new TuttidProtocolError({
     code: workspaceProtocolErrorCodes.workspaceNotFound,
     developerMessage: "workspace not found",
     reason: "workspace_not_found",

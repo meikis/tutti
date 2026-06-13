@@ -1,6 +1,6 @@
 # @tutti-os/ui-rich-text
 
-Host-agnostic rich text foundations for Nextop frontend packages.
+Host-agnostic rich text foundations for Tutti frontend packages.
 
 This package is the new home for the repository's rich text work. It is
 intended to own:

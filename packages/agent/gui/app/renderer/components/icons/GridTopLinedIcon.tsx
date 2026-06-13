@@ -8,7 +8,7 @@ export function GridTopLinedIcon(props: SVGProps<SVGSVGElement>): JSX.Element {
       viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden
-      data-nextop-chrome-glyph="fill"
+      data-tutti-chrome-glyph="fill"
       data-nexight-chrome-glyph="fill"
       {...props}
     >

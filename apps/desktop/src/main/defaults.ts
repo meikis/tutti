@@ -10,11 +10,11 @@ export interface DesktopResolvedDefaults {
     rootDir: string;
     logsDir: string;
     runDir: string;
-    nextopdDBPath: string;
-    nextopdListenerInfoPath: string;
-    nextopdLogPath: string;
+    tuttidDBPath: string;
+    tuttidListenerInfoPath: string;
+    tuttidLogPath: string;
     desktopLogPath: string;
-    nextopdPIDPath: string;
+    tuttidPIDPath: string;
   };
   transport: {
     tcpAddr: string;
@@ -33,18 +33,18 @@ export function initializeDesktopEnvironment(options?: {
   appVersion?: string;
   isPackaged?: boolean;
 }): void {
-  if (!process.env.NEXTOP_ENV?.trim()) {
-    process.env.NEXTOP_ENV = options?.isPackaged ? "production" : "development";
+  if (!process.env.TUTTI_ENV?.trim()) {
+    process.env.TUTTI_ENV = options?.isPackaged ? "production" : "development";
   }
 
   const appVersion = options?.appVersion?.trim();
-  if (!process.env.NEXTOP_APP_VERSION?.trim() && appVersion) {
-    process.env.NEXTOP_APP_VERSION = appVersion;
+  if (!process.env.TUTTI_APP_VERSION?.trim() && appVersion) {
+    process.env.TUTTI_APP_VERSION = appVersion;
   }
 }
 
 export function resolveDesktopDefaultsFromEnv(): DesktopResolvedDefaults {
-  const env = resolveNextopEnv();
+  const env = resolveTuttiEnv();
   const stateRootDir = resolveStateRootDir(env);
   const logsDir = resolveLogsDir(stateRootDir);
   const runDir = resolveRunDir(stateRootDir);
@@ -57,11 +57,11 @@ export function resolveDesktopDefaultsFromEnv(): DesktopResolvedDefaults {
       rootDir: stateRootDir,
       logsDir,
       runDir,
-      nextopdDBPath: resolveDBPath(stateRootDir),
-      nextopdListenerInfoPath: resolveListenerInfoPath(runDir),
-      nextopdLogPath: resolveDaemonLogPath(logsDir),
+      tuttidDBPath: resolveDBPath(stateRootDir),
+      tuttidListenerInfoPath: resolveListenerInfoPath(runDir),
+      tuttidLogPath: resolveDaemonLogPath(logsDir),
       desktopLogPath: resolveDesktopLogPath(logsDir),
-      nextopdPIDPath: resolvePIDPath(runDir)
+      tuttidPIDPath: resolvePIDPath(runDir)
     },
     transport: {
       tcpAddr: resolveTCPAddr()
@@ -77,14 +77,14 @@ export function resolveDesktopDefaultsFromEnv(): DesktopResolvedDefaults {
   };
 }
 
-export function resolveNextopEnv(): "development" | "production" {
-  return process.env.NEXTOP_ENV?.trim().match(/^(dev|development|local)$/i)
+export function resolveTuttiEnv(): "development" | "production" {
+  return process.env.TUTTI_ENV?.trim().match(/^(dev|development|local)$/i)
     ? "development"
     : "production";
 }
 
 function resolveStateRootDir(env: "development" | "production"): string {
-  const override = process.env.NEXTOP_STATE_DIR?.trim();
+  const override = process.env.TUTTI_STATE_DIR?.trim();
   if (override) {
     return override;
   }
@@ -99,7 +99,7 @@ function resolveStateRootDir(env: "development" | "production"): string {
 }
 
 function resolveLogsDir(stateRootDir: string): string {
-  const override = process.env.NEXTOP_LOG_DIR?.trim();
+  const override = process.env.TUTTI_LOG_DIR?.trim();
   if (override) {
     return override;
   }
@@ -107,7 +107,7 @@ function resolveLogsDir(stateRootDir: string): string {
   return join(stateRootDir, generatedDefaults.state.logsDirName);
 }
 function resolveRunDir(stateRootDir: string): string {
-  const override = process.env.NEXTOPD_RUN_DIR?.trim();
+  const override = process.env.TUTTID_RUN_DIR?.trim();
   if (override) {
     return override;
   }
@@ -116,7 +116,7 @@ function resolveRunDir(stateRootDir: string): string {
 }
 
 function resolveDBPath(stateRootDir: string): string {
-  const override = process.env.NEXTOPD_DB_PATH?.trim();
+  const override = process.env.TUTTID_DB_PATH?.trim();
   if (override) {
     return override;
   }
@@ -125,7 +125,7 @@ function resolveDBPath(stateRootDir: string): string {
 }
 
 function resolveDaemonLogPath(logsDir: string): string {
-  const override = process.env.NEXTOPD_LOG_PATH?.trim();
+  const override = process.env.TUTTID_LOG_PATH?.trim();
   if (override) {
     return override;
   }
@@ -134,7 +134,7 @@ function resolveDaemonLogPath(logsDir: string): string {
 }
 
 function resolveDesktopLogPath(logsDir: string): string {
-  const override = process.env.NEXTOP_DESKTOP_LOG_PATH?.trim();
+  const override = process.env.TUTTI_DESKTOP_LOG_PATH?.trim();
   if (override) {
     return override;
   }
@@ -143,7 +143,7 @@ function resolveDesktopLogPath(logsDir: string): string {
 }
 
 function resolvePIDPath(runDir: string): string {
-  const override = process.env.NEXTOPD_PID_PATH?.trim();
+  const override = process.env.TUTTID_PID_PATH?.trim();
   if (override) {
     return override;
   }
@@ -152,7 +152,7 @@ function resolvePIDPath(runDir: string): string {
 }
 
 function resolveListenerInfoPath(runDir: string): string {
-  const override = process.env.NEXTOPD_LISTENER_INFO_PATH?.trim();
+  const override = process.env.TUTTID_LISTENER_INFO_PATH?.trim();
   if (override) {
     return override;
   }
@@ -162,7 +162,7 @@ function resolveListenerInfoPath(runDir: string): string {
 
 function resolveTCPAddr(): string {
   return (
-    process.env.NEXTOPD_ADDR?.trim() ||
+    process.env.TUTTID_ADDR?.trim() ||
     generatedDefaults.transport.defaultTCPAddr
   );
 }

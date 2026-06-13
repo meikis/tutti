@@ -1,13 +1,13 @@
 # Project Structure
 
-This document defines the current repository structure for `nextop`.
+This document defines the current repository structure for `tutti`.
 
 It explains what belongs in each top-level area and how new directories should be introduced.
 
 ## Top-Level Layout
 
 ```text
-nextop/
+tutti/
   apps/
   config/
   services/
@@ -39,12 +39,12 @@ Rules:
 
 Current area:
 
-- `services/nextopd`: local daemon and primary business core
+- `services/tuttid`: local daemon and primary business core
 
 Rules:
 
 - service directories own business workflows, durable state, and persistence ownership
-- if a feature requires domain decisions or state transitions, it should usually land in `services/nextopd`
+- if a feature requires domain decisions or state transitions, it should usually land in `services/tuttid`
 
 ### `config/`
 
@@ -52,7 +52,7 @@ Rules:
 
 Current area:
 
-- `config/nextop.defaults.json`: single-source default names and budgets for local state, transport, and logging
+- `config/tutti.defaults.json`: single-source default names and budgets for local state, transport, and logging
 
 Rules:
 
@@ -130,7 +130,7 @@ Rules:
 - invoking the daemon-owned CLI capability protocol
 - rendering daemon command output for terminal users
 
-It must not become a second business core. Command metadata, workspace resolution, edition/context filtering, and command execution stay in `services/nextopd`.
+It must not become a second business core. Command metadata, workspace resolution, edition/context filtering, and command execution stay in `services/tuttid`.
 
 ### `apps/desktop`
 
@@ -140,7 +140,7 @@ It must not become a second business core. Command metadata, workspace resolutio
 - Electron main-process lifecycle
 - preload bridge and IPC exposure
 - native desktop integration
-- supervising `nextopd`
+- supervising `tuttid`
 
 It must not become a second business core.
 
@@ -168,9 +168,9 @@ Desktop summary:
 
 The authoritative desktop directory shape and ownership rules live in [docs/conventions/desktop-layering.md](../conventions/desktop-layering.md). Keep this repository-level document as a summary, not a second full desktop structure spec.
 
-### `services/nextopd`
+### `services/tuttid`
 
-`services/nextopd` is the primary business core.
+`services/tuttid` is the primary business core.
 
 It owns:
 
@@ -218,7 +218,7 @@ Rules:
 - keep Browser Node mechanics in this package and host/product-specific methods
   in the consuming app or integration
 - require hosts to provide bridge namespaces; the package must not assume
-  `__nextop`, `__tsh`, or any other product global
+  `__tutti`, `__tsh`, or any other product global
 - keep preview proxy interfaces inert until a host intentionally implements
   route resolution
 - keep daemon contracts out of Browser Node v1; the desktop host persists layout
@@ -332,7 +332,7 @@ Release rule:
 
 Rules:
 
-- keep host-specific adapters in the owning host, such as `services/nextopd` or
+- keep host-specific adapters in the owning host, such as `services/tuttid` or
   an app renderer feature
 - a reusable frontend workspace package may still own shared session state,
   interaction flow, and optional React UI when those behaviors form the shared
@@ -342,7 +342,7 @@ Rules:
   rather than duplicating package strings locally
 - keep shared state and UI on logical workspace paths such as `/workspace`, not
   host absolute paths or VM mount paths
-- do not move nextopd storage lookup, desktop preload calls, TSH room mapping, or
+- do not move tuttid storage lookup, desktop preload calls, TSH room mapping, or
   TACH-specific integration into `packages/workspace/*`
 
 Host reuse model:
@@ -390,7 +390,7 @@ Keep future app ideas in docs until they become real modules. Do not reserve the
 Keep code local by default:
 
 - desktop-only TypeScript stays in `apps/desktop`
-- daemon-only Go stays in `services/nextopd`
+- daemon-only Go stays in `services/tuttid`
 
 Keep future packages in docs, not in placeholder directories:
 

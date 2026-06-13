@@ -10,7 +10,7 @@ type WorkbenchMissionControlI18nLocale = "en" | "zh-CN";
 
 export const workbenchMissionControlI18nNamespace = "workbenchMissionControl";
 
-export const nextopI18nModule = createScopedLocaleObjectsI18nModuleManifest({
+export const tuttiI18nModule = createScopedLocaleObjectsI18nModuleManifest({
   localeObjectByLocale: {
     en: "workbenchMissionControlEn",
     "zh-CN": "workbenchMissionControlZhCN"

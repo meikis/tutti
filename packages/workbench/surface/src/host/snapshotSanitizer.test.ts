@@ -58,7 +58,7 @@ test("sanitizeWorkbenchHostSnapshot keeps only shell state and host identity", (
       hostPayload: {
         agentStatus: "running"
       },
-      nextopWorkbenchInitialized: true,
+      tuttiWorkbenchInitialized: true,
       workbenchHostInitialized: true
     }
   });
@@ -89,7 +89,7 @@ test("sanitizeWorkbenchHostSnapshot keeps only shell state and host identity", (
     frame: { x: 0, y: 0, width: 1000, height: 700 }
   });
   assert.deepEqual(sanitized.metadata, {
-    nextopWorkbenchInitialized: true,
+    tuttiWorkbenchInitialized: true,
     workbenchHostInitialized: true
   });
 });

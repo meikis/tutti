@@ -70,7 +70,7 @@ export type SelectedProvider = RoomIssueNodeData["selectedProvider"];
 export type IssueAgentOption = {
   provider: SelectedProvider;
   label: string;
-  managedAgentId: "codex" | "claude-code" | "nextop" | "openclaw" | "hermes";
+  managedAgentId: "codex" | "claude-code" | "tutti" | "openclaw" | "hermes";
 };
 export type RoomIssueProviderOption = IssueAgentOption & {
   action: "installed" | "sync" | "install";
@@ -88,7 +88,7 @@ function isIssueAgentOptionId(
   return (
     id === "codex" ||
     id === "claude-code" ||
-    id === "nextop" ||
+    id === "tutti" ||
     id === "openclaw" ||
     id === "hermes"
   );
@@ -264,10 +264,10 @@ export function getRoomIssueAgentOptions(
       label: t("agentHost.issue.agentCodex"),
       managedAgentId: "codex"
     },
-    nextop: {
+    tutti: {
       provider: "nexight",
-      label: t("agentHost.issue.agentNextop"),
-      managedAgentId: "nextop"
+      label: t("agentHost.issue.agentTutti"),
+      managedAgentId: "tutti"
     },
     hermes: {
       provider: "hermes",

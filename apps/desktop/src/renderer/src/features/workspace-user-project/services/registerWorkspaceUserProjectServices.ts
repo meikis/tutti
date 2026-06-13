@@ -1,5 +1,5 @@
 import type { ServiceRegistry } from "@zk-tech/bedrock/di";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { NotificationService } from "@tutti-os/ui-notifications";
 import type { DesktopHostFilesApi, DesktopPlatformApi } from "@preload/types";
 import { DesktopWorkspaceUserProjectService } from "./internal/desktopWorkspaceUserProjectService.ts";
@@ -13,7 +13,7 @@ export interface WorkspaceUserProjectServiceRegistrationInput {
     DesktopHostFilesApi,
     "createUserDocumentsProjectDirectory" | "selectDirectory"
   >;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   notifications?: NotificationService;
   platformApi: Pick<DesktopPlatformApi, "homeDirectory" | "os">;
   workspaceId: string;

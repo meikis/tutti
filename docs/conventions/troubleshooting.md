@@ -150,12 +150,12 @@ Use this shape for new entries:
 
 - Symptom:
   Workspace agent sessions still appear recoverable after a renderer refresh,
-  but after a `nextopd` restart the session list is empty, the detail pane
+  but after a `tuttid` restart the session list is empty, the detail pane
   falls back to an unavailable state, or a newly reported session overwrites
   older history for the same workspace.
 - Quick checks:
-  Confirm `services/nextopd/data/workspace` has a durable snapshot row for the
-  workspace and that `services/nextopd/wiring.go` hydrates the in-memory agent
+  Confirm `services/tuttid/data/workspace` has a durable snapshot row for the
+  workspace and that `services/tuttid/wiring.go` hydrates the in-memory agent
   activity store from it before new runtime reports are applied.
   If restore reads use a different source than write-time projection, verify
   both `List/Get` and message-history queries are reading the same durable
@@ -171,7 +171,7 @@ Use this shape for new entries:
   report. If only the renderer cache or only the daemon process memory holds
   the projection, session metadata and message history diverge after restart.
 - Fix:
-  Make `nextopd` own a durable agent snapshot in `data/workspace`, persist it
+  Make `tuttid` own a durable agent snapshot in `data/workspace`, persist it
   from the activity-store update listener, and hydrate the in-memory activity
   store from that snapshot on first room tracking. Service-level
   session/message restore should read from the same durable snapshot source,
@@ -182,10 +182,10 @@ Use this shape for new entries:
 - Validation:
   Add store round-trip coverage for the snapshot row, service tests that fall
   back to persisted sessions and resume them into runtime, then run
-  `pnpm lint:go` plus `cd services/nextopd && go test ./... && go build ./...`.
+  `pnpm lint:go` plus `cd services/tuttid && go test ./... && go build ./...`.
 - References:
-  [service.go](../../services/nextopd/service/agent/service.go)
-  [wiring.go](../../services/nextopd/wiring.go)
+  [service.go](../../services/tuttid/service/agent/service.go)
+  [wiring.go](../../services/tuttid/wiring.go)
 
 ### Agent approval controls submit stale permission requests after restart
 
@@ -215,13 +215,13 @@ Use this shape for new entries:
   toast ids and dismiss them when their waiting keys are no longer present.
 - Validation:
   Add service tests for stale approve and cancel paths, then run
-  `pnpm lint:go`, `cd services/nextopd && go test ./... && go build ./...`.
+  `pnpm lint:go`, `cd services/tuttid && go test ./... && go build ./...`.
   For desktop UI, run `make dev-web`, trigger a command approval, approve from
   the conversation card, and confirm the waiting count and notification region
   both clear.
 - References:
-  [service.go](../../services/nextopd/service/agent/service.go)
-  [activity_projection.go](../../services/nextopd/service/agent/activity_projection.go)
+  [service.go](../../services/tuttid/service/agent/service.go)
+  [activity_projection.go](../../services/tuttid/service/agent/activity_projection.go)
   [WorkspaceChrome.tsx](../../apps/desktop/src/renderer/src/features/workspace-workbench/ui/WorkspaceChrome.tsx)
 
 ### Concurrent agent CLI installs corrupt shared npm global state
@@ -232,11 +232,11 @@ Use this shape for new entries:
   `cli_not_found`, `acp_adapter_not_found`, or a binary that exists but fails
   immediately after install.
 - Quick checks:
-  Confirm whether more than one `nextopd` agent-provider install action or
+  Confirm whether more than one `tuttid` agent-provider install action or
   desktop install button fired at roughly the same time for commands shaped
   like `npm install -g ...`.
   Inspect the daemon run-state lock path under
-  `NEXTOP_STATE_DIR/run/locks/npm-global-install.lock` while an install is in
+  `TUTTI_STATE_DIR/run/locks/npm-global-install.lock` while an install is in
   progress to verify later installs are waiting instead of running in parallel.
 - Root cause:
   npm global installs mutate shared package and bin locations. Without a
@@ -251,12 +251,12 @@ Use this shape for new entries:
   owner pid is no longer running. If recovery is still needed manually, clear
   `npm-global-install.lock` only after verifying no install is still running.
 - Validation:
-  Run `pnpm lint:go` plus `cd services/nextopd && go test ./... && go build ./...`.
+  Run `pnpm lint:go` plus `cd services/tuttid && go test ./... && go build ./...`.
   Then trigger two install actions in quick succession and confirm the second
   waits for the first instead of starting another global npm mutation.
 - References:
-  [service.go](../../services/nextopd/service/agentstatus/service.go)
-  [install_lock.go](../../services/nextopd/service/agentstatus/install_lock.go)
+  [service.go](../../services/tuttid/service/agentstatus/service.go)
+  [install_lock.go](../../services/tuttid/service/agentstatus/install_lock.go)
 
 ### Published package runtime asset 404 because the consumer bundler never saw the file
 
@@ -437,15 +437,15 @@ Use this shape for new entries:
   [controller.go](../../packages/agent/daemon/runtime/controller.go)
   [controller_test.go](../../packages/agent/daemon/runtime/controller_test.go)
 
-### Desktop restart leaves an orphan nextopd
+### Desktop restart leaves an orphan tuttid
 
 - Symptom:
-  The desktop logs `Timed out waiting for nextopd listener info: daemon runtime
+  The desktop logs `Timed out waiting for tuttid listener info: daemon runtime
 information is not available yet`, but `ps` or `lsof` still shows an older
-  `nextopd` process holding the development database or a loopback listener.
+  `tuttid` process holding the development database or a loopback listener.
 - Quick checks:
-  Inspect `~/.nextop-dev/run/nextopd.pid`, run `lsof` on
-  `~/.nextop-dev/nextopd.db`, and check whether the daemon process
+  Inspect `~/.tutti-dev/run/tuttid.pid`, run `lsof` on
+  `~/.tutti-dev/tuttid.db`, and check whether the daemon process
   has parent PID `1`. That combination means the Electron parent no longer owns
   the process even though the daemon survived.
 - Root cause:
@@ -455,18 +455,18 @@ information is not available yet`, but `ps` or `lsof` still shows an older
   next launch, the orphan can keep local state busy while the new managed daemon
   never publishes runtime info within the startup timeout.
 - Fix:
-  Prefer a prebuilt `apps/desktop/build/nextopd/nextopd` binary in development
+  Prefer a prebuilt `apps/desktop/build/tuttid/tuttid` binary in development
   when present, kill managed daemon process groups during desktop shutdown,
-  write and clear `nextopd.pid`, and inject `NEXTOP_DESKTOP_PARENT_PID` so
-  `nextopd` can self-shutdown when its desktop parent disappears.
+  write and clear `tuttid.pid`, and inject `TUTTI_DESKTOP_PARENT_PID` so
+  `tuttid` can self-shutdown when its desktop parent disappears.
 - Validation:
   Repeatedly quit and restart the desktop, then confirm there is at most one
-  `nextopd` process and that `~/.nextop-dev/run/nextopd.pid`
+  `tuttid` process and that `~/.tutti-dev/run/tuttid.pid`
   matches it. Also run the desktop daemon-manager tests and
-  `cd services/nextopd && go test .`.
+  `cd services/tuttid && go test .`.
 - References:
-  [nextopdManager.ts](../../apps/desktop/src/main/daemon/nextopdManager.ts)
-  [main.go](../../services/nextopd/main.go)
+  [tuttidManager.ts](../../apps/desktop/src/main/daemon/tuttidManager.ts)
+  [main.go](../../services/tuttid/main.go)
 
 ### Workbench node body warns about updating WorkbenchNodeLayer during render
 

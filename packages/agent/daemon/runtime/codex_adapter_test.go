@@ -1735,19 +1735,19 @@ func TestACPPermissionEventsCarryCanonicalToolName(t *testing.T) {
 }
 
 func TestACPToolCallDiagnosticEnabledHonorsEnvironment(t *testing.T) {
-	t.Setenv("NEXTOP_ACP_TOOL_DEBUG", "1")
+	t.Setenv("TUTTI_ACP_TOOL_DEBUG", "1")
 	if !acpToolCallDiagnosticEnabled() {
 		t.Fatal("acpToolCallDiagnosticEnabled() = false, want true when env is enabled")
 	}
 
-	t.Setenv("NEXTOP_ACP_TOOL_DEBUG", "0")
+	t.Setenv("TUTTI_ACP_TOOL_DEBUG", "0")
 	if acpToolCallDiagnosticEnabled() {
 		t.Fatal("acpToolCallDiagnosticEnabled() = true, want false when env is disabled")
 	}
 }
 
 func TestLogACPToolCallDiagnosticIncludesRawAndNormalizedPayloads(t *testing.T) {
-	t.Setenv("NEXTOP_ACP_TOOL_DEBUG", "1")
+	t.Setenv("TUTTI_ACP_TOOL_DEBUG", "1")
 
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))

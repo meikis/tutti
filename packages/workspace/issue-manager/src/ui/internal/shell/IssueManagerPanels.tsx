@@ -16,12 +16,17 @@ import {
   IssueManagerOutputSection,
   IssueManagerSubtaskSection
 } from "../issue/IssueManagerIssueSections.tsx";
+import {
+  resolveIssueManagerIssueAcceptanceTaskId,
+  resolveIssueManagerVisibleSubtasks
+} from "../issue/IssueManagerIssueAcceptanceState.ts";
 import type { IssueManagerLatestRunStatusRenderer } from "../../latestRunStatusRenderer.ts";
 import { IssueManagerDescriptionSection } from "../content/IssueManagerDescriptionSection.tsx";
 import { IssueManagerTitleTooltip } from "../content/IssueManagerTitleTooltip.tsx";
 import { IssueManagerPaneLoadingState } from "../panel/IssueManagerPanelSurface.tsx";
 import { resolveIssueManagerCreatorLabel } from "../panel/IssueManagerPanelText.ts";
 import { IssueManagerRichTextTextarea } from "../content/IssueManagerRichTextTextarea.tsx";
+import { IssueManagerTaskAcceptanceCard } from "../task/IssueManagerTaskAcceptanceCard.tsx";
 import type { IssueManagerController } from "../../react/index.ts";
 import { IssueManagerDraftTitleInput } from "./IssueManagerDraftTitleInput.tsx";
 import {
@@ -67,19 +72,32 @@ export function IssueManagerIssuePane({
   const latestOutputs = selectedTask
     ? (controller.taskDetail.value?.latestOutputs ?? [])
     : (controller.issueDetail.value?.latestOutputs ?? []);
+  const issueAcceptanceTaskId = resolveIssueManagerIssueAcceptanceTaskId({
+    latestRun,
+    selectedIssue,
+    selectedTaskId,
+    tasks
+  });
+  const visibleTasks = resolveIssueManagerVisibleSubtasks({
+    hiddenAcceptanceTaskId: issueAcceptanceTaskId,
+    tasks
+  });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   if (isCreatingIssue || isEditingIssue) {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <ScrollArea className="min-h-0 flex-1 [&_[data-orientation=vertical][data-slot=scroll-area-scrollbar]]:opacity-100 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
+        <ScrollArea
+          scrollbarMode="native"
+          className="min-h-0 flex-1 [&_[data-orientation=vertical][data-slot=scroll-area-scrollbar]]:opacity-100 [&_[data-slot=scroll-area-viewport]]:overscroll-contain"
+        >
           <div className="flex min-h-full flex-col gap-[14px] px-7 py-8">
             <div className="flex w-full min-w-0 flex-col gap-3">
               <div
                 className={`${issueManagerEditorRiseInClassName} ${issueManagerEditorRiseInDelay0ClassName}`}
               >
-                <h2 className="m-0 text-[17px] font-semibold leading-[1.35] text-[var(--text-primary)]">
+                <h2 className="m-0 text-[15px] font-semibold leading-[1.35] text-[var(--text-primary)]">
                   {isCreatingIssue
                     ? copy.t("actions.createIssue")
                     : copy.t("actions.editIssue")}
@@ -87,7 +105,7 @@ export function IssueManagerIssuePane({
               </div>
               <div className="flex w-full min-w-0 flex-col gap-6">
                 <label
-                  className={`flex w-full min-w-0 flex-col gap-2 text-sm font-semibold text-[var(--text-secondary)] ${issueManagerEditorRiseInClassName} ${issueManagerEditorRiseInDelay1ClassName}`}
+                  className={`flex w-full min-w-0 flex-col gap-2 text-[13px] font-semibold text-[var(--text-secondary)] ${issueManagerEditorRiseInClassName} ${issueManagerEditorRiseInDelay1ClassName}`}
                 >
                   <span className="leading-5">{copy.t("labels.title")}</span>
                   <IssueManagerDraftTitleInput
@@ -97,7 +115,7 @@ export function IssueManagerIssuePane({
                   />
                 </label>
                 <div
-                  className={`flex min-h-0 w-full min-w-0 flex-col gap-2 text-sm font-semibold text-[var(--text-secondary)] ${issueManagerEditorRiseInClassName} ${issueManagerEditorRiseInDelay2ClassName}`}
+                  className={`flex min-h-0 w-full min-w-0 flex-col gap-2 text-[13px] font-semibold text-[var(--text-secondary)] ${issueManagerEditorRiseInClassName} ${issueManagerEditorRiseInDelay2ClassName}`}
                 >
                   <span className="leading-5">{copy.t("labels.content")}</span>
                   <IssueManagerRichTextTextarea
@@ -145,7 +163,10 @@ export function IssueManagerIssuePane({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <ScrollArea className="min-h-0 flex-1 [&_[data-orientation=vertical][data-slot=scroll-area-scrollbar]]:opacity-100 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
+      <ScrollArea
+        scrollbarMode="native"
+        className="min-h-0 flex-1 [&_[data-orientation=vertical][data-slot=scroll-area-scrollbar]]:opacity-100 [&_[data-slot=scroll-area-viewport]]:overscroll-contain"
+      >
         <div className="px-8 py-7">
           {controller.issueDetail.isLoading &&
           controller.issueDetail.value === null ? (
@@ -155,7 +176,7 @@ export function IssueManagerIssuePane({
               <header className="grid gap-3">
                 <div className="flex items-center justify-between gap-6">
                   <IssueManagerTitleTooltip title={selectedIssue.title}>
-                    <h2 className="line-clamp-2 min-w-0 flex-1 whitespace-normal text-base font-semibold leading-6 text-[var(--text-primary)] [overflow-wrap:anywhere]">
+                    <h2 className="line-clamp-2 min-w-0 flex-1 whitespace-normal text-[15px] font-semibold leading-6 text-[var(--text-primary)] [overflow-wrap:anywhere]">
                       {selectedIssue.title}
                     </h2>
                   </IssueManagerTitleTooltip>
@@ -177,7 +198,7 @@ export function IssueManagerIssuePane({
                     </Button>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-[12px] font-normal leading-[1.3] text-[var(--text-secondary)]">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-[11px] font-normal leading-[1.3] text-[var(--text-secondary)]">
                   <Badge
                     variant={issueManagerStatusBadgeVariant(
                       selectedIssue.status
@@ -189,7 +210,7 @@ export function IssueManagerIssuePane({
                     aria-hidden="true"
                     className="h-4 w-px shrink-0 bg-[var(--line-2)]"
                   />
-                  <span className="text-[12px] font-normal leading-[1.3]">
+                  <span className="text-[11px] font-normal leading-[1.3]">
                     {copy.t("labels.creator")}{" "}
                     {resolveIssueManagerCreatorLabel(selectedIssue)}
                   </span>
@@ -197,12 +218,18 @@ export function IssueManagerIssuePane({
                     aria-hidden="true"
                     className="h-4 w-px shrink-0 bg-[var(--line-2)]"
                   />
-                  <span className="text-[12px] font-normal leading-[1.3]">
+                  <span className="text-[11px] font-normal leading-[1.3]">
                     {copy.t("labels.createdAt")}{" "}
                     {formatIssueManagerTimestamp(selectedIssue.createdAtUnix) ||
                       "-"}
                   </span>
                 </div>
+                {issueAcceptanceTaskId ? (
+                  <IssueManagerTaskAcceptanceCard
+                    controller={controller}
+                    taskId={issueAcceptanceTaskId}
+                  />
+                ) : null}
               </header>
               <ConfirmationDialog
                 cancelLabel={copy.t("actions.cancel")}
@@ -251,7 +278,7 @@ export function IssueManagerIssuePane({
                 onCreate={controller.createTaskDraft}
                 onSelectTask={controller.selectTask}
                 selectedTaskId={selectedTask?.taskId ?? null}
-                tasks={tasks}
+                tasks={visibleTasks}
               />
             </div>
           )}

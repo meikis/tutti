@@ -1,0 +1,161 @@
+package agent
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestDiscoverComposerSkillOptionsCodexUsesProviderNativeTriggers(t *testing.T) {
+	tempDir := t.TempDir()
+	homeDir := filepath.Join(tempDir, "home")
+	repoDir := filepath.Join(tempDir, "repo")
+	cwd := filepath.Join(repoDir, "packages", "app")
+	codexHome := filepath.Join(tempDir, "runtime", "codex-home")
+	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
+
+	writeSkill(t, filepath.Join(repoDir, ".codex", "skills", "architecture-review", "SKILL.md"), `---
+description: Review architecture changes.
+---
+
+Review repository changes.
+`)
+	writeSkill(t, filepath.Join(homeDir, ".agents", "skills", "lark-doc", "SKILL.md"), `---
+description: >
+  Work with Lark documents.
+  Search and edit cloud docs.
+---
+`)
+	writeSkill(t, filepath.Join(homeDir, ".codex", "skills", "caveman", "SKILL.md"), `---
+description: >
+  Ultra-compressed communication mode.
+  Use when the user asks to be brief.
+---
+`)
+	writeSkill(t, filepath.Join(homeDir, ".codex", "skills", ".system", "hidden", "SKILL.md"), `---
+description: Hidden system skill.
+---
+`)
+	writeSkill(t, filepath.Join(codexHome, "skills", ".system", "imagegen", "SKILL.md"), `---
+description: Generate images.
+---
+`)
+	writeSkill(t, filepath.Join(codexHome, "skills", "tutti-cli", "SKILL.md"), `---
+description: Internal Tutti CLI.
+---
+`)
+
+	options := discoverComposerSkillOptions("codex", cwd, []string{
+		"CODEX_HOME=" + codexHome,
+	})
+
+	triggers := composerSkillOptionTriggers(options)
+	want := []string{"$architecture-review", "$caveman", "$lark-doc", "$imagegen"}
+	if !equalStringSlices(triggers, want) {
+		t.Fatalf("triggers = %#v, want %#v", triggers, want)
+	}
+	if options[0].SourceKind != "project" || options[1].SourceKind != "personal" || options[2].SourceKind != "personal" || options[3].SourceKind != "system" {
+		t.Fatalf("source kinds = %#v", options)
+	}
+	if options[1].Description != "Ultra-compressed communication mode. Use when the user asks to be brief." {
+		t.Fatalf("codex personal description = %q", options[1].Description)
+	}
+	if options[2].Description != "Work with Lark documents. Search and edit cloud docs." {
+		t.Fatalf("folded description = %q", options[2].Description)
+	}
+}
+
+func TestDiscoverComposerSkillOptionsClaudeUsesSlashAndPluginNamespace(t *testing.T) {
+	tempDir := t.TempDir()
+	homeDir := filepath.Join(tempDir, "home")
+	repoDir := filepath.Join(tempDir, "repo")
+	cwd := filepath.Join(repoDir, "apps", "desktop")
+	pluginDir := filepath.Join(tempDir, "plugins", "product-design")
+	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
+
+	writeSkill(t, filepath.Join(repoDir, ".claude", "skills", "summarize", "SKILL.md"), `---
+description: Summarize changes.
+---
+`)
+	writeSkill(t, filepath.Join(homeDir, ".claude", "skills", "personal-review", "SKILL.md"), `---
+description: Review personal workflow.
+---
+`)
+	writeSkill(t, filepath.Join(pluginDir, "skills", "frontend-design", "SKILL.md"), `---
+description: Design frontend UI.
+---
+`)
+	writeSkill(t, filepath.Join(pluginDir, "skills", "tutti-cli", "SKILL.md"), `---
+description: Internal Tutti CLI.
+---
+`)
+
+	options := discoverComposerSkillOptions("claude-code", cwd, []string{
+		"TUTTI_CLAUDE_PLUGIN_DIR=" + pluginDir,
+	})
+
+	triggers := composerSkillOptionTriggers(options)
+	want := []string{"/summarize", "/personal-review", "/product-design:frontend-design"}
+	if !equalStringSlices(triggers, want) {
+		t.Fatalf("triggers = %#v, want %#v", triggers, want)
+	}
+	if options[2].PluginName != "product-design" || options[2].SourceKind != "plugin" {
+		t.Fatalf("plugin option = %#v", options[2])
+	}
+}
+
+func TestReadSkillMetadataSupportsFoldedDescription(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "SKILL.md")
+	writeSkill(t, path, `---
+name: lark-whiteboard
+version: 1.0.0
+description: >
+  飞书画板：查询和编辑飞书云文档中的画板。
+  支持导出画板为预览图片、导出原始节点结构。
+metadata:
+  requires:
+    bins: ["lark-cli"]
+---
+`)
+
+	metadata := readSkillMetadata(path)
+	if metadata.name != "lark-whiteboard" {
+		t.Fatalf("name = %q", metadata.name)
+	}
+	want := "飞书画板：查询和编辑飞书云文档中的画板。 支持导出画板为预览图片、导出原始节点结构。"
+	if metadata.description != want {
+		t.Fatalf("description = %q, want %q", metadata.description, want)
+	}
+}
+
+func writeSkill(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+func composerSkillOptionTriggers(options []ComposerSkillOption) []string {
+	triggers := make([]string, 0, len(options))
+	for _, option := range options {
+		triggers = append(triggers, option.Trigger)
+	}
+	return triggers
+}
+
+func equalStringSlices(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}

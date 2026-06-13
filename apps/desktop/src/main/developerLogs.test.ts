@@ -7,25 +7,25 @@ import { createDeveloperLogsService } from "./developerLogs.ts";
 import type { DeveloperLogsAgentSessionRecord } from "./developerLogsAgentSessions.ts";
 
 test("developer logs service summarizes managed desktop and daemon logs", async () => {
-  const root = join(tmpdir(), `nextop-developer-logs-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-logs-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   await mkdir(logsDir, { recursive: true });
 
-  await writeFile(join(logsDir, "nextopd.log"), "daemon-1234");
-  await writeFile(join(logsDir, "nextop-desktop.log"), "desktop-12");
-  await writeFile(join(logsDir, "nextopd.2026-05-23.log"), "rotated");
+  await writeFile(join(logsDir, "tuttid.log"), "daemon-1234");
+  await writeFile(join(logsDir, "tutti-desktop.log"), "desktop-12");
+  await writeFile(join(logsDir, "tuttid.2026-05-23.log"), "rotated");
   await writeFile(join(logsDir, "other.log"), "ignored");
 
   const service = createDeveloperLogsService({
     defaults: {
       state: {
-        desktopLogPath: join(logsDir, "nextop-desktop.log"),
+        desktopLogPath: join(logsDir, "tutti-desktop.log"),
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "nextopd.log"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "tuttid.log"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -33,7 +33,7 @@ test("developer logs service summarizes managed desktop and daemon logs", async 
     desktopVersion: "1.2.3",
     preferredSystemLanguages: ["en-US"],
     systemLocale: "en",
-    transportSnapshot: { kind: "unix", socketPath: "/tmp/nextop.sock" }
+    transportSnapshot: { kind: "unix", socketPath: "/tmp/tutti.sock" }
   });
 
   const state = await service.getLogsState();
@@ -54,14 +54,14 @@ test("developer logs service summarizes managed desktop and daemon logs", async 
 });
 
 test("developer logs service truncates active logs and removes rotated logs", async () => {
-  const root = join(tmpdir(), `nextop-developer-clear-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-clear-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   await mkdir(logsDir, { recursive: true });
 
-  const daemonPath = join(logsDir, "nextopd.log");
-  const desktopPath = join(logsDir, "nextop-desktop.log");
-  const rotatedPath = join(logsDir, "nextop-desktop.2026-05-23.log");
+  const daemonPath = join(logsDir, "tuttid.log");
+  const desktopPath = join(logsDir, "tutti-desktop.log");
+  const rotatedPath = join(logsDir, "tutti-desktop.2026-05-23.log");
   await writeFile(daemonPath, "daemon-live");
   await writeFile(desktopPath, "desktop-live");
   await writeFile(rotatedPath, "rotated-history");
@@ -71,10 +71,10 @@ test("developer logs service truncates active logs and removes rotated logs", as
       state: {
         desktopLogPath: desktopPath,
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: daemonPath,
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: daemonPath,
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -82,7 +82,7 @@ test("developer logs service truncates active logs and removes rotated logs", as
     desktopVersion: "1.2.3",
     preferredSystemLanguages: ["en-US"],
     systemLocale: "en",
-    transportSnapshot: { kind: "unix", socketPath: "/tmp/nextop.sock" }
+    transportSnapshot: { kind: "unix", socketPath: "/tmp/tutti.sock" }
   });
 
   const result = await service.clearLogs();
@@ -98,25 +98,25 @@ test("developer logs service truncates active logs and removes rotated logs", as
 });
 
 test("developer logs service exports managed logs into a zip archive", async () => {
-  const root = join(tmpdir(), `nextop-developer-export-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-export-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   const downloadsDir = join(root, "downloads");
   await mkdir(logsDir, { recursive: true });
   await mkdir(downloadsDir, { recursive: true });
 
-  await writeFile(join(logsDir, "nextopd.log"), "daemon-export");
-  await writeFile(join(logsDir, "nextop-desktop.log"), "desktop-export");
+  await writeFile(join(logsDir, "tuttid.log"), "daemon-export");
+  await writeFile(join(logsDir, "tutti-desktop.log"), "desktop-export");
 
   const service = createDeveloperLogsService({
     defaults: {
       state: {
-        desktopLogPath: join(logsDir, "nextop-desktop.log"),
+        desktopLogPath: join(logsDir, "tutti-desktop.log"),
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "nextopd.log"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "tuttid.log"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -125,7 +125,7 @@ test("developer logs service exports managed logs into a zip archive", async () 
     getDownloadsPath: () => downloadsDir,
     preferredSystemLanguages: ["en-US", "zh-CN"],
     systemLocale: "en",
-    transportSnapshot: { kind: "unix", socketPath: "/tmp/nextop.sock" }
+    transportSnapshot: { kind: "unix", socketPath: "/tmp/tutti.sock" }
   });
 
   const result = await service.exportLogs();
@@ -142,8 +142,8 @@ test("developer logs service exports managed logs into a zip archive", async () 
   assert.equal(zipText.includes("manifest.json"), false);
 });
 
-test("developer logs service exports provider session records from nextopd snapshots", async () => {
-  const root = join(tmpdir(), `nextop-developer-agent-export-${Date.now()}`);
+test("developer logs service exports provider session records from tuttid snapshots", async () => {
+  const root = join(tmpdir(), `tutti-developer-agent-export-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   const downloadsDir = join(root, "downloads");
@@ -209,12 +209,12 @@ test("developer logs service exports provider session records from nextopd snaps
     ],
     defaults: {
       state: {
-        desktopLogPath: join(logsDir, "nextop-desktop.log"),
+        desktopLogPath: join(logsDir, "tutti-desktop.log"),
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "nextopd.log"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "tuttid.log"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -255,7 +255,7 @@ test("developer logs service exports provider session records from nextopd snaps
 });
 
 test("developer logs service exports at most ten provider session records per provider", async () => {
-  const root = join(tmpdir(), `nextop-developer-agent-limit-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-agent-limit-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   const downloadsDir = join(root, "downloads");
@@ -299,12 +299,12 @@ test("developer logs service exports at most ten provider session records per pr
     agentSessionsProvider: async () => sessions,
     defaults: {
       state: {
-        desktopLogPath: join(logsDir, "nextop-desktop.log"),
+        desktopLogPath: join(logsDir, "tutti-desktop.log"),
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "nextopd.log"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "tuttid.log"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -333,14 +333,14 @@ test("developer logs service exports at most ten provider session records per pr
 });
 
 test("developer logs service flushes active desktop logs before export", async () => {
-  const root = join(tmpdir(), `nextop-developer-export-flush-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-export-flush-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   const downloadsDir = join(root, "downloads");
-  const desktopLogPath = join(logsDir, "nextop-desktop.log");
+  const desktopLogPath = join(logsDir, "tutti-desktop.log");
   await mkdir(logsDir, { recursive: true });
   await mkdir(downloadsDir, { recursive: true });
-  await writeFile(join(logsDir, "nextopd.log"), "daemon-export");
+  await writeFile(join(logsDir, "tuttid.log"), "daemon-export");
   await writeFile(desktopLogPath, "");
 
   let flushed = false;
@@ -349,10 +349,10 @@ test("developer logs service flushes active desktop logs before export", async (
       state: {
         desktopLogPath,
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "nextopd.log"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "tuttid.log"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -374,7 +374,7 @@ test("developer logs service flushes active desktop logs before export", async (
 });
 
 test("developer logs service exports workspace app log files", async () => {
-  const root = join(tmpdir(), `nextop-developer-app-export-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-app-export-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   const downloadsDir = join(root, "downloads");
@@ -398,12 +398,12 @@ test("developer logs service exports workspace app log files", async () => {
   const service = createDeveloperLogsService({
     defaults: {
       state: {
-        desktopLogPath: join(logsDir, "nextop-desktop.log"),
+        desktopLogPath: join(logsDir, "tutti-desktop.log"),
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "nextopd.log"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "tuttid.log"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -412,7 +412,7 @@ test("developer logs service exports workspace app log files", async () => {
     getDownloadsPath: () => downloadsDir,
     preferredSystemLanguages: ["en-US", "zh-CN"],
     systemLocale: "en",
-    transportSnapshot: { kind: "unix", socketPath: "/tmp/nextop.sock" }
+    transportSnapshot: { kind: "unix", socketPath: "/tmp/tutti.sock" }
   });
 
   const result = await service.exportLogs();
@@ -436,7 +436,7 @@ test("developer logs service exports workspace app log files", async () => {
 });
 
 test("developer logs service exports app factory job log files", async () => {
-  const root = join(tmpdir(), `nextop-developer-factory-export-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-factory-export-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   const downloadsDir = join(root, "downloads");
@@ -452,12 +452,12 @@ test("developer logs service exports app factory job log files", async () => {
   const service = createDeveloperLogsService({
     defaults: {
       state: {
-        desktopLogPath: join(logsDir, "nextop-desktop.log"),
+        desktopLogPath: join(logsDir, "tutti-desktop.log"),
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "nextopd.log"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "tuttid.log"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -466,7 +466,7 @@ test("developer logs service exports app factory job log files", async () => {
     getDownloadsPath: () => downloadsDir,
     preferredSystemLanguages: ["en-US", "zh-CN"],
     systemLocale: "en",
-    transportSnapshot: { kind: "unix", socketPath: "/tmp/nextop.sock" }
+    transportSnapshot: { kind: "unix", socketPath: "/tmp/tutti.sock" }
   });
 
   const result = await service.exportLogs();
@@ -483,7 +483,7 @@ test("developer logs service exports app factory job log files", async () => {
 });
 
 test("developer logs service exports app center snapshot", async () => {
-  const root = join(tmpdir(), `nextop-developer-app-center-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-app-center-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   const downloadsDir = join(root, "downloads");
@@ -526,12 +526,12 @@ test("developer logs service exports app center snapshot", async () => {
     }),
     defaults: {
       state: {
-        desktopLogPath: join(logsDir, "nextop-desktop.log"),
+        desktopLogPath: join(logsDir, "tutti-desktop.log"),
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "nextopd.log"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "tuttid.log"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -540,7 +540,7 @@ test("developer logs service exports app center snapshot", async () => {
     getDownloadsPath: () => downloadsDir,
     preferredSystemLanguages: ["en-US", "zh-CN"],
     systemLocale: "en",
-    transportSnapshot: { kind: "unix", socketPath: "/tmp/nextop.sock" }
+    transportSnapshot: { kind: "unix", socketPath: "/tmp/tutti.sock" }
   });
 
   const result = await service.exportLogs();
@@ -552,26 +552,26 @@ test("developer logs service exports app center snapshot", async () => {
 });
 
 test("developer logs service treats .LOG files as managed logs", async () => {
-  const root = join(tmpdir(), `nextop-developer-uppercase-${Date.now()}`);
+  const root = join(tmpdir(), `tutti-developer-uppercase-${Date.now()}`);
   await mkdir(root, { recursive: true });
   const logsDir = join(root, "logs");
   await mkdir(logsDir, { recursive: true });
 
-  await writeFile(join(logsDir, "NEXTOPD.LOG"), "daemon-upper");
+  await writeFile(join(logsDir, "TUTTID.LOG"), "daemon-upper");
   await writeFile(
-    join(logsDir, "nextop-desktop.2026-05-24.LOG"),
+    join(logsDir, "tutti-desktop.2026-05-24.LOG"),
     "desktop-rotated-upper"
   );
 
   const service = createDeveloperLogsService({
     defaults: {
       state: {
-        desktopLogPath: join(logsDir, "NEXTOP-DESKTOP.LOG"),
+        desktopLogPath: join(logsDir, "TUTTI-DESKTOP.LOG"),
         logsDir,
-        nextopdDBPath: "",
-        nextopdListenerInfoPath: "",
-        nextopdLogPath: join(logsDir, "NEXTOPD.LOG"),
-        nextopdPIDPath: "",
+        tuttidDBPath: "",
+        tuttidListenerInfoPath: "",
+        tuttidLogPath: join(logsDir, "TUTTID.LOG"),
+        tuttidPIDPath: "",
         rootDir: root,
         runDir: ""
       }
@@ -579,7 +579,7 @@ test("developer logs service treats .LOG files as managed logs", async () => {
     desktopVersion: "1.2.3",
     preferredSystemLanguages: ["en-US"],
     systemLocale: "en",
-    transportSnapshot: { kind: "unix", socketPath: "/tmp/nextop.sock" }
+    transportSnapshot: { kind: "unix", socketPath: "/tmp/tutti.sock" }
   });
 
   const state = await service.getLogsState();

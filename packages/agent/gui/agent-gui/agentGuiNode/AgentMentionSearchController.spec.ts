@@ -486,7 +486,7 @@ describe("AgentMentionSearchController", () => {
     const fileProviderQuery = vi.fn().mockResolvedValue([
       {
         label: "App.tsx",
-        href: "/Users/test/project/nextop/src/App.tsx"
+        href: "/Users/test/project/tutti/src/App.tsx"
       }
     ]);
     const issueProviderQuery = vi.fn().mockResolvedValue([
@@ -599,7 +599,7 @@ describe("AgentMentionSearchController", () => {
             items: [
               expect.objectContaining({
                 kind: "file",
-                path: "/Users/test/project/nextop/src/App.tsx"
+                path: "/Users/test/project/tutti/src/App.tsx"
               })
             ]
           }),

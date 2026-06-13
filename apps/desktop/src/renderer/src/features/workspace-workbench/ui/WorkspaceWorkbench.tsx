@@ -1,6 +1,6 @@
 import type * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { WorkspaceSummary } from "@tutti-os/client-nextopd-ts";
+import type { WorkspaceSummary } from "@tutti-os/client-tuttid-ts";
 import {
   defaultIssueManagerWorkbenchTypeId,
   issueManagerOpenActivationType,
@@ -172,11 +172,10 @@ function ReadyWorkspaceWorkbench({
       unregisterAgentGuiLaunchRef.current =
         registerWorkspaceAgentGuiLaunchHandler(
           state.workspace.id,
-          async ({ agentSessionId, pendingHandoff, provider }) => {
+          async ({ agentSessionId, provider }) => {
             await host.launchNode(
               createWorkspaceAgentGuiSessionLaunchRequest({
                 agentSessionId,
-                pendingHandoff,
                 provider
               })
             );
@@ -270,6 +269,7 @@ function ReadyWorkspaceWorkbench({
     >
       <WorkspaceAppCenterIntegration workspaceId={state.workspace.id} />
       <WorkbenchHost
+        captureNodePreviewImage={hostInput.captureNodePreviewImage}
         className="h-full"
         contributions={hostInput.contributions}
         debugDiagnostics={hostInput.debugDiagnostics}
@@ -507,7 +507,7 @@ function WorkspaceFallbackState({
           </div>
           <div className="mt-6 flex flex-col items-center gap-3">
             <CardTitle className="text-3xl tracking-tight">{title}</CardTitle>
-            <CardDescription className="text-base text-muted-foreground">
+            <CardDescription className="text-[15px] text-muted-foreground">
               {description}
             </CardDescription>
             {onRetry ? (

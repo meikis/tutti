@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { NextopdProtocolError } from "@tutti-os/client-nextopd-ts";
+import { TuttidProtocolError } from "@tutti-os/client-tuttid-ts";
 import { createI18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import { createWorkspaceWorkbenchDesktopI18nRuntime } from "../../../../../../shared/i18n/index.ts";
 import { en } from "../../../../../../shared/i18n/locales/en.ts";
@@ -16,7 +16,7 @@ import {
 test("shouldCloseTerminalNodeAfterError closes stale terminal nodes", () => {
   assert.equal(
     shouldCloseTerminalNodeAfterError(
-      new NextopdProtocolError({
+      new TuttidProtocolError({
         code: "workspace_terminal_not_found",
         reason: "workspace_terminal_not_found",
         statusCode: 404
@@ -27,7 +27,7 @@ test("shouldCloseTerminalNodeAfterError closes stale terminal nodes", () => {
 
   assert.equal(
     shouldCloseTerminalNodeAfterError(
-      new NextopdProtocolError({
+      new TuttidProtocolError({
         code: "workspace_terminal_not_running" as never,
         reason: "workspace_terminal_not_running",
         statusCode: 400

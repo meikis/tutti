@@ -1,9 +1,9 @@
 import type {
   DesktopPreferencesStateResponse,
-  NextopdEventStreamClient,
-  NextopdClient,
+  TuttidEventStreamClient,
+  TuttidClient,
   PutDesktopPreferencesRequest
-} from "@tutti-os/client-nextopd-ts";
+} from "@tutti-os/client-tuttid-ts";
 
 export interface DesktopPreferencesClient {
   connect(): Promise<void>;
@@ -31,8 +31,8 @@ interface PendingDesktopPreferencesUpdate {
 }
 
 export function createDesktopPreferencesClient(
-  nextopdClient: Pick<NextopdClient, "getDesktopPreferences">,
-  eventStreamClient: NextopdEventStreamClient,
+  tuttidClient: Pick<TuttidClient, "getDesktopPreferences">,
+  eventStreamClient: TuttidEventStreamClient,
   options: CreateDesktopPreferencesClientOptions = {}
 ): DesktopPreferencesClient {
   const authoritativeEventTimeoutMs =
@@ -63,7 +63,7 @@ export function createDesktopPreferencesClient(
       pendingUpdates.clear();
     },
     getDesktopPreferences() {
-      return nextopdClient.getDesktopPreferences();
+      return tuttidClient.getDesktopPreferences();
     },
     async updateDesktopPreferences(request) {
       const key = createPreferencesKey(request.preferences);
@@ -146,7 +146,7 @@ export function createDesktopPreferencesClient(
     }
 
     try {
-      const currentState = await nextopdClient.getDesktopPreferences();
+      const currentState = await tuttidClient.getDesktopPreferences();
       if (
         currentState.initialized &&
         preferencesEqual(currentState.preferences, pendingUpdate.preferences)

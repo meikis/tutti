@@ -13,10 +13,10 @@ const scriptPath = resolve(
 
 test("passes excluded workspace package source imports in Electron runtime code", async () => {
   const workspaceRoot = await createFixtureWorkspace({
-    electronExcludePackages: ["@tutti-os/client-nextopd-ts"],
+    electronExcludePackages: ["@tutti-os/client-tuttid-ts"],
     workspaceFiles: {
       "apps/desktop/src/main/index.ts":
-        'import { workspaceProtocolErrorCodes } from "@tutti-os/client-nextopd-ts";\nvoid workspaceProtocolErrorCodes;\n'
+        'import { workspaceProtocolErrorCodes } from "@tutti-os/client-tuttid-ts";\nvoid workspaceProtocolErrorCodes;\n'
     }
   });
 
@@ -28,7 +28,7 @@ test("passes excluded workspace package source imports in Electron runtime code"
 
 test("rejects externalized workspace packages that resolve to raw source files", async () => {
   const workspaceRoot = await createFixtureWorkspace({
-    electronExcludePackages: ["@tutti-os/client-nextopd-ts"],
+    electronExcludePackages: ["@tutti-os/client-tuttid-ts"],
     workspaceFiles: {
       "apps/desktop/src/main/index.ts":
         'import { workbenchSnapshotVersion } from "@tutti-os/workbench-snapshot";\nvoid workbenchSnapshotVersion;\n'
@@ -46,7 +46,7 @@ test("rejects externalized workspace packages that resolve to raw source files",
 test("rejects mixed workspace package barrels that reach React UI code", async () => {
   const workspaceRoot = await createFixtureWorkspace({
     electronExcludePackages: [
-      "@tutti-os/client-nextopd-ts",
+      "@tutti-os/client-tuttid-ts",
       "@tutti-os/workspace-file-manager",
       "@tutti-os/ui-system"
     ],
@@ -69,7 +69,7 @@ test("rejects mixed workspace package barrels that reach React UI code", async (
 test("passes narrow non-UI workspace package subpath imports", async () => {
   const workspaceRoot = await createFixtureWorkspace({
     electronExcludePackages: [
-      "@tutti-os/client-nextopd-ts",
+      "@tutti-os/client-tuttid-ts",
       "@tutti-os/workspace-file-manager",
       "@tutti-os/ui-system"
     ],
@@ -174,16 +174,16 @@ async function createFixtureWorkspace({
   workspaceFiles = {}
 } = {}) {
   const workspaceRoot = await mkdtemp(
-    join(tmpdir(), "nextop-electron-runtime-")
+    join(tmpdir(), "tutti-electron-runtime-")
   );
 
   const files = {
     "apps/desktop/electron.vite.config.ts": createElectronViteConfig(
       electronExcludePackages
     ),
-    "packages/clients/nextopd-ts/package.json": JSON.stringify(
+    "packages/clients/tuttid-ts/package.json": JSON.stringify(
       {
-        name: "@tutti-os/client-nextopd-ts",
+        name: "@tutti-os/client-tuttid-ts",
         type: "module",
         exports: {
           ".": "./src/index.ts"
@@ -192,7 +192,7 @@ async function createFixtureWorkspace({
       null,
       2
     ),
-    "packages/clients/nextopd-ts/src/index.ts":
+    "packages/clients/tuttid-ts/src/index.ts":
       "export const workspaceProtocolErrorCodes = { conflict: 'conflict' };\n",
     "packages/workbench/snapshot/package.json": JSON.stringify(
       {
@@ -289,7 +289,7 @@ function runBoundaryCheck(workspaceRoot) {
     encoding: "utf8",
     env: {
       ...process.env,
-      NEXTOP_WORKSPACE_ROOT: workspaceRoot
+      TUTTI_WORKSPACE_ROOT: workspaceRoot
     }
   });
 }

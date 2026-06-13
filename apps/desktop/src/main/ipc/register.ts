@@ -13,7 +13,7 @@ import { registerBrowserIpc } from "./browser";
 import { registerDockPreviewCacheIpc } from "./dockPreviewCache";
 import type { DesktopLogger } from "../logging";
 import type { DesktopWorkspaceAppPayload } from "../../shared/contracts/ipc";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 
 export interface IpcRegistrationDependencies {
   daemonEndpoint: DesktopDaemonEndpoint;
@@ -26,8 +26,8 @@ export interface IpcRegistrationDependencies {
     | "selectUploadFiles"
   >;
   logger: DesktopLogger;
-  nextopdClient: Pick<
-    NextopdClient,
+  tuttidClient: Pick<
+    TuttidClient,
     | "listWorkspaceAgentSessionMessages"
     | "listWorkspaceAgentSessions"
     | "listWorkspaceAppFactoryJobs"
@@ -50,7 +50,7 @@ export function registerIpcHandlers(deps: IpcRegistrationDependencies): void {
   );
   registerBrowserIpc(deps.preferences);
   registerDockPreviewCacheIpc();
-  registerDeveloperIpc(deps.preferences, deps.nextopdClient);
+  registerDeveloperIpc(deps.preferences, deps.tuttidClient);
   registerRuntimeIpc(deps.daemonEndpoint, deps.logger);
   registerUpdateIpc(deps.updateService);
   registerWallpaperIpc();

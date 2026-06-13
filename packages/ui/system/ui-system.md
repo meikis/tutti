@@ -16,7 +16,7 @@ It is organized into two public component layers:
   Basic visual primitives and foundations such as tokens, icons, Button,
   Input, Dialog, Select, Card, Badge, and Toast.
 - `business`
-  Multi-end reusable Nextop business display components. These components may
+  Multi-end reusable Tutti business display components. These components may
   expose domain display props such as workspace, file, task, or agent state, and
   should compose `base` primitives instead of recreating them.
 
@@ -127,7 +127,7 @@ The UI system follows a shadcn-like self-owned source model:
   behavior where a proven primitive exists
 - CVA-style variant definitions keep component variants explicit and typed
 - Tailwind classes consume shared semantic tokens instead of local palettes
-- Nextop owns the checked-in source, public exports, metadata, storyboard
+- Tutti owns the checked-in source, public exports, metadata, storyboard
   examples, and boundary validation
 
 Before extracting a component, decide whether the target is `base`, `business`,
@@ -145,7 +145,7 @@ Promote to `base` when the component is a foundation primitive:
 
 Promote to `business` when the component is a reusable business display unit:
 
-- it represents a cross-surface Nextop concept such as workspace, file, task,
+- it represents a cross-surface Tutti concept such as workspace, file, task,
   agent, run, project, or account display state
 - it receives all business data, labels, statuses, permissions, and callbacks
   from the host through props
@@ -201,7 +201,7 @@ For every promoted component, define this contract before editing code:
 - storyboard states and examples
 - validation commands
 
-The bundled `packages/ui/system/agent/nextop-ui-system/SKILL.md` skill is the
+The bundled `packages/ui/system/agent/tutti-ui-system/SKILL.md` skill is the
 standard prompt-level workflow for this judgment-heavy promotion step. Boundary
 scripts are still required, but they only catch mechanical violations.
 
@@ -246,7 +246,7 @@ host-owned caller logic.
 - CSS variables are the source of truth for theme values
 - Tailwind utilities should consume the same token layer rather than defining a parallel color system
 - prefer semantic token names such as `background`, `foreground`, `primary`, `muted`, and `destructive` over raw palette leakage in public APIs
-- keep nextop-specific token extensions additive and minimal
+- keep tutti-specific token extensions additive and minimal
 - Build primitives for a calm workbench shell, not for marketing-card
   theatrics.
 
@@ -359,7 +359,7 @@ should declare that requirement in their `package.json`:
 
 ```json
 {
-  "nextop": {
+  "tutti": {
     "tailwindSourceRoot": "src"
   }
 }
@@ -367,13 +367,13 @@ should declare that requirement in their `package.json`:
 
 `pnpm check:ui-boundaries` validates that the desktop renderer entrypoint
 `apps/desktop/src/renderer/src/style.css` includes matching `@source` directives
-for any imported workspace package that declares `nextop.tailwindSourceRoot`.
+for any imported workspace package that declares `tutti.tailwindSourceRoot`.
 It also validates that the path matches the declared source root and reports the
 exact `@source` line to add or replace.
 
 Tailwind source troubleshooting checklist:
 
-- if a reusable package introduces new utility classes but the desktop UI does not change at runtime, confirm the package declares `nextop.tailwindSourceRoot` when it renders runtime Tailwind classes
+- if a reusable package introduces new utility classes but the desktop UI does not change at runtime, confirm the package declares `tutti.tailwindSourceRoot` when it renders runtime Tailwind classes
 - confirm the desktop renderer Tailwind entrypoint includes the package source path through `@source`
 - re-run `pnpm check:ui-boundaries` before assuming the issue is a hot-reload or build-cache problem
 
@@ -509,7 +509,7 @@ localStorage.setItem("workspace", id);
 ## Promotion Review Gate
 
 Use this gate for every base or business component promotion. It adapts
-frontend design review practice to Nextop's product standard; do not import
+frontend design review practice to Tutti's product standard; do not import
 general marketing, portfolio, or decorative frontend heuristics into the shared
 workbench system.
 
@@ -564,9 +564,9 @@ Report the promotion review in this structure:
 
 ## Agent Skill Rules
 
-Use the bundled `nextop-ui-system` skill for prompt-level work involving
+Use the bundled `tutti-ui-system` skill for prompt-level work involving
 `@tutti-os/ui-system`. The source lives under
-`packages/ui/system/agent/nextop-ui-system/SKILL.md` so it can ship with the UI
+`packages/ui/system/agent/tutti-ui-system/SKILL.md` so it can ship with the UI
 system package.
 
 The skill should route internally across these scenarios:
@@ -586,18 +586,18 @@ a short agent instruction such as:
 
 ```md
 When promoting business UI into @tutti-os/ui-system, use the
-nextop-ui-system skill and follow packages/ui/system/ui-system.md.
+tutti-ui-system skill and follow packages/ui/system/ui-system.md.
 ```
 
 After installing `@tutti-os/ui-system`, external repositories can configure the
 bundled skill with:
 
 ```bash
-pnpm exec nextop-ui-system-install-skill
+pnpm exec tutti-ui-system-install-skill
 ```
 
-The command copies the bundled skill into `.codex/skills/nextop-ui-system` in
-the current repository. When `.nextop-ui-system-dev/` is present, the installer
+The command copies the bundled skill into `.codex/skills/tutti-ui-system` in
+the current repository. When `.tutti-ui-system-dev/` is present, the installer
 prefers the synced source checkout so the skill and bundled UI-system rules stay
 aligned with the current local UI-system source. It refuses to overwrite local
 changes unless run with `--force`.
@@ -626,16 +626,16 @@ external app keep normal `@tutti-os/ui-system` imports while temporarily resolvi
 the stable entrypoints to a generated local cache.
 
 - start it with `pnpm --filter @tutti-os/ui-system dev:server`
-- external Vite apps opt in with `nextopUISystemDev` from
+- external Vite apps opt in with `tuttiUISystemDev` from
   `@tutti-os/ui-system/dev-vite`
 - when the server is unavailable, external apps must fall back to their
   installed package in `node_modules`
-- the generated `.nextop-ui-system-dev/` cache belongs in the external app's
+- the generated `.tutti-ui-system-dev/` cache belongs in the external app's
   `.gitignore`
 - Tailwind consumers must include both the installed package output and the
   generated dev cache in source scanning, for example
   `@source "../node_modules/@tutti-os/ui-system/dist";` and
-  `@source "../.nextop-ui-system-dev";`
+  `@source "../.tutti-ui-system-dev";`
 - do not make CI, production builds, or package publishing depend on the dev
   server
 - `@tutti-os/ui-system/dev-vite` may be imported only from bundler config or

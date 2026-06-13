@@ -1,0 +1,196 @@
+package agentsidecar
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	cliservice "github.com/tutti-os/tutti/services/tuttid/service/cli"
+)
+
+func TestCommandGuideFromCapabilitiesUsesRelevantRegistryCommands(t *testing.T) {
+	guide := commandGuideFromCapabilities("tutti", []cliservice.Capability{
+		{
+			ID:          "diagnostics.ping",
+			Path:        []string{"diagnostics", "ping"},
+			Summary:     "Ping",
+			Description: "Ignored.",
+		},
+		{
+			ID:          "issue-manager.issue.topic.list",
+			Path:        []string{"issue", "topic", "list"},
+			Summary:     "List issue topics",
+			Description: "List workspace issue topics.",
+		},
+		{
+			ID:          "issue-manager.issue.list",
+			Path:        []string{"issue", "list"},
+			Summary:     "List issues",
+			Description: "List issue records in a specific workspace topic.",
+			InputSchema: map[string]any{"required": []any{"topic-id"}},
+		},
+		{
+			ID:          "issue-manager.issue.get",
+			Path:        []string{"issue", "get"},
+			Summary:     "Get issue detail",
+			Description: "Get an issue detail record and its tasks.",
+			InputSchema: map[string]any{"required": []any{"issue-id"}},
+		},
+		{
+			ID:          "issue-manager.issue.update",
+			Path:        []string{"issue", "update"},
+			Summary:     "Update an issue",
+			Description: "Update issue title, content, or status.",
+			InputSchema: map[string]any{"required": []any{"issue-id"}},
+		},
+		{
+			ID:          "issue-manager.issue.task.update",
+			Path:        []string{"issue", "task", "update"},
+			Summary:     "Update an issue task",
+			Description: "Update a task under an issue.",
+			InputSchema: map[string]any{"required": []any{"issue-id", "task-id"}},
+		},
+		{
+			ID:          "issue-manager.issue.task.create",
+			Path:        []string{"issue", "task", "create"},
+			Summary:     "Create an issue task",
+			Description: "Create or persist a breakdown child task without creating a run.",
+			InputSchema: map[string]any{"required": []any{"issue-id", "title"}},
+		},
+		{
+			ID:          "issue-manager.issue.task.run.complete",
+			Path:        []string{"issue", "task", "run", "complete"},
+			Summary:     "Complete an issue task run",
+			Description: "Complete a task run.",
+			InputSchema: map[string]any{"required": []any{"issue-id", "task-id", "run-id", "status"}},
+		},
+		{
+			ID:          "issue-manager.issue.task.run.create",
+			Path:        []string{"issue", "task", "run", "create"},
+			Summary:     "Create an issue task run",
+			Description: "Create a task run.",
+			InputSchema: map[string]any{"required": []any{"issue-id", "task-id", "agent-provider", "agent-session-id"}},
+		},
+		{
+			ID:          "agent-context.agent.sessions",
+			Path:        []string{"agent", "sessions"},
+			Summary:     "List agent sessions",
+			Description: "List agent sessions.",
+		},
+	})
+
+	if !strings.Contains(guide, "tutti issue get --issue-id <issue-id>") {
+		t.Fatalf("guide missing issue get: %q", guide)
+	}
+	if !strings.Contains(guide, "tutti issue topic list") {
+		t.Fatalf("guide missing topic list: %q", guide)
+	}
+	if !strings.Contains(guide, "tutti issue list --topic-id <topic-id>") {
+		t.Fatalf("guide missing topic-scoped issue list: %q", guide)
+	}
+	if !strings.Contains(guide, "tutti issue update --issue-id <issue-id> --status completed --json") {
+		t.Fatalf("guide missing issue update: %q", guide)
+	}
+	if !strings.Contains(guide, "tutti issue task update --issue-id <issue-id> --task-id <task-id> --status completed --json") {
+		t.Fatalf("guide missing issue task update: %q", guide)
+	}
+	if !strings.Contains(guide, "tutti issue task create --issue-id <issue-id> --title <title>") ||
+		!strings.Contains(guide, "without creating a run") {
+		t.Fatalf("guide missing breakdown task create guidance: %q", guide)
+	}
+	if !strings.Contains(guide, "tutti issue task run create --agent-provider <agent-provider> --agent-session-id <agent-session-id> --issue-id <issue-id> --task-id <task-id> --json") {
+		t.Fatalf("guide missing issue task run create: %q", guide)
+	}
+	if !strings.Contains(guide, "tutti issue task run complete --issue-id <issue-id> --run-id <run-id> --status <status> --task-id <task-id> --summary <summary>") {
+		t.Fatalf("guide missing issue task run complete: %q", guide)
+	}
+	if !strings.Contains(guide, "tutti agent sessions") {
+		t.Fatalf("guide missing agent sessions: %q", guide)
+	}
+	if strings.Contains(guide, "diagnostics") {
+		t.Fatalf("guide included irrelevant command: %q", guide)
+	}
+}
+
+func TestCommandGuideFromCatalogPassesAgentRuntimeContext(t *testing.T) {
+	catalog := fakeCommandCatalog{}
+	guide := commandGuideFromCatalog(context.Background(), &catalog, "workspace-1", "tutti")
+	if catalog.context.Source != "agent-runtime" || catalog.context.WorkspaceID != "workspace-1" {
+		t.Fatalf("context = %#v", catalog.context)
+	}
+	if !strings.Contains(guide, "tutti issue list") {
+		t.Fatalf("guide = %q", guide)
+	}
+}
+
+func TestCommandGuideFromCatalogUsesProvidedCLIName(t *testing.T) {
+	catalog := fakeCommandCatalog{}
+
+	guide := commandGuideFromCatalog(context.Background(), &catalog, "workspace-1", "tutti-dev")
+
+	if !strings.Contains(guide, "tutti-dev issue list") {
+		t.Fatalf("guide = %q, want tutti-dev command", guide)
+	}
+	if strings.Contains(guide, "`tutti issue list`") {
+		t.Fatalf("guide = %q, should not use production command in development", guide)
+	}
+}
+
+func TestFallbackCommandGuideUsesProvidedCLIName(t *testing.T) {
+	guide := commandGuide(PrepareInput{CLICommand: "tutti-dev"})
+
+	if !strings.Contains(guide, "tutti-dev issue topic list") {
+		t.Fatalf("guide = %q, want tutti-dev topic list fallback command", guide)
+	}
+	if !strings.Contains(guide, "tutti-dev issue list --topic-id <topic-id>") {
+		t.Fatalf("guide = %q, want tutti-dev fallback command", guide)
+	}
+	if !strings.Contains(guide, "tutti-dev issue update --issue-id <issue-id> --status completed --json") {
+		t.Fatalf("guide = %q, want tutti-dev issue update fallback command", guide)
+	}
+	if !strings.Contains(guide, "tutti-dev issue task run create --issue-id <issue-id> --task-id <task-id> --agent-provider <provider> --agent-session-id <session-id> --json") {
+		t.Fatalf("guide = %q, want tutti-dev issue task run create fallback command", guide)
+	}
+	if !strings.Contains(guide, "tutti-dev issue task create --issue-id <issue-id> --title <title> --content <content> --json") ||
+		!strings.Contains(guide, "persist child tasks without creating a run") {
+		t.Fatalf("guide = %q, want tutti-dev breakdown task create fallback command", guide)
+	}
+	if !strings.Contains(guide, "tutti-dev issue task run complete --issue-id <issue-id> --task-id <task-id> --run-id <run-id> --status completed") {
+		t.Fatalf("guide = %q, want tutti-dev issue task run complete fallback command", guide)
+	}
+}
+
+func TestFallbackCommandGuideDefaultsToProductionCLIName(t *testing.T) {
+	guide := commandGuide(PrepareInput{})
+
+	if !strings.Contains(guide, "tutti issue topic list") {
+		t.Fatalf("guide = %q, want tutti topic list command", guide)
+	}
+	if !strings.Contains(guide, "tutti issue list --topic-id <topic-id>") {
+		t.Fatalf("guide = %q, want tutti command", guide)
+	}
+	if strings.Contains(guide, "tutti-dev") {
+		t.Fatalf("guide = %q, should not use development command in production", guide)
+	}
+}
+
+type fakeCommandCatalog struct {
+	context cliservice.InvokeContext
+}
+
+func (f *fakeCommandCatalog) Capabilities(_ context.Context, context cliservice.InvokeContext) []cliservice.Capability {
+	f.context = context
+	return []cliservice.Capability{
+		{
+			ID:      "issue-manager.issue.topic.list",
+			Path:    []string{"issue", "topic", "list"},
+			Summary: "List issue topics",
+		},
+		{
+			ID:          "issue-manager.issue.list",
+			Path:        []string{"issue", "list"},
+			Summary:     "List issues",
+			InputSchema: map[string]any{"required": []any{"topic-id"}},
+		},
+	}
+}

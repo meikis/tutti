@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import type { WorkspaceLaunch } from "./host/workspaceLaunch";
 import type { DesktopLogger } from "./logging";
-import type { NextopdManager } from "./daemon/nextopdManager";
+import type { TuttidManager } from "./daemon/tuttidManager";
 import type { AppUpdateService } from "./update/appUpdateService";
 
 const require = createRequire(import.meta.url);
@@ -23,7 +23,7 @@ interface DesktopElectronModule {
 export interface DesktopAppLifecycleDependencies {
   disposables?: readonly DesktopAppLifecycleDisposable[];
   logger: DesktopLogger;
-  nextopd: NextopdManager;
+  tuttid: TuttidManager;
   updateService: AppUpdateService;
   workspaceLaunch: WorkspaceLaunch;
 }
@@ -81,10 +81,10 @@ export function createDesktopAppLifecycleHandlers(
       isStoppingDaemon = true;
       event.preventDefault();
       deps.logger.info("desktop app before quit");
-      void deps.nextopd
+      void deps.tuttid
         .stop()
         .catch((error: unknown) => {
-          deps.logger.error("failed to stop managed nextopd during quit", {
+          deps.logger.error("failed to stop managed tuttid during quit", {
             error: error instanceof Error ? error.message : String(error)
           });
         })

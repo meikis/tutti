@@ -3,7 +3,7 @@ import type {
   AgentGUIProps,
   AgentHostInputApi
 } from "@tutti-os/agent-gui";
-import type { NextopdClient } from "@tutti-os/client-nextopd-ts";
+import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type {
   DesktopHostFilesApi,
   DesktopPlatformApi,
@@ -35,7 +35,7 @@ export interface DesktopAgentGUIWorkbenchHostInput {
 export interface CreateDesktopAgentGUIWorkbenchHostInputInput {
   agentHostApi?: AgentHostInputApi | null;
   hostFilesApi: DesktopHostFilesApi;
-  nextopdClient: NextopdClient;
+  tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"
@@ -52,7 +52,7 @@ export interface CreateDesktopAgentGUIWorkbenchHostInputInput {
 export function createDesktopAgentGUIWorkbenchHostInput({
   agentHostApi,
   hostFilesApi,
-  nextopdClient,
+  tuttidClient,
   platformApi,
   reporterNow,
   reporterService,
@@ -66,7 +66,7 @@ export function createDesktopAgentGUIWorkbenchHostInput({
     agentHostApi ??
     createDesktopAgentHostApi({
       hostFilesApi,
-      nextopdClient,
+      tuttidClient,
       platformApi,
       reporterNow,
       reporterService,
@@ -121,7 +121,7 @@ export function createDesktopAgentGUIWorkbenchHostInput({
       workspaceFileReferenceTracker.track(input),
     workspaceFileReferenceAdapter: createDesktopWorkspaceFileReferenceAdapter({
       hostFilesApi,
-      nextopdClient,
+      tuttidClient,
       workspaceId
     })
   };
