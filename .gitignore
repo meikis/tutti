@@ -10,6 +10,7 @@ coverage/
 .pnpm-store/
 .cache/
 .superpowers/
+docs/superpowers/
 __pycache__/
 *.py[cod]
 
@@ -36,6 +37,8 @@ __pycache__/
 apps/desktop/build/tuttid/
 apps/desktop/build/tuttid-dev/
 apps/desktop/build/tutti/
+apps/desktop/build/nextopd/
+apps/desktop/build/nextopd-dev/
 apps/cli/build/
 
 /tuttid
