@@ -130,6 +130,116 @@ test("runAction tracks provider login initiation and successful status result", 
   ]);
 });
 
+test("runAction short-polls login status after sign-in and coalesces repeated login attempts", async () => {
+  const commands: AgentProviderTerminalCommand[] = [];
+  const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
+  const pollScheduler = createManualPollScheduler();
+  const authRequiredStatus = createProviderStatus({
+    actions: [
+      {
+        command: {
+          cwd: "/workspace",
+          input: "codex --login\n"
+        },
+        id: "login",
+        kind: "terminal_command"
+      },
+      { id: "refresh", kind: "refresh" }
+    ],
+    availability: "auth_required"
+  });
+  const service = new DesktopAgentProviderStatusService({
+    loginStatusPollScheduler: pollScheduler.scheduler,
+    loginStatusPollIntervalMs: 5_000,
+    tuttidClient: createTuttidClient({
+      onStatusRequest: (providers) => statusCalls.push(providers),
+      snapshots: [
+        createStatusResponse([authRequiredStatus]),
+        createStatusResponse([authRequiredStatus]),
+        createStatusResponse([authRequiredStatus]),
+        createStatusResponse([
+          createProviderStatus({
+            actions: [],
+            availability: "ready"
+          })
+        ])
+      ]
+    }),
+    terminalCommandRunner: {
+      async runTerminalCommand(command) {
+        commands.push(command);
+      }
+    }
+  });
+
+  await service.refresh();
+  await service.runAction("codex", "login");
+  await service.runAction("codex", "login");
+  await waitFor(() => statusCalls.length >= 3);
+
+  assert.equal(pollScheduler.pendingTimerCount(), 1);
+  assert.equal(commands.length, 2);
+
+  pollScheduler.runNext();
+  await waitFor(
+    () => service.getStatus("codex")?.availability.status === "ready"
+  );
+
+  assert.equal(service.getStatus("codex")?.availability.status, "ready");
+  assert.equal(pollScheduler.pendingTimerCount(), 0);
+  assert.deepEqual(statusCalls, [undefined, ["codex"], ["codex"], ["codex"]]);
+});
+
+test("runAction stops login status polling after the default three minute window", async () => {
+  const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
+  const pollScheduler = createManualPollScheduler();
+  const authRequiredStatus = createProviderStatus({
+    actions: [
+      {
+        command: {
+          cwd: "/workspace",
+          input: "codex --login\n"
+        },
+        id: "login",
+        kind: "terminal_command"
+      },
+      { id: "refresh", kind: "refresh" }
+    ],
+    availability: "auth_required"
+  });
+  const service = new DesktopAgentProviderStatusService({
+    loginStatusPollScheduler: pollScheduler.scheduler,
+    tuttidClient: createTuttidClient({
+      onStatusRequest: (providers) => statusCalls.push(providers),
+      snapshots: [
+        createStatusResponse([authRequiredStatus]),
+        createStatusResponse([authRequiredStatus]),
+        createStatusResponse([authRequiredStatus])
+      ]
+    }),
+    terminalCommandRunner: {
+      async runTerminalCommand() {}
+    }
+  });
+
+  await service.refresh();
+  await service.runAction("codex", "login");
+  await waitFor(() => statusCalls.length >= 2);
+
+  pollScheduler.advance(179_999);
+  pollScheduler.runNext();
+  await waitFor(() => statusCalls.length >= 3);
+
+  assert.equal(pollScheduler.pendingTimerCount(), 1);
+
+  pollScheduler.advance(1);
+  pollScheduler.runNext();
+  await flushAsyncWork();
+
+  assert.equal(statusCalls.length, 3);
+  assert.equal(pollScheduler.pendingTimerCount(), 0);
+});
+
 test("runAction installs providers silently and refreshes the status", async () => {
   const commands: AgentProviderTerminalCommand[] = [];
   const actionCalls: Array<
@@ -676,6 +786,54 @@ test("provider-scoped refresh confirms auth downgrades before replacing a ready 
   );
 });
 
+test("provider-scoped refresh confirms auth-unknown downgrades before replacing a ready status", async () => {
+  const authUnknownStatus = createProviderStatus({
+    actions: [
+      {
+        command: {
+          cwd: "/workspace",
+          input: "claude auth login\n"
+        },
+        id: "login",
+        kind: "terminal_command"
+      },
+      { id: "refresh", kind: "refresh" }
+    ],
+    availability: "auth_required",
+    provider: "claude-code",
+    reasonCode: "auth_unknown"
+  });
+  const readyStatus = createProviderStatus({
+    actions: [],
+    availability: "ready",
+    provider: "claude-code"
+  });
+  const service = new DesktopAgentProviderStatusService({
+    tuttidClient: createTuttidClient({
+      snapshots: [
+        createStatusResponse([readyStatus]),
+        createStatusResponse([authUnknownStatus]),
+        createStatusResponse([authUnknownStatus])
+      ]
+    }),
+    terminalCommandRunner: {
+      async runTerminalCommand() {}
+    }
+  });
+
+  await service.refresh();
+  await service.refresh(["claude-code"]);
+
+  assert.equal(service.getStatus("claude-code")?.availability.status, "ready");
+
+  await service.refresh(["claude-code"]);
+
+  assert.equal(
+    service.getStatus("claude-code")?.availability.status,
+    "auth_required"
+  );
+});
+
 test("runAction refreshes and executes when the requested action appears", async () => {
   const commands: AgentProviderTerminalCommand[] = [];
   const statusCalls: Array<readonly WorkspaceAgentProvider[] | undefined> = [];
@@ -973,8 +1131,57 @@ function createDeferred<T>(): {
   };
 }
 
+function createManualPollScheduler() {
+  let nowMs = 0;
+  let nextTimerId = 0;
+  const timers = new Map<number, () => void>();
+  return {
+    advance(ms: number) {
+      nowMs += ms;
+    },
+    pendingTimerCount() {
+      return timers.size;
+    },
+    runNext() {
+      const [timerId, callback] = timers.entries().next().value ?? [];
+      if (timerId === undefined || !callback) {
+        return false;
+      }
+      timers.delete(timerId);
+      callback();
+      return true;
+    },
+    scheduler: {
+      clearTimeout(timer: unknown) {
+        timers.delete(timer as number);
+      },
+      now() {
+        return nowMs;
+      },
+      setTimeout(callback: () => void) {
+        nextTimerId += 1;
+        timers.set(nextTimerId, callback);
+        return nextTimerId;
+      }
+    }
+  };
+}
+
 async function flushAsyncWork(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
+}
+
+async function waitFor(
+  predicate: () => boolean,
+  timeoutMs = 100
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error("Timed out waiting for condition.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 }

@@ -179,6 +179,8 @@ type Service struct {
 }
 
 const authStatusCommandTimeout = 3 * time.Second
+const authStatusCommandAttempts = 2
+const authStatusCommandRetryDelay = 150 * time.Millisecond
 const defaultInstallTimeout = 5 * time.Minute
 const defaultProbeReadyAfter = 600 * time.Millisecond
 const defaultProbeTimeout = 3 * time.Second
@@ -371,8 +373,9 @@ func (s Service) statusForSpec(ctx context.Context, spec ProviderSpec, now time.
 		case AuthRequired:
 			availability.Status = AvailabilityAuthRequired
 			availability.ReasonCode = "auth_required"
+			actions = append(actions, Action{ID: ActionRefresh, Kind: ActionKindRefresh})
 		case AuthUnknown:
-			availability.Status = AvailabilityUnknown
+			availability.Status = AvailabilityAuthRequired
 			availability.ReasonCode = "auth_unknown"
 			actions = append(actions, Action{ID: ActionRefresh, Kind: ActionKindRefresh})
 		}
@@ -572,6 +575,18 @@ func resolveAuthFromCommand(ctx context.Context, spec ProviderSpec, binaryPath s
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	for attempt := 0; attempt < authStatusCommandAttempts; attempt++ {
+		if auth, ok := runAuthStatusCommand(ctx, spec, binaryPath); ok {
+			return auth, true
+		}
+		if attempt+1 < authStatusCommandAttempts && !sleepContext(ctx, authStatusCommandRetryDelay) {
+			return AuthInfo{}, false
+		}
+	}
+	return AuthInfo{}, false
+}
+
+func runAuthStatusCommand(ctx context.Context, spec ProviderSpec, binaryPath string) (AuthInfo, bool) {
 	commandCtx, cancel := context.WithTimeout(ctx, authStatusCommandTimeout)
 	defer cancel()
 	command := exec.CommandContext(commandCtx, binaryPath, spec.AuthStatusCommand...)
@@ -584,6 +599,17 @@ func resolveAuthFromCommand(ctx context.Context, spec ProviderSpec, binaryPath s
 		}
 	}
 	return parseAuthStatusCommandOutput(spec.Provider, output)
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 func parseAuthStatusCommandOutput(provider string, output []byte) (AuthInfo, bool) {

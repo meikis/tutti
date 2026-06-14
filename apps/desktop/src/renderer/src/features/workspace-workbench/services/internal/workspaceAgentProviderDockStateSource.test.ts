@@ -27,11 +27,14 @@ test("agent provider dock state source resolves dynamic login state", () => {
   assert.deepEqual(
     source.getEntryState(workspaceAgentGuiDockEntryId("claude-code")),
     {
-      hoverActions: [{ id: "login", label: "login" }],
+      hoverActions: [
+        { id: "login", label: "login" },
+        { id: "refresh", label: "refresh" }
+      ],
       order: 0,
       state: {
         kind: "disabled",
-        reason: "login required"
+        reason: "login"
       },
       visibility: "always"
     }
@@ -86,7 +89,10 @@ test("agent provider dock state source reads latest service snapshot without rec
 
   service.setStatuses([
     createStatus({
-      actions: [{ id: "login", kind: "terminal_command" }],
+      actions: [
+        { id: "login", kind: "terminal_command" },
+        { id: "refresh", kind: "refresh" }
+      ],
       availability: "auth_required",
       provider: "claude-code"
     })
@@ -95,11 +101,14 @@ test("agent provider dock state source reads latest service snapshot without rec
   assert.deepEqual(
     source.getEntryState(workspaceAgentGuiDockEntryId("claude-code")),
     {
-      hoverActions: [{ id: "login", label: "login" }],
+      hoverActions: [
+        { id: "login", label: "login" },
+        { id: "refresh", label: "refresh" }
+      ],
       order: 0,
       state: {
         kind: "disabled",
-        reason: "login required"
+        reason: "login"
       },
       visibility: "always"
     }

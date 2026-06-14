@@ -23,6 +23,9 @@ import { getActiveLocale } from "../../../../i18n/runtime.ts";
 import { resolveDesktopErrorMessage } from "../../../../lib/desktopErrors.ts";
 
 export interface DesktopAgentProviderStatusServiceDependencies {
+  loginStatusPollDurationMs?: number;
+  loginStatusPollIntervalMs?: number;
+  loginStatusPollScheduler?: AgentProviderStatusPollScheduler;
   tuttidClient: TuttidClient;
   reporterNow?: () => number;
   reporterService?: Pick<IReporterService, "trackEvents">;
@@ -30,7 +33,26 @@ export interface DesktopAgentProviderStatusServiceDependencies {
   terminalCommandRunner: AgentProviderTerminalCommandRunner;
 }
 
+interface AgentProviderStatusPollScheduler {
+  clearTimeout(timer: AgentProviderStatusPollTimer): void;
+  now(): number;
+  setTimeout(
+    callback: () => void,
+    delayMs: number
+  ): AgentProviderStatusPollTimer;
+}
+
+type AgentProviderStatusPollTimer = number | { unref?: () => void };
+
 const defaultRequestTimeoutMs = 8_000;
+const defaultLoginStatusPollDurationMs = 3 * 60 * 1000;
+const defaultLoginStatusPollIntervalMs = 5_000;
+
+const defaultLoginStatusPollScheduler: AgentProviderStatusPollScheduler = {
+  clearTimeout: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
+  now: () => Date.now(),
+  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs)
+};
 
 const emptySnapshot: AgentProviderStatusSnapshot = {
   capturedAt: null,
@@ -48,6 +70,10 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
   private readonly notifications: NotificationService;
   private inflightRequest: Promise<AgentProviderStatusListResponse | null> | null =
     null;
+  private readonly loginStatusPolls = new Map<
+    WorkspaceAgentProvider,
+    { deadlineMs: number; timer: AgentProviderStatusPollTimer | null }
+  >();
   private requestSequence = 0;
   private readonly listeners = new Set<() => void>();
   private readonly pendingLoginResults = new Set<WorkspaceAgentProvider>();
@@ -219,6 +245,7 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
       );
       if (isLoginAction) {
         this.pendingLoginResults.add(provider);
+        this.startLoginStatusPolling(provider);
       }
       void this.refresh([provider]);
     } catch (error) {
@@ -389,6 +416,98 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
     });
   }
 
+  private startLoginStatusPolling(provider: WorkspaceAgentProvider): void {
+    const deadlineMs =
+      this.loginStatusPollScheduler.now() + this.loginStatusPollDurationMs();
+    const existing = this.loginStatusPolls.get(provider);
+    if (existing) {
+      existing.deadlineMs = deadlineMs;
+      return;
+    }
+
+    const state = {
+      deadlineMs,
+      timer: null
+    };
+    this.loginStatusPolls.set(provider, state);
+    this.scheduleLoginStatusPoll(provider, state);
+  }
+
+  private scheduleLoginStatusPoll(
+    provider: WorkspaceAgentProvider,
+    state: { deadlineMs: number; timer: AgentProviderStatusPollTimer | null }
+  ): void {
+    if (state.timer !== null) {
+      return;
+    }
+    if (this.loginStatusPollScheduler.now() >= state.deadlineMs) {
+      this.stopLoginStatusPolling(provider);
+      return;
+    }
+
+    state.timer = this.loginStatusPollScheduler.setTimeout(() => {
+      state.timer = null;
+      void this.runLoginStatusPoll(provider);
+    }, this.loginStatusPollIntervalMs());
+    unrefPollTimer(state.timer);
+  }
+
+  private async runLoginStatusPoll(
+    provider: WorkspaceAgentProvider
+  ): Promise<void> {
+    const state = this.loginStatusPolls.get(provider);
+    if (!state || this.loginStatusPollScheduler.now() >= state.deadlineMs) {
+      this.stopLoginStatusPolling(provider);
+      return;
+    }
+
+    await this.refresh([provider]);
+
+    const current = this.loginStatusPolls.get(provider);
+    if (!current || !this.pendingLoginResults.has(provider)) {
+      return;
+    }
+    if (this.loginStatusPollScheduler.now() >= current.deadlineMs) {
+      this.stopLoginStatusPolling(provider);
+      return;
+    }
+    this.scheduleLoginStatusPoll(provider, current);
+  }
+
+  private stopLoginStatusPolling(provider: WorkspaceAgentProvider): void {
+    const state = this.loginStatusPolls.get(provider);
+    if (!state) {
+      return;
+    }
+    if (state.timer !== null) {
+      this.loginStatusPollScheduler.clearTimeout(state.timer);
+    }
+    this.loginStatusPolls.delete(provider);
+  }
+
+  private loginStatusPollDurationMs(): number {
+    return Math.max(
+      0,
+      this.dependencies.loginStatusPollDurationMs ??
+        defaultLoginStatusPollDurationMs
+    );
+  }
+
+  private loginStatusPollIntervalMs(): number {
+    return Math.max(
+      0,
+      this.dependencies.loginStatusPollIntervalMs ??
+        defaultLoginStatusPollIntervalMs
+    );
+  }
+
+  private get loginStatusPollScheduler(): AgentProviderStatusPollScheduler {
+    return (
+      this.dependencies.loginStatusPollScheduler ??
+      defaultLoginStatusPollScheduler
+    );
+  }
+
   private async reportCompletedLoginResults(
     statuses: readonly AgentProviderStatus[]
   ): Promise<void> {
@@ -400,6 +519,7 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
         continue;
       }
       this.pendingLoginResults.delete(status.provider);
+      this.stopLoginStatusPolling(status.provider);
       await this.reportLoginResult(status.provider, true, null);
     }
   }
@@ -451,6 +571,12 @@ function createOptionalReporterService(
       async trackEvents() {}
     }
   );
+}
+
+function unrefPollTimer(timer: AgentProviderStatusPollTimer): void {
+  if (typeof timer === "object" && typeof timer.unref === "function") {
+    timer.unref();
+  }
 }
 
 class AgentProviderInstallActionFailedError extends Error {
@@ -516,7 +642,7 @@ function isTransientProviderStatusDowngrade(
       next.cli.installed &&
       next.adapter.installed &&
       next.availability.status === "auth_required" &&
-      reasonCode === "auth_required")
+      (reasonCode === "auth_required" || reasonCode === "auth_unknown"))
   );
 }
 
