@@ -29,6 +29,7 @@ export default defineConfig(
   {
     ignores: [
       "**/.git/**",
+      "**/.claude/**",
       "**/.codex/**",
       "**/.tutti-ui-system-dev/**",
       "**/.turbo/**",
