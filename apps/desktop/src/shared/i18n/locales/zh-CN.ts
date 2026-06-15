@@ -198,12 +198,12 @@ export const zhCN = {
         custom: "自定义",
         default: "默认",
         dunes: "星夜沙丘",
-        galaxy: "星系",
         ocean: "海面",
         orbit: "地球夜景",
         peaks: "雪峰夜空",
         sand: "流沙纹理",
-        sky: "云层"
+        sky: "云层",
+        tutti: "Tutti"
       }
     },
     settings: {

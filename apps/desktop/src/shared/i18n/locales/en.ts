@@ -202,12 +202,12 @@ export const en = {
         custom: "Custom",
         default: "Default",
         dunes: "Starry dunes",
-        galaxy: "Galaxy",
         ocean: "Ocean",
         orbit: "Earth at night",
         peaks: "Mountain night",
         sand: "Sand ripples",
-        sky: "Sky"
+        sky: "Sky",
+        tutti: "Tutti"
       }
     },
     settings: {
