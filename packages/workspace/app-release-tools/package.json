@@ -6,13 +6,11 @@
   "bin": {
     "build-tutti-app-release": "./bin/build-tutti-app-release.mjs",
     "build-tutti-app-catalog": "./bin/build-tutti-app-catalog.mjs",
-    "bump-tutti-app-version": "./bin/bump-tutti-app-version.mjs",
     "verify-tutti-app-release-artifacts": "./bin/verify-tutti-app-release-artifacts.mjs"
   },
   "exports": {
     "./build-tutti-app-release": "./bin/build-tutti-app-release.mjs",
     "./build-tutti-app-catalog": "./bin/build-tutti-app-catalog.mjs",
-    "./bump-tutti-app-version": "./bin/bump-tutti-app-version.mjs",
     "./verify-tutti-app-release-artifacts": "./bin/verify-tutti-app-release-artifacts.mjs"
   },
   "files": [

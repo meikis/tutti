@@ -31,14 +31,11 @@ For catalog publication:
 - Do not rerun a full app release just to repair catalog state.
 - If the app caller workflow exposes `catalog_only`, use that. If it does not, use the Tutti catalog workflow directly or add the caller input when the user wants that repo to support catalog-only dispatch.
 
-For automatic versioning:
+For versioning:
 
-- `auto_bump_version: true` requires a committed source manifest at `version_manifest_path`, defaulting to root `tutti.app.json`.
-- The package command must copy or render `package_dir/tutti.app.json` from the same source manifest named by `version_manifest_path`.
-- Do not derive or overwrite the package manifest version from S3 `latest.json`, package build output, git tags, or `package.json`. Those make release behavior depend on mutable external state or unrelated app package versions.
-- After packaging, verify that `version_manifest_path` and `package_dir/tutti.app.json` have the same `version`. If they differ, fix the caller repository packaging script before publishing.
-- Add or update caller repository tests that assert the packaged manifest version equals the source manifest version.
-- If a repository does not have a source manifest, add one instead of adding compatibility logic to the reusable workflow.
+- Production releases should be workflow-driven. Run the production caller workflow with `release_bump` (`patch`, `minor`, or `major`); the reusable workflow calculates the next version from existing release tags and creates the tag after the S3 release verifies.
+- The workflow never bumps or commits app manifest versions. Do not add caller-side release PRs or manifest bump commits to work around protected branches.
+- Staging releases should leave `release_bump` empty. The workflow uses `manifest.version+<short git sha>` from the packaged manifest and does not create a release tag.
 
 For reusable workflow changes:
 
@@ -64,12 +61,7 @@ The generated package directory must contain:
 - the manifest icon asset, such as `icon.png` or `icon.svg`
 - all runtime files and assets
 
-The source and package manifests must use `schemaVersion: "tutti.app.manifest.v1"`. `appId` must match the workflow `app_id` input. `version` must be stable semver `x.y.z` when automatic bumping is enabled.
-
-The package manifest version must be copied from the source manifest that the
-workflow bumps. This is especially important in monorepos where the app's
-`package.json` may have a separate package version. Do not set
-`tutti.app.json.version` from `package.json`.
+The source and package manifests must use `schemaVersion: "tutti.app.manifest.v1"`. `appId` must match the workflow `app_id` input.
 
 The workflow writes release objects under:
 
@@ -78,12 +70,19 @@ apps/<appId>/<version>/
 apps/<appId>/latest.json
 ```
 
-By default, the release version is the bumped source manifest version. For example, `0.1.0` becomes `0.1.1` with `version_bump: patch`. If `auto_bump_version` is disabled and `release_version` is empty, the workflow uses `manifest.version+<short git sha>`.
+For production, the workflow derives the next release version by fetching
+existing stable semver tags with the configured `release_tag_prefix` (default
+`<appId>-v`) and applying `release_bump`. It creates the annotated release tag
+after the S3 release has been uploaded and verified. If `release_bump` is empty,
+the workflow uses `manifest.version+<short git sha>` from the packaged manifest,
+which is intended for staging.
 
 ## Reference Caller Workflow
 
-Use this as the default single-app production caller. Keep new app repositories
-as close to this reference as their package command allows.
+Use this as the default single-app production caller. Production releases should
+be workflow-driven so publishing does not need to write version bump commits back
+to the protected source branch. Keep new app repositories as close to this
+reference as their package command allows.
 
 ```yaml
 name: Publish Tutti App Production
@@ -91,24 +90,25 @@ name: Publish Tutti App Production
 on:
   workflow_dispatch:
     inputs:
-      release_version:
-        description: Optional release version override. Defaults to the automatic manifest patch bump.
-        required: false
-        type: string
+      release_bump:
+        description: Semver bump to publish.
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
       publish_catalog:
         description: Whether to publish the production App Center catalog after this release.
         required: false
         type: boolean
-        default: false
+        default: true
       catalog_only:
         description: Whether to skip app release upload and only publish the existing latest release to catalog.
         required: false
         type: boolean
         default: false
-  push:
-    branches:
-      - main
-
 permissions:
   contents: write
   id-token: write
@@ -121,11 +121,11 @@ jobs:
       package_command: pnpm package:tutti
       package_dir: build/tutti-app/package
       icon_path: build/tutti-app/package/icon.png
-      release_version: ${{ inputs.release_version || '' }}
-      auto_bump_version: true
-      version_bump: patch
-      publish_catalog: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_catalog }}
-      catalog_only: ${{ github.event_name == 'workflow_dispatch' && inputs.catalog_only }}
+      release_tag_prefix: your-app-id-v
+      release_bump: ${{ inputs.release_bump }}
+      create_release_tag: ${{ !inputs.catalog_only }}
+      publish_catalog: ${{ inputs.publish_catalog }}
+      catalog_only: ${{ inputs.catalog_only }}
       aws_region: ${{ vars.TUTTI_APP_RELEASES_PRODUCTION_AWS_REGION || vars.TUTTI_APP_RELEASES_AWS_REGION }}
       aws_role_arn: ${{ vars.TUTTI_APP_RELEASES_PRODUCTION_AWS_ROLE_ARN || vars.TUTTI_APP_RELEASES_AWS_ROLE_ARN }}
       s3_bucket: ${{ vars.TUTTI_APP_RELEASES_PRODUCTION_S3_BUCKET || vars.TUTTI_APP_RELEASES_S3_BUCKET }}
@@ -152,13 +152,10 @@ app_id: ${{ matrix.target.app_id }}
 package_command: ${{ matrix.target.package_command }}
 package_dir: ${{ matrix.target.package_dir }}
 icon_path: ${{ matrix.target.icon_path }}
-version_manifest_path: ${{ matrix.target.version_manifest_path }}
+release_tag_prefix: ${{ matrix.target.release_tag_prefix }}
+release_bump: ${{ inputs.release_bump }}
+create_release_tag: ${{ !inputs.catalog_only }}
 ```
-
-Each matrix target's `package_command` must produce `package_dir/tutti.app.json`
-from that target's `version_manifest_path`. Treat mismatches as release
-blockers, because the reusable workflow resolves the uploaded release version
-from the generated package manifest.
 
 ## Reusable Workflow Inputs
 
@@ -178,15 +175,14 @@ Conditionally required inputs:
 Optional release/version inputs:
 
 - `icon_path`: package-local icon path override. Use when the manifest icon should be resolved from a generated package path.
-- `release_version`: explicit release version. Leave empty for automatic bumping; use sparingly because it bypasses `version_bump`.
-- `auto_bump_version`: whether to bump and commit the source manifest before packaging. Default: `true`.
-- `version_bump`: semver bump applied when `auto_bump_version` is true. Values: `major`, `minor`, `patch`. Default: `patch`.
-- `version_manifest_path`: source manifest to bump. Default: `tutti.app.json`. In monorepos, pass the app package source manifest, for example `apps/daily-tech-radar/tutti-package/tutti.app.json`.
+- `release_tag_prefix`: release tag prefix used when calculating and creating production release tags. Defaults to `<appId>-v`.
+- `release_bump`: production semver bump. Valid values are `patch`, `minor`, and `major`. Leave empty for staging.
+- `create_release_tag`: create the annotated release tag after the S3 release verifies. Production callers should set this to true; staging callers should leave it false.
 
 Optional catalog inputs:
 
 - `publish_catalog`: after uploading the app release, merge that release into `catalog.json`. Default: `false`.
-- `catalog_only`: skip package build, version bump, release metadata generation, and app release upload; merge existing `apps/<appId>/latest.json` into `catalog.json`. Default: `false`.
+- `catalog_only`: skip package build, release metadata generation, and app release upload; merge existing `apps/<appId>/latest.json` into `catalog.json`. Default: `false`.
 - `catalog_cloudfront_distribution_id`: CloudFront distribution id for invalidating `/<s3_prefix>/catalog.json` after catalog upload. Default: empty.
 
 Optional runtime/tooling inputs:
@@ -271,29 +267,9 @@ Expected output:
 - `/tmp/tutti-app-release/apps/<appId>/<version>/release.json`
 - `/tmp/tutti-app-release/apps/<appId>/latest.json`
 
-When automatic bumping is enabled, also compare the source and generated
-package manifests before building release metadata:
-
-```sh
-node -e '
-  const fs = require("fs");
-  const source = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-  const packaged = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-  if (source.version !== packaged.version) {
-    console.error(`manifest version mismatch: source=${source.version} package=${packaged.version}`);
-    process.exit(1);
-  }
-' tutti.app.json build/tutti-app/package/tutti.app.json
-```
-
-For monorepos, replace `tutti.app.json` with the target's
-`version_manifest_path`, for example
-`apps/daily-tech-radar/tutti-package/tutti.app.json`.
-
 ## Completion Checklist
 
 - Caller workflow uses `tutti-os/tutti/.github/workflows/publish-tutti-app-release.yml`.
-- Automatic bumping has `contents: write`, `id-token: write`, and a committed source `tutti.app.json`.
 - `package_command` produces `package_dir`.
 - `package_dir/tutti.app.json` is valid JSON and `appId` matches workflow `app_id`.
 - Package contains `bootstrap.sh`, `AGENTS.md`, icon asset, and runtime files.
@@ -304,8 +280,9 @@ For monorepos, replace `tutti.app.json` with the target's
 ## Common Failures
 
 - `manifest appId must match app id`: align workflow `app_id` and manifest `appId`.
-- `missing tutti.app.json`: fix source manifest or package generation. Automatic bumping requires a committed source manifest; packaging requires a package manifest.
-- `manifest version must be stable semver`: source manifest version must be `x.y.z` for automatic bumping.
+- `missing tutti.app.json`: fix package generation so the package directory contains a manifest.
+- `release_bump must be one of major, minor, or patch`: production callers must pass a supported bump type.
+- `create_release_tag requires release_bump`: release tags are only created for workflow-driven production bumps.
 - `manifest icon asset missing`: include the asset inside the package or pass `icon_path`.
 - AWS `AccessDenied`: check OIDC trust policy, role ARN, bucket policy, region, prefix, and catalog/CloudFront permissions.
 - Release succeeded but App Center does not show it: publish or refresh the catalog with `catalog_only` or the Tutti catalog workflow in merge mode.
