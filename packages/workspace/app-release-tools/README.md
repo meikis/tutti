@@ -8,15 +8,11 @@ Command-line tools for publishing Tutti workspace apps into App Center release m
 build-tutti-app-release --app-id vibe-design --package-dir dist/tutti-app/vibe-design --base-url https://cdn.example.test/tutti-app-releases
 build-tutti-app-catalog --release-file ./apps/vibe-design/latest.json --output ./catalog.json
 build-tutti-app-catalog --existing-catalog ./catalog.json --release-file ./apps/vibe-design/latest.json --output ./catalog.json
-bump-tutti-app-version --app-id vibe-design --manifest ./tutti.app.json --bump patch
 verify-tutti-app-release-artifacts --release-file ./apps/vibe-design/latest.json
 verify-tutti-app-release-artifacts --catalog-file ./catalog.json --release-file ./apps/vibe-design/latest.json
 ```
 
 The release command validates a complete Tutti app package, creates a zip, writes immutable `release.json`, and writes mutable `latest.json`.
-
-The version bump command updates an app manifest from one stable semver version
-to the next major, minor, or patch version.
 
 The catalog command merges one or more release files into `tutti.app.catalog.v1`.
 Pass `--existing-catalog` to preserve existing catalog apps and update only the

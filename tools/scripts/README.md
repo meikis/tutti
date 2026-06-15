@@ -22,7 +22,6 @@ Current examples include:
 - `check-ui-boundaries.mjs` for shared UI boundary enforcement across imports, CSS, SVG usage, and desktop Tailwind `@source` coverage for workspace packages that declare `tutti.tailwindSourceRoot`
 - `build-tutti-app-release.mjs` for packaging an external Tutti app into a zip plus `release.json` and `latest.json`
 - `build-tutti-app-catalog.mjs` for merging app `release.json` files into the App Center remote catalog
-- `bump-tutti-app-version.mjs` for incrementing a Tutti app manifest semver version before release
 - `build-tutti-app-runtime-catalog.mjs` for merging managed app runtime artifact metadata into the runtime download catalog
 - `lark-log-tool.mjs` for fetching Feishu/Lark message file attachments or Base bug-record attachments with `lark-cli`, extracting Tutti log bundles, summarizing repeated log failures around an anchor time, and optionally watching appended warn/error lines in real time
 

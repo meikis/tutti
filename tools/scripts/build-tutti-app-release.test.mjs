@@ -12,7 +12,6 @@ import {
   validateManifest
 } from "./build-tutti-app-release.mjs";
 import { buildTuttiAppCatalog } from "./build-tutti-app-catalog.mjs";
-import { bumpTuttiAppVersion } from "../../packages/workspace/app-release-tools/bin/bump-tutti-app-version.mjs";
 import { verifyTuttiAppReleaseArtifacts } from "../../packages/workspace/app-release-tools/bin/verify-tutti-app-release-artifacts.mjs";
 
 const reusableWorkflowPath = new URL(
@@ -145,39 +144,6 @@ test("buildTuttiAppCatalog rejects duplicate app ids", async () => {
         outputPath: path.join(tmpdir(), "unused-catalog.json")
       }),
     /duplicate release appId duplicate-app/
-  );
-});
-
-test("bumpTuttiAppVersion applies a stable semver patch bump", async () => {
-  const packageDir = await createPackageForTest("bumped-app");
-  const manifestPath = path.join(packageDir, "tutti.app.json");
-
-  const result = await bumpTuttiAppVersion({
-    appId: "bumped-app",
-    manifestPath,
-    bump: "patch"
-  });
-
-  assert.equal(result.previousVersion, "0.1.0");
-  assert.equal(result.version, "0.1.1");
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  assert.equal(manifest.version, "0.1.1");
-});
-
-test("bumpTuttiAppVersion rejects prerelease versions for automatic bumps", async () => {
-  const packageDir = await createPackageForTest("bumped-app");
-  const manifestPath = path.join(packageDir, "tutti.app.json");
-  const manifest = manifestForTest("bumped-app", "0.1.0-beta.1");
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-
-  await assert.rejects(
-    () =>
-      bumpTuttiAppVersion({
-        appId: "bumped-app",
-        manifestPath,
-        bump: "patch"
-      }),
-    /stable semver x\.y\.z/
   );
 });
 
@@ -332,11 +298,9 @@ test("Tutti app release workflow is reusable by external app repositories", asyn
   const workflow = await readFile(reusableWorkflowPath, "utf8");
 
   assert.match(workflow, /workflow_call:/);
-  assert.match(workflow, /contents: write/);
-  assert.match(workflow, /auto_bump_version:/);
-  assert.match(workflow, /version_bump:/);
-  assert.match(workflow, /default: patch/);
-  assert.match(workflow, /version_manifest_path:/);
+  assert.match(workflow, /release_tag_prefix:/);
+  assert.match(workflow, /release_bump:/);
+  assert.match(workflow, /create_release_tag:/);
   assert.match(workflow, /publish_catalog:/);
   assert.match(workflow, /catalog_only:/);
   assert.match(workflow, /catalog_cloudfront_distribution_id:/);
@@ -356,19 +320,37 @@ test("Tutti app release workflow is reusable by external app repositories", asyn
   assert.match(workflow, /\[skip release\]/);
   assert.match(workflow, /release_tools_package:/);
   assert.match(workflow, /default:\s+"@tutti-os\/app-release-tools@latest"/);
-  assert.match(workflow, /Prepare release branch/);
+  assert.doesNotMatch(workflow, /auto_bump_version:/);
+  assert.doesNotMatch(workflow, /version_bump:/);
+  assert.doesNotMatch(workflow, /version_manifest_path:/);
+  assert.doesNotMatch(workflow, /bump-tutti-app-version/);
+  assert.doesNotMatch(workflow, /release_version:/);
+  assert.doesNotMatch(workflow, /INPUT_RELEASE_VERSION/);
+  assert.doesNotMatch(workflow, /Commit app version bump/);
+  assert.doesNotMatch(workflow, /git push origin "HEAD:\$\{GITHUB_REF_NAME\}"/);
+  assert.doesNotMatch(workflow, /REF_TYPE: \$\{\{ github\.ref_type \}\}/);
+  assert.doesNotMatch(workflow, /github\.ref_type/);
+  assert.match(workflow, /`\$\{process\.env\.APP_ID\}-v`/);
+  assert.match(workflow, /git", \["fetch", "--tags", "--force"\]/);
+  assert.match(workflow, /parseStableVersion/);
+  assert.match(workflow, /nextVersionFromSources/);
+  assert.match(workflow, /manifest\.version/);
+  assert.match(workflow, /Package manifest version must be stable semver/);
   assert.match(
     workflow,
-    /git checkout -B "\$\{REF_NAME\}" "origin\/\$\{REF_NAME\}"/
+    /Resolved release version seed \$\{latest\.version\} from \$\{latest\.source\}/
   );
-  assert.match(workflow, /Bump app version/);
-  assert.match(workflow, /bump-tutti-app-version/);
-  assert.match(workflow, /Commit app version bump/);
-  assert.match(workflow, /git push origin "HEAD:\$\{GITHUB_REF_NAME\}"/);
-  assert.match(workflow, /release_version="\$\{manifest_version\}"/);
+  assert.match(workflow, /release_bump requires create_release_tag/);
+  assert.match(workflow, /create_release_tag requires release_bump/);
   assert.match(
     workflow,
-    /release_version="\$\{manifest_version\}\+\$\{git_sha:0:12\}"/
+    /releaseVersion = `\$\{manifest\.version\}\+\$\{gitSha\.slice\(0, 12\)\}`/
+  );
+  assert.match(workflow, /name: Create release tag/);
+  assert.match(workflow, /git tag -a "\$\{RELEASE_TAG_NAME\}"/);
+  assert.match(
+    workflow,
+    /git push origin "refs\/tags\/\$\{RELEASE_TAG_NAME\}"/
   );
   assert.match(
     workflow,
