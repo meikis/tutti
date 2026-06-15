@@ -13,7 +13,9 @@ export const preferencesDesktopPreferencesSchema = {
     "dockPlacement",
     "locale",
     "sleepPreventionMode",
-    "themeSource"
+    "themeSource",
+    "updateChannel",
+    "updatePolicy"
   ],
   properties: {
     agentComposerDefaultsByProvider: {
@@ -135,6 +137,14 @@ export const preferencesDesktopPreferencesSchema = {
     themeSource: {
       type: "string",
       enum: ["system", "dark", "light"]
+    },
+    updateChannel: {
+      type: "string",
+      enum: ["stable", "rc"]
+    },
+    updatePolicy: {
+      type: "string",
+      enum: ["off", "prompt", "auto"]
     }
   },
   $defs: {
@@ -819,7 +829,9 @@ export const preferencesDesktopUpdateRequestedPayloadSchema = {
         "dockPlacement",
         "locale",
         "sleepPreventionMode",
-        "themeSource"
+        "themeSource",
+        "updateChannel",
+        "updatePolicy"
       ],
       properties: {
         agentComposerDefaultsByProvider: {
@@ -948,6 +960,14 @@ export const preferencesDesktopUpdateRequestedPayloadSchema = {
         themeSource: {
           type: "string",
           enum: ["system", "dark", "light"]
+        },
+        updateChannel: {
+          type: "string",
+          enum: ["stable", "rc"]
+        },
+        updatePolicy: {
+          type: "string",
+          enum: ["off", "prompt", "auto"]
         }
       },
       $defs: {
@@ -992,7 +1012,9 @@ export const preferencesDesktopUpdatedPayloadSchema = {
         "dockPlacement",
         "locale",
         "sleepPreventionMode",
-        "themeSource"
+        "themeSource",
+        "updateChannel",
+        "updatePolicy"
       ],
       properties: {
         agentComposerDefaultsByProvider: {
@@ -1121,6 +1143,14 @@ export const preferencesDesktopUpdatedPayloadSchema = {
         themeSource: {
           type: "string",
           enum: ["system", "dark", "light"]
+        },
+        updateChannel: {
+          type: "string",
+          enum: ["stable", "rc"]
+        },
+        updatePolicy: {
+          type: "string",
+          enum: ["off", "prompt", "auto"]
         }
       },
       $defs: {
