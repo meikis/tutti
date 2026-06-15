@@ -81,40 +81,27 @@ External app repositories should call `.github/workflows/publish-tutti-app-relea
 
 1. Checks out the app repository.
 2. Serializes releases per app and branch.
-3. Automatically bumps the committed source app manifest and commits the bump
-   unless `release_version` is provided or `auto_bump_version` is disabled.
+3. Resolves the release version from `release_bump` and existing release tags,
+   or from the package manifest for staging-style runs.
 4. Runs the app repository package command.
 5. Runs `@tutti-os/app-release-tools`.
 6. Generates a zip, immutable `release.json`, and mutable `latest.json`.
 7. Refuses to overwrite an existing immutable release version.
 8. Uploads the release directory and `latest.json` to S3.
-9. Optionally merges the app into `catalog.json` when `publish_catalog` is
-   enabled.
+9. Creates the release tag when `create_release_tag` is enabled.
+10. Optionally merges the app into `catalog.json` when `publish_catalog` is
+    enabled.
 
-External repositories that use automatic bumping must commit a source manifest
-at `version_manifest_path`, which defaults to root `tutti.app.json`. That
-manifest is the only source of automatic release version state. Do not derive
-automatic release versions from mutable S3 metadata, package build output,
-`package.json`, or git tags. App package scripts must copy or render the package
-manifest from the source manifest named by `version_manifest_path` so the
-released package contains the bumped version. This also applies in monorepos:
-the app package's `package.json` may have a separate package version and must
-not overwrite `tutti.app.json.version`.
+Production app releases are manually dispatched from GitHub Actions with a
+`release_bump` value of `patch`, `minor`, or `major`. The reusable workflow
+fetches existing tags with the configured `release_tag_prefix` (default
+`<appId>-v`), calculates the next stable semver version, publishes the S3
+release, verifies the artifact, then creates an annotated release tag such as
+`vibe-design-v1.2.4`. The workflow never edits or commits the source manifest.
 
-Caller repositories should test this contract directly. After running the
-package command, `package_dir/tutti.app.json` must have the same `version` as
-`version_manifest_path`. A mismatch is a release blocker because the reusable
-workflow resolves the uploaded release version from the generated package
-manifest.
-
-When automatic bumping is enabled, the default release version is the bumped
-manifest version. When automatic bumping is disabled, the default release
-version remains `manifest.version+<short git sha>`. Callers can pass
-`release_version` to override it.
-
-Callers that use the default automatic bump must grant `contents: write` and
-`id-token: write` permissions so the workflow can push the version bump commit
-and assume the release upload role.
+Staging app releases do not create release tags. When `release_bump` is empty,
+the reusable workflow publishes `manifest.version+<short git sha>` from the
+packaged manifest.
 
 When `publish_catalog` is enabled, releases targeting the same S3 bucket and
 prefix are serialized so concurrent app releases cannot overwrite each other's

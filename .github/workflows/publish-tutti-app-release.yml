@@ -18,22 +18,18 @@ on:
         required: false
         type: string
         default: ""
-      release_version:
+      release_tag_prefix:
         required: false
         type: string
         default: ""
-      auto_bump_version:
+      release_bump:
+        required: false
+        type: string
+        default: ""
+      create_release_tag:
         required: false
         type: boolean
-        default: true
-      version_bump:
-        required: false
-        type: string
-        default: patch
-      version_manifest_path:
-        required: false
-        type: string
-        default: tutti.app.json
+        default: false
       runner:
         required: false
         type: string
@@ -80,10 +76,6 @@ on:
         type: string
         default: ""
 
-permissions:
-  contents: write
-  id-token: write
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -106,6 +98,8 @@ jobs:
           PACKAGE_COMMAND: ${{ inputs.package_command }}
           PACKAGE_DIR: ${{ inputs.package_dir }}
           RELEASE_ASSETS_BASE_URL: ${{ inputs.release_assets_base_url }}
+          RELEASE_BUMP: ${{ inputs.release_bump }}
+          CREATE_RELEASE_TAG: ${{ inputs.create_release_tag }}
         run: |
           if [ -z "${PACKAGE_COMMAND}" ]; then
             echo "package_command is required unless catalog_only is true." >&2
@@ -119,20 +113,18 @@ jobs:
             echo "release_assets_base_url is required unless catalog_only is true." >&2
             exit 1
           fi
-
-      - name: Prepare release branch
-        if: ${{ !inputs.catalog_only && inputs.auto_bump_version && inputs.release_version == '' }}
-        shell: bash
-        env:
-          REF_NAME: ${{ github.ref_name }}
-          REF_TYPE: ${{ github.ref_type }}
-        run: |
-          if [ "${REF_TYPE}" != "branch" ]; then
-            echo "Automatic version bumps require a branch ref, got ${REF_TYPE}." >&2
+          if [ -n "${RELEASE_BUMP}" ] && [[ ! "${RELEASE_BUMP}" =~ ^(major|minor|patch)$ ]]; then
+            echo "release_bump must be one of major, minor, or patch when provided." >&2
             exit 1
           fi
-          git fetch origin "${REF_NAME}"
-          git checkout -B "${REF_NAME}" "origin/${REF_NAME}"
+          if [ -n "${RELEASE_BUMP}" ] && [ "${CREATE_RELEASE_TAG}" != "true" ]; then
+            echo "release_bump requires create_release_tag." >&2
+            exit 1
+          fi
+          if [ "${CREATE_RELEASE_TAG}" = "true" ] && [ -z "${RELEASE_BUMP}" ]; then
+            echo "create_release_tag requires release_bump." >&2
+            exit 1
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -144,42 +136,6 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           cache: pnpm
-
-      - name: Bump app version
-        if: ${{ !inputs.catalog_only && inputs.auto_bump_version && inputs.release_version == '' }}
-        id: bump
-        shell: bash
-        env:
-          APP_ID: ${{ inputs.app_id }}
-          RELEASE_TOOLS_PACKAGE: ${{ inputs.release_tools_package }}
-          VERSION_BUMP: ${{ inputs.version_bump }}
-          VERSION_MANIFEST_PATH: ${{ inputs.version_manifest_path }}
-        run: |
-          pnpm --package "${RELEASE_TOOLS_PACKAGE}" dlx bump-tutti-app-version \
-            --app-id "${APP_ID}" \
-            --manifest "${VERSION_MANIFEST_PATH}" \
-            --bump "${VERSION_BUMP}" \
-            > tutti-app-version-bump.json
-          version="$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).version)" tutti-app-version-bump.json)"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-
-      - name: Commit app version bump
-        if: ${{ !inputs.catalog_only && inputs.auto_bump_version && inputs.release_version == '' }}
-        shell: bash
-        env:
-          APP_ID: ${{ inputs.app_id }}
-          VERSION: ${{ steps.bump.outputs.version }}
-          VERSION_MANIFEST_PATH: ${{ inputs.version_manifest_path }}
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add "${VERSION_MANIFEST_PATH}"
-          if git diff --cached --quiet; then
-            echo "No version bump changes were produced." >&2
-            exit 1
-          fi
-          git commit -m "chore(release): bump ${APP_ID} to ${VERSION} [skip release]"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Install app dependencies
         if: ${{ !inputs.catalog_only }}
@@ -194,23 +150,111 @@ jobs:
         id: release
         shell: bash
         env:
-          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
-          AUTO_BUMP_VERSION: ${{ inputs.auto_bump_version }}
+          RELEASE_TAG_PREFIX: ${{ inputs.release_tag_prefix }}
+          RELEASE_BUMP: ${{ inputs.release_bump }}
+          CREATE_RELEASE_TAG: ${{ inputs.create_release_tag }}
+          APP_ID: ${{ inputs.app_id }}
           PACKAGE_DIR: ${{ inputs.package_dir }}
         run: |
-          git_sha="$(git rev-parse HEAD)"
-          if [ -n "${INPUT_RELEASE_VERSION}" ]; then
-            release_version="${INPUT_RELEASE_VERSION}"
-          else
-            manifest_version="$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).version)" "${PACKAGE_DIR}/tutti.app.json")"
-            if [ "${AUTO_BUMP_VERSION}" = "true" ]; then
-              release_version="${manifest_version}"
-            else
-              release_version="${manifest_version}+${git_sha:0:12}"
-            fi
-          fi
-          echo "version=${release_version}" >> "$GITHUB_OUTPUT"
-          echo "git_sha=${git_sha}" >> "$GITHUB_OUTPUT"
+          node <<'NODE'
+          const fs = require("fs");
+          const { execFileSync } = require("child_process");
+
+          const semverPattern = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+          const stableSemverPattern = /^([0-9]+)\.([0-9]+)\.([0-9]+)$/;
+
+          function fail(message) {
+            console.error(message);
+            process.exit(1);
+          }
+
+          function output(name, value) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
+          }
+
+          function defaultTagPrefix() {
+            return process.env.RELEASE_TAG_PREFIX || `${process.env.APP_ID}-v`;
+          }
+
+          function compareVersions(left, right) {
+            for (const key of ["major", "minor", "patch"]) {
+              if (left[key] !== right[key]) {
+                return left[key] - right[key];
+              }
+            }
+            return 0;
+          }
+
+          function nextVersionFromTags(prefix, bump) {
+            execFileSync("git", ["fetch", "--tags", "--force"], { stdio: "inherit" });
+            const tags = execFileSync("git", ["tag", "--list"], { encoding: "utf8" })
+              .split("\n")
+              .map((tag) => tag.trim())
+              .filter((tag) => tag.startsWith(prefix));
+            const versions = tags
+              .map((tag) => tag.slice(prefix.length))
+              .map((version) => {
+                const match = version.match(stableSemverPattern);
+                if (!match) {
+                  return null;
+                }
+                return {
+                  version,
+                  major: Number(match[1]),
+                  minor: Number(match[2]),
+                  patch: Number(match[3])
+                };
+              })
+              .filter(Boolean)
+              .sort(compareVersions);
+            const latest = versions.at(-1) ?? {
+              major: 0,
+              minor: 0,
+              patch: 0
+            };
+
+            if (bump === "major") {
+              return `${latest.major + 1}.0.0`;
+            }
+            if (bump === "minor") {
+              return `${latest.major}.${latest.minor + 1}.0`;
+            }
+            if (bump === "patch") {
+              return `${latest.major}.${latest.minor}.${latest.patch + 1}`;
+            }
+            fail(`release_bump must be one of major, minor, or patch when provided, got ${bump}.`);
+          }
+
+          const gitSha = execFileSync("git", ["rev-parse", "HEAD"], {
+            encoding: "utf8"
+          }).trim();
+          const releaseBump = process.env.RELEASE_BUMP;
+          const shouldCreateTag = process.env.CREATE_RELEASE_TAG === "true";
+          let releaseVersion = "";
+          let tagName = "";
+
+          if (releaseBump) {
+            const tagPrefix = defaultTagPrefix();
+            releaseVersion = nextVersionFromTags(tagPrefix, releaseBump);
+            tagName = `${tagPrefix}${releaseVersion}`;
+          } else {
+            if (shouldCreateTag) {
+              fail("create_release_tag requires release_bump.");
+            }
+            const manifest = JSON.parse(
+              fs.readFileSync(`${process.env.PACKAGE_DIR}/tutti.app.json`, "utf8")
+            );
+            releaseVersion = `${manifest.version}+${gitSha.slice(0, 12)}`;
+          }
+
+          if (!semverPattern.test(releaseVersion)) {
+            fail(`Release version must be semver x.y.z with optional prerelease/build metadata, got ${releaseVersion}.`);
+          }
+
+          output("version", releaseVersion);
+          output("git_sha", gitSha);
+          output("tag_name", tagName);
+          NODE
 
       - name: Build release metadata
         if: ${{ !inputs.catalog_only }}
@@ -311,6 +355,40 @@ jobs:
         run: |
           pnpm --package "${RELEASE_TOOLS_PACKAGE}" dlx verify-tutti-app-release-artifacts \
             --release-file "tutti-app-release/apps/${APP_ID}/latest.json"
+
+      - name: Create release tag
+        if: ${{ !inputs.catalog_only && inputs.create_release_tag }}
+        shell: bash
+        env:
+          APP_ID: ${{ inputs.app_id }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_TAG_NAME: ${{ steps.release.outputs.tag_name }}
+          RELEASE_GIT_SHA: ${{ steps.release.outputs.git_sha }}
+        run: |
+          if [ -z "${RELEASE_TAG_NAME}" ]; then
+            echo "Resolved release tag name is empty." >&2
+            exit 1
+          fi
+          if ! git check-ref-format "refs/tags/${RELEASE_TAG_NAME}"; then
+            echo "Resolved release tag ${RELEASE_TAG_NAME} is not a valid git ref." >&2
+            exit 1
+          fi
+
+          git fetch --tags --force
+          if git rev-parse -q --verify "refs/tags/${RELEASE_TAG_NAME}" >/dev/null; then
+            existing_sha="$(git rev-list -n 1 "${RELEASE_TAG_NAME}")"
+            if [ "${existing_sha}" != "${RELEASE_GIT_SHA}" ]; then
+              echo "Release tag ${RELEASE_TAG_NAME} already points to ${existing_sha}, expected ${RELEASE_GIT_SHA}." >&2
+              exit 1
+            fi
+            echo "Release tag ${RELEASE_TAG_NAME} already exists for ${APP_ID} ${RELEASE_VERSION}."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${RELEASE_TAG_NAME}" "${RELEASE_GIT_SHA}" -m "Release ${APP_ID} ${RELEASE_VERSION}"
+          git push origin "refs/tags/${RELEASE_TAG_NAME}"
 
       - name: Publish app catalog
         if: ${{ inputs.publish_catalog || inputs.catalog_only }}
