@@ -134,13 +134,13 @@ git commit -s -m "feat(scope): add something"
 
 ## Pull Request 评审门禁
 
-Tutti 使用 `external-pr-review-gate` workflow 区分内部团队改动和外部贡献。官方团队成员由 GitHub 团队 `tutti-rd` 以及配套的组织变量 `TUTTI_RD_MEMBERS` 定义。
+Tutti 使用 `external-pr-review-gate` workflow 区分内部团队改动和外部贡献。官方作者由组织变量 `TUTTI_RD_MEMBERS` 定义；GitHub 团队 `tutti-rd` 是外部 PR 的 review 请求目标。
 
 - `tutti-rd` 成员发起的 PR 不会自动请求 reviewer，也不需要额外官方 approve 即可通过评审门禁
 - 非 `tutti-rd` 作者发起的 PR 会自动请求 `@tutti-os/tutti-rd` review
 - 外部 PR 只有在当前 head commit 获得 `tutti-rd` 成员 approve 后才能合并
 - 推送新提交会刷新门禁；新的 head commit 需要重新获得通过评审
-- 官方团队成员变化时，维护者必须同时更新 `tutti-rd` 团队和 `TUTTI_RD_MEMBERS`
+- 官方团队成员变化时，维护者必须同时更新 `TUTTI_RD_MEMBERS` 和 `tutti-rd` 团队
 
 ```mermaid
 ---
@@ -150,7 +150,7 @@ config:
   look: neo
 ---
 flowchart TB
-    A["PR 打开 / 重新打开 / 标记为可评审 / 推送新提交"] --> B{"PR 作者是否在 tutti-rd 团队？"}
+    A["PR 打开 / 重新打开 / 标记为可评审 / 推送新提交"] --> B{"PR 作者是否在官方成员名单？"}
     B -- 是 --> C["不自动请求 Reviewer"]
     C --> P["✅ 通过"]
     P --> M["可以合并"]
