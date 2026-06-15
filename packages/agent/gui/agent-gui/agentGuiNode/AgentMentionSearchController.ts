@@ -88,6 +88,7 @@ interface AgentMentionSearchControllerOptions {
   debounceMs?: number;
   fileLimit?: number;
   issueLimit?: number;
+  providerTimeoutMs?: number;
 }
 
 type Listener = (state: AgentMentionSearchState) => void;
@@ -116,6 +117,7 @@ const DEFAULT_DEBOUNCE_MS = 120;
 const DEFAULT_FILE_LIMIT = 30;
 const DEFAULT_ISSUE_LIMIT = 25;
 const DEFAULT_SESSION_LIMIT = 30;
+const DEFAULT_PROVIDER_TIMEOUT_MS = 3500;
 export const WORKSPACE_APP_REFERENCE_PAGE_SIZE = 5;
 const EMPTY_PROVIDER_REFERENCE_ITEMS_RESULT: NormalizedProviderReferenceItemsResult =
   {
@@ -142,6 +144,7 @@ export class AgentMentionSearchController {
   private readonly debounceMs: number;
   private readonly fileLimit: number;
   private readonly issueLimit: number;
+  private readonly providerTimeoutMs: number;
   private readonly listeners = new Set<Listener>();
   private readonly expandedCounts: Partial<
     Record<AgentMentionGroupId, number>
@@ -191,6 +194,8 @@ export class AgentMentionSearchController {
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
     this.fileLimit = options.fileLimit ?? DEFAULT_FILE_LIMIT;
     this.issueLimit = options.issueLimit ?? DEFAULT_ISSUE_LIMIT;
+    this.providerTimeoutMs =
+      options.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
     this.currentFileSearchLimit = this.fileLimit;
     this.currentIssueSearchLimit = this.issueLimit;
   }
@@ -534,20 +539,28 @@ export class AgentMentionSearchController {
     source: WorkspaceAppReferenceSource;
   }): Promise<void> {
     try {
-      const referenceResult = await Promise.resolve(
-        input.source.provider.getItemReferenceItems?.(input.source.item, {
-          keyword: input.source.query,
-          maxResults: WORKSPACE_APP_REFERENCE_PAGE_SIZE,
-          cursor: input.cursor,
-          context: {
-            metadata: {
-              currentUserId: input.source.currentUserId,
-              target: "agent-gui",
-              workspaceId: input.source.workspaceId
-            }
-          }
-        }) ?? []
-      ).then(normalizeProviderReferenceItemsResult);
+      const referenceResult = await this.runProviderQuery(
+        (abortSignal) =>
+          Promise.resolve(
+            input.source.provider.getItemReferenceItems?.(input.source.item, {
+              keyword: input.source.query,
+              maxResults: WORKSPACE_APP_REFERENCE_PAGE_SIZE,
+              cursor: input.cursor,
+              abortSignal,
+              context: {
+                metadata: {
+                  currentUserId: input.source.currentUserId,
+                  target: "agent-gui",
+                  workspaceId: input.source.workspaceId
+                }
+              }
+            }) ?? []
+          ).then(normalizeProviderReferenceItemsResult),
+        {
+          ...EMPTY_PROVIDER_REFERENCE_ITEMS_RESULT,
+          nextCursor: input.cursor
+        }
+      );
       if (
         !this.canApply(
           input.requestId,
@@ -936,6 +949,7 @@ export class AgentMentionSearchController {
     query: string;
     limit: number;
     workspaceAppReferenceSources?: WorkspaceAppReferenceSource[];
+    abortSignal: AbortSignal;
   }): Promise<AgentContextMentionItem[]> {
     const providerContext = {
       metadata: {
@@ -947,8 +961,12 @@ export class AgentMentionSearchController {
     const directItems = await input.provider.query({
       keyword: input.query,
       maxResults: input.limit,
+      abortSignal: input.abortSignal,
       context: providerContext
     });
+    if (input.abortSignal.aborted) {
+      return [];
+    }
     const itemCandidates: ProviderMentionItemCandidate[] = directItems.map(
       (item) => ({
         includeWorkspaceAppWithoutReferences: true,
@@ -968,8 +986,12 @@ export class AgentMentionSearchController {
       );
       const referenceCandidateItems = await input.provider.query({
         keyword: "",
+        abortSignal: input.abortSignal,
         context: providerContext
       });
+      if (input.abortSignal.aborted) {
+        return [];
+      }
       for (const item of referenceCandidateItems) {
         const key = compactText(input.provider.getItemKey(item));
         if (key && seenKeys.has(key)) {
@@ -1002,6 +1024,7 @@ export class AgentMentionSearchController {
                 input.provider.getItemReferenceItems?.(item, {
                   keyword: input.query,
                   maxResults: WORKSPACE_APP_REFERENCE_PAGE_SIZE,
+                  abortSignal: input.abortSignal,
                   context: providerContext
                 }) ?? []
               )
@@ -1083,14 +1106,52 @@ export class AgentMentionSearchController {
     if (!provider) {
       return [];
     }
-    return this.queryProviderMentionItems({
-      provider,
-      workspaceId: input.workspaceId,
-      currentUserId: input.currentUserId,
-      query: input.query,
-      limit: input.limit,
-      workspaceAppReferenceSources: input.workspaceAppReferenceSources
+    return this.runProviderQuery(
+      (abortSignal) =>
+        this.queryProviderMentionItems({
+          provider,
+          workspaceId: input.workspaceId,
+          currentUserId: input.currentUserId,
+          query: input.query,
+          limit: input.limit,
+          workspaceAppReferenceSources: input.workspaceAppReferenceSources,
+          abortSignal
+        }),
+      []
+    );
+  }
+
+  private async runProviderQuery<T>(
+    query: (abortSignal: AbortSignal) => Promise<T>,
+    fallback: T
+  ): Promise<T> {
+    const abortController = new AbortController();
+    const queryPromise = Promise.resolve().then(() =>
+      query(abortController.signal)
+    );
+
+    if (
+      this.providerTimeoutMs <= 0 ||
+      !Number.isFinite(this.providerTimeoutMs)
+    ) {
+      return queryPromise;
+    }
+
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<T>((resolve) => {
+      timeout = setTimeout(() => {
+        abortController.abort();
+        resolve(fallback);
+      }, this.providerTimeoutMs);
     });
+
+    try {
+      return await Promise.race([queryPromise, timeoutPromise]);
+    } finally {
+      if (timeout !== null) {
+        clearTimeout(timeout);
+      }
+    }
   }
 
   private groupsFromRawGroups(): AgentMentionGroup[] {

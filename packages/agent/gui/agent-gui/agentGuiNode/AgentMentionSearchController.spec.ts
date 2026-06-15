@@ -57,6 +57,7 @@ interface TestRichTextAtProviderOptions {
   debounceMs?: number;
   fileLimit?: number;
   issueLimit?: number;
+  providerTimeoutMs?: number;
 }
 
 class AgentMentionSearchController extends BaseAgentMentionSearchController {
@@ -65,6 +66,7 @@ class AgentMentionSearchController extends BaseAgentMentionSearchController {
       debounceMs: options.debounceMs,
       fileLimit: options.fileLimit,
       issueLimit: options.issueLimit,
+      providerTimeoutMs: options.providerTimeoutMs,
       richTextAtProviders:
         options.richTextAtProviders ?? createTestRichTextAtProviders(options)
     });
@@ -492,6 +494,138 @@ describe("AgentMentionSearchController", () => {
         })
       ])
     });
+  });
+
+  it("times out stalled result providers and keeps partial results", async () => {
+    vi.useFakeTimers();
+    const queryIssues = vi.fn(
+      () =>
+        new Promise(() => {
+          // Simulates a host provider that neither resolves nor rejects.
+        })
+    );
+    const controller = new AgentMentionSearchController({
+      queryFiles: vi.fn().mockResolvedValue({
+        workspaceId: "room-1",
+        root: "/workspace",
+        entries: [
+          {
+            path: "/workspace/src/App.tsx",
+            name: "App.tsx",
+            kind: "file",
+            directoryPath: "/workspace/src",
+            score: 10
+          }
+        ]
+      }),
+      queryIssues,
+      querySessions: vi.fn().mockResolvedValue({ presences: [], sessions: [] }),
+      loadSessionMessages: vi
+        .fn()
+        .mockResolvedValue({ messages: [], latestVersion: 0, hasMore: false }),
+      loadSessionSummary: vi.fn(),
+      loadUserProfiles: vi.fn().mockResolvedValue({ users: [] }),
+      debounceMs: 20,
+      providerTimeoutMs: 20
+    });
+    const states: unknown[] = [];
+    controller.subscribe((state) => states.push(state));
+
+    controller.updateQuery({
+      workspaceId: "room-1",
+      currentUserId: "user-1",
+      query: "app"
+    });
+    await vi.advanceTimersByTimeAsync(40);
+
+    await vi.waitFor(() =>
+      expect(states.at(-1)).toMatchObject({
+        status: "ready",
+        query: "app",
+        mode: "results",
+        groups: expect.arrayContaining([
+          expect.objectContaining({
+            id: "files",
+            items: [
+              expect.objectContaining({
+                kind: "file",
+                path: "/workspace/src/App.tsx"
+              })
+            ]
+          })
+        ])
+      })
+    );
+    expect(queryIssues).toHaveBeenCalledTimes(1);
+  });
+
+  it("times out stalled browse providers and keeps partial results", async () => {
+    vi.useFakeTimers();
+    const queryIssues = vi.fn(
+      () =>
+        new Promise(() => {
+          // Simulates a host provider that neither resolves nor rejects.
+        })
+    );
+    const controller = new AgentMentionSearchController({
+      queryFiles: vi.fn().mockResolvedValue({
+        workspaceId: "room-1",
+        root: "/workspace",
+        entries: [
+          {
+            path: "/workspace/src/App.tsx",
+            name: "App.tsx",
+            kind: "file",
+            directoryPath: "/workspace/src",
+            score: 10
+          }
+        ]
+      }),
+      queryAgentGeneratedFiles: vi.fn().mockResolvedValue({
+        workspaceId: "room-1",
+        root: "/workspace",
+        entries: []
+      }),
+      queryIssues,
+      querySessions: vi.fn().mockResolvedValue({ presences: [], sessions: [] }),
+      loadSessionMessages: vi
+        .fn()
+        .mockResolvedValue({ messages: [], latestVersion: 0, hasMore: false }),
+      loadSessionSummary: vi.fn(),
+      loadUserProfiles: vi.fn().mockResolvedValue({ users: [] }),
+      providerTimeoutMs: 20
+    });
+    const states: unknown[] = [];
+    controller.subscribe((state) => states.push(state));
+
+    controller.updateQuery({ workspaceId: "room-1", query: "" });
+    expect(states.at(-1)).toMatchObject({
+      status: "loading",
+      mode: "browse",
+      query: ""
+    });
+
+    await vi.advanceTimersByTimeAsync(20);
+
+    await vi.waitFor(() =>
+      expect(states.at(-1)).toMatchObject({
+        status: "ready",
+        query: "",
+        mode: "browse",
+        groups: expect.arrayContaining([
+          expect.objectContaining({
+            id: "files",
+            items: [
+              expect.objectContaining({
+                kind: "file",
+                path: "/workspace/src/App.tsx"
+              })
+            ]
+          })
+        ])
+      })
+    );
+    expect(queryIssues).toHaveBeenCalledTimes(1);
   });
 
   it("uses rich text @ providers for workspace files, issues, and sessions when available", async () => {
@@ -2214,6 +2348,104 @@ describe("AgentMentionSearchController", () => {
       expect(appItem?.referenceItemsLoading).toBe(false);
       expect(appItem?.referenceNextCursor).toBeNull();
     });
+    vi.useRealTimers();
+  });
+
+  it("keeps workspace app pagination cursor when a reference page times out", async () => {
+    vi.useFakeTimers();
+    const getItemReferenceItems = vi.fn(
+      (
+        _item: TestWorkspaceAppAtItem,
+        input: { cursor?: string; keyword: string; maxResults?: number }
+      ) => {
+        if (input.cursor === "cursor-1") {
+          return new Promise<readonly AgentRichTextAtReferenceItem[]>(() => {
+            // Simulates a stalled provider page load.
+          });
+        }
+        return Promise.resolve({
+          items: [
+            {
+              key: "docs:file-1",
+              label: "Guide 1",
+              insertResult: {
+                kind: "markdown-link" as const,
+                label: "Guide 1",
+                href: "guide-1.md"
+              }
+            }
+          ],
+          nextCursor: "cursor-1"
+        });
+      }
+    );
+    const controller = new AgentMentionSearchController({
+      richTextAtProviders: [
+        {
+          id: WORKSPACE_APP_PROVIDER_ID,
+          query: vi.fn().mockResolvedValue([
+            {
+              appId: "docs",
+              name: "Docs"
+            }
+          ]),
+          getItemKey: (item) => item.appId,
+          getItemLabel: (item) => item.name,
+          getItemReferenceItems,
+          toInsertResult: (item) => ({
+            kind: "mention",
+            mention: {
+              entityId: item.appId,
+              href: `mention://${WORKSPACE_APP_PROVIDER_ID}?workspaceId=room-1&appId=${item.appId}`,
+              kind: WORKSPACE_APP_PROVIDER_ID,
+              label: item.name,
+              meta: {
+                appId: item.appId,
+                workspaceId: "room-1"
+              }
+            }
+          })
+        }
+      ] satisfies [AgentRichTextAtProvider<TestWorkspaceAppAtItem>],
+      debounceMs: 20,
+      providerTimeoutMs: 20
+    });
+    const states: unknown[] = [];
+    controller.subscribe((state) => states.push(state));
+
+    controller.updateQuery({
+      workspaceId: "room-1",
+      currentUserId: "local",
+      query: "guide"
+    });
+    await vi.advanceTimersByTimeAsync(20);
+    await vi.waitFor(() => {
+      const appItem = latestWorkspaceAppMentionItem(states);
+      expect(appItem?.referenceItems).toHaveLength(1);
+      expect(appItem?.referenceNextCursor).toBe("cursor-1");
+    });
+
+    controller.expandWorkspaceAppReferences("docs");
+    expect(latestWorkspaceAppMentionItem(states)?.referenceItemsLoading).toBe(
+      true
+    );
+
+    await vi.advanceTimersByTimeAsync(20);
+    await vi.waitFor(() => {
+      const appItem = latestWorkspaceAppMentionItem(states);
+      expect(appItem?.referenceItems).toHaveLength(1);
+      expect(appItem?.referenceItemsLoading).toBe(false);
+      expect(appItem?.referenceNextCursor).toBe("cursor-1");
+    });
+
+    controller.expandWorkspaceAppReferences("docs");
+    await vi.waitFor(() =>
+      expect(
+        getItemReferenceItems.mock.calls.filter(
+          ([, input]) => input.cursor === "cursor-1"
+        )
+      ).toHaveLength(2)
+    );
     vi.useRealTimers();
   });
 
