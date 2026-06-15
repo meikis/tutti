@@ -710,6 +710,26 @@ func validateWorkspaceIssueUpdatedPayload(payload []byte) error {
 }
 
 func validateWorkspaceAppUpdatedPayload(payload []byte) error {
+	var raw struct {
+		App map[string]json.RawMessage `json:"app"`
+	}
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return fmt.Errorf("decode payload: %w", err)
+	}
+	referencesRaw, ok := raw.App["references"]
+	if !ok {
+		return fmt.Errorf("app.references is required")
+	}
+	var references struct {
+		SearchSupported *bool `json:"searchSupported"`
+	}
+	if err := json.Unmarshal(referencesRaw, &references); err != nil {
+		return fmt.Errorf("decode app.references: %w", err)
+	}
+	if references.SearchSupported == nil {
+		return fmt.Errorf("app.references.searchSupported is required")
+	}
+
 	var decoded eventprotocol.WorkspaceAppUpdatedPayload
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		return fmt.Errorf("decode payload: %w", err)

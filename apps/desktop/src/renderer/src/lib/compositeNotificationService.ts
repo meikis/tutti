@@ -13,10 +13,17 @@ export interface BackgroundNotificationPresenter {
   show(input: NotificationMessage): Promise<void> | void;
 }
 
+export interface CompositeNotificationNavigation {
+  agentSessionId: string;
+  provider: string;
+  workspaceId: string;
+}
+
 export interface HostBackgroundNotificationsApi {
   show(input: {
     body?: string;
     level: NotificationLevel;
+    navigation?: CompositeNotificationNavigation;
     title: string;
   }): Promise<unknown> | void;
 }
@@ -34,6 +41,26 @@ export interface BackgroundNotificationPolicy {
   shouldNotifyInBackground(input: NotificationMessage): boolean;
 }
 
+export type CompositeNotificationPresentation =
+  | "background-only"
+  | "default"
+  | "foreground-only";
+
+/**
+ * Desktop-side extension of the shared NotificationMessage: callers can scope
+ * a message to a single face. "background-only" messages never toast (the
+ * in-app surface already covers them); "foreground-only" messages never reach
+ * the OS (a richer scenario-specific message owns the OS face).
+ */
+export interface CompositeNotificationMessage extends NotificationMessage {
+  /**
+   * Clicking the OS notification focuses the window and opens this agent
+   * session. Forwarded over IPC as an optional payload field.
+   */
+  navigation?: CompositeNotificationNavigation;
+  presentation?: CompositeNotificationPresentation;
+}
+
 export function createDefaultBackgroundNotificationPolicy(): BackgroundNotificationPolicy {
   return {
     shouldNotifyInBackground() {
@@ -47,10 +74,12 @@ export function createHostBackgroundNotificationPresenter(
 ): BackgroundNotificationPresenter {
   return {
     async show(input) {
+      const navigation = (input as CompositeNotificationMessage).navigation;
       await hostNotificationsApi.show({
         body: input.description,
         level: input.level,
-        title: input.title
+        title: input.title,
+        ...(navigation ? { navigation } : {})
       });
     }
   };
@@ -73,8 +102,12 @@ export function createCompositeNotificationService(input: {
   visibility: NotificationVisibilityState;
 }): NotificationService {
   const notify = (message: NotificationMessage): void => {
-    input.foreground.show(message);
+    const presentation = compositeNotificationPresentation(message);
+    if (presentation !== "background-only") {
+      input.foreground.show(message);
+    }
     if (
+      presentation !== "foreground-only" &&
       !input.visibility.isForeground() &&
       input.policy.shouldNotifyInBackground(message)
     ) {
@@ -98,6 +131,12 @@ export function createCompositeNotificationService(input: {
       notifyWithLevel(notify, "warning", message);
     }
   };
+}
+
+function compositeNotificationPresentation(
+  message: NotificationMessage
+): CompositeNotificationPresentation {
+  return (message as CompositeNotificationMessage).presentation ?? "default";
 }
 
 function showBackgroundNotification(

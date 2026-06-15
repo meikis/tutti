@@ -99,11 +99,11 @@ func (s *Service) GetComposerOptions(ctx context.Context, input ComposerOptionsI
 	permissionConfig := composerPermissionConfig(provider, effectiveSettings.PermissionModeID, locale)
 	modelOptions := composerSelectedModelOptions(effectiveSettings.Model)
 	runtimeContext := map[string]any{
-		"configOptions":      composerConfigOptions(provider, effectiveSettings, modelOptions),
-		"model":              nullableString(effectiveSettings.Model),
-		"permissionModeId":   nullableString(effectiveSettings.PermissionModeID),
-		"promptCapabilities": composerPromptCapabilities(provider),
-		"reasoningEffort":    nullableString(effectiveSettings.ReasoningEffort),
+		"capabilities":     composerProviderCapabilities(provider),
+		"configOptions":    composerConfigOptions(provider, effectiveSettings, modelOptions),
+		"model":            nullableString(effectiveSettings.Model),
+		"permissionModeId": nullableString(effectiveSettings.PermissionModeID),
+		"reasoningEffort":  nullableString(effectiveSettings.ReasoningEffort),
 	}
 	skills := discoverComposerSkillOptions(provider, input.Cwd, nil)
 	runtimeContext["skills"] = composerSkillOptionsRuntimeContext(skills)
@@ -125,12 +125,22 @@ func (s *Service) GetComposerOptions(ctx context.Context, input ComposerOptionsI
 	}, nil
 }
 
-func composerPromptCapabilities(provider string) map[string]any {
+// composerProviderCapabilities is the conservative static default used to
+// render the composer before a session exists. Once a session is live the
+// adapter-reported runtimeContext.capabilities takes precedence (GUI-side
+// resolution). Keys mirror packages/agent/daemon/runtime/capabilities.go.
+func composerProviderCapabilities(provider string) []string {
 	switch agentprovider.Normalize(provider) {
-	case agentprovider.ClaudeCode, agentprovider.Codex:
-		return map[string]any{"image": true}
+	case agentprovider.ClaudeCode:
+		return []string{"imageInput", "skills", "compact", "tokenUsage", "rateLimits", "planMode", "interrupt"}
+	case agentprovider.Codex:
+		// planMode pre-session optimism: the adapter re-negotiates at session
+		// start (collaborationMode/list) and drops it for older binaries.
+		return []string{"imageInput", "skills", "compact", "tokenUsage", "rateLimits", "planMode", "interrupt"}
+	case agentprovider.Gemini, agentprovider.Hermes, agentprovider.Nexight, agentprovider.OpenClaw:
+		return []string{"interrupt"}
 	default:
-		return map[string]any{"image": false}
+		return nil
 	}
 }
 
@@ -247,7 +257,35 @@ func normalizeComposerSettingsForProvider(provider string, settings ComposerSett
 	settings.Model = strings.TrimSpace(settings.Model)
 	settings.PermissionModeID = normalizePermissionModeIDForProvider(provider, settings.PermissionModeID)
 	settings.ReasoningEffort = normalizeReasoningEffortForProvider(provider, settings.ReasoningEffort)
+	settings.Model = clampComposerModelForProvider(provider, settings.Model)
+	settings.PlanMode = clampComposerPlanModeForProvider(provider, settings.PlanMode)
 	return settings
+}
+
+// clampComposerModelForProvider clears model overrides for providers without
+// composer settings support so stale persisted values never reach the runtime.
+func clampComposerModelForProvider(provider string, model string) string {
+	if !agentprovider.SupportsComposerSettings(agentprovider.Normalize(provider)) {
+		return ""
+	}
+	return strings.TrimSpace(model)
+}
+
+// clampComposerPlanModeForProvider forces plan mode off for providers whose
+// static capabilities never negotiate it.
+func clampComposerPlanModeForProvider(provider string, planMode bool) bool {
+	return planMode && composerProviderSupportsPlanMode(agentprovider.Normalize(provider))
+}
+
+// composerProviderSupportsPlanMode mirrors the static capability defaults so
+// the daemon clamps plan mode for providers that never negotiate it.
+func composerProviderSupportsPlanMode(provider string) bool {
+	for _, capability := range composerProviderCapabilities(provider) {
+		if capability == "planMode" {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeComposerSettingsPointerForProvider(provider string, settings *ComposerSettings) *ComposerSettings {
@@ -482,6 +520,10 @@ func reasoningEffortValuesForProvider(provider string) []string {
 }
 
 func normalizeReasoningEffortForProvider(provider string, value string) string {
+	provider = agentprovider.Normalize(provider)
+	if !agentprovider.SupportsComposerSettings(provider) {
+		return ""
+	}
 	normalized := strings.TrimSpace(value)
 	if (provider == agentprovider.Codex || provider == agentprovider.ClaudeCode) && normalized == "minimal" {
 		return "high"

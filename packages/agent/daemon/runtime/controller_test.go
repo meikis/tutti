@@ -184,8 +184,8 @@ func TestControllerStartExecCancelPublishesAndReports(t *testing.T) {
 	if started.Session.AgentSessionID == "" {
 		t.Fatal("Start returned an empty agent session id")
 	}
-	if started.Session.ProviderSessionID != "codex-acp-session-1" {
-		t.Fatalf("provider session id = %q, want ACP session id", started.Session.ProviderSessionID)
+	if started.Session.ProviderSessionID != "codex-thread-1" {
+		t.Fatalf("provider session id = %q, want app-server thread id", started.Session.ProviderSessionID)
 	}
 
 	events, unsubscribe, ok := controller.Subscribe("room-1", started.Session.AgentSessionID)
@@ -436,6 +436,35 @@ func TestControllerExecTurnContextHasNoDeadline(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for exec context")
+	}
+	adapter.releaseNext()
+	waitForSessionStatus(t, controller, "room-1", started.Session.AgentSessionID, SessionStatusReady)
+}
+
+func TestControllerExecPassesOnlyExplicitDisplayPrompt(t *testing.T) {
+	t.Parallel()
+
+	adapter := newBlockingExecAdapter()
+	controller := NewController([]Adapter{adapter}, nil)
+	started, err := controller.Start(context.Background(), StartInput{
+		RoomID:   "room-1",
+		Provider: ProviderCodex,
+		CWD:      "/workspace",
+		Title:    "Codex",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if _, err := controller.Exec(context.Background(), ExecInput{
+		RoomID:         started.Session.RoomID,
+		AgentSessionID: started.Session.AgentSessionID,
+		Content:        textPrompt("ordinary prompt"),
+	}); err != nil {
+		t.Fatalf("Exec: %v", err)
+	}
+	adapter.waitForPrompt(t, "ordinary prompt")
+	if displays := adapter.displayPrompts(); len(displays) != 1 || displays[0] != "" {
+		t.Fatalf("display prompts = %#v, want one empty explicit prompt", displays)
 	}
 	adapter.releaseNext()
 	waitForSessionStatus(t, controller, "room-1", started.Session.AgentSessionID, SessionStatusReady)
@@ -1459,6 +1488,7 @@ func (workingOnlyAdapter) Cancel(context.Context, Session, string) ([]activitysh
 type blockingExecAdapter struct {
 	mu       sync.Mutex
 	seen     []string
+	displays []string
 	contexts chan context.Context
 	started  chan string
 	releases chan struct{}
@@ -1482,10 +1512,11 @@ func (*blockingExecAdapter) Resume(context.Context, Session) error { return nil 
 
 func (*blockingExecAdapter) Close(context.Context, Session) error { return nil }
 
-func (a *blockingExecAdapter) Exec(ctx context.Context, session Session, content []PromptContentBlock, _ string, turnID string, emit EventSink, _ CommandSnapshotSink) ([]activityshared.Event, error) {
+func (a *blockingExecAdapter) Exec(ctx context.Context, session Session, content []PromptContentBlock, displayPrompt string, turnID string, emit EventSink, _ CommandSnapshotSink) ([]activityshared.Event, error) {
 	prompt := promptDisplayText(content)
 	a.mu.Lock()
 	a.seen = append(a.seen, prompt)
+	a.displays = append(a.displays, displayPrompt)
 	a.mu.Unlock()
 	a.contexts <- ctx
 	emit([]activityshared.Event{
@@ -1534,6 +1565,12 @@ func (a *blockingExecAdapter) prompts() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]string(nil), a.seen...)
+}
+
+func (a *blockingExecAdapter) displayPrompts() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.displays...)
 }
 
 type deferredRemoteCancelAdapter struct {
@@ -2680,6 +2717,63 @@ func hasSessionPhasePatch(reports []agentsessionstore.ReportActivityInput, phase
 		}
 	}
 	return false
+}
+
+func TestEnrichReportStatePatchesFillsSnapshotTitleAndIdentity(t *testing.T) {
+	t.Parallel()
+
+	report := &agentsessionstore.ReportActivityInput{
+		StatePatches: []agentsessionstore.WorkspaceAgentStatePatch{{
+			AgentSessionID: "agent-session-1",
+			CurrentPhase:   "failed",
+		}},
+	}
+	enrichReportStatePatches(report, agentsessionstore.WorkspaceAgentStatePatch{
+		AgentSessionID:    "agent-session-1",
+		Provider:          "codex",
+		ProviderSessionID: "provider-session-1",
+		Model:             "gpt-5",
+		PermissionModeID:  "bypassPermissions",
+		CWD:               "/workspace",
+		Title:             "Automation Review",
+		Settings:          map[string]any{"model": "gpt-5"},
+		RuntimeContext: map[string]any{
+			"title": "Automation Review",
+			"cwd":   "/workspace",
+		},
+	})
+
+	patch := report.StatePatches[0]
+	if patch.Provider != "codex" ||
+		patch.ProviderSessionID != "provider-session-1" ||
+		patch.Model != "gpt-5" ||
+		patch.PermissionModeID != "bypassPermissions" ||
+		patch.CWD != "/workspace" ||
+		patch.Title != "Automation Review" {
+		t.Fatalf("enriched patch = %#v, want snapshot identity and title", patch)
+	}
+	if patch.RuntimeContext["title"] != "Automation Review" {
+		t.Fatalf("runtime context = %#v, want title fallback", patch.RuntimeContext)
+	}
+}
+
+func TestEnrichReportStatePatchesKeepsIncomingTitle(t *testing.T) {
+	t.Parallel()
+
+	report := &agentsessionstore.ReportActivityInput{
+		StatePatches: []agentsessionstore.WorkspaceAgentStatePatch{{
+			AgentSessionID: "agent-session-1",
+			Title:          "Provider title",
+		}},
+	}
+	enrichReportStatePatches(report, agentsessionstore.WorkspaceAgentStatePatch{
+		AgentSessionID: "agent-session-1",
+		Title:          "Automation Review",
+	})
+
+	if got := report.StatePatches[0].Title; got != "Provider title" {
+		t.Fatalf("title = %q, want incoming provider title", got)
+	}
 }
 
 func TestDeriveSessionStatusFromEvents(t *testing.T) {

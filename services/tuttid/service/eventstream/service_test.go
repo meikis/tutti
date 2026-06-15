@@ -158,6 +158,84 @@ func TestAgentActivityUpdatedValidationRejectsSchemaDrift(t *testing.T) {
 	}
 }
 
+func TestWorkspaceAppUpdatedValidationRequiresReferences(t *testing.T) {
+	t.Parallel()
+
+	catalog := DefaultCatalog()
+	for _, tt := range []struct {
+		name string
+		app  map[string]any
+	}{
+		{
+			name: "missing references",
+			app:  workspaceAppUpdatedAppPayloadForTest(false),
+		},
+		{
+			name: "missing searchSupported",
+			app: func() map[string]any {
+				app := workspaceAppUpdatedAppPayloadForTest(false)
+				app["references"] = map[string]any{}
+				return app
+			}(),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload, err := json.Marshal(map[string]any{"app": tt.app})
+			if err != nil {
+				t.Fatalf("marshal payload: %v", err)
+			}
+			err = catalog.ValidatePublish(
+				TopicWorkspaceAppUpdated,
+				DirectionServerToClient,
+				payload,
+			)
+			if err == nil {
+				t.Fatal("ValidatePublish() error = nil, want invalid payload")
+			}
+			validationErr, ok := err.(*ValidationError)
+			if !ok {
+				t.Fatalf("ValidatePublish() error type = %T, want *ValidationError", err)
+			}
+			if validationErr.Code != ValidationCodeInvalidPayload {
+				t.Fatalf("ValidatePublish() code = %q, want %q", validationErr.Code, ValidationCodeInvalidPayload)
+			}
+		})
+	}
+}
+
+func workspaceAppUpdatedAppPayloadForTest(includeReferences bool) map[string]any {
+	app := map[string]any{
+		"appId":            "docs",
+		"displayName":      "Docs",
+		"version":          "1.0.0",
+		"description":      "Docs app",
+		"iconUrl":          nil,
+		"installed":        true,
+		"enabled":          true,
+		"status":           "idle",
+		"stateRevision":    1,
+		"launchUrl":        nil,
+		"port":             nil,
+		"failureReason":    nil,
+		"lastError":        nil,
+		"startedAtUnixMs":  nil,
+		"updatedAtUnixMs":  nil,
+		"source":           "generated",
+		"exportable":       true,
+		"tags":             []string{},
+		"localizations":    []any{},
+		"minimizeBehavior": "keep-mounted",
+		"windowMinWidth":   nil,
+		"windowMinHeight":  nil,
+	}
+	if includeReferences {
+		app["references"] = map[string]any{"searchSupported": true}
+	}
+	return app
+}
+
 func TestPreferencesIntentHandlerUsesAuthoritativeMutationPath(t *testing.T) {
 	t.Parallel()
 

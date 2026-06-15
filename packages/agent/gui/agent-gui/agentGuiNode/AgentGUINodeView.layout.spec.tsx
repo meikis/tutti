@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createDefaultWorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceAgentSessionDetailViewModel } from "../../shared/workspaceAgentSessionDetailViewModel";
@@ -47,7 +47,9 @@ vi.mock("./AgentComposer", () => ({
       showStopButton: props.showStopButton
     });
     return <div data-testid="agent-composer" />;
-  }
+  },
+  formatSlashStatusTokenCount: (value: number | null | undefined) =>
+    typeof value === "number" ? value.toLocaleString("en-US") : ""
 }));
 
 vi.mock(
@@ -719,15 +721,334 @@ describe("AgentGUINodeView layout persistence", () => {
   });
 });
 
-function renderAgentGUINodeView({
-  conversationRailCollapsed = false,
-  conversationRailWidthPx = 240,
-  onConversationRailWidthChanged = vi.fn(),
-  viewModel = createViewModel(),
-  actions = createActions(),
-  labels = createLabels(),
-  showProjectSelector = true
-}: {
+describe("AgentGUINodeView usage chip", () => {
+  afterEach(() => {
+    conversationFlowMock.calls = [];
+    composerMock.calls = [];
+    statusDotMock.calls = [];
+  });
+
+  function renderWithUsage(usage: AgentGUINodeViewModel["usage"]) {
+    const activeConversation = createConversationSummary("session-1");
+    return renderAgentGUINodeView({
+      viewModel: {
+        ...createViewModel(),
+        conversations: [activeConversation],
+        activeConversation,
+        activeConversationId: activeConversation.id,
+        conversationDetail: createConversationDetail(),
+        usage
+      }
+    });
+  }
+
+  it("renders the usage chip with the context percent", () => {
+    renderWithUsage({
+      usedTokens: 50_000,
+      totalTokens: 200_000,
+      percentUsed: 25,
+      quotas: []
+    });
+
+    const chip = screen.getByTestId("agent-gui-usage-chip");
+    expect(chip).toHaveTextContent("usageChip:25");
+    expect(chip).toHaveAttribute("data-usage-level", "normal");
+  });
+
+  it("marks the chip with the warning level at 80 percent and above", () => {
+    renderWithUsage({
+      usedTokens: 170_000,
+      totalTokens: 200_000,
+      percentUsed: 85,
+      quotas: []
+    });
+
+    expect(screen.getByTestId("agent-gui-usage-chip")).toHaveAttribute(
+      "data-usage-level",
+      "warning"
+    );
+  });
+
+  it("marks the chip with the critical level at 95 percent and above", () => {
+    renderWithUsage({
+      usedTokens: 194_000,
+      totalTokens: 200_000,
+      percentUsed: 97,
+      quotas: []
+    });
+
+    expect(screen.getByTestId("agent-gui-usage-chip")).toHaveAttribute(
+      "data-usage-level",
+      "critical"
+    );
+  });
+
+  it("hides the chip when usage is null", () => {
+    renderWithUsage(null);
+
+    expect(screen.queryByTestId("agent-gui-usage-chip")).toBeNull();
+  });
+
+  it("hides the chip when percentUsed is null even with quotas", () => {
+    renderWithUsage({
+      usedTokens: null,
+      totalTokens: null,
+      percentUsed: null,
+      quotas: [{ quotaType: "weekly", percentRemaining: 90 }]
+    });
+
+    expect(screen.queryByTestId("agent-gui-usage-chip")).toBeNull();
+  });
+});
+
+describe("AgentGUINodeView compact action", () => {
+  afterEach(() => {
+    conversationFlowMock.calls = [];
+    composerMock.calls = [];
+    statusDotMock.calls = [];
+  });
+
+  const usageWithWindow: AgentGUINodeViewModel["usage"] = {
+    usedTokens: 170_000,
+    totalTokens: 200_000,
+    percentUsed: 85,
+    quotas: []
+  };
+
+  function compactViewModel({
+    usage = usageWithWindow,
+    compactSupported = null,
+    status = "ready"
+  }: {
+    usage?: AgentGUINodeViewModel["usage"];
+    compactSupported?: boolean | null;
+    status?: AgentGUINodeViewModel["conversations"][number]["status"];
+  } = {}): AgentGUINodeViewModel {
+    const activeConversation = {
+      ...createConversationSummary("session-1"),
+      status
+    };
+    const conversationDetail = createConversationDetail();
+    return {
+      ...createViewModel(),
+      conversations: [activeConversation],
+      activeConversation,
+      activeConversationId: activeConversation.id,
+      conversationDetail: {
+        ...conversationDetail,
+        session: {
+          ...conversationDetail.session,
+          effectiveStatus: status,
+          turnPhase: status === "working" ? "working" : "idle"
+        }
+      },
+      usage,
+      compactSupported
+    };
+  }
+
+  it("renders the compact button beside the usage chip when capability is unknown", () => {
+    renderAgentGUINodeView({ viewModel: compactViewModel() });
+
+    expect(screen.getByTestId("agent-gui-usage-chip")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeEnabled();
+  });
+
+  it("renders the compact button when the capability resolves true", () => {
+    renderAgentGUINodeView({
+      viewModel: compactViewModel({ compactSupported: true })
+    });
+
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeInTheDocument();
+  });
+
+  it("does not render the compact button when the capability resolves false", () => {
+    renderAgentGUINodeView({
+      viewModel: compactViewModel({ compactSupported: false })
+    });
+
+    expect(screen.queryByTestId("agent-gui-compact-button")).toBeNull();
+  });
+
+  it("does not render the compact button when usage is null", () => {
+    renderAgentGUINodeView({ viewModel: compactViewModel({ usage: null }) });
+
+    expect(screen.queryByTestId("agent-gui-compact-button")).toBeNull();
+  });
+
+  it("submits compact on click and stays disabled until the session returns to ready", () => {
+    const actions = createActions();
+    const view = renderAgentGUINodeView({
+      viewModel: compactViewModel(),
+      actions
+    });
+
+    fireEvent.click(screen.getByTestId("agent-gui-compact-button"));
+
+    expect(actions.submitCompact).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeDisabled();
+
+    view.rerender(
+      buildAgentGUINodeViewElement({
+        viewModel: compactViewModel({ status: "working" }),
+        actions
+      })
+    );
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeDisabled();
+
+    view.rerender(
+      buildAgentGUINodeViewElement({
+        viewModel: compactViewModel({ status: "ready" }),
+        actions
+      })
+    );
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeEnabled();
+  });
+
+  it("enables compact retry when a pending compact submission fails the session", () => {
+    const actions = createActions();
+    const view = renderAgentGUINodeView({
+      viewModel: compactViewModel(),
+      actions
+    });
+
+    fireEvent.click(screen.getByTestId("agent-gui-compact-button"));
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeDisabled();
+
+    view.rerender(
+      buildAgentGUINodeViewElement({
+        viewModel: compactViewModel({ status: "failed" }),
+        actions
+      })
+    );
+
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeEnabled();
+  });
+
+  it("enables compact retry when compact submission is rejected", async () => {
+    const rejectedSubmission = Promise.reject(new Error("submit rejected"));
+    void rejectedSubmission.catch(() => undefined);
+    const actions = {
+      ...createActions(),
+      submitCompact: vi.fn(() => rejectedSubmission)
+    };
+    renderAgentGUINodeView({
+      viewModel: compactViewModel(),
+      actions
+    });
+
+    fireEvent.click(screen.getByTestId("agent-gui-compact-button"));
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeDisabled();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-gui-compact-button")).toBeEnabled();
+    });
+  });
+
+  it("disables the compact button while the session is working", () => {
+    renderAgentGUINodeView({
+      viewModel: compactViewModel({ status: "working" })
+    });
+
+    expect(screen.getByTestId("agent-gui-compact-button")).toBeDisabled();
+  });
+});
+
+describe("AgentGUINodeView usage alert banner", () => {
+  afterEach(() => {
+    conversationFlowMock.calls = [];
+    composerMock.calls = [];
+    statusDotMock.calls = [];
+  });
+
+  function alertViewModel({
+    usageAlert,
+    percentUsed = 85,
+    compactSupported = null
+  }: {
+    usageAlert: AgentGUINodeViewModel["usageAlert"];
+    percentUsed?: number;
+    compactSupported?: boolean | null;
+  }): AgentGUINodeViewModel {
+    const activeConversation = createConversationSummary("session-1");
+    return {
+      ...createViewModel(),
+      conversations: [activeConversation],
+      activeConversation,
+      activeConversationId: activeConversation.id,
+      conversationDetail: createConversationDetail(),
+      usage: {
+        usedTokens: Math.round((percentUsed / 100) * 200_000),
+        totalTokens: 200_000,
+        percentUsed,
+        quotas: []
+      },
+      usageAlert,
+      compactSupported
+    };
+  }
+
+  it("does not render the banner when there is no usage alert", () => {
+    renderAgentGUINodeView({ viewModel: alertViewModel({ usageAlert: null }) });
+
+    expect(screen.queryByTestId("agent-gui-usage-alert")).toBeNull();
+  });
+
+  it("renders the warn banner without a compact action", () => {
+    renderAgentGUINodeView({
+      viewModel: alertViewModel({ usageAlert: "warn", percentUsed: 85 })
+    });
+
+    const banner = screen.getByTestId("agent-gui-usage-alert");
+    expect(banner).toHaveAttribute("data-usage-alert-tier", "warn");
+    expect(banner).toHaveTextContent("usageAlertWarn:85");
+    expect(screen.queryByTestId("agent-gui-usage-alert-compact")).toBeNull();
+  });
+
+  it("renders the critical banner with a compact action that submits and dismisses", () => {
+    const actions = createActions();
+    renderAgentGUINodeView({
+      viewModel: alertViewModel({ usageAlert: "critical", percentUsed: 97 }),
+      actions
+    });
+
+    const banner = screen.getByTestId("agent-gui-usage-alert");
+    expect(banner).toHaveAttribute("data-usage-alert-tier", "critical");
+    expect(banner).toHaveTextContent("usageAlertCritical:97");
+
+    fireEvent.click(screen.getByTestId("agent-gui-usage-alert-compact"));
+
+    expect(actions.submitCompact).toHaveBeenCalledTimes(1);
+    expect(actions.dismissUsageAlert).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the compact action on the critical banner when compact is unsupported", () => {
+    renderAgentGUINodeView({
+      viewModel: alertViewModel({
+        usageAlert: "critical",
+        compactSupported: false
+      })
+    });
+
+    expect(screen.getByTestId("agent-gui-usage-alert")).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-gui-usage-alert-compact")).toBeNull();
+  });
+
+  it("dismisses the banner through the dismiss button", () => {
+    const actions = createActions();
+    renderAgentGUINodeView({
+      viewModel: alertViewModel({ usageAlert: "warn" }),
+      actions
+    });
+
+    fireEvent.click(screen.getByTestId("agent-gui-usage-alert-dismiss"));
+
+    expect(actions.dismissUsageAlert).toHaveBeenCalledTimes(1);
+    expect(actions.submitCompact).not.toHaveBeenCalled();
+  });
+});
+
+interface RenderAgentGUINodeViewOptions {
   conversationRailCollapsed?: boolean;
   conversationRailWidthPx?: number;
   onConversationRailWidthChanged?: (widthPx: number) => void;
@@ -735,8 +1056,18 @@ function renderAgentGUINodeView({
   actions?: AgentGUINodeViewProps["actions"];
   labels?: AgentGUIViewLabels;
   showProjectSelector?: boolean;
-} = {}) {
-  return render(
+}
+
+function buildAgentGUINodeViewElement({
+  conversationRailCollapsed = false,
+  conversationRailWidthPx = 240,
+  onConversationRailWidthChanged = vi.fn(),
+  viewModel = createViewModel(),
+  actions = createActions(),
+  labels = createLabels(),
+  showProjectSelector = true
+}: RenderAgentGUINodeViewOptions = {}) {
+  return (
     <AgentGUINodeView
       viewModel={viewModel}
       isAgentProviderReady={true}
@@ -755,6 +1086,10 @@ function renderAgentGUINodeView({
   );
 }
 
+function renderAgentGUINodeView(options: RenderAgentGUINodeViewOptions = {}) {
+  return render(buildAgentGUINodeViewElement(options));
+}
+
 type AgentGUINodeViewProps = Parameters<typeof AgentGUINodeView>[0];
 
 function createActions(): AgentGUINodeViewProps["actions"] {
@@ -762,6 +1097,8 @@ function createActions(): AgentGUINodeViewProps["actions"] {
     createConversation: vi.fn(),
     selectConversation: vi.fn(),
     submitPrompt: vi.fn(),
+    submitCompact: vi.fn(),
+    dismissUsageAlert: vi.fn(),
     showPromptImagesUnsupported: vi.fn(),
     submitApprovalOption: vi.fn(),
     submitInteractivePrompt: vi.fn(),
@@ -805,6 +1142,9 @@ function createViewModel(): AgentGUINodeViewModel {
     isInterrupting: false,
     isRespondingApproval: false,
     promptImagesSupported: true,
+    compactSupported: null,
+    usage: null,
+    usageAlert: null,
     listError: null,
     isDeletingConversation: false,
     isDeletingProjectConversations: false,
@@ -1030,6 +1370,8 @@ function createLabels(): AgentGUIViewLabels {
     relativeTimeYears: (count: number) => `${count}y`,
     slashCommandPalette: "slashCommandPalette",
     skillPickerPalette: "skillPickerPalette",
+    slashPaletteCommandsGroup: "slashPaletteCommandsGroup",
+    slashPaletteSkillsGroup: "slashPaletteSkillsGroup",
     slashStatusTitle: "slashStatusTitle",
     slashStatusSession: "slashStatusSession",
     slashStatusBaseUrl: "slashStatusBaseUrl",
@@ -1040,6 +1382,21 @@ function createLabels(): AgentGUIViewLabels {
       `${percentLeft}:${usedTokens}:${totalTokens}`,
     slashStatusContextUnavailable: "slashStatusContextUnavailable",
     slashStatusLimitsUnavailable: "slashStatusLimitsUnavailable",
+    usageChipLabel: ({ percent }) => `usageChip:${percent}`,
+    usagePopoverTitle: "usagePopoverTitle",
+    usageTokensLabel: "usageTokensLabel",
+    usageLimitsLabel: "usageLimitsLabel",
+    usageCompactAction: "usageCompactAction",
+    usageCompactTooltip: "usageCompactTooltip",
+    usageAlertWarnMessage: ({ percent }) => `usageAlertWarn:${percent}`,
+    usageAlertCriticalMessage: ({ percent }) => `usageAlertCritical:${percent}`,
+    usageAlertDismiss: "usageAlertDismiss",
+    planImplementationLead: "planImplementationLead",
+    planImplementationConfirm: "planImplementationConfirm",
+    planImplementationFeedbackPlaceholder:
+      "planImplementationFeedbackPlaceholder",
+    planImplementationSend: "planImplementationSend",
+    planImplementationSkip: "planImplementationSkip",
     fileMentionPalette: "fileMentionPalette",
     fileMentionLoading: "fileMentionLoading",
     fileMentionEmpty: "fileMentionEmpty",

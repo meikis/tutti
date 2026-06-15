@@ -15,6 +15,11 @@ type ExecFileAsync = (
   options?: { maxBuffer?: number }
 ) => Promise<{ stderr: string; stdout: string }>;
 
+export interface DefaultApplicationForFile {
+  applicationPath: string;
+  name: string;
+}
+
 const openWithApplicationsByCacheKey = new Map<
   string,
   DesktopOpenWithApplication[]
@@ -23,6 +28,10 @@ const applicationIconDataUrlByPath = new Map<string, string | null>();
 const defaultApplicationIconDataUrlByCacheKey = new Map<
   string,
   string | null
+>();
+const defaultApplicationByCacheKey = new Map<
+  string,
+  DefaultApplicationForFile | null
 >();
 let cachedListOpenWithApplicationsSwiftScriptPath: string | null = null;
 let cachedOpenFileWithDefaultBrowserSwiftScriptPath: string | null = null;
@@ -39,16 +48,50 @@ const listOpenWithApplicationsSwiftSource = `
 import AppKit
 import Foundation
 
-func encodeApplicationIconBase64(for bundlePath: String) -> String {
-    let workspace = NSWorkspace.shared
-    let icon = workspace.icon(forFile: bundlePath)
-    icon.size = NSSize(width: 32, height: 32)
-    guard let tiff = icon.tiffRepresentation,
-          let bitmap = NSBitmapImageRep(data: tiff),
-          let png = bitmap.representation(using: .png, properties: [:]) else {
+func encodeIconBase64(_ icon: NSImage, pixelSize: Int) -> String {
+    let size = NSSize(width: pixelSize, height: pixelSize)
+    guard let bitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: pixelSize,
+        pixelsHigh: pixelSize,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    ) else {
+        return ""
+    }
+    bitmap.size = size
+
+    NSGraphicsContext.saveGraphicsState()
+    guard let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+        NSGraphicsContext.restoreGraphicsState()
+        return ""
+    }
+    NSGraphicsContext.current = context
+    NSColor.clear.setFill()
+    NSRect(origin: .zero, size: size).fill()
+    icon.draw(
+        in: NSRect(origin: .zero, size: size),
+        from: .zero,
+        operation: .sourceOver,
+        fraction: 1.0
+    )
+    NSGraphicsContext.restoreGraphicsState()
+
+    guard let png = bitmap.representation(using: .png, properties: [:]) else {
         return ""
     }
     return png.base64EncodedString()
+}
+
+func encodeApplicationIconBase64(for bundlePath: String) -> String {
+    let workspace = NSWorkspace.shared
+    let icon = workspace.icon(forFile: bundlePath)
+    return encodeIconBase64(icon, pixelSize: 64)
 }
 
 let targetPath = CommandLine.arguments[1]
@@ -68,16 +111,54 @@ const readApplicationIconSwiftSource = `
 import AppKit
 import Foundation
 
+func encodeIconBase64(_ icon: NSImage, pixelSize: Int) -> String {
+    let size = NSSize(width: pixelSize, height: pixelSize)
+    guard let bitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: pixelSize,
+        pixelsHigh: pixelSize,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    ) else {
+        return ""
+    }
+    bitmap.size = size
+
+    NSGraphicsContext.saveGraphicsState()
+    guard let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+        NSGraphicsContext.restoreGraphicsState()
+        return ""
+    }
+    NSGraphicsContext.current = context
+    NSColor.clear.setFill()
+    NSRect(origin: .zero, size: size).fill()
+    icon.draw(
+        in: NSRect(origin: .zero, size: size),
+        from: .zero,
+        operation: .sourceOver,
+        fraction: 1.0
+    )
+    NSGraphicsContext.restoreGraphicsState()
+
+    guard let png = bitmap.representation(using: .png, properties: [:]) else {
+        return ""
+    }
+    return png.base64EncodedString()
+}
+
 let bundlePath = CommandLine.arguments[1]
 let workspace = NSWorkspace.shared
 let icon = workspace.icon(forFile: bundlePath)
-icon.size = NSSize(width: 32, height: 32)
-guard let tiff = icon.tiffRepresentation,
-      let bitmap = NSBitmapImageRep(data: tiff),
-      let png = bitmap.representation(using: .png, properties: [:]) else {
+let iconBase64 = encodeIconBase64(icon, pixelSize: 64)
+if iconBase64.isEmpty {
     exit(1)
 }
-print(png.base64EncodedString())
+print(iconBase64)
 `;
 
 const resolveDefaultApplicationSwiftSource = `
@@ -222,6 +303,7 @@ export async function openFileWithDefaultBrowser(
 export function resetOpenWithApplicationsCacheForTests(): void {
   openWithApplicationsByCacheKey.clear();
   applicationIconDataUrlByPath.clear();
+  defaultApplicationByCacheKey.clear();
   defaultApplicationIconDataUrlByCacheKey.clear();
   cachedListOpenWithApplicationsSwiftScriptPath = null;
   cachedOpenFileWithDefaultBrowserSwiftScriptPath = null;
@@ -447,14 +529,35 @@ export async function readApplicationIconDataUrl(
 export async function readDefaultApplicationIconDataUrl(
   targetPath: string
 ): Promise<string | null> {
+  const normalizedTargetPath = path.resolve(targetPath);
+  const cacheKey = resolveOpenWithApplicationsCacheKey(normalizedTargetPath);
+  if (defaultApplicationIconDataUrlByCacheKey.has(cacheKey)) {
+    return defaultApplicationIconDataUrlByCacheKey.get(cacheKey) ?? null;
+  }
+
+  const application =
+    await resolveDefaultApplicationForFile(normalizedTargetPath);
+  const iconDataUrl = application
+    ? await readApplicationIconDataUrl(
+        application.applicationPath,
+        application.name
+      )
+    : null;
+  defaultApplicationIconDataUrlByCacheKey.set(cacheKey, iconDataUrl);
+  return iconDataUrl;
+}
+
+export async function resolveDefaultApplicationForFile(
+  targetPath: string
+): Promise<DefaultApplicationForFile | null> {
   if (process.platform !== "darwin") {
     return null;
   }
 
   const normalizedTargetPath = path.resolve(targetPath);
   const cacheKey = resolveOpenWithApplicationsCacheKey(normalizedTargetPath);
-  if (defaultApplicationIconDataUrlByCacheKey.has(cacheKey)) {
-    return defaultApplicationIconDataUrlByCacheKey.get(cacheKey) ?? null;
+  if (defaultApplicationByCacheKey.has(cacheKey)) {
+    return defaultApplicationByCacheKey.get(cacheKey) ?? null;
   }
 
   try {
@@ -467,16 +570,10 @@ export async function readDefaultApplicationIconDataUrl(
       }
     );
     const application = parseDefaultApplicationLine(stdout);
-    const iconDataUrl = application
-      ? await readApplicationIconDataUrl(
-          application.applicationPath,
-          application.name
-        )
-      : null;
-    defaultApplicationIconDataUrlByCacheKey.set(cacheKey, iconDataUrl);
-    return iconDataUrl;
+    defaultApplicationByCacheKey.set(cacheKey, application);
+    return application;
   } catch {
-    defaultApplicationIconDataUrlByCacheKey.set(cacheKey, null);
+    defaultApplicationByCacheKey.set(cacheKey, null);
     return null;
   }
 }

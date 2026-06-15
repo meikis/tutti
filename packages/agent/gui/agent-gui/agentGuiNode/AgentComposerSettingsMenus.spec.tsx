@@ -219,6 +219,21 @@ describe("AgentProjectDropdown", () => {
     const trigger = screen.getByRole("combobox", { name: "Project" });
     expect(trigger).toHaveTextContent("Private Project");
     expect(trigger).not.toHaveTextContent(privateProjectPath);
+    const triggerLabelFrame = trigger.querySelector<HTMLElement>(
+      '[data-workspace-user-project-trigger-label="true"]'
+    );
+    expect(triggerLabelFrame).not.toBeNull();
+    expect(getComputedStyle(triggerLabelFrame!).flexBasis).toBe("auto");
+    const triggerLabel = trigger.querySelector<HTMLElement>(
+      '[data-workspace-user-project-overflow-label="true"]'
+    );
+    expect(triggerLabel).not.toBeNull();
+    expect(getComputedStyle(triggerLabel!).flexBasis).toBe("auto");
+    expect(
+      Array.from(document.querySelectorAll("style")).some((style) =>
+        style.textContent?.includes("container-type: inline-size")
+      )
+    ).toBe(false);
 
     ensurePointerCaptureApi();
     fireEvent.pointerDown(trigger, {
@@ -518,6 +533,58 @@ describe("AgentProjectDropdown", () => {
       })
     );
     expect(onProjectPathChange).toHaveBeenCalledWith("/workspace/existing", {
+      action: "select_existing"
+    });
+  });
+
+  it("selects a known project without re-registering it", async () => {
+    const onProjectPathChange = vi.fn();
+    const rememberDefaultSelection = vi.fn();
+    const useProject = vi.fn();
+    mockAgentHostApi.userProjects = {
+      list: vi.fn().mockResolvedValue({
+        projects: [
+          {
+            id: "home",
+            path: "/Users/ccr",
+            label: "ccr"
+          }
+        ]
+      }),
+      rememberDefaultSelection,
+      use: useProject
+    };
+
+    render(
+      <AgentProjectDropdown
+        composerSettings={{
+          selectedProjectPath: null,
+          projectLocked: false
+        }}
+        labels={projectLabels}
+        i18n={workspaceUserProjectI18n}
+        onProjectPathChange={onProjectPathChange}
+      />
+    );
+
+    await waitFor(() =>
+      expect(mockAgentHostApi.userProjects?.list).toHaveBeenCalled()
+    );
+
+    ensurePointerCaptureApi();
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: "Project" }), {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse"
+    });
+    fireEvent.click(await screen.findByRole("option", { name: "ccr" }));
+
+    expect(useProject).not.toHaveBeenCalled();
+    expect(rememberDefaultSelection).toHaveBeenCalledWith({
+      path: "/Users/ccr"
+    });
+    expect(onProjectPathChange).toHaveBeenCalledWith("/Users/ccr", {
       action: "select_existing"
     });
   });
@@ -1128,6 +1195,105 @@ describe("AgentPermissionModeDropdown", () => {
       "Can make changes and run commands directly."
     );
   });
+
+  function renderPlanCapableDropdown(input: {
+    planMode: boolean;
+    onSettingsChange?: (patch: {
+      permissionModeId?: string | null;
+      planMode?: boolean;
+    }) => void;
+  }) {
+    return render(
+      <TooltipProvider>
+        <AgentPermissionModeDropdown
+          composerSettings={{
+            sessionSettings: null,
+            draftSettings: {
+              model: null,
+              reasoningEffort: null,
+              planMode: input.planMode,
+              permissionModeId: "default"
+            },
+            effectivePlanMode: input.planMode,
+            supportsModel: false,
+            supportsReasoningEffort: false,
+            supportsPermissionMode: true,
+            supportsPlanMode: true,
+            isSettingsLoading: false,
+            modelUnavailable: false,
+            reasoningUnavailable: false,
+            permissionModeUnavailable: false,
+            planUnavailable: false,
+            availableModels: [],
+            availableReasoningEfforts: [],
+            availablePermissionModes: [
+              { value: "default", label: "Ask for approval" },
+              { value: "acceptEdits", label: "Accept edits" }
+            ]
+          }}
+          labels={labels}
+          onSettingsChange={input.onSettingsChange ?? vi.fn()}
+        />
+      </TooltipProvider>
+    );
+  }
+
+  it("offers plan mode as a dropdown option and enables it on select", async () => {
+    const onSettingsChange = vi.fn();
+    renderPlanCapableDropdown({ planMode: false, onSettingsChange });
+
+    const trigger = screen.getByRole("combobox", { name: "Run permissions" });
+    expect(trigger).toHaveTextContent("Ask for approval");
+
+    fireEvent.pointerDown(trigger, {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse"
+    });
+    fireEvent.pointerDown(
+      await screen.findByRole("option", { name: "Plan Mode" }),
+      { button: 0, ctrlKey: false, pointerId: 2, pointerType: "mouse" }
+    );
+
+    expect(onSettingsChange).toHaveBeenCalledWith({ planMode: true });
+  });
+
+  it("shows plan mode as selected and leaves it when a permission mode is picked", async () => {
+    const onSettingsChange = vi.fn();
+    renderPlanCapableDropdown({ planMode: true, onSettingsChange });
+
+    const trigger = screen.getByRole("combobox", { name: "Run permissions" });
+    expect(trigger).toHaveTextContent("Plan Mode");
+
+    fireEvent.pointerDown(trigger, {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse"
+    });
+    fireEvent.pointerDown(
+      await screen.findByRole("option", { name: "Accept edits" }),
+      { button: 0, ctrlKey: false, pointerId: 2, pointerType: "mouse" }
+    );
+
+    expect(onSettingsChange).toHaveBeenCalledWith({
+      permissionModeId: "acceptEdits",
+      planMode: false
+    });
+  });
+
+  it("omits the plan mode option when the capability is not negotiated", async () => {
+    renderPermissionModeDropdown("read-only");
+
+    fireEvent.pointerDown(
+      screen.getByRole("combobox", { name: "Run permissions" }),
+      { button: 0, ctrlKey: false, pointerId: 1, pointerType: "mouse" }
+    );
+
+    await screen.findByRole("option", { name: "Ask for approval" });
+    expect(screen.queryByRole("option", { name: "Plan Mode" })).toBeNull();
+  });
 });
 
 describe("AgentModelReasoningDropdown", () => {
@@ -1622,6 +1788,7 @@ const labels = {
   reasoningOptionHigh: "High",
   reasoningOptionXHigh: "X High",
   permissionLabel: "Run permissions",
+  planModeLabel: "Plan Mode",
   permissionModeReadOnly: "Ask for approval",
   permissionModeAuto: "Approve for me",
   permissionModeFullAccess: "Full access",

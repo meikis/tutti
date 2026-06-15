@@ -52,6 +52,7 @@ import {
   type DesktopThemeSource
 } from "../../../../../shared/theme/index.ts";
 import { useWorkspaceSettingsService } from "./useWorkspaceSettingsService";
+import { WorkspaceAgentSkillsSettings } from "./WorkspaceAgentSkillsSettings";
 import { useWorkspaceWorkbenchHostService } from "./useWorkspaceWorkbenchHostService";
 import { CustomWallpaperImageError } from "../services/customWallpaper";
 import {
@@ -159,6 +160,10 @@ export function WorkspaceSettingsPanel({
               label: t("workspace.settings.nav.apps")
             },
             {
+              id: "agent" as const,
+              label: t("workspace.settings.nav.agent")
+            },
+            {
               id: "developer" as const,
               label: t("workspace.settings.nav.developer")
             }
@@ -239,6 +244,11 @@ export function WorkspaceSettingsPanel({
                 onDeleteProvider={(providerID) => {
                   void settingsService.removeManagedModelProvider(providerID);
                 }}
+                onDetectProviderModels={(providerID) => {
+                  void settingsService.detectManagedModelProviderModels(
+                    providerID
+                  );
+                }}
                 onSaveProvider={(provider) => {
                   void settingsService.saveManagedModelProvider(provider);
                 }}
@@ -249,6 +259,8 @@ export function WorkspaceSettingsPanel({
                   );
                 }}
               />
+            ) : settingsState.activeSection === "agent" ? (
+              <WorkspaceAgentSkillsSettings workspaceId={workspace.id} />
             ) : (
               <WorkspaceDeveloperSettingsSection
                 analyticsDebugAvailable={
@@ -496,11 +508,13 @@ function normalizeWorkspaceManagedModelRows(
 function WorkspaceAppsSettingsSection({
   managedModels,
   onDeleteProvider,
+  onDetectProviderModels,
   onSaveProvider,
   onUpdateProvider
 }: {
   managedModels: WorkspaceSettingsManagedModelsSnapshotState;
   onDeleteProvider: (providerID: WorkspaceManagedModelProviderID) => void;
+  onDetectProviderModels: (providerID: WorkspaceManagedModelProviderID) => void;
   onSaveProvider: (provider: WorkspaceManagedModelProviderDraft) => void;
   onUpdateProvider: (
     providerID: WorkspaceManagedModelProviderID,
@@ -844,9 +858,26 @@ function WorkspaceAppsSettingsSection({
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <span className="text-[11px] font-medium text-[var(--text-secondary)]">
-              {t("workspace.settings.apps.managedModels.models")}
-            </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium text-[var(--text-secondary)]">
+                {t("workspace.settings.apps.managedModels.models")}
+              </span>
+              <Button
+                disabled={
+                  managedModels.detectingProvider === selectedProvider.provider
+                }
+                size="sm"
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  onDetectProviderModels(selectedProvider.provider)
+                }
+              >
+                {managedModels.detectingProvider === selectedProvider.provider
+                  ? t("workspace.settings.apps.managedModels.detectingModels")
+                  : t("workspace.settings.apps.managedModels.detectModels")}
+              </Button>
+            </div>
             <div className="flex flex-col gap-1.5">
               {selectedProvider.models.map((model, index) => (
                 <div

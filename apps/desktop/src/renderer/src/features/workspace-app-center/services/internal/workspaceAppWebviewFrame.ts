@@ -1,7 +1,4 @@
-import type {
-  WorkbenchFrame,
-  WorkbenchNodeSizeConstraints
-} from "@tutti-os/workbench-surface";
+import type { WorkbenchFrame } from "@tutti-os/workbench-surface";
 
 export const workspaceAppWebviewFrame: WorkbenchFrame = {
   height: 680,
@@ -9,23 +6,3 @@ export const workspaceAppWebviewFrame: WorkbenchFrame = {
   x: 170,
   y: 64
 };
-
-export function resolveWorkspaceAppWebviewFrame(
-  sizeConstraints: WorkbenchNodeSizeConstraints | null
-): WorkbenchFrame {
-  if (!sizeConstraints) {
-    return workspaceAppWebviewFrame;
-  }
-
-  return {
-    ...workspaceAppWebviewFrame,
-    height: Math.max(
-      workspaceAppWebviewFrame.height,
-      sizeConstraints.minHeight ?? 0
-    ),
-    width: Math.max(
-      workspaceAppWebviewFrame.width,
-      sizeConstraints.minWidth ?? 0
-    )
-  };
-}

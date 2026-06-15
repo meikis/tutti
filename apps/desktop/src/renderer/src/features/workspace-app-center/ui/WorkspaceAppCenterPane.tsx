@@ -19,7 +19,7 @@ import type {
 import { AppCenterPanel } from "@tutti-os/workspace-app-center/ui";
 import { agentGuiDockIconUrls } from "@tutti-os/agent-gui";
 import type { AgentProviderStatus } from "@tutti-os/client-tuttid-ts";
-import { useService } from "@zk-tech/bedrock/di";
+import { useService } from "@tutti-os/infra/di";
 import {
   IAgentProviderStatusService,
   requestWorkspaceAgentGuiLaunch
@@ -404,6 +404,7 @@ function createComingSoonWorkspaceApp(input: {
     ],
     minimizeBehavior: "keep-mounted",
     name: input.name,
+    references: { searchSupported: false },
     runtimeStatus: "idle",
     source: "builtin",
     stateRevision: 0,
@@ -531,7 +532,11 @@ function toWorkspaceAppRecord(
     createdAtUnixMs: app.createdAtUnixMs,
     install: app.installed
       ? {
-          appId: app.appId
+          ...(app.installationId?.trim()
+            ? { installationId: app.installationId.trim() }
+            : {}),
+          appId: app.appId,
+          version: app.version ?? null
         }
       : null,
     manifest,
@@ -575,7 +580,12 @@ function toWorkspaceAppRuntimeState(
       ? app.cli.issues[0]
       : null;
   return {
+    ...(app.runtimeId?.trim() ? { runtimeId: app.runtimeId.trim() } : {}),
+    ...(app.installationId?.trim()
+      ? { installationId: app.installationId.trim() }
+      : {}),
     appId: app.appId,
+    launchUrl: app.launchUrl ?? null,
     ...(cliIssue
       ? {
           error: {

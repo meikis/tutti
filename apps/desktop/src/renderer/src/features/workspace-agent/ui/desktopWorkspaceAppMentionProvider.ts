@@ -16,7 +16,9 @@ export interface DesktopWorkspaceAppMentionItem {
   readonly description: string;
   readonly displayName: string;
   readonly iconUrl: string | null;
+  readonly referencesSearchSupported: boolean;
   readonly scopes: string;
+  readonly version: string | null;
   readonly workspaceId: string;
 }
 
@@ -41,6 +43,8 @@ export function createDesktopWorkspaceAppMentionProvider({
     getItemLabel: (item) => item.displayName,
     getItemSubtitle: (item) => item.description,
     getItemThumbnailUrl: (item) => item.iconUrl,
+    getItemReferenceItems: (item, referenceInput) =>
+      baseProvider.getItemReferenceItems?.(item.baseItem, referenceInput) ?? [],
     async query(input) {
       const normalizedKeyword = normalizeSearchText(input.keyword);
       const baseItems = await Promise.resolve(
@@ -89,7 +93,11 @@ export function createDesktopWorkspaceAppMentionProvider({
           commandSummaries: item.commandSummaries,
           description: item.description,
           iconUrl: item.iconUrl ?? "",
+          referencesSearchSupported: item.referencesSearchSupported
+            ? "true"
+            : "false",
           scopes: item.scopes,
+          version: item.version ?? "",
           workspaceId: item.workspaceId
         }
       }
@@ -154,7 +162,13 @@ function workspaceAppToMentionItem(input: {
       normalizeText(input.app?.availableIconUrl) ??
       normalizeText(baseInsertResult.mention.meta?.iconUrl) ??
       null,
+    referencesSearchSupported:
+      input.app?.references.searchSupported ??
+      baseInsertResult.mention.meta?.referencesSearchSupported === "true",
     scopes: baseInsertResult.mention.meta?.scopes?.trim() ?? "",
+    version:
+      normalizeText(input.app?.version) ??
+      normalizeText(baseInsertResult.mention.meta?.version),
     workspaceId: input.workspaceId
   };
 }

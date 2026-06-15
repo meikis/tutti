@@ -5,7 +5,7 @@ import {
   useRef,
   useSyncExternalStore
 } from "react";
-import { useService } from "@zk-tech/bedrock/di";
+import { useService } from "@tutti-os/infra/di";
 import type { WorkspaceSummary } from "@tutti-os/client-tuttid-ts";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import type {
@@ -19,7 +19,6 @@ import type {
 import type { WorkspaceAppCenterApp } from "@tutti-os/workspace-app-center";
 import {
   resolveWorkspaceAppDisplayName,
-  resolveWorkspaceAppSizeConstraints,
   useWorkspaceAppCenterService,
   workspaceAppWebviewInstanceId,
   workspaceAppWebviewTypeID
@@ -388,9 +387,6 @@ function syncWorkspaceAppWebviewNodes(input: {
       node.id,
       resolveWorkspaceAppDisplayName(app, input.locale)
     );
-    input.host.setNodeSizeConstraints(
-      node.id,
-      resolveWorkspaceAppSizeConstraints(app)
-    );
+    input.host.setNodeSizeConstraints(node.id, null);
   }
 }

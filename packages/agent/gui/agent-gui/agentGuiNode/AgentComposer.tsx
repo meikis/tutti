@@ -31,13 +31,12 @@ import type { AgentConversationPromptVM } from "../../shared/agentConversation/c
 import { cn } from "../../app/renderer/lib/utils";
 import {
   AddIcon,
-  CloseIcon,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger
 } from "@tutti-os/ui-system";
-import { ListChecks, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { WorkspaceFileReference } from "@tutti-os/workspace-file-reference/contracts";
 import type { WorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import {
@@ -62,6 +61,12 @@ import {
   resolveSlashCommandSubmitEffect,
   type SlashCommandSelectionEffect
 } from "./model/agentSlashCommandProviderPolicy";
+import {
+  composerModeOptions,
+  composerModeSelectedValue,
+  composerModeSelectionPatch,
+  nextComposerModeValue
+} from "./model/composerModeCycle";
 import {
   AgentSlashCommandPalette,
   type AgentSlashPaletteEntry
@@ -120,6 +125,7 @@ export interface AgentComposerProps {
   draftPrompt: string;
   availableCommands: readonly AgentSessionCommand[];
   hasCompactableContext?: boolean;
+  compactSupported?: boolean | null;
   availableSkills?: readonly AgentGUIProviderSkillOption[];
   disabled: boolean;
   disabledReason?: string | null;
@@ -181,6 +187,8 @@ export interface AgentComposerProps {
     stopping: string;
     slashCommandPalette: string;
     skillPickerPalette: string;
+    slashPaletteCommandsGroup: string;
+    slashPaletteSkillsGroup: string;
     slashStatusTitle: string;
     slashStatusSession: string;
     slashStatusBaseUrl: string;
@@ -205,6 +213,11 @@ export interface AgentComposerProps {
     submitAnswers: string;
     answerPlaceholder: string;
     waitingForAnswer: string;
+    planImplementationLead: string;
+    planImplementationConfirm: string;
+    planImplementationFeedbackPlaceholder: string;
+    planImplementationSend: string;
+    planImplementationSkip: string;
     fileMentionPalette: string;
     fileMentionLoading: string;
     fileMentionEmpty: string;
@@ -360,7 +373,9 @@ function hasInlineOverflow(element: HTMLElement | null): boolean {
   return element.scrollWidth > element.clientWidth + 1;
 }
 
-function formatSlashStatusTokenCount(value: number | null | undefined): string {
+export function formatSlashStatusTokenCount(
+  value: number | null | undefined
+): string {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return "";
   }
@@ -522,6 +537,7 @@ export function AgentComposer({
   draftPrompt,
   availableCommands,
   hasCompactableContext = true,
+  compactSupported = null,
   availableSkills = EMPTY_PROVIDER_SKILLS,
   disabled,
   disabledReason,
@@ -626,9 +642,10 @@ export function AgentComposer({
       resolveSlashCommandsForProvider({
         provider,
         commands: availableCommands,
-        hasCompactableContext
+        hasCompactableContext,
+        compactSupported
       }),
-    [availableCommands, hasCompactableContext, provider]
+    [availableCommands, compactSupported, hasCompactableContext, provider]
   );
   const filteredCommands = useMemo(
     () =>
@@ -1088,6 +1105,13 @@ export function AgentComposer({
           mentionControllerRef.current?.setFilter(activeEntry.categoryId);
         } else if (activeEntry.type === "expand" && activeEntry.groupId) {
           mentionControllerRef.current?.expandGroup(activeEntry.groupId);
+        } else if (
+          activeEntry.type === "app-reference-expand" &&
+          activeEntry.appId
+        ) {
+          mentionControllerRef.current?.expandWorkspaceAppReferences(
+            activeEntry.appId
+          );
         } else if (activeEntry.type === "item" && activeEntry.item) {
           selectFileMention(activeEntry.item);
         }
@@ -1107,10 +1131,82 @@ export function AgentComposer({
     ]
   );
 
+  // Shift+Tab cycles permission modes plus plan mode (CLI muscle memory),
+  // sharing the option list and selection mapping with the dropdown.
+  const handleModeCycleKeyDown = useCallback(
+    (event: KeyboardEvent): boolean => {
+      if (
+        event.key !== "Tab" ||
+        !event.shiftKey ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      ) {
+        return false;
+      }
+      if (
+        isSendingTurn ||
+        isSubmittingPrompt ||
+        showStopButton ||
+        composerSettings.isSettingsLoading
+      ) {
+        return false;
+      }
+      const planModeActive = Boolean(
+        composerSettings.supportsPlanMode &&
+        (composerSettings.effectivePlanMode ??
+          composerSettings.draftSettings.planMode)
+      );
+      const options = composerModeOptions({
+        availablePermissionModes: composerSettings.supportsPermissionMode
+          ? (composerSettings.availablePermissionModes ?? [])
+          : [],
+        supportsPlanMode: composerSettings.supportsPlanMode,
+        planModeLabel: labels.planModeLabel
+      });
+      const next = nextComposerModeValue(
+        options,
+        composerModeSelectedValue({
+          planModeActive,
+          selectedPermissionModeValue:
+            composerSettings.selectedPermissionModeValue ??
+            composerSettings.draftSettings.permissionModeId
+        })
+      );
+      if (next === null) {
+        return false;
+      }
+      event.preventDefault();
+      onSettingsChange(composerModeSelectionPatch(next, planModeActive));
+      return true;
+    },
+    [
+      composerSettings.availablePermissionModes,
+      composerSettings.draftSettings.permissionModeId,
+      composerSettings.draftSettings.planMode,
+      composerSettings.effectivePlanMode,
+      composerSettings.isSettingsLoading,
+      composerSettings.selectedPermissionModeValue,
+      composerSettings.supportsPermissionMode,
+      composerSettings.supportsPlanMode,
+      labels.planModeLabel,
+      onSettingsChange,
+      isSendingTurn,
+      isSubmittingPrompt,
+      showStopButton
+    ]
+  );
+
   const handlePaletteKeyDown = useCallback(
     (event: KeyboardEvent): boolean =>
-      handleFileMentionKeyDown(event) || handleSlashPaletteKeyDown(event),
-    [handleFileMentionKeyDown, handleSlashPaletteKeyDown]
+      handleFileMentionKeyDown(event) ||
+      handleSlashPaletteKeyDown(event) ||
+      handleModeCycleKeyDown(event),
+    [
+      handleFileMentionKeyDown,
+      handleSlashPaletteKeyDown,
+      handleModeCycleKeyDown
+    ]
   );
 
   useEffect(() => {
@@ -1660,19 +1756,6 @@ export function AgentComposer({
   const sendButtonBusy = isSendingTurn && !isQueueMode;
   const settingsControlsDisabled =
     isSendingTurn || isSubmittingPrompt || showStopButton;
-  const planModeEnabled =
-    composerSettings.effectivePlanMode ??
-    composerSettings.draftSettings.planMode;
-  const planModeToggleDisabled =
-    settingsControlsDisabled ||
-    composerSettings.isSettingsLoading ||
-    composerSettings.planUnavailable;
-  const planModeStateLabel = composerSettings.planUnavailable
-    ? labels.planUnavailable
-    : planModeEnabled
-      ? labels.planModeOnLabel
-      : labels.planModeOffLabel;
-  const planModeToggleLabel = `${labels.planModeLabel}: ${planModeStateLabel}`;
   const activePromptRequestId = activePrompt?.requestId ?? null;
   const [dismissedPromptRequestId, setDismissedPromptRequestId] = useState<
     string | null
@@ -1784,7 +1867,13 @@ export function AgentComposer({
               nextQuestion: labels.nextQuestion,
               submitAnswers: labels.submitAnswers,
               answerPlaceholder: labels.answerPlaceholder,
-              waitingForAnswer: labels.waitingForAnswer
+              waitingForAnswer: labels.waitingForAnswer,
+              planImplementationLead: labels.planImplementationLead,
+              planImplementationConfirm: labels.planImplementationConfirm,
+              planImplementationFeedbackPlaceholder:
+                labels.planImplementationFeedbackPlaceholder,
+              planImplementationSend: labels.planImplementationSend,
+              planImplementationSkip: labels.planImplementationSkip
             }}
           />
         </div>
@@ -1961,6 +2050,11 @@ export function AgentComposer({
                       onExpandGroup={(groupId) =>
                         mentionControllerRef.current?.expandGroup(groupId)
                       }
+                      onExpandWorkspaceAppReferences={(appId) =>
+                        mentionControllerRef.current?.expandWorkspaceAppReferences(
+                          appId
+                        )
+                      }
                       onCycleFilter={cycleFileMentionFilter}
                       onMoveSelection={moveFileMentionSelection}
                     />
@@ -1988,6 +2082,8 @@ export function AgentComposer({
                           ? labels.skillPickerPalette
                           : labels.slashCommandPalette
                       }
+                      commandsGroupLabel={labels.slashPaletteCommandsGroup}
+                      skillsGroupLabel={labels.slashPaletteSkillsGroup}
                       onHighlightChange={setHighlightedIndex}
                       onSelect={selectCommand}
                       onSelectSkill={selectSkill}
@@ -2053,51 +2149,14 @@ export function AgentComposer({
               </Select>
             </div>
             <div className={composerStyles.footerGroupRight}>
-              {composerSettings.supportsPlanMode && planModeEnabled ? (
-                <button
-                  type="button"
-                  className={cn(
-                    styles.composerMenuTrigger,
-                    "group/plan-mode nodrag h-8 w-auto max-w-[160px] shrink-0 gap-1.5 rounded-full px-2.5 transition-[background-color,color,opacity] duration-150 hover:bg-[var(--transparency-hover)] hover:text-[var(--text-secondary)] [-webkit-app-region:no-drag]",
-                    planModeToggleDisabled &&
-                      "cursor-not-allowed text-[var(--agent-gui-text-tertiary)] opacity-60 hover:text-[var(--agent-gui-text-tertiary)]"
-                  )}
-                  data-agent-plan-mode-toggle="true"
-                  data-state={planModeEnabled ? "on" : "off"}
-                  aria-label={planModeToggleLabel}
-                  aria-pressed={planModeEnabled}
-                  disabled={planModeToggleDisabled}
-                  title={planModeToggleLabel}
-                  onClick={() => {
-                    if (planModeToggleDisabled) {
-                      return;
-                    }
-                    onSettingsChange({ planMode: !planModeEnabled });
-                  }}
-                >
-                  <span
-                    className="relative inline-flex size-4 shrink-0 items-center justify-center"
-                    aria-hidden="true"
-                  >
-                    <ListChecks
-                      className="size-4 text-current opacity-100 transition-opacity duration-150 group-hover/plan-mode:opacity-0 group-focus-visible/plan-mode:opacity-0"
-                      strokeWidth={1.8}
-                    />
-                    <span className="absolute inset-0 inline-flex items-center justify-center rounded-full bg-[var(--agent-gui-text-secondary)] text-[var(--background-fronted)] opacity-0 transition-opacity duration-150 group-hover/plan-mode:opacity-100 group-focus-visible/plan-mode:opacity-100">
-                      <CloseIcon className="size-3" />
-                    </span>
-                  </span>
-                  <span className="min-w-0 truncate" data-agent-plan-mode-label>
-                    {labels.planModeLabel}
-                  </span>
-                </button>
-              ) : null}
-              {composerSettings.supportsPermissionMode ? (
+              {composerSettings.supportsPermissionMode ||
+              composerSettings.supportsPlanMode ? (
                 <AgentPermissionModeDropdown
                   composerSettings={composerSettings}
                   disabled={settingsControlsDisabled}
                   labels={{
-                    permissionLabel: labels.permissionLabel
+                    permissionLabel: labels.permissionLabel,
+                    planModeLabel: labels.planModeLabel
                   }}
                   onSettingsChange={(patch) => onSettingsChange(patch)}
                 />
@@ -2110,6 +2169,7 @@ export function AgentComposer({
                   labels={{
                     modelLabel: labels.modelLabel,
                     modelSelectionLabel: labels.modelSelectionLabel,
+                    planModeLabel: labels.planModeLabel,
                     reasoningLabel: labels.reasoningLabel,
                     reasoningDegreeLabel: labels.reasoningDegreeLabel,
                     reasoningOptionMinimal: labels.reasoningOptionMinimal,

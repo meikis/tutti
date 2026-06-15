@@ -20,7 +20,7 @@ test("workspace app contribution reports app open from dock launch requests", as
   const app = createApp({
     appId: "ready",
     runtimeStatus: "running",
-    url: "http://127.0.0.1:3000"
+    launchUrl: "http://127.0.0.1:3000"
   });
   const result = await resolveWorkspaceAppCenterLaunchRequest({
     appCenterService: createAppCenterService([app]),
@@ -52,13 +52,11 @@ test("workspace app contribution reports app open from dock launch requests", as
   );
 });
 
-test("workspace app launch request applies declared minimum webview size", async () => {
+test("workspace app launch request does not apply app-specific minimum webview size", async () => {
   const app = createApp({
     appId: "ready",
     runtimeStatus: "running",
-    url: "http://127.0.0.1:3000",
-    windowMinHeight: 720,
-    windowMinWidth: 1180
+    launchUrl: "http://127.0.0.1:3000"
   });
   const result = await resolveWorkspaceAppCenterLaunchRequest({
     appCenterService: createAppCenterService([app]),
@@ -71,13 +69,10 @@ test("workspace app launch request applies declared minimum webview size", async
     }
   });
 
-  assert.deepEqual(result?.sizeConstraints, {
-    minHeight: 720,
-    minWidth: 1180
-  });
+  assert.equal(result?.sizeConstraints, undefined);
   assert.deepEqual(result?.defaultFrame, {
-    height: 720,
-    width: 1180,
+    height: 680,
+    width: 1040,
     x: 170,
     y: 64
   });
@@ -88,7 +83,7 @@ test("workspace app launch request preserves prepared payload previous status", 
   const app = createApp({
     appId: "ready",
     runtimeStatus: "running",
-    url: "http://127.0.0.1:3000"
+    launchUrl: "http://127.0.0.1:3000"
   });
 
   const result = await resolveWorkspaceAppCenterLaunchRequest({
@@ -128,7 +123,7 @@ test("workspace app dock entry focus reports app open from the dock entry id", (
   const app = createApp({
     appId: "ready",
     runtimeStatus: "running",
-    url: "http://127.0.0.1:3000"
+    launchUrl: "http://127.0.0.1:3000"
   });
 
   reportWorkspaceAppOpenedFromDockEntry({
@@ -180,11 +175,12 @@ function createApp(
     localizations: [],
     minimizeBehavior: "keep-mounted",
     name: "Ready",
+    references: { searchSupported: false },
     runtimeStatus: "idle",
     source: "builtin",
     stateRevision: 1,
     tags: [],
-    url: null,
+    launchUrl: null,
     version: "1.0.0",
     ...overrides
   };

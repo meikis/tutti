@@ -5,6 +5,7 @@ export {
   type AppCardProps,
   type AppCenterHostActions
 } from "./AppCard.tsx";
+export { type WorkspaceAppActionContext } from "../contracts/viewModel.ts";
 export {
   AppCenterPanel,
   type AppCenterAppTab,

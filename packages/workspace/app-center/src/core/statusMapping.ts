@@ -25,12 +25,18 @@ const statusAliases = new Map<string, WorkspaceAppRuntimeStatus>([
   ["preparing", "preparing"],
   ["ready", "idle"],
   ["running", "running"],
+  ["runner_unavailable", "unavailable"],
+  ["runtime_unavailable", "unavailable"],
+  ["sandbox_unavailable", "unavailable"],
   ["started", "running"],
   ["starting", "starting"],
+  ["stale", "unavailable"],
   ["stopped", "idle"],
   ["stopping", "stopping"],
   ["terminated", "idle"],
-  ["terminating", "stopping"]
+  ["terminating", "stopping"],
+  ["unavailable", "unavailable"],
+  ["unreachable", "unavailable"]
 ]);
 
 export function mapWorkspaceAppRuntimeStatus(
@@ -92,6 +98,12 @@ export function resolveWorkspaceAppStatusPresentation(
       return {
         labelKey: "status.stopping",
         pulse: true,
+        tone: "amber"
+      };
+    case "unavailable":
+      return {
+        labelKey: "status.unavailable",
+        pulse: false,
         tone: "amber"
       };
     case "idle":

@@ -135,9 +135,12 @@ export const en = {
       promptTitle: "Waiting for input",
       title: "Agent messages",
       idleStatus: "Idle",
-      statusNotificationDescription: "{{summary}}",
-      statusNotificationFallbackSummary: "Open Agent messages for details.",
-      statusNotificationTitle: "Conversation {{title}} {{status}}",
+      outcomeNotificationCompletedBody:
+        "The agent finished this run. Click to open the session.",
+      outcomeNotificationCompletedTitle: "{{title}} completed",
+      outcomeNotificationFailedBody:
+        "The agent run failed. Click to open the session.",
+      outcomeNotificationFailedTitle: "{{title}} failed",
       waitingNotificationAction: "Review",
       waitingNotificationCommand: "Command",
       waitingNotificationConversationPrefix: "Session: ",
@@ -200,16 +203,34 @@ export const en = {
         custom: "Custom",
         default: "Default",
         dunes: "Starry dunes",
-        galaxy: "Galaxy",
         ocean: "Ocean",
         orbit: "Earth at night",
         peaks: "Mountain night",
         sand: "Sand ripples",
-        sky: "Sky"
+        sky: "Sky",
+        tutti: "Tutti"
       }
     },
     settings: {
       close: "Close settings",
+      agent: {
+        skills: {
+          empty: "No skills found",
+          loadFailed: "We couldn't load skills for this provider right now.",
+          projectScopeNote:
+            "Project-level skills are resolved inside each session.",
+          sourceKinds: {
+            bundled: "Bundled",
+            tuttiInjected: "Tutti",
+            personal: "Personal",
+            plugin: "Plugin",
+            project: "Project",
+            system: "System"
+          },
+          sourceLabel: "Source",
+          title: "Skills (read-only)"
+        }
+      },
       appearance: {
         dockPlacementDescription:
           "Controls where the workspace dock is anchored.",
@@ -279,6 +300,7 @@ export const en = {
         updatePolicySaveFailed: "We couldn't update the update mode right now."
       },
       nav: {
+        agent: "Agent",
         apps: "Apps",
         sectionsLabel: "Settings sections",
         appearance: "Appearance",

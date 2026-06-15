@@ -1,9 +1,7 @@
 import type { WorkspaceAgentSessionDetailToolCall } from "../../workspaceAgentSessionDetailViewModel";
-import type {
-  AgentAskUserQuestionItemVM,
-  AgentAskUserQuestionVM
-} from "../contracts/agentAskUserQuestionItemVM";
+import type { AgentAskUserQuestionItemVM } from "../contracts/agentAskUserQuestionItemVM";
 import type { AgentPlanModeItemVM } from "../contracts/agentPlanModeItemVM";
+import { normalizeAskUserQuestions } from "../askUserQuestions";
 
 export function projectAgentAskUserQuestionItem(
   call: WorkspaceAgentSessionDetailToolCall,
@@ -13,7 +11,7 @@ export function projectAgentAskUserQuestionItem(
   if (normalizeToolName(call.toolName) !== "askuserquestion") {
     return null;
   }
-  const questions = normalizeQuestions(arrayValue(input?.questions) ?? []);
+  const questions = normalizeAskUserQuestions(input?.questions);
   if (questions.length === 0) {
     return null;
   }
@@ -113,41 +111,6 @@ function isExitPlanApprovalInput(
       stringValue(option?.optionId) === "plan" ||
       stringValue(option?.id) === "plan"
     );
-  });
-}
-
-function normalizeQuestions(
-  values: readonly unknown[]
-): AgentAskUserQuestionVM[] {
-  return values.flatMap((value, index) => {
-    const question = objectValue(value);
-    if (!question) {
-      return [];
-    }
-    return [
-      {
-        id: stringValue(question.id) ?? `question-${index + 1}`,
-        header: stringValue(question.header) ?? `Question ${index + 1}`,
-        question:
-          stringValue(question.question) ??
-          stringValue(question.header) ??
-          `Question ${index + 1}`,
-        options: (arrayValue(question.options) ?? []).flatMap((optionValue) => {
-          const option = objectValue(optionValue);
-          const label = stringValue(option?.label);
-          if (!label) {
-            return [];
-          }
-          return [
-            {
-              label,
-              description: stringValue(option?.description) ?? ""
-            }
-          ];
-        }),
-        multiSelect: Boolean(question.multiSelect)
-      }
-    ];
   });
 }
 

@@ -705,6 +705,31 @@ export const AgentGUINode = memo(function AgentGUINode({
       slashStatusLimitsUnavailable: t(
         "agentHost.agentGui.slashStatusLimitsUnavailable"
       ),
+      usageChipLabel: (input: { percent: number }) =>
+        t("agentHost.agentGui.usageChipLabel", { percent: input.percent }),
+      usagePopoverTitle: t("agentHost.agentGui.usagePopoverTitle"),
+      usageTokensLabel: t("agentHost.agentGui.usageTokensLabel"),
+      usageLimitsLabel: t("agentHost.agentGui.usageLimitsLabel"),
+      usageCompactAction: t("agentHost.agentGui.usageCompactAction"),
+      usageCompactTooltip: t("agentHost.agentGui.usageCompactTooltip"),
+      usageAlertWarnMessage: (input: { percent: number }) =>
+        t("agentHost.agentGui.usageAlertWarnMessage", {
+          percent: input.percent
+        }),
+      usageAlertCriticalMessage: (input: { percent: number }) =>
+        t("agentHost.agentGui.usageAlertCriticalMessage", {
+          percent: input.percent
+        }),
+      usageAlertDismiss: t("agentHost.agentGui.usageAlertDismiss"),
+      planImplementationLead: t("agentHost.agentGui.planImplementationLead"),
+      planImplementationConfirm: t(
+        "agentHost.agentGui.planImplementationConfirm"
+      ),
+      planImplementationFeedbackPlaceholder: t(
+        "agentHost.agentGui.planImplementationFeedbackPlaceholder"
+      ),
+      planImplementationSend: t("agentHost.agentGui.planImplementationSend"),
+      planImplementationSkip: t("agentHost.agentGui.planImplementationSkip"),
       noRunningResponse: t("agentHost.agentGui.noRunningResponse"),
       empty: t("agentHost.agentGui.empty", { provider: displayProviderLabel }),
       emptyProvider: displayProviderLabel,
@@ -875,6 +900,10 @@ export const AgentGUINode = memo(function AgentGUINode({
       cancel: t("common.cancel"),
       slashCommandPalette: t("agentHost.agentGui.slashCommandPalette"),
       skillPickerPalette: t("agentHost.agentGui.skillPickerPalette"),
+      slashPaletteCommandsGroup: t(
+        "agentHost.agentGui.slashPaletteCommandsGroup"
+      ),
+      slashPaletteSkillsGroup: t("agentHost.agentGui.slashPaletteSkillsGroup"),
       fileMentionPalette: t("agentHost.agentGui.fileMentionPalette"),
       fileMentionLoading: t("agentHost.agentGui.fileMentionLoading"),
       fileMentionEmpty: t("agentHost.agentGui.fileMentionEmpty"),
@@ -897,7 +926,18 @@ export const AgentGUINode = memo(function AgentGUINode({
   );
   const windowTitle = windowAgentTitle || title;
   useEffect(() => {
+    if (!viewModel.activeConversation) {
+      return;
+    }
     const nextTitle = activeConversationDockTitle;
+    const previousTitle = state.lastActiveConversationTitle ?? null;
+    if (
+      nextTitle === null &&
+      previousTitle !== null &&
+      viewModel.activeConversation.id === state.lastActiveAgentSessionId
+    ) {
+      return;
+    }
     if ((state.lastActiveConversationTitle ?? null) === nextTitle) {
       return;
     }
@@ -913,7 +953,9 @@ export const AgentGUINode = memo(function AgentGUINode({
   }, [
     activeConversationDockTitle,
     onUpdateNode,
-    state.lastActiveConversationTitle
+    state.lastActiveAgentSessionId,
+    state.lastActiveConversationTitle,
+    viewModel.activeConversation
   ]);
   const activeProbeProvider = activeProvider as AgentProvider;
   const activeAgentProbe = useMemo(

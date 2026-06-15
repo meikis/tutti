@@ -136,6 +136,7 @@ export function createHostDesktopApi(): DesktopHostApi {
         workspaceID: string,
         entry: {
           kind: string;
+          mtimeMs: number | null;
           name: string;
           path: string;
         }
@@ -144,6 +145,7 @@ export function createHostDesktopApi(): DesktopHostApi {
           desktopIpcChannels.host.files.resolveEntryIcon,
           {
             entryKind: entry.kind,
+            entryMtimeMs: entry.mtimeMs,
             entryName: entry.name,
             path: entry.path,
             workspaceID
@@ -189,6 +191,17 @@ export function createHostDesktopApi(): DesktopHostApi {
           desktopIpcChannels.host.notifications.show,
           input
         );
+      },
+      onNavigate(listener): () => void {
+        const handler = (_event: IpcRendererEvent, payload: unknown) =>
+          listener(payload as Parameters<typeof listener>[0]);
+        ipcRenderer.on(desktopIpcChannels.host.notifications.navigate, handler);
+        return () => {
+          ipcRenderer.removeListener(
+            desktopIpcChannels.host.notifications.navigate,
+            handler
+          );
+        };
       }
     },
     workspace: {

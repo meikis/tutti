@@ -6,7 +6,7 @@ import "encoding/json"
 
 const (
 	BusinessEventProtocolVersion = 1
-	BusinessEventCatalogRevision = "sha256:b4fe6136a0a1006f"
+	BusinessEventCatalogRevision = "sha256:3c52475a8a5a4333"
 )
 
 type Topic string
@@ -148,6 +148,9 @@ type WorkspaceWorkspaceApp struct {
 	MinimizeBehavior string `json:"minimizeBehavior"`
 	WindowMinWidth   *int   `json:"windowMinWidth"`
 	WindowMinHeight  *int   `json:"windowMinHeight"`
+	References       struct {
+		SearchSupported bool `json:"searchSupported"`
+	} `json:"references"`
 }
 
 type AgentActivityUpdatedPayload struct {

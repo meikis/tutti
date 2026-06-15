@@ -2,12 +2,14 @@ import {
   desktopIpcChannels,
   type DesktopCreateUserDocumentsProjectDirectoryInput,
   type DesktopTerminalLinkPathPayload,
+  type DesktopWorkspaceFileEntryIconPayload,
   type DesktopWorkspaceFilePathPayload
 } from "../../shared/contracts/ipc";
 import { app, shell } from "electron";
 import { writeFilesToSystemClipboard } from "../host/clipboardFiles.ts";
 import type { DesktopFileDialogAccess } from "../host/desktopFileDialogAccess";
 import { createWorkspaceFileHostAccess } from "../host/workspaceFileHostAccess.ts";
+import type { WorkspaceFileIconCacheStore } from "../host/workspaceFileIconCacheStore.ts";
 import { registerDesktopIpcHandler } from "./handle";
 import { resolveOwnerWindowFromEvent } from "./ownerWindow";
 
@@ -20,11 +22,13 @@ export interface HostFilesIpcDependencies {
     | "selectDirectory"
     | "selectUploadFiles"
   >;
+  workspaceFileIconCache?: WorkspaceFileIconCacheStore;
 }
 
 export function registerHostFilesIpc(deps: HostFilesIpcDependencies): void {
   const hostAccess = createWorkspaceFileHostAccess({
-    getDocumentsPath: () => app.getPath("documents")
+    getDocumentsPath: () => app.getPath("documents"),
+    workspaceFileIconCache: deps.workspaceFileIconCache
   });
 
   registerDesktopIpcHandler(
@@ -98,13 +102,8 @@ export function registerHostFilesIpc(deps: HostFilesIpcDependencies): void {
   );
   registerDesktopIpcHandler(
     desktopIpcChannels.host.files.resolveEntryIcon,
-    (
-      _event,
-      payload: DesktopWorkspaceFilePathPayload & {
-        entryKind: string;
-        entryName: string;
-      }
-    ) => hostAccess.resolveEntryIcon(payload)
+    (_event, payload: DesktopWorkspaceFileEntryIconPayload) =>
+      hostAccess.resolveEntryIcon(payload)
   );
   registerDesktopIpcHandler(
     desktopIpcChannels.host.files.selectDirectory,

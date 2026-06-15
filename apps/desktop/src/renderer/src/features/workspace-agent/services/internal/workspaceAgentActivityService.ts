@@ -42,6 +42,7 @@ import type {
   WorkspaceAgentActivityEnsureSessionSynchronizedInput,
   WorkspaceAgentActivityRetainSessionInput
 } from "../workspaceAgentActivityService.interface.ts";
+import { planDecisionOps } from "@tutti-os/agent-gui/plan-decision-ops";
 import type { IWorkspaceUserProjectService } from "../../../workspace-user-project/index.ts";
 
 export interface WorkspaceAgentActivityServiceDependencies {
@@ -313,6 +314,42 @@ export class WorkspaceAgentActivityService implements IWorkspaceAgentActivitySer
     return this.controllerEntry(input.workspaceId).adapter.submitInteractive(
       input
     );
+  }
+
+  async submitPlanDecision(
+    input: Parameters<IWorkspaceAgentActivityService["submitPlanDecision"]>[0]
+  ): Promise<void> {
+    const ops = planDecisionOps({
+      promptKind: input.promptKind,
+      requestId: input.requestId,
+      ...(input.action ? { action: input.action } : {}),
+      ...(input.optionId ? { optionId: input.optionId } : {}),
+      ...(input.payload ? { payload: input.payload } : {})
+    });
+    for (const op of ops) {
+      if (op.type === "updateSettings") {
+        await this.updateSessionSettings({
+          workspaceId: input.workspaceId,
+          agentSessionId: input.agentSessionId,
+          settings: op.settings
+        });
+      } else if (op.type === "sendInput") {
+        await this.sendInput({
+          workspaceId: input.workspaceId,
+          agentSessionId: input.agentSessionId,
+          content: [{ type: "text", text: op.text }]
+        });
+      } else {
+        await this.submitInteractive({
+          workspaceId: input.workspaceId,
+          agentSessionId: input.agentSessionId,
+          requestId: op.requestId,
+          ...(op.action ? { action: op.action } : {}),
+          ...(op.optionId ? { optionId: op.optionId } : {}),
+          ...(op.payload ? { payload: op.payload } : {})
+        });
+      }
+    }
   }
 
   async deleteSession(

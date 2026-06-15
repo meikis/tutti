@@ -25,6 +25,8 @@ import { writeWorkspaceFileDropData } from "../terminalNode/workspaceFileDrop";
 const mockCreateConversation = vi.fn();
 const mockSelectConversation = vi.fn();
 const mockSubmitPrompt = vi.fn();
+const mockSubmitCompact = vi.fn();
+const mockDismissUsageAlert = vi.fn();
 const mockShowPromptImagesUnsupported = vi.fn();
 const mockSubmitApprovalOption = vi.fn();
 const mockSubmitInteractivePrompt = vi.fn();
@@ -585,6 +587,8 @@ vi.mock("./controller/useAgentGUINodeController", () => ({
       createConversation: mockCreateConversation,
       selectConversation: mockSelectConversation,
       submitPrompt: mockSubmitPrompt,
+      submitCompact: mockSubmitCompact,
+      dismissUsageAlert: mockDismissUsageAlert,
       showPromptImagesUnsupported: mockShowPromptImagesUnsupported,
       submitApprovalOption: mockSubmitApprovalOption,
       submitInteractivePrompt: mockSubmitInteractivePrompt,
@@ -616,6 +620,8 @@ describe("AgentGUINode", () => {
     mockCreateConversation.mockClear();
     mockSelectConversation.mockClear();
     mockSubmitPrompt.mockClear();
+    mockSubmitCompact.mockClear();
+    mockDismissUsageAlert.mockClear();
     mockShowPromptImagesUnsupported.mockClear();
     mockSubmitApprovalOption.mockClear();
     mockSubmitInteractivePrompt.mockClear();
@@ -991,6 +997,91 @@ describe("AgentGUINode", () => {
     );
 
     expect(windowTitle).toHaveTextContent("Codex");
+  });
+
+  it("does not clear the dock conversation title while the active conversation is unavailable", () => {
+    const onUpdateNode =
+      vi.fn<
+        (updater: (current: AgentGUINodeData) => AgentGUINodeData) => void
+      >();
+    mockViewModel = createViewModel({
+      activeConversation: null,
+      activeConversationId: "session-1"
+    });
+
+    renderAgentGUINode({
+      onUpdateNode,
+      state: {
+        provider: "codex",
+        lastActiveAgentSessionId: "session-1",
+        lastActiveConversationTitle: "Existing dock title",
+        conversationRailWidthPx: null
+      }
+    });
+
+    expect(onUpdateNode).not.toHaveBeenCalled();
+  });
+
+  it("does not clear the dock conversation title while the active conversation title is hydrating", () => {
+    const onUpdateNode =
+      vi.fn<
+        (updater: (current: AgentGUINodeData) => AgentGUINodeData) => void
+      >();
+    mockViewModel = createViewModel({
+      activeConversation: {
+        id: "session-1",
+        provider: "codex",
+        title: "",
+        status: "ready",
+        cwd: "/workspace",
+        updatedAtUnixMs: 1
+      },
+      activeConversationId: "session-1"
+    });
+
+    renderAgentGUINode({
+      onUpdateNode,
+      state: {
+        provider: "codex",
+        lastActiveAgentSessionId: "session-1",
+        lastActiveConversationTitle: "Existing dock title",
+        conversationRailWidthPx: null
+      }
+    });
+
+    expect(onUpdateNode).not.toHaveBeenCalled();
+  });
+
+  it("syncs the dock conversation title when the active conversation has a title", () => {
+    const onUpdateNode =
+      vi.fn<
+        (updater: (current: AgentGUINodeData) => AgentGUINodeData) => void
+      >();
+    const state: AgentGUINodeData = {
+      provider: "codex",
+      lastActiveAgentSessionId: "session-1",
+      lastActiveConversationTitle: "Existing dock title",
+      conversationRailWidthPx: null
+    };
+    mockViewModel = createViewModel({
+      activeConversation: {
+        id: "session-1",
+        provider: "codex",
+        title: "Fresh dock title",
+        status: "ready",
+        cwd: "/workspace",
+        updatedAtUnixMs: 1
+      },
+      activeConversationId: "session-1"
+    });
+
+    renderAgentGUINode({ onUpdateNode, state });
+
+    expect(onUpdateNode).toHaveBeenCalledTimes(1);
+    expect(onUpdateNode.mock.calls[0]?.[0](state)).toEqual({
+      ...state,
+      lastActiveConversationTitle: "Fresh dock title"
+    });
   });
 
   it("unregisters agent probe demand when the Agent GUI closes", () => {
@@ -1374,6 +1465,35 @@ describe("AgentGUINode", () => {
     );
     expect(emptyState).toHaveTextContent(
       "agentHost.agentGui.conversationUnavailable"
+    );
+  });
+
+  it("shows the timeline skeleton instead of unavailable empty while active conversation messages are loading", () => {
+    const conversation = {
+      id: "session-1",
+      provider: "codex" as const,
+      title: "Session 1",
+      status: "ready" as const,
+      cwd: "/workspace",
+      updatedAtUnixMs: 1
+    };
+    mockViewModel = createViewModel({
+      conversations: [conversation],
+      activeConversation: conversation,
+      activeConversationId: "session-1",
+      isLoadingMessages: true
+    });
+
+    renderAgentGUINode();
+
+    expect(
+      screen.getByTestId("agent-gui-transcript-loading-skeleton")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-gui-unavailable-chat-empty")
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-gui-timeline")).not.toHaveClass(
+      "agent-gui-node__timeline-unavailable-chat-empty"
     );
   });
 
@@ -2276,6 +2396,227 @@ describe("AgentGUINode", () => {
       permissionModeId: "full-access"
     });
   }, 15000);
+
+  it("offers plan mode in the permission dropdown when supported", async () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      composerSettings: {
+        sessionSettings: {
+          model: "claude-4",
+          reasoningEffort: "high",
+          planMode: false,
+          permissionModeId: "default"
+        },
+        draftSettings: {
+          model: "claude-4",
+          reasoningEffort: "high",
+          planMode: false,
+          permissionModeId: "default"
+        },
+        effectivePlanMode: false,
+        supportsModel: true,
+        supportsReasoningEffort: true,
+        supportsPermissionMode: true,
+        supportsPlanMode: true,
+        isSettingsLoading: false,
+        modelUnavailable: false,
+        reasoningUnavailable: false,
+        permissionModeUnavailable: false,
+        planUnavailable: false,
+        selectedPermissionModeValue: "default",
+        availableModels: [{ value: "claude-4", label: "Claude 4" }],
+        availableReasoningEfforts: [{ value: "high", label: "High" }],
+        availablePermissionModes: [
+          { value: "default", label: "agentHost.agentGui.permissionModeAsk" }
+        ]
+      }
+    });
+    renderAgentGUINode();
+
+    fireEvent.keyDown(
+      screen.getByRole("combobox", {
+        name: "agentHost.agentGui.permissionLabel"
+      }),
+      { key: "Enter" }
+    );
+    fireEvent.pointerDown(
+      await screen.findByRole("option", {
+        name: "agentHost.agentGui.planModeLabel"
+      }),
+      { button: 0, ctrlKey: false, pointerId: 5, pointerType: "mouse" }
+    );
+
+    expect(mockUpdateComposerSettings).toHaveBeenCalledWith({
+      planMode: true
+    });
+  });
+
+  it("cycles composer modes with shift+tab including plan mode", () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      composerSettings: {
+        sessionSettings: null,
+        draftSettings: {
+          model: "claude-4",
+          reasoningEffort: "high",
+          planMode: false,
+          permissionModeId: "acceptEdits"
+        },
+        effectivePlanMode: false,
+        supportsModel: true,
+        supportsReasoningEffort: true,
+        supportsPermissionMode: true,
+        supportsPlanMode: true,
+        isSettingsLoading: false,
+        modelUnavailable: false,
+        reasoningUnavailable: false,
+        permissionModeUnavailable: false,
+        planUnavailable: false,
+        selectedPermissionModeValue: "acceptEdits",
+        availableModels: [{ value: "claude-4", label: "Claude 4" }],
+        availableReasoningEfforts: [{ value: "high", label: "High" }],
+        availablePermissionModes: [
+          { value: "default", label: "agentHost.agentGui.permissionModeAsk" },
+          { value: "acceptEdits", label: "Accept edits" }
+        ]
+      }
+    });
+    renderAgentGUINode();
+
+    // acceptEdits is the last permission mode, so shift+tab enters plan mode.
+    fireEvent.keyDown(getComposerEditor(), { key: "Tab", shiftKey: true });
+
+    expect(mockUpdateComposerSettings).toHaveBeenCalledWith({
+      planMode: true
+    });
+  });
+
+  it("cycles out of plan mode with shift+tab back to the first permission mode", () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      composerSettings: {
+        sessionSettings: null,
+        draftSettings: {
+          model: "claude-4",
+          reasoningEffort: "high",
+          planMode: true,
+          permissionModeId: "acceptEdits"
+        },
+        effectivePlanMode: true,
+        supportsModel: true,
+        supportsReasoningEffort: true,
+        supportsPermissionMode: true,
+        supportsPlanMode: true,
+        isSettingsLoading: false,
+        modelUnavailable: false,
+        reasoningUnavailable: false,
+        permissionModeUnavailable: false,
+        planUnavailable: false,
+        selectedPermissionModeValue: "acceptEdits",
+        availableModels: [{ value: "claude-4", label: "Claude 4" }],
+        availableReasoningEfforts: [{ value: "high", label: "High" }],
+        availablePermissionModes: [
+          { value: "default", label: "agentHost.agentGui.permissionModeAsk" },
+          { value: "acceptEdits", label: "Accept edits" }
+        ]
+      }
+    });
+    renderAgentGUINode();
+
+    fireEvent.keyDown(getComposerEditor(), { key: "Tab", shiftKey: true });
+
+    expect(mockUpdateComposerSettings).toHaveBeenCalledWith({
+      permissionModeId: "default",
+      planMode: false
+    });
+  });
+
+  it("renders the codex plan decision in the composer slot and wires its actions", () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      pendingInteractivePrompt: {
+        kind: "plan-implementation",
+        requestId: "plan-turn-1",
+        title: "Session 1"
+      }
+    });
+    renderAgentGUINode();
+
+    // The decision card replaces the composer: it lives in the bottom dock and
+    // the composer's editor is hidden while the decision is pending.
+    expect(
+      screen.getByTestId("agent-gui-bottom-dock-active-prompt")
+    ).toBeInTheDocument();
+    expect(queryComposerEditor()).toBeNull();
+
+    // Action routing goes through the unified interactive-prompt submit path.
+    // (implement / skip / feedback dispatch is covered in the surface spec.)
+    fireEvent.click(screen.getByTestId("agent-plan-implementation-implement"));
+    expect(mockSubmitInteractivePrompt).toHaveBeenCalledWith({
+      requestId: "plan-turn-1",
+      action: "implement"
+    });
+  });
+
+  it("keeps the composer when no plan decision is pending", () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      pendingInteractivePrompt: null
+    });
+    renderAgentGUINode();
+
+    expect(
+      screen.queryByTestId("agent-plan-implementation-implement")
+    ).toBeNull();
+    expect(getComposerEditor()).toBeInTheDocument();
+  });
+
+  it("omits the plan mode option when the provider lacks the capability", async () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      composerSettings: {
+        sessionSettings: null,
+        draftSettings: {
+          model: "gpt-5",
+          reasoningEffort: "high",
+          planMode: false,
+          permissionModeId: "auto"
+        },
+        effectivePlanMode: false,
+        supportsModel: true,
+        supportsReasoningEffort: true,
+        supportsPermissionMode: true,
+        supportsPlanMode: false,
+        isSettingsLoading: false,
+        modelUnavailable: false,
+        reasoningUnavailable: false,
+        permissionModeUnavailable: false,
+        planUnavailable: false,
+        selectedPermissionModeValue: "auto",
+        availableModels: [{ value: "gpt-5", label: "GPT-5" }],
+        availableReasoningEfforts: [{ value: "high", label: "High" }],
+        availablePermissionModes: [
+          { value: "auto", label: "agentHost.agentGui.permissionModeAuto" }
+        ]
+      }
+    });
+    renderAgentGUINode();
+
+    fireEvent.keyDown(
+      screen.getByRole("combobox", {
+        name: "agentHost.agentGui.permissionLabel"
+      }),
+      { key: "Enter" }
+    );
+    await screen.findByRole("option", {
+      name: "agentHost.agentGui.permissionModeAuto"
+    });
+    expect(
+      screen.queryByRole("option", {
+        name: "agentHost.agentGui.planModeLabel"
+      })
+    ).toBeNull();
+  });
 
   it("shows fallback composer defaults for legacy sessions without stored settings", () => {
     mockViewModel = createViewModel({
@@ -3470,6 +3811,47 @@ describe("AgentGUINode", () => {
     expect(mockSubmitPrompt).toHaveBeenCalledWith(
       promptBlocks("$architecture-review")
     );
+  });
+
+  it("groups slash palette entries into command and skill sections", () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      draftPrompt: "/",
+      availableCommands: [{ name: "init", description: "initialize project" }],
+      availableSkills: [
+        {
+          name: "architecture-review",
+          trigger: "$architecture-review",
+          sourceKind: "project",
+          description: "Review architecture changes"
+        }
+      ]
+    });
+    renderAgentGUINode();
+
+    expect(
+      screen.getByText("agentHost.agentGui.slashPaletteCommandsGroup")
+    ).toBeTruthy();
+    expect(
+      screen.getByText("agentHost.agentGui.slashPaletteSkillsGroup")
+    ).toBeTruthy();
+  });
+
+  it("hides slash palette group headers when only one section is present", () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      draftPrompt: "/",
+      availableCommands: [{ name: "init", description: "initialize project" }],
+      availableSkills: []
+    });
+    renderAgentGUINode();
+
+    expect(
+      screen.queryByText("agentHost.agentGui.slashPaletteCommandsGroup")
+    ).toBeNull();
+    expect(
+      screen.queryByText("agentHost.agentGui.slashPaletteSkillsGroup")
+    ).toBeNull();
   });
 
   it("opens Codex skill picker after prompt text and displays useful descriptions", () => {
@@ -6337,6 +6719,9 @@ function createViewModel(
     isInterrupting: false,
     isRespondingApproval: false,
     promptImagesSupported: true,
+    compactSupported: null,
+    usage: null,
+    usageAlert: null,
     isDeletingConversation: false,
     isDeletingProjectConversations: false,
     pendingDeleteConversation: null,

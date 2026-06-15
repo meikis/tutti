@@ -10,6 +10,7 @@ import type {
   DesktopCreateUserDocumentsProjectDirectoryResult,
   DesktopLocalFileTextResult,
   DesktopTerminalLinkPathPayload,
+  DesktopWorkspaceFileEntryIconPayload,
   DesktopWorkspaceFileOpenWithOtherPayload,
   DesktopWorkspaceFilePathPayload
 } from "../../shared/contracts/ipc";
@@ -19,7 +20,8 @@ import {
   openFileWithDefaultBrowser,
   openFileWithOtherApplication
 } from "./openWithApplications.ts";
-import { resolveWorkspaceFileEntryIconDataUrl } from "./workspaceFileEntryIcon.ts";
+import { resolveWorkspaceFileEntryIconUrl } from "./workspaceFileEntryIcon.ts";
+import type { WorkspaceFileIconCacheStore } from "./workspaceFileIconCacheStore.ts";
 import {
   resolveTerminalLinkAbsolutePath,
   resolveWorkspaceLogicalFilePath,
@@ -53,10 +55,7 @@ export interface WorkspaceFileHostAccess {
     payload: DesktopWorkspaceFilePathPayload
   ): Promise<Uint8Array>;
   resolveEntryIcon(
-    payload: DesktopWorkspaceFilePathPayload & {
-      entryKind: string;
-      entryName: string;
-    }
+    payload: DesktopWorkspaceFileEntryIconPayload
   ): Promise<string | null>;
 }
 
@@ -69,6 +68,7 @@ export interface WorkspaceFileHostAccessDependencies {
   readFile?: typeof readFile;
   showItemInFolder?: (path: string) => void;
   stat?: typeof stat;
+  workspaceFileIconCache?: WorkspaceFileIconCacheStore;
 }
 
 export function createWorkspaceFileHostAccess(
@@ -83,6 +83,8 @@ export function createWorkspaceFileHostAccess(
   const readFileImpl = deps.readFile ?? readFile;
   const showItemInFolder = deps.showItemInFolder ?? defaultShowItemInFolder;
   const statImpl = deps.stat ?? stat;
+  const resolveTargetPath = (payload: DesktopWorkspaceFilePathPayload) =>
+    resolveWorkspaceTargetPath(payload);
 
   return {
     async createUserDocumentsProjectDirectory(payload) {
@@ -116,12 +118,12 @@ export function createWorkspaceFileHostAccess(
     },
 
     async listOpenWithApplications(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
+      const targetPath = resolveTargetPath(payload);
       return listOpenWithApplications(targetPath);
     },
 
     async openFile(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
+      const targetPath = resolveTargetPath(payload);
       const openError = await openPath(targetPath);
       if (
         openError &&
@@ -134,12 +136,12 @@ export function createWorkspaceFileHostAccess(
     },
 
     async openFileWithApplication(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
+      const targetPath = resolveTargetPath(payload);
       await openFileWithApplication(targetPath, payload.applicationPath);
     },
 
     async openFileWithOtherApplication(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
+      const targetPath = resolveTargetPath(payload);
       await openFileWithOtherApplication(
         targetPath,
         payload.applicationPickerPrompt
@@ -147,17 +149,17 @@ export function createWorkspaceFileHostAccess(
     },
 
     async openFileInBrowser(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
+      const targetPath = resolveTargetPath(payload);
       await openFileWithDefaultBrowserImpl(targetPath);
     },
 
     resolveWorkspaceFileFileUrl(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
+      const targetPath = resolveTargetPath(payload);
       return Promise.resolve(pathToFileURL(targetPath).href);
     },
 
     async revealWorkspaceFile(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
+      const targetPath = resolveTargetPath(payload);
       await revealPathInOsFileManager(targetPath, {
         openPath,
         showItemInFolder,
@@ -189,7 +191,7 @@ export function createWorkspaceFileHostAccess(
     },
 
     async readPreviewFile(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
+      const targetPath = resolveTargetPath(payload);
       await ensureFileWithinPreviewBudget(targetPath, statImpl);
 
       const bytes = await readFileImpl(targetPath);
@@ -197,12 +199,21 @@ export function createWorkspaceFileHostAccess(
     },
 
     async resolveEntryIcon(payload) {
-      const targetPath = resolveWorkspaceTargetPath(payload);
-      return resolveWorkspaceFileEntryIconDataUrl(targetPath, {
-        kind: payload.entryKind,
-        name: payload.entryName,
-        path: payload.path
-      });
+      if (!deps.workspaceFileIconCache) {
+        return null;
+      }
+      const targetPath = resolveTargetPath(payload);
+      return resolveWorkspaceFileEntryIconUrl(
+        targetPath,
+        {
+          kind: payload.entryKind,
+          mtimeMs: payload.entryMtimeMs,
+          name: payload.entryName,
+          path: payload.path,
+          workspaceID: payload.workspaceID
+        },
+        deps.workspaceFileIconCache
+      );
     }
   };
 }

@@ -150,6 +150,7 @@ export function validateManifest(manifest, sourceLabel = "manifest") {
     throw new Error(`${sourceLabel} runtime.healthcheckPath must start with /`);
   }
   validateManifestCLI(manifest.cli, sourceLabel);
+  validateManifestReferences(manifest.references, sourceLabel);
   validateLocalizationInfo(manifest.localizationInfo, sourceLabel);
 }
 
@@ -167,6 +168,24 @@ function validateManifestCLI(cli, sourceLabel) {
   if (!isRelativePackagePath(cliManifest)) {
     throw new Error(
       `${sourceLabel}.cli.manifest must be a relative package path`
+    );
+  }
+}
+
+function validateManifestReferences(references, sourceLabel) {
+  if (references === undefined) {
+    return;
+  }
+  if (!references || typeof references !== "object") {
+    throw new Error(`${sourceLabel} references must be an object`);
+  }
+  const searchEndpoint = requireNonEmpty(
+    references.searchEndpoint,
+    `${sourceLabel}.references.searchEndpoint`
+  );
+  if (!isRelativeURLPath(searchEndpoint)) {
+    throw new Error(
+      `${sourceLabel}.references.searchEndpoint must be a relative URL path without query or hash`
     );
   }
 }
@@ -493,6 +512,22 @@ function isRelativePackagePath(value) {
     return false;
   }
   return !text.split(/[\\/]+/).includes("..");
+}
+
+function isRelativeURLPath(value) {
+  const text = String(value ?? "").trim();
+  if (
+    text === "" ||
+    !text.startsWith("/") ||
+    text.startsWith("//") ||
+    text.includes("\0") ||
+    text.includes("?") ||
+    text.includes("#") ||
+    text.includes("%")
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function normalizeBaseUrl(value) {

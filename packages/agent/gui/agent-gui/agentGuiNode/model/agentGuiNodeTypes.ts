@@ -1,4 +1,6 @@
+import type { AgentActivityUsage } from "@tutti-os/agent-activity-core";
 import type { AgentGUINodeData } from "../../../types";
+import type { UsageAlertTier } from "./agentUsageAlerts";
 import type {
   AgentGUIApprovalRequest,
   AgentGUIConversationSummary,
@@ -121,6 +123,10 @@ export interface AgentGUINodeViewModel {
   isInterrupting: boolean;
   isRespondingApproval: boolean;
   promptImagesSupported: boolean;
+  compactSupported: boolean | null;
+  usage: AgentActivityUsage | null;
+  usageAlert: UsageAlertTier | null;
+  /** Codex plan turn finished: offer the TUI-equivalent implement prompt. */
   listError: string | null;
   isDeletingConversation: boolean;
   isDeletingProjectConversations: boolean;

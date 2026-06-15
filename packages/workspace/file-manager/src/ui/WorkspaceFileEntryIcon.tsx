@@ -8,6 +8,7 @@ import {
   cn
 } from "@tutti-os/ui-system";
 import type { ReactElement } from "react";
+import { useEffect, useRef } from "react";
 import {
   resolveWorkspaceFileExtension,
   resolveWorkspaceFileVisualKind
@@ -24,22 +25,93 @@ export function WorkspaceFileEntryIcon({
   frameClassName,
   iconClassName = "size-4",
   iconUrlByCacheKey,
-  isEnteringDirectory = false
+  isEnteringDirectory = false,
+  onViewportLeave,
+  onViewportEnter
 }: {
   entry: WorkspaceFileEntry;
   frameClassName?: string;
   iconClassName?: string;
   iconUrlByCacheKey?: ReadonlyMap<string, string | null>;
   isEnteringDirectory?: boolean;
+  onViewportLeave?: (entry: WorkspaceFileEntry) => void;
+  onViewportEnter?: (entry: WorkspaceFileEntry) => void;
 }): ReactElement {
   const visualKind = resolveWorkspaceFileVisualKind(entry);
   const isAppBundle = isWorkspaceApplicationBundle(entry);
-  const iconUrl =
-    iconUrlByCacheKey?.get(resolveWorkspaceFileEntryIconCacheKey(entry)) ??
-    null;
+  const cacheKey = resolveWorkspaceFileEntryIconCacheKey(entry);
+  const iconUrl = iconUrlByCacheKey?.get(cacheKey) ?? null;
+  const frameRef = useRef<HTMLSpanElement | null>(null);
+  const visibleEntryRef = useRef<WorkspaceFileEntry | null>(null);
+  const visibleEntryCacheKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    function reportViewportLeave(): void {
+      const visibleEntry = visibleEntryRef.current;
+      if (!visibleEntry) {
+        return;
+      }
+      visibleEntryRef.current = null;
+      visibleEntryCacheKeyRef.current = null;
+      onViewportLeave?.(visibleEntry);
+    }
+
+    function reportViewportEnter(): void {
+      if (visibleEntryCacheKeyRef.current === cacheKey) {
+        return;
+      }
+      reportViewportLeave();
+      visibleEntryRef.current = entry;
+      visibleEntryCacheKeyRef.current = cacheKey;
+      onViewportEnter?.(entry);
+    }
+
+    if (!onViewportEnter || isEnteringDirectory) {
+      reportViewportLeave();
+      return;
+    }
+
+    const element = frameRef.current;
+    if (!element || typeof IntersectionObserver === "undefined") {
+      reportViewportEnter();
+      return () => {
+        reportViewportLeave();
+      };
+    }
+
+    const viewportRoot = resolveWorkspaceFileEntryIconViewport(element);
+    const observer = new IntersectionObserver(
+      (records) => {
+        const intersecting = records.some(
+          (record) => record.isIntersecting && record.intersectionRatio > 0
+        );
+        if (intersecting) {
+          reportViewportEnter();
+          return;
+        }
+        reportViewportLeave();
+      },
+      { root: viewportRoot, rootMargin: "0px", threshold: 0 }
+    );
+    observer.observe(element);
+    const initiallyVisible = isWorkspaceFileEntryIconVisible(
+      element,
+      viewportRoot
+    );
+    if (initiallyVisible) {
+      reportViewportEnter();
+    } else {
+      reportViewportLeave();
+    }
+    return () => {
+      observer.disconnect();
+      reportViewportLeave();
+    };
+  }, [cacheKey, entry, isEnteringDirectory, onViewportLeave, onViewportEnter]);
 
   return (
     <span
+      ref={frameRef}
       className={cn(
         "grid flex-none place-items-center overflow-hidden",
         frameClassName,
@@ -53,8 +125,15 @@ export function WorkspaceFileEntryIcon({
       ) : iconUrl ? (
         <img
           alt=""
-          className={cn(iconClassName, "rounded-[4px] object-contain")}
+          className={cn(
+            iconClassName,
+            visualKind === "image"
+              ? "rounded-[6px] border border-[var(--border-1)] bg-[var(--transparency-block)] object-contain shadow-sm"
+              : "rounded-[4px] object-contain"
+          )}
+          decoding="async"
           draggable={false}
+          loading="lazy"
           src={iconUrl}
         />
       ) : (
@@ -65,6 +144,34 @@ export function WorkspaceFileEntryIcon({
         />
       )}
     </span>
+  );
+}
+
+function resolveWorkspaceFileEntryIconViewport(
+  element: HTMLElement
+): HTMLElement | null {
+  return element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+}
+
+function isWorkspaceFileEntryIconVisible(
+  element: HTMLElement,
+  viewportRoot: HTMLElement | null
+): boolean {
+  const elementRect = element.getBoundingClientRect();
+  const viewportRect =
+    viewportRoot?.getBoundingClientRect() ??
+    ({
+      bottom: window.innerHeight,
+      left: 0,
+      right: window.innerWidth,
+      top: 0
+    } satisfies Pick<DOMRect, "bottom" | "left" | "right" | "top">);
+
+  return (
+    elementRect.bottom > viewportRect.top &&
+    elementRect.top < viewportRect.bottom &&
+    elementRect.right > viewportRect.left &&
+    elementRect.left < viewportRect.right
   );
 }
 
@@ -115,7 +222,8 @@ function ExtensionDocumentIcon({
   const extension = resolveWorkspaceFileExtension(entry.name)
     .slice(0, 5)
     .toUpperCase();
-  const showExtension = extension.length > 0 && iconClassName.includes("52px");
+  const showExtension =
+    extension.length > 0 && !iconClassName.includes("size-4");
 
   return (
     <span

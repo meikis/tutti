@@ -302,7 +302,8 @@ export const appCenterEn = {
     preparing: "Preparing",
     running: "Running",
     starting: "Starting",
-    stopping: "Stopping"
+    stopping: "Stopping",
+    unavailable: "Unavailable"
   },
   title: "Applications"
 } as const satisfies I18nDictionary;
@@ -578,7 +579,8 @@ export const appCenterZhCN = {
     preparing: "准备中",
     running: "运行中",
     starting: "启动中",
-    stopping: "停止中"
+    stopping: "停止中",
+    unavailable: "不可用"
   },
   title: "应用"
 } as const satisfies I18nDictionary;

@@ -38,6 +38,7 @@ export interface WorkspaceAgentMessageCenterCardProps {
   item: WorkspaceAgentMessageCenterItem;
   cardRef?: (node: HTMLElement | null) => void;
   highlighted?: boolean;
+  interactive?: boolean;
   isSubmitting: boolean;
   onLinkAction?: (action: WorkspaceLinkAction) => void;
   onOpenChat: (input: { agentSessionId: string; provider: string }) => void;
@@ -58,6 +59,7 @@ function stopMessageCenterTextPointerPropagation(
 export function WorkspaceAgentMessageCenterCard({
   cardRef,
   highlighted = false,
+  interactive = true,
   item,
   isSubmitting,
   onLinkAction,
@@ -82,6 +84,7 @@ export function WorkspaceAgentMessageCenterCard({
         highlighted && "outline-2 outline-[var(--accent)]"
       )}
       data-highlighted={highlighted ? "true" : undefined}
+      data-message-center-digest-kind={item.digest.primary.kind}
       data-message-center-item-id={item.id}
       data-waiting={isWaitingMessageCenterItem(item) ? "true" : undefined}
       data-status={displayStatus}
@@ -134,10 +137,11 @@ export function WorkspaceAgentMessageCenterCard({
         />
       ) : null}
 
-      {prompt ? (
+      {prompt && interactive ? (
         <div className="min-w-0">
           <AgentInteractivePromptSurface
             embedded
+            variant="compact"
             keyboardShortcuts={false}
             prompt={prompt}
             isSubmitting={isSubmitting}
@@ -155,6 +159,10 @@ export function WorkspaceAgentMessageCenterCard({
         item={item}
         label={t("agentHost.workspaceAgentMessageCenterOpenChat")}
         onOpenChat={onOpenChat}
+        // Interactive deck cards only offer the primary decision inline; the
+        // jump to the conversation is the path for everything else (e.g.
+        // refining a plan), so keep it always visible rather than hover-only.
+        alwaysVisible={interactive && prompt !== null}
       />
     </article>
   );
@@ -397,7 +405,9 @@ function messageCenterStackPreviewText(
   item: WorkspaceAgentMessageCenterItem
 ): string {
   return (
-    item.lastAgentMessageSummary.trim() || normalizeAgentTitleText(item.title)
+    item.digest.primary.summary.trim() ||
+    item.lastAgentMessageSummary.trim() ||
+    normalizeAgentTitleText(item.title)
   );
 }
 
@@ -470,7 +480,16 @@ export function buildWorkspaceAgentInteractivePromptLabels(
     nextQuestion: t("agentHost.agentGui.nextQuestion"),
     submitAnswers: t("agentHost.agentGui.submitAnswers"),
     answerPlaceholder: t("agentHost.agentGui.answerPlaceholder"),
-    waitingForAnswer: t("agentHost.agentGui.waitingForAnswer")
+    waitingForAnswer: t("agentHost.agentGui.waitingForAnswer"),
+    planImplementationLead: t("agentHost.agentGui.planImplementationLead"),
+    planImplementationConfirm: t(
+      "agentHost.agentGui.planImplementationConfirm"
+    ),
+    planImplementationFeedbackPlaceholder: t(
+      "agentHost.agentGui.planImplementationFeedbackPlaceholder"
+    ),
+    planImplementationSend: t("agentHost.agentGui.planImplementationSend"),
+    planImplementationSkip: t("agentHost.agentGui.planImplementationSkip")
   };
 }
 
@@ -488,7 +507,7 @@ function normalizeMessageCenterNotificationAction(action: string): string {
 function messageCenterVisibleSummary(
   item: WorkspaceAgentMessageCenterItem
 ): string {
-  const summary = item.lastAgentMessageSummary.trim();
+  const summary = item.digest.primary.summary.trim();
   if (
     item.pendingPrompt?.kind === "approval" &&
     isGenericApprovalSummary(summary)
@@ -578,11 +597,13 @@ function MessageCenterSummary({
 }
 
 function MessageCenterOpenChatButton({
+  alwaysVisible = false,
   item,
   label,
   onOpenChat,
   provider
 }: {
+  alwaysVisible?: boolean;
   item: WorkspaceAgentMessageCenterItem;
   label: string;
   onOpenChat: (input: { agentSessionId: string; provider: string }) => void;
@@ -600,7 +621,11 @@ function MessageCenterOpenChatButton({
         type="button"
         variant="ghost"
         size="default"
-        className="workspace-agent-message-center__open-chat-button invisible h-auto gap-1.5 border-0 bg-transparent p-0 text-[var(--agent-gui-accent)] opacity-0 shadow-none transition-[color,opacity,visibility] group-hover/message-card:visible group-hover/message-card:opacity-100 group-focus-within/message-card:visible group-focus-within/message-card:opacity-100 hover:bg-transparent hover:text-[var(--agent-gui-accent)] focus-visible:bg-transparent focus-visible:text-[var(--agent-gui-accent)] active:bg-transparent"
+        className={cn(
+          "workspace-agent-message-center__open-chat-button h-auto gap-1.5 border-0 bg-transparent p-0 text-[var(--agent-gui-accent)] shadow-none transition-[color,opacity,visibility] hover:bg-transparent hover:text-[var(--agent-gui-accent)] focus-visible:bg-transparent focus-visible:text-[var(--agent-gui-accent)] active:bg-transparent",
+          !alwaysVisible &&
+            "invisible opacity-0 group-hover/message-card:visible group-hover/message-card:opacity-100 group-focus-within/message-card:visible group-focus-within/message-card:opacity-100"
+        )}
         onClick={() =>
           onOpenChat({
             agentSessionId: item.agentSessionId,

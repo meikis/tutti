@@ -143,6 +143,9 @@ export interface WorkspaceWorkspaceAppV1 {
   minimizeBehavior: "hibernate" | "keep-mounted";
   windowMinWidth: number | null;
   windowMinHeight: number | null;
+  references: {
+    searchSupported: boolean;
+  };
 }
 
 export type AgentActivityUpdatedPayloadV1 =

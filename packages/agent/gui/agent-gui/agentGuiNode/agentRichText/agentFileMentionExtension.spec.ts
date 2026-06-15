@@ -105,6 +105,19 @@ describe("parseAgentMentionMarkdown", () => {
     });
   });
 
+  it("accepts workspace app reference file markdown links as plain file mentions", () => {
+    expect(parseAgentMentionMarkdown("[@Guide](docs/guide.md)")).toMatchObject({
+      item: {
+        kind: "file",
+        href: "docs/guide.md",
+        path: "docs/guide.md",
+        name: "Guide",
+        entryKind: "unknown",
+        directoryPath: "/docs"
+      }
+    });
+  });
+
   it("hydrates workspace app factory mentions without query params", () => {
     expect(
       parseAgentMentionMarkdown(

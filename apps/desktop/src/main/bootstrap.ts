@@ -20,8 +20,14 @@ import { registerIpcHandlers } from "./ipc/register";
 import { flushDesktopLogger, setupDesktopLogger } from "./logging";
 import { getSystemDesktopLocale } from "./desktopLocale";
 import { openDesktopWorkspaceAppFolder } from "./host/workspaceAppFolderAccess";
+import { createWorkspaceFileIconCacheStore } from "./host/workspaceFileIconCacheStore.ts";
+import {
+  registerWorkspaceFileIconProtocol,
+  registerWorkspaceFileIconProtocolScheme
+} from "./host/workspaceFileIconProtocol.ts";
 
 export async function bootstrapDesktopApp(): Promise<void> {
+  registerWorkspaceFileIconProtocolScheme();
   initializeDesktopEnvironment({
     appVersion: app.getVersion(),
     isPackaged: app.isPackaged
@@ -40,6 +46,10 @@ export async function bootstrapDesktopApp(): Promise<void> {
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
 
   await app.whenReady();
+  const workspaceFileIconCache = createWorkspaceFileIconCacheStore({
+    directory: join(app.getPath("userData"), "workspace-file-icons")
+  });
+  registerWorkspaceFileIconProtocol(workspaceFileIconCache);
   const desktopAppServices = await createDesktopAppServices({
     enableDevelopmentReloadShortcut: Boolean(rendererUrl) && !app.isPackaged,
     fallbackLocale: getSystemDesktopLocale(),
@@ -87,6 +97,7 @@ export async function bootstrapDesktopApp(): Promise<void> {
     daemonEndpoint: desktopAppServices.daemonEndpoint,
     fileDialogs: desktopAppServices.fileDialogs,
     logger,
+    workspaceFileIconCache,
     tuttidClient: desktopAppServices.tuttidClient,
     openWorkspaceAppFolder: openDesktopWorkspaceAppFolder,
     preferences: desktopAppServices.preferences,

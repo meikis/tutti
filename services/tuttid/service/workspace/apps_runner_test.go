@@ -3,12 +3,12 @@ package workspace
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -144,117 +144,6 @@ exec "$TUTTI_APP_PYTHON" "$TUTTI_APP_PACKAGE_DIR/server.py"
 	}
 }
 
-func TestAppRunnerInjectsLegacyNextopAppEnvAliases(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("bootstrap.sh runner test is POSIX-only")
-	}
-	if _, err := exec.LookPath("python3"); err != nil {
-		t.Skip("python3 is required for runner legacy env test")
-	}
-
-	root := t.TempDir()
-	packageDir := filepath.Join(root, "package")
-	runtimeDir := filepath.Join(root, "runtime")
-	dataDir := filepath.Join(root, "data")
-	logDir := filepath.Join(root, "logs")
-	if err := os.MkdirAll(packageDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(packageDir) error = %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(packageDir, "bootstrap.sh"), []byte(`#!/bin/sh
-set -eu
-: "${NEXTOP_APP_PACKAGE_DIR:?}"
-: "${NEXTOP_APP_ID:?}"
-: "${NEXTOP_WORKSPACE_ID:?}"
-: "${NEXTOP_WORKSPACE_NAME:?}"
-: "${NEXTOP_WORKSPACE_ROOT:?}"
-: "${NEXTOP_APP_HOST:?}"
-: "${NEXTOP_APP_RUNTIME_DIR:?}"
-: "${NEXTOP_APP_DATA_DIR:?}"
-: "${NEXTOP_APP_LOG_DIR:?}"
-: "${NEXTOP_APP_PORT:?}"
-: "${NEXTOP_APP_BASE_URL:?}"
-: "${NEXTOP_APP_PYTHON:?}"
-: "${NEXTOP_APP_NODE:?}"
-: "${NEXTOP_APP_NPM:?}"
-: "${NEXTOP_CLI:?}"
-exec "$NEXTOP_APP_PYTHON" "$NEXTOP_APP_PACKAGE_DIR/server.py"
-`), 0o755); err != nil {
-		t.Fatalf("WriteFile(bootstrap.sh) error = %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(packageDir, "server.py"), []byte(pythonLegacyNextopReadyServerScript("/ready")), 0o644); err != nil {
-		t.Fatalf("WriteFile(server.py) error = %v", err)
-	}
-
-	stateRoot := filepath.Join(root, "state")
-	t.Setenv(tuttiAppRuntimeRootEnv, createManagedAppRuntimeFixture(t, root))
-	t.Setenv("TUTTI_ENV", "production")
-	t.Setenv("TUTTI_STATE_DIR", stateRoot)
-	runner := &AppRunner{HealthcheckTimeout: 3 * time.Second}
-	state, err := runner.Start(context.Background(), AppStartInput{
-		WorkspaceID:     "ws-legacy",
-		WorkspaceName:   "Legacy Workspace",
-		WorkspaceRoot:   root,
-		AppID:           "legacy-app",
-		PackageDir:      packageDir,
-		Bootstrap:       "bootstrap.sh",
-		HealthcheckPath: "/ready",
-		RuntimeDir:      runtimeDir,
-		DataDir:         dataDir,
-		LogDir:          logDir,
-	})
-	if err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = runner.Stop(context.Background(), "ws-legacy", "legacy-app")
-	})
-	if state.Status != workspacebiz.AppRuntimeStatusPreparing {
-		t.Fatalf("Start() status = %q, want preparing, lastError=%v", state.Status, state.LastError)
-	}
-	state = waitForRunnerState(t, runner, "ws-legacy", "legacy-app", func(state workspacebiz.AppRuntimeState) bool {
-		return state.Status == workspacebiz.AppRuntimeStatusRunning || state.Status == workspacebiz.AppRuntimeStatusFailed
-	})
-	if state.Status != workspacebiz.AppRuntimeStatusRunning {
-		t.Fatalf("runner status = %q, want running; failureReason=%v lastError=%v", state.Status, state.FailureReason, state.LastError)
-	}
-	if state.Port == nil || *state.Port <= 0 {
-		t.Fatalf("Port = %v", state.Port)
-	}
-
-	probePath := filepath.Join(dataDir, "legacy-probe.json")
-	probe, err := os.ReadFile(probePath)
-	if err != nil {
-		t.Fatalf("ReadFile(%s) error = %v", probePath, err)
-	}
-	var probeValues map[string]string
-	if err := json.Unmarshal(probe, &probeValues); err != nil {
-		t.Fatalf("Unmarshal(probe) error = %v", err)
-	}
-	for key, want := range map[string]string{
-		"appId":         "legacy-app",
-		"workspaceId":   "ws-legacy",
-		"workspaceName": "Legacy Workspace",
-		"workspaceRoot": root,
-		"appHost":       "127.0.0.1",
-		"packageDir":    packageDir,
-		"runtimeDir":    runtimeDir,
-		"dataDir":       dataDir,
-		"logDir":        logDir,
-		"appBaseUrl":    *state.LaunchURL,
-		"nextopCli":     filepath.Join(stateRoot, "bin", "tutti"),
-	} {
-		if probeValues[key] != want {
-			t.Fatalf("probe[%s] = %q, want %q", key, probeValues[key], want)
-		}
-	}
-	if probeValues["appPort"] != strconv.Itoa(*state.Port) {
-		t.Fatalf("probe[appPort] = %q, want %d", probeValues["appPort"], *state.Port)
-	}
-	if probeValues["python"] == "" || probeValues["node"] == "" || probeValues["npm"] == "" {
-		t.Fatalf("probe missing runtime binaries: %#v", probeValues)
-	}
-}
-
 func TestAppRunnerRestartStartsFreshProcessAndWritesStartupDiagnostic(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("bootstrap.sh runner test is POSIX-only")
@@ -307,8 +196,19 @@ exec "$TUTTI_APP_PYTHON" "$TUTTI_APP_PACKAGE_DIR/server.py"
 		t.Fatalf("first Port = nil")
 	}
 
-	input.Restart = true
 	state, err := runner.Start(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Start(no restart) error = %v", err)
+	}
+	if state.Status != workspacebiz.AppRuntimeStatusRunning {
+		t.Fatalf("Start(no restart) status = %q, want running", state.Status)
+	}
+	if state.Port == nil || *state.Port != *first.Port {
+		t.Fatalf("Start(no restart) port = %v, want %d", state.Port, *first.Port)
+	}
+
+	input.Restart = true
+	state, err = runner.Start(context.Background(), input)
 	if err != nil {
 		t.Fatalf("Start(Restart) error = %v", err)
 	}
@@ -326,6 +226,139 @@ exec "$TUTTI_APP_PYTHON" "$TUTTI_APP_PACKAGE_DIR/server.py"
 	}
 	if got := strings.Count(string(logData), "tutti workspace app startup"); got != 2 {
 		t.Fatalf("startup diagnostics = %d, want 2; runtime.log=%q", got, string(logData))
+	}
+}
+
+func TestAppRunnerStartWithoutRestartReusesQueuedStart(t *testing.T) {
+	root := t.TempDir()
+	packageDir := filepath.Join(root, "package")
+	if err := os.MkdirAll(packageDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(packageDir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(packageDir, "bootstrap.sh"), []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile(bootstrap.sh) error = %v", err)
+	}
+
+	var eventsMu sync.Mutex
+	var events []workspacebiz.AppRuntimeState
+	runner := &AppRunner{
+		RuntimeResolver: &appRuntimeResolverStub{called: make(chan struct{}), err: errors.New("skip runtime")},
+		OnStateChanged: func(_ string, _ string, state workspacebiz.AppRuntimeState) {
+			eventsMu.Lock()
+			events = append(events, state)
+			eventsMu.Unlock()
+		},
+		queue: make(chan struct{}, 1),
+	}
+	runner.queue <- struct{}{}
+	input := AppStartInput{
+		WorkspaceID:     "ws-runner",
+		AppID:           "queued",
+		PackageDir:      packageDir,
+		Bootstrap:       "bootstrap.sh",
+		HealthcheckPath: "/ready",
+		RuntimeDir:      filepath.Join(root, "runtime"),
+		DataDir:         filepath.Join(root, "data"),
+		LogDir:          filepath.Join(root, "logs"),
+	}
+	state, err := runner.Start(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if state.Status != workspacebiz.AppRuntimeStatusPreparing {
+		t.Fatalf("Start() status = %q, want preparing", state.Status)
+	}
+
+	state, err = runner.Start(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Start(no restart) error = %v", err)
+	}
+	if state.Status != workspacebiz.AppRuntimeStatusPreparing {
+		t.Fatalf("Start(no restart) status = %q, want preparing", state.Status)
+	}
+	eventsMu.Lock()
+	eventCount := len(events)
+	eventsMu.Unlock()
+	if eventCount != 1 {
+		t.Fatalf("state change events = %d, want 1", eventCount)
+	}
+
+	<-runner.queue
+	waitForRunnerStatus(t, runner, "ws-runner", "queued", workspacebiz.AppRuntimeStatusFailed)
+}
+
+func TestAppRunnerFinishStartIgnoresReplacedStart(t *testing.T) {
+	runner := &AppRunner{}
+	runner.ensure()
+	key := appRuntimeKey("ws-runner", "queued")
+	oldStart := &appStart{cancel: func() {}}
+	newStart := &appStart{cancel: func() {}}
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	runner.mu.Lock()
+	runner.starts[key] = newStart
+	runner.states[key] = workspacebiz.AppRuntimeState{Status: workspacebiz.AppRuntimeStatusPreparing}
+	runner.mu.Unlock()
+
+	runner.finishStart(key, cancelledCtx, oldStart)
+
+	runner.mu.Lock()
+	defer runner.mu.Unlock()
+	if runner.starts[key] != newStart {
+		t.Fatalf("finishStart() replaced start = %v, want still active", runner.starts[key])
+	}
+	if state := runner.states[key]; state.Status != workspacebiz.AppRuntimeStatusPreparing {
+		t.Fatalf("finishStart() status = %q, want preparing", state.Status)
+	}
+}
+
+func TestAppRunnerStartWithoutRestartReusesStartingProcess(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bootstrap.sh runner test is POSIX-only")
+	}
+
+	root := t.TempDir()
+	packageDir := filepath.Join(root, "package")
+	if err := os.MkdirAll(packageDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(packageDir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(packageDir, "bootstrap.sh"), []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile(bootstrap.sh) error = %v", err)
+	}
+
+	t.Setenv(tuttiAppRuntimeRootEnv, createManagedAppRuntimeFixture(t, root))
+	runner := &AppRunner{HealthcheckTimeout: 3 * time.Second}
+	input := AppStartInput{
+		WorkspaceID:     "ws-runner",
+		AppID:           "starting",
+		PackageDir:      packageDir,
+		Bootstrap:       "bootstrap.sh",
+		HealthcheckPath: "/ready",
+		RuntimeDir:      filepath.Join(root, "runtime"),
+		DataDir:         filepath.Join(root, "data"),
+		LogDir:          filepath.Join(root, "logs"),
+	}
+	if _, err := runner.Start(context.Background(), input); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = runner.Stop(context.Background(), "ws-runner", "starting")
+	})
+	starting := waitForRunnerStatus(t, runner, "ws-runner", "starting", workspacebiz.AppRuntimeStatusStarting)
+	if starting.Port == nil {
+		t.Fatalf("starting Port = nil")
+	}
+
+	state, err := runner.Start(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Start(no restart) error = %v", err)
+	}
+	if state.Status != workspacebiz.AppRuntimeStatusStarting {
+		t.Fatalf("Start(no restart) status = %q, want starting", state.Status)
+	}
+	if state.Port == nil || *state.Port != *starting.Port {
+		t.Fatalf("Start(no restart) port = %v, want %d", state.Port, *starting.Port)
 	}
 }
 
@@ -669,56 +702,6 @@ __PROBE_WRITE__        connection.sendall(b"HTTP/1.1 204 No Content\r\nContent-L
 	script = strings.ReplaceAll(script, "__PROBE_WRITE__", probeWrite)
 	script = strings.ReplaceAll(script, "__HEALTHCHECK_PATH__", healthcheckPath)
 	return script
-}
-
-func pythonLegacyNextopReadyServerScript(healthcheckPath string) string {
-	script := `import json
-import os
-import socket
-
-HEALTHCHECK_PATH = "__HEALTHCHECK_PATH__"
-
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server.bind((os.environ["NEXTOP_APP_HOST"], int(os.environ["NEXTOP_APP_PORT"])))
-server.listen(16)
-
-while True:
-    connection, _ = server.accept()
-    with connection:
-        request = b""
-        while b"\r\n\r\n" not in request:
-            chunk = connection.recv(4096)
-            if not chunk:
-                break
-            request += chunk
-        request_line = request.split(b"\r\n", 1)[0].decode("ascii", "ignore")
-        parts = request_line.split(" ")
-        path = parts[1] if len(parts) > 1 else "/"
-        if path != HEALTHCHECK_PATH:
-            connection.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
-            continue
-        with open(os.path.join(os.environ["NEXTOP_APP_DATA_DIR"], "legacy-probe.json"), "w") as f:
-            json.dump({
-                "appId": os.environ["NEXTOP_APP_ID"],
-                "workspaceId": os.environ["NEXTOP_WORKSPACE_ID"],
-                "workspaceName": os.environ["NEXTOP_WORKSPACE_NAME"],
-                "workspaceRoot": os.environ["NEXTOP_WORKSPACE_ROOT"],
-                "appHost": os.environ["NEXTOP_APP_HOST"],
-                "appPort": os.environ["NEXTOP_APP_PORT"],
-                "appBaseUrl": os.environ["NEXTOP_APP_BASE_URL"],
-                "packageDir": os.environ["NEXTOP_APP_PACKAGE_DIR"],
-                "runtimeDir": os.environ["NEXTOP_APP_RUNTIME_DIR"],
-                "dataDir": os.environ["NEXTOP_APP_DATA_DIR"],
-                "logDir": os.environ["NEXTOP_APP_LOG_DIR"],
-                "python": os.environ["NEXTOP_APP_PYTHON"],
-                "node": os.environ["NEXTOP_APP_NODE"],
-                "npm": os.environ["NEXTOP_APP_NPM"],
-                "nextopCli": os.environ["NEXTOP_CLI"],
-            }, f)
-        connection.sendall(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
-`
-	return strings.ReplaceAll(script, "__HEALTHCHECK_PATH__", healthcheckPath)
 }
 
 func waitForRunnerStatus(t *testing.T, runner *AppRunner, workspaceID string, appID string, want workspacebiz.AppRuntimeStatus) workspacebiz.AppRuntimeState {

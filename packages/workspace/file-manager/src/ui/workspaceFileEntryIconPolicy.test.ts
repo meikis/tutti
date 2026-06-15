@@ -23,12 +23,31 @@ function createEntry(
   };
 }
 
-test("resolves icons for image files", () => {
+test("skips icon resolution for regular image files", () => {
   assert.equal(
     shouldResolveWorkspaceFileEntryIcon(
       createEntry({ name: "photo.png", path: "/workspace/photo.png" })
     ),
+    false
+  );
+});
+
+test("resolves image thumbnails only when enabled", () => {
+  const entry = createEntry({
+    mtimeMs: 42,
+    name: "photo.png",
+    path: "/workspace/photo.png"
+  });
+
+  assert.equal(
+    shouldResolveWorkspaceFileEntryIcon(entry, {
+      includeImageThumbnails: true
+    }),
     true
+  );
+  assert.equal(
+    resolveWorkspaceFileEntryIconCacheKey(entry),
+    "image-thumbnail:/workspace/photo.png:42"
   );
 });
 
@@ -40,12 +59,23 @@ test("uses extension document icons for text and code files", () => {
   }
 });
 
-test("resolves icons for non-text regular files and skips regular directories", () => {
+test("resolves default application icons for selected document-like file types", () => {
+  for (const name of ["brief.pdf", "Deck.pptx", "Archive.zip", "Design.psd"]) {
+    assert.equal(
+      shouldResolveWorkspaceFileEntryIcon(
+        createEntry({ name, path: `/workspace/${name}` })
+      ),
+      true
+    );
+  }
+});
+
+test("skips icon resolution for media files and regular directories", () => {
   assert.equal(
     shouldResolveWorkspaceFileEntryIcon(
-      createEntry({ name: "brief.pdf", path: "/workspace/brief.pdf" })
+      createEntry({ name: "clip.mp4", path: "/workspace/clip.mp4" })
     ),
-    true
+    false
   );
   assert.equal(
     shouldResolveWorkspaceFileEntryIcon(
@@ -59,7 +89,7 @@ test("resolves icons for non-text regular files and skips regular directories", 
   );
 });
 
-test("resolves icons for application bundles by name", () => {
+test("resolves icons for non-file application bundles by name", () => {
   assert.equal(
     shouldResolveWorkspaceFileEntryIcon(
       createEntry({
@@ -70,16 +100,38 @@ test("resolves icons for application bundles by name", () => {
     ),
     true
   );
+  assert.equal(
+    shouldResolveWorkspaceFileEntryIcon(
+      createEntry({
+        kind: "file",
+        name: "Fake.app",
+        path: "/workspace/Fake.app"
+      })
+    ),
+    false
+  );
 });
 
-test("builds cache keys from path and mtime", () => {
+test("builds cache keys by icon target kind", () => {
+  assert.equal(
+    resolveWorkspaceFileEntryIconCacheKey(
+      createEntry({
+        kind: "unknown",
+        mtimeMs: 42,
+        name: "Demo.app",
+        path: "/workspace/Demo.app"
+      })
+    ),
+    "application:/workspace/Demo.app:42"
+  );
   assert.equal(
     resolveWorkspaceFileEntryIconCacheKey(
       createEntry({
         mtimeMs: 42,
-        path: "/workspace/a.png"
+        name: "Brief.pdf",
+        path: "/workspace/Brief.pdf"
       })
     ),
-    "/workspace/a.png:42"
+    "file-type-default-application:pdf"
   );
 });

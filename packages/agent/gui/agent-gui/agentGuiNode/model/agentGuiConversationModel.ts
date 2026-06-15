@@ -99,6 +99,14 @@ export type AgentGUIConversationUserProject = Pick<
   | "lastUsedAtUnixMs"
 >;
 
+export type AgentGUIConversationNoProjectPathResolver = (input: {
+  path: string;
+}) => boolean;
+
+export interface AgentGUIConversationProjectResolutionOptions {
+  isNoProjectPath?: AgentGUIConversationNoProjectPathResolver;
+}
+
 export type AgentGUIConversationStatus =
   | "working"
   | "waiting"
@@ -154,9 +162,11 @@ export type AgentGUIInteractivePrompt =
       title: string;
       questions: AgentGUIInteractiveQuestion[];
     }
-  | Extract<AgentConversationPromptVM, { kind: "exit-plan" }>;
+  | Extract<AgentConversationPromptVM, { kind: "exit-plan" }>
+  | Extract<AgentConversationPromptVM, { kind: "plan-implementation" }>;
 
 export interface BuildAgentGUIConversationsInput {
+  isNoProjectPath?: AgentGUIConversationNoProjectPathResolver;
   snapshot: WorkspaceAgentActivitySnapshot;
   provider: AgentGUIProvider;
   sessionMessagesById?: Record<string, WorkspaceAgentActivityMessage[]>;
@@ -164,6 +174,7 @@ export interface BuildAgentGUIConversationsInput {
 }
 
 export function buildAgentGUIConversationSummaries({
+  isNoProjectPath,
   snapshot,
   provider,
   sessionMessagesById,
@@ -180,7 +191,7 @@ export function buildAgentGUIConversationSummaries({
       conversationSummaryFromActivity(
         activity,
         sessionsById.get(activity.sessionId),
-        { userProjects }
+        { isNoProjectPath, userProjects }
       )
     )
     .filter(
@@ -342,6 +353,7 @@ export function mergeTimelineItemsByEventID(
 export function conversationSummaryFromAgentSession(
   session: AgentSession,
   options: {
+    isNoProjectPath?: AgentGUIConversationNoProjectPathResolver;
     userProjects?: readonly AgentGUIConversationUserProject[];
   } = {}
 ): AgentGUIConversationSummary {
@@ -353,6 +365,7 @@ export function conversationSummaryFromAgentSession(
     }).activities[0] ?? null;
   if (activity) {
     return conversationSummaryFromActivity(activity, workspaceAgentSession, {
+      isNoProjectPath: options.isNoProjectPath,
       userProjects: options.userProjects ?? []
     });
   }
@@ -374,7 +387,8 @@ export function conversationSummaryFromAgentSession(
     cwd: session.cwd?.trim() ?? "",
     project: resolveAgentGUIConversationProject(
       session.cwd,
-      options.userProjects ?? []
+      options.userProjects ?? [],
+      { isNoProjectPath: options.isNoProjectPath }
     ),
     pinnedAtUnixMs: session.pinnedAtUnixMs ?? null,
     sortTimeUnixMs: resolveWorkspaceAgentSessionSortTimeUnixMs(
@@ -388,10 +402,14 @@ export function conversationSummaryFromAgentSession(
 
 export function resolveAgentGUIConversationProject(
   cwd: string | null | undefined,
-  userProjects: readonly AgentGUIConversationUserProject[] = []
+  userProjects: readonly AgentGUIConversationUserProject[] = [],
+  options: AgentGUIConversationProjectResolutionOptions = {}
 ): AgentGUIConversationProjectSummary | null {
   const normalizedCwd = normalizeAgentGUIProjectPath(cwd);
   if (!normalizedCwd) {
+    return null;
+  }
+  if (options.isNoProjectPath?.({ path: normalizedCwd })) {
     return null;
   }
   let matchedProject: AgentGUIConversationUserProject | null = null;
@@ -433,13 +451,15 @@ export function resolveAgentGUIConversationProject(
 
 export function applyAgentGUIConversationProjects(
   conversations: readonly AgentGUIConversationSummary[],
-  userProjects: readonly AgentGUIConversationUserProject[] = []
+  userProjects: readonly AgentGUIConversationUserProject[] = [],
+  options: AgentGUIConversationProjectResolutionOptions = {}
 ): AgentGUIConversationSummary[] {
   let changed = false;
   const next = conversations.map((conversation) => {
     const project = resolveAgentGUIConversationProject(
       conversation.cwd,
-      userProjects
+      userProjects,
+      options
     );
     if (isSameAgentGUIConversationProject(conversation.project, project)) {
       return conversation;
@@ -524,6 +544,7 @@ function conversationSummaryFromActivity(
   activity: WorkspaceAgentActivityCard,
   session: WorkspaceAgentActivitySession | undefined,
   options: {
+    isNoProjectPath?: AgentGUIConversationNoProjectPathResolver;
     userProjects?: readonly AgentGUIConversationUserProject[];
   } = {}
 ): AgentGUIConversationSummary {
@@ -554,7 +575,8 @@ function conversationSummaryFromActivity(
     cwd: session?.cwd.trim() ?? "",
     project: resolveAgentGUIConversationProject(
       session?.cwd,
-      options.userProjects ?? []
+      options.userProjects ?? [],
+      { isNoProjectPath: options.isNoProjectPath }
     ),
     pinnedAtUnixMs: session?.pinnedAtUnixMs ?? null,
     sortTimeUnixMs: activity.sortTimeUnixMs,
@@ -905,11 +927,17 @@ function messageRole(
 }
 
 function messageText(message: WorkspaceAgentActivityMessage): string {
+  const payloadDisplayPrompt =
+    typeof message.payload?.displayPrompt === "string"
+      ? message.payload.displayPrompt
+      : "";
   const payloadContent =
     typeof message.payload?.content === "string" ? message.payload.content : "";
   const payloadText =
     typeof message.payload?.text === "string" ? message.payload.text : "";
-  return (payloadContent || payloadText).replace(/\s+/g, " ").trim();
+  return (payloadDisplayPrompt || payloadText || payloadContent)
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function compareMessagesAscending(
@@ -957,11 +985,15 @@ function timelineItemRole(
 }
 
 function timelineItemText(item: WorkspaceAgentActivityTimelineItem): string {
+  const payloadDisplayPrompt =
+    typeof item.payload?.displayPrompt === "string"
+      ? item.payload.displayPrompt
+      : "";
   const payloadContent =
     typeof item.payload?.content === "string" ? item.payload.content : "";
   const payloadText =
     typeof item.payload?.text === "string" ? item.payload.text : "";
-  return (payloadContent || item.content || payloadText)
+  return (payloadDisplayPrompt || payloadText || item.content || payloadContent)
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -1476,13 +1508,17 @@ function normalizedTimelineItemBody(
   item: WorkspaceAgentActivityTimelineItem
 ): string {
   const content =
-    typeof item.content === "string" && item.content.trim()
-      ? item.content
-      : typeof item.payload?.content === "string" && item.payload.content.trim()
-        ? item.payload.content
-        : typeof item.payload?.text === "string"
-          ? item.payload.text
-          : "";
+    typeof item.payload?.displayPrompt === "string" &&
+    item.payload.displayPrompt.trim()
+      ? item.payload.displayPrompt
+      : typeof item.payload?.text === "string" && item.payload.text.trim()
+        ? item.payload.text
+        : typeof item.payload?.content === "string" &&
+            item.payload.content.trim()
+          ? item.payload.content
+          : typeof item.content === "string"
+            ? item.content
+            : "";
   return content.trim();
 }
 

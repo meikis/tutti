@@ -29,6 +29,13 @@ export type {
   WorkspaceFileManagerMutationErrorMessage
 } from "./workspaceFileManagerHost.interface.ts";
 export {
+  isWorkspaceApplicationBundle,
+  resolveWorkspaceFileDefaultApplicationIconExtension,
+  resolveWorkspaceFileEntryIconCacheKey,
+  shouldResolveWorkspaceFileEntryIcon,
+  shouldUseWorkspaceFileExtensionDocumentIcon
+} from "./workspaceFileEntryIconPolicy.ts";
+export {
   classifyWorkspaceFilePreviewKind,
   decodeWorkspaceTextFile,
   isWorkspaceFileBrowserOpenable,

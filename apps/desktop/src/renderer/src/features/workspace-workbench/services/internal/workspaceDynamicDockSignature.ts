@@ -7,7 +7,7 @@ export function createWorkspaceDynamicDockSignature(input: {
     installed: boolean;
     name: string;
     runtimeStatus: string;
-    url?: string | null;
+    launchUrl?: string | null;
   }[];
 }): string {
   return JSON.stringify({
@@ -19,7 +19,7 @@ export function createWorkspaceDynamicDockSignature(input: {
       installed: app.installed,
       name: app.name,
       runtimeStatus: app.runtimeStatus,
-      url: app.url ?? null
+      launchUrl: app.launchUrl ?? null
     }))
   });
 }

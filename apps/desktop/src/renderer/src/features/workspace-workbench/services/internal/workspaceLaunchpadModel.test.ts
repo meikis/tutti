@@ -39,14 +39,14 @@ test("launchpad model includes installed apps, system nodes, and all agent provi
         installed: true,
         name: "Notes",
         runtimeStatus: "running",
-        url: "https://notes.local"
+        launchUrl: "https://notes.local"
       }),
       createApp({
         appId: "draft",
         installed: false,
         name: "Draft",
         runtimeStatus: "idle",
-        url: null
+        launchUrl: null
       })
     ],
     copy: {
@@ -256,32 +256,37 @@ test("launchpad dock preview prioritizes not-ready agent icons and deduplicates"
         iconUrl: "duplicate.png",
         installed: true,
         runtimeStatus: "running",
-        url: "https://ready.local"
+        launchUrl: "https://ready.local"
       },
       {
         iconUrl: "one.png",
         installed: false,
         runtimeStatus: "idle",
-        url: null
+        launchUrl: null
       },
-      { iconUrl: null, installed: false, runtimeStatus: "idle", url: null },
+      {
+        iconUrl: null,
+        installed: false,
+        runtimeStatus: "idle",
+        launchUrl: null
+      },
       {
         iconUrl: "three.png",
         installed: true,
         runtimeStatus: "starting",
-        url: null
+        launchUrl: null
       },
       {
         iconUrl: "four.png",
         installed: true,
         runtimeStatus: "running",
-        url: null
+        launchUrl: null
       },
       {
         iconUrl: "five.png",
         installed: false,
         runtimeStatus: "idle",
-        url: null
+        launchUrl: null
       }
     ],
     excludedAgentProviders: ["claude-code", "nexight"],
@@ -321,7 +326,7 @@ test("launchpad dock entry uses fixed agent icon preview", () => {
         installed: true,
         name: "Notes",
         runtimeStatus: "running",
-        url: "https://notes.local"
+        launchUrl: "https://notes.local"
       })
     ],
     fallbackIconUrl: "fallback.png",
@@ -352,10 +357,11 @@ function createApp(
     installed: input.installed ?? false,
     minimizeBehavior: input.minimizeBehavior ?? "keep-mounted",
     name: input.name,
+    references: input.references ?? { searchSupported: false },
     runtimeStatus: input.runtimeStatus ?? "idle",
     source: input.source ?? "builtin",
     stateRevision: input.stateRevision ?? 1,
-    url: input.url
+    launchUrl: input.launchUrl
   };
 }
 

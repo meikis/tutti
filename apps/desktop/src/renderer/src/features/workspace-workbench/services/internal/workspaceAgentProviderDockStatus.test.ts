@@ -62,7 +62,7 @@ test("agent provider dock status only shows install for not installed providers"
   assert.deepEqual(props.hoverActions, [{ id: "install", label: "install" }]);
 });
 
-test("agent provider dock status only shows login for auth required providers", () => {
+test("agent provider dock status shows login reason with login and refresh actions for auth required providers", () => {
   const props = resolveAgentProviderDockStatusProps({
     copy,
     isLoading: false,
@@ -75,7 +75,16 @@ test("agent provider dock status only shows login for auth required providers", 
     })
   });
 
-  assert.deepEqual(props.hoverActions, [{ id: "login", label: "login" }]);
+  assert.deepEqual(props, {
+    hoverActions: [
+      { id: "login", label: "login" },
+      { id: "refresh", label: "refresh" }
+    ],
+    state: {
+      kind: "disabled",
+      reason: "login"
+    }
+  });
 });
 
 test("agent provider dock status shows unsupported providers as coming soon", () => {

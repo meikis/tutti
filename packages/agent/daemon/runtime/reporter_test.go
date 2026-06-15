@@ -384,6 +384,66 @@ func TestReportActivityInputProjectsRuntimeMessagesToMessageUpdates(t *testing.T
 	}
 }
 
+func TestReportActivityInputProjectsDisplayPromptAndRichContent(t *testing.T) {
+	t.Parallel()
+
+	session := reportTestSession()
+	userEvent := newTurnActivityEventWithID(session, "user-event-1", EventMessage, "turn-1", messageStreamStateCompleted, RoleUser, "Run Automation", map[string]any{
+		"messageId":     "user-message-1",
+		"displayPrompt": "Run Automation",
+		"content": []any{map[string]any{
+			"type": "text",
+			"text": "real automation prompt",
+		}, map[string]any{
+			"type":         "image",
+			"mimeType":     "image/png",
+			"attachmentId": "attachment-1",
+			"data":         "base64-image-bytes",
+		}},
+	})
+	userEvent.OccurredAtUnixMS = 101
+
+	report := reportActivityInput(session, []activityshared.Event{userEvent})
+
+	if len(report.MessageUpdates) != 1 {
+		t.Fatalf("message updates = %#v, want one user update", report.MessageUpdates)
+	}
+	user := report.MessageUpdates[0]
+	if user.Payload["text"] != "Run Automation" ||
+		user.Payload["displayPrompt"] != "Run Automation" {
+		t.Fatalf("user message payload = %#v, want text and displayPrompt", user.Payload)
+	}
+	content := payloadArray(user.Payload["content"])
+	if len(content) != 2 {
+		t.Fatalf("user message content = %#v, want rich content blocks", user.Payload["content"])
+	}
+	imageBlock := payloadObject(content[1])
+	if _, exists := imageBlock["data"]; exists {
+		t.Fatalf("user message image block retained data bytes: %#v", imageBlock)
+	}
+}
+
+func TestReportActivityInputForwardsMessageKindToPayload(t *testing.T) {
+	t.Parallel()
+
+	session := reportTestSession()
+	planEvent := newTurnActivityEventWithID(session, "plan-event-1", EventMessage, "turn-1", messageStreamStateCompleted, RoleAssistant, "# Plan\n1. inspect", map[string]any{
+		"messageId":   "plan-message-1",
+		"streamState": messageStreamStateCompleted,
+		"messageKind": "plan",
+	})
+	planEvent.OccurredAtUnixMS = 110
+
+	report := reportActivityInput(session, []activityshared.Event{planEvent})
+	if len(report.MessageUpdates) != 1 {
+		t.Fatalf("message updates = %#v, want one plan update", report.MessageUpdates)
+	}
+	plan := report.MessageUpdates[0]
+	if plan.Payload["messageKind"] != "plan" {
+		t.Fatalf("plan message payload = %#v, want messageKind=plan forwarded to the GUI", plan.Payload)
+	}
+}
+
 func TestReportActivityInputProjectsRuntimeCallsToStableMessageUpdates(t *testing.T) {
 	t.Parallel()
 

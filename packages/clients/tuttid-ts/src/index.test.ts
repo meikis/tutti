@@ -12,6 +12,7 @@ import {
   workspaceProtocolErrorCodes,
   type ApiErrorResponse,
   type AgentProviderComposerOptionsResponse,
+  type AppReference,
   type ListWorkspacesResponse,
   type WorkspaceFilePreviewResponse
 } from "./index.ts";
@@ -30,6 +31,15 @@ test("generated tuttid client returns parsed health response", async () => {
   assert.deepEqual(response.data, { service: "tuttid", status: "ok" });
   assert.equal(response.error, undefined);
 });
+
+function assertAppReferenceNarrowing(reference: AppReference): string {
+  if (reference.kind === "file") {
+    return reference.path;
+  }
+  return "";
+}
+
+void assertAppReferenceNarrowing;
 
 test("generated tuttid client surfaces structured protocol errors", async () => {
   const client = createClient({
@@ -232,6 +242,71 @@ test("shared tuttid client lists workspace agent sessions with query params", as
     searchQuery: "mention",
     visibleOnly: "true"
   });
+});
+
+test("shared tuttid client launches workspace apps", async () => {
+  let requestMethod = "";
+  let requestPath = "";
+
+  const client = createTuttidClient({
+    fetch: async (input, init) => {
+      const request =
+        input instanceof Request ? input : new Request(input, init);
+      requestMethod = request.method;
+      requestPath = new URL(request.url).pathname;
+
+      return new Response(
+        JSON.stringify({
+          workspaceId: "ws-1",
+          app: {
+            appId: "app-1",
+            displayName: "App",
+            version: "0.1.0",
+            description: "Test app",
+            createdAtUnixMs: 1,
+            iconUrl: null,
+            availableVersion: null,
+            availableIconUrl: null,
+            updateAvailable: false,
+            installed: true,
+            enabled: true,
+            status: "running",
+            stateRevision: 2,
+            launchUrl: "http://127.0.0.1:3000",
+            port: 3000,
+            failureReason: null,
+            lastError: null,
+            startedAtUnixMs: 1,
+            updatedAtUnixMs: 2,
+            source: "imported",
+            exportable: true,
+            tags: [],
+            localizations: [],
+            minimizeBehavior: "keep-mounted",
+            windowMinWidth: null,
+            windowMinHeight: null,
+            cli: {
+              active: false,
+              issues: [],
+              scope: null,
+              status: "none"
+            }
+          }
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      );
+    }
+  });
+
+  const app = await client.launchWorkspaceApp("ws-1", "app-1");
+
+  assert.equal(requestMethod, "POST");
+  assert.equal(requestPath, "/v1/workspaces/ws-1/apps/app-1/launch");
+  assert.equal(app.appId, "app-1");
+  assert.equal(app.status, "running");
 });
 
 test("shared tuttid client deletes user projects with bearer auth", async () => {

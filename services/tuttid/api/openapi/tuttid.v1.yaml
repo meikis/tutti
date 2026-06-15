@@ -666,6 +666,45 @@ paths:
           $ref: "#/components/responses/WorkspaceOperationError"
         "503":
           $ref: "#/components/responses/ServiceUnavailableError"
+  /v1/workspaces/{workspaceID}/apps/{appID}/references/search:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+      - $ref: "#/components/parameters/WorkspaceAppID"
+    post:
+      operationId: searchWorkspaceAppReferences
+      tags:
+        - app-center
+      summary: Search file references exposed by one running workspace app
+      description: >
+        Proxies a reference search to a running workspace app and returns
+        daemon-resolved file references. Workspace app runtimes return scoped
+        locations to the daemon; this public daemon API returns absolute file
+        paths that desktop clients can use as ordinary file links.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppReferenceSearchRequest"
+      responses:
+        "200":
+          description: Workspace app references
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppReferenceSearchResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "400":
+          $ref: "#/components/responses/InvalidRequestError"
+        "404":
+          $ref: "#/components/responses/WorkspaceAppNotFoundError"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowedError"
+        "502":
+          $ref: "#/components/responses/WorkspaceOperationError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailableError"
   /v1/workspaces/{workspaceID}/apps/{appID}/export:
     parameters:
       - $ref: "#/components/parameters/WorkspaceID"
@@ -790,6 +829,34 @@ paths:
           $ref: "#/components/responses/WorkspaceOperationError"
         "503":
           $ref: "#/components/responses/ServiceUnavailableError"
+  /v1/workspaces/{workspaceID}/apps/{appID}/launch:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+      - $ref: "#/components/parameters/WorkspaceAppID"
+    post:
+      operationId: launchWorkspaceApp
+      tags:
+        - app-center
+      summary: Launch one installed workspace app
+      responses:
+        "200":
+          description: Workspace app launch prepared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceAppResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "400":
+          $ref: "#/components/responses/InvalidRequestError"
+        "404":
+          $ref: "#/components/responses/WorkspaceAppNotFoundError"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowedError"
+        "502":
+          $ref: "#/components/responses/WorkspaceOperationError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailableError"
   /v1/workspaces/{workspaceID}/apps/{appID}/retry:
     parameters:
       - $ref: "#/components/parameters/WorkspaceID"
@@ -798,10 +865,10 @@ paths:
       operationId: retryWorkspaceApp
       tags:
         - app-center
-      summary: Retry starting one installed workspace app
+      summary: Retry one failed installed workspace app
       responses:
         "200":
-          description: Workspace app start retried
+          description: Workspace app failure retried
           content:
             application/json:
               schema:
@@ -3102,6 +3169,122 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkspaceAppCliIssue"
+    WorkspaceAppReferencesState:
+      type: object
+      additionalProperties: false
+      required:
+        - searchSupported
+      properties:
+        searchSupported:
+          type: boolean
+    AppReferenceKind:
+      type: string
+      enum:
+        - file
+      x-enum-varnames:
+        - AppReferenceKindFile
+    AppReferenceSearchRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          maxLength: 200
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+        cursor:
+          type: string
+          maxLength: 2048
+        kinds:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppReferenceKind"
+    AppReferenceSearchResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - workspaceId
+        - appId
+        - references
+        - nextCursor
+      properties:
+        workspaceId:
+          type: string
+          minLength: 1
+        appId:
+          type: string
+          minLength: 1
+        references:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppReference"
+        nextCursor:
+          type: string
+          nullable: true
+          maxLength: 2048
+    AppReference:
+      oneOf:
+        - $ref: "#/components/schemas/AppFileReference"
+      discriminator:
+        propertyName: kind
+        mapping:
+          file: "#/components/schemas/AppFileReference"
+    AppFileReference:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - displayName
+        - description
+        - path
+        - sizeBytes
+        - mtimeMs
+        - mimeType
+        - score
+      properties:
+        kind:
+          type: string
+          enum:
+            - file
+        displayName:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 160
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        path:
+          type: string
+          minLength: 1
+          description: >
+            Absolute filesystem path resolved by tuttid from the app runtime
+            reference location. Workspace app runtimes do not provide this
+            public API field directly.
+        sizeBytes:
+          type: integer
+          format: int64
+          nullable: true
+          minimum: 0
+        mtimeMs:
+          type: integer
+          format: int64
+          nullable: true
+          minimum: 0
+        mimeType:
+          type: string
+          nullable: true
+          maxLength: 128
+        score:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 1
     WorkspaceAppLocalization:
       type: object
       additionalProperties: false
@@ -3155,6 +3338,7 @@ components:
         - windowMinWidth
         - windowMinHeight
         - cli
+        - references
       properties:
         appId:
           type: string
@@ -3240,6 +3424,8 @@ components:
           maximum: 1200
         cli:
           $ref: "#/components/schemas/WorkspaceAppCliState"
+        references:
+          $ref: "#/components/schemas/WorkspaceAppReferencesState"
     WorkspaceAppMinimizeBehavior:
       type: string
       enum:

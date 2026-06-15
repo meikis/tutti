@@ -16,7 +16,10 @@ import {
   UploadIcon,
   cn
 } from "@tutti-os/ui-system";
-import type { WorkspaceAppCardViewModel } from "../contracts/viewModel.ts";
+import type {
+  WorkspaceAppActionContext,
+  WorkspaceAppCardViewModel
+} from "../contracts/viewModel.ts";
 import type { AppCenterI18nRuntime } from "../i18n/appCenterI18n.ts";
 
 export interface AppCenterFactoryProviderOption {
@@ -71,7 +74,10 @@ export interface AppCenterHostActions {
   ) => Promise<void> | void;
   readonly importApp?: () => Promise<void> | void;
   readonly installApp?: (appId: string) => Promise<void> | void;
-  readonly openApp?: (appId: string) => Promise<void> | void;
+  readonly openApp?: (
+    appId: string,
+    context?: WorkspaceAppActionContext
+  ) => Promise<void> | void;
   readonly openAppFolder?: (appId: string) => Promise<void> | void;
   readonly openAppPackageFolder?: (appId: string) => Promise<void> | void;
   readonly openFactoryJobAgentSession?: (
@@ -125,6 +131,7 @@ export function AppCard({
     app.canOpenFactorySession &&
     !!app.factoryAgentSessionId &&
     !!app.factoryJobId;
+  const actionContext = createWorkspaceAppActionContext(app);
   const hasMoreActions =
     canPublishFactoryUpdate ||
     canOpenFactorySession ||
@@ -148,12 +155,12 @@ export function AppCard({
       return;
     }
     if (app.primaryAction === "open") {
-      void actions.openApp?.(app.id);
+      void actions.openApp?.(app.id, actionContext);
     }
   };
   const executeCardAction = (): void => {
     if (canOpenFromCard) {
-      void actions.openApp?.(app.id);
+      void actions.openApp?.(app.id, actionContext);
     }
   };
 
@@ -289,6 +296,16 @@ export function AppCard({
       </div>
     </article>
   );
+}
+
+function createWorkspaceAppActionContext(
+  app: WorkspaceAppCardViewModel
+): WorkspaceAppActionContext {
+  return {
+    installationId: app.installationId ?? null,
+    runtimeId: app.runtimeId ?? null,
+    launchUrl: app.launchUrl ?? null
+  };
 }
 
 function AppCardMoreActions({
@@ -550,6 +567,9 @@ function AppIcon({
 function statusClassName(status: WorkspaceAppCardViewModel["status"]): string {
   if (status === "failed") {
     return "text-[var(--state-danger)]";
+  }
+  if (status === "unavailable") {
+    return "text-[var(--state-warning)]";
   }
   if (status === "running") {
     return "text-[var(--text-primary)]";

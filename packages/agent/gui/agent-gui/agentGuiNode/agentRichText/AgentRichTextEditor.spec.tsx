@@ -164,6 +164,48 @@ describe("AgentRichTextEditor", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it("scrolls the composer to the caret after Shift+Enter inserts a new line", async () => {
+    const onChange = vi.fn();
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        window.setTimeout(() => callback(0), 0);
+        return 1;
+      });
+
+    try {
+      render(
+        <AgentRichTextEditor
+          value={"one\ntwo\nthree"}
+          disabled={false}
+          placeholder="Prompt"
+          onChange={onChange}
+          onSubmit={vi.fn()}
+        />
+      );
+
+      const editor = await screen.findByRole("textbox", { name: "Prompt" });
+      Object.defineProperty(editor, "clientHeight", {
+        configurable: true,
+        value: 48
+      });
+      Object.defineProperty(editor, "scrollHeight", {
+        configurable: true,
+        value: 120
+      });
+      editor.scrollTop = 0;
+
+      fireEvent.keyDown(editor, { key: "Enter", shiftKey: true });
+
+      await waitFor(() =>
+        expect(onChange).toHaveBeenLastCalledWith("one\ntwo\nthree\n")
+      );
+      await waitFor(() => expect(editor.scrollTop).toBe(72));
+    } finally {
+      requestAnimationFrameSpy.mockRestore();
+    }
+  });
+
   it("does not submit on Enter while disabled", async () => {
     const onSubmit = vi.fn();
     render(

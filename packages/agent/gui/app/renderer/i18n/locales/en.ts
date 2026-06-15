@@ -483,7 +483,7 @@ export const en = {
           "Optimized for professional work and long-running agents"
       },
       permissionLabel: "Run permissions",
-      planModeLabel: "Plan",
+      planModeLabel: "Plan Mode",
       planModeOnLabel: "On",
       planModeOffLabel: "Off",
       planUnavailable: "Plan unavailable",
@@ -508,7 +508,30 @@ export const en = {
         "{{percentLeft}}% left ({{usedTokens}} used / {{totalTokens}})",
       slashStatusContextUnavailable: "Context usage unavailable",
       slashStatusLimitsUnavailable: "Rate limits unavailable from this agent",
+      usageChipLabel: "Context {{percent}}%",
+      usagePopoverTitle: "Usage",
+      usageTokensLabel: "Tokens",
+      usageLimitsLabel: "Limits",
+      usageCompactAction: "Compact",
+      usageCompactTooltip: "Compact the conversation context (/compact)",
+      usageAlertWarnMessage:
+        "Context is {{percent}}% full. Consider compacting the conversation.",
+      usageAlertCriticalMessage:
+        "Context is {{percent}}% full. Compact now to keep the session going.",
+      usageAlertDismiss: "Dismiss",
+      planCardTitle: "Plan",
+      planCardCopy: "Copy plan",
+      planCardExpand: "Expand plan",
+      planCardCollapse: "Collapse plan",
+      planImplementationLead: "Implement this plan?",
+      planImplementationConfirm: "Yes, implement this plan",
+      planImplementationFeedbackPlaceholder:
+        "No — tell the agent how to adjust the approach",
+      planImplementationSend: "Send",
+      planImplementationSkip: "Stay in Plan Mode",
       noRunningResponse: "No running response to stop.",
+      copyMessage: "Copy message",
+      messageCopied: "Copied",
       promptTipsPrefix: "Tips: ",
       promptTips: {
         setWorkspace: {
@@ -756,6 +779,8 @@ export const en = {
       relativeTimeYears: "{{count}} y",
       slashCommandPalette: "Slash commands",
       skillPickerPalette: "Skills",
+      slashPaletteCommandsGroup: "Commands",
+      slashPaletteSkillsGroup: "Skills",
       fileMentionPalette: "Files",
       fileMentionLoading: "Searching...",
       fileMentionEmpty: "Search workspace files based on your input",

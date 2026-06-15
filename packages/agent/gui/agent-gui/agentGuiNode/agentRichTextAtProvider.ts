@@ -16,6 +16,7 @@ export interface AgentRichTextAtProviderContext {
 export interface AgentRichTextAtQueryInput {
   keyword: string;
   maxResults?: number;
+  cursor?: string;
   abortSignal?: AbortSignal;
   context: AgentRichTextAtProviderContext;
 }
@@ -49,6 +50,23 @@ export type AgentRichTextAtInsertResult =
   | AgentRichTextMarkdownLinkInsertResult
   | AgentRichTextTextInsertResult;
 
+export interface AgentRichTextAtReferenceItem {
+  key?: string;
+  label: string;
+  subtitle?: string | null;
+  thumbnailUrl?: string | null;
+  insertResult: AgentRichTextAtInsertResult;
+}
+
+export interface AgentRichTextAtReferenceItemsResult {
+  items: readonly AgentRichTextAtReferenceItem[];
+  nextCursor?: string | null;
+}
+
+export type AgentRichTextAtReferenceItemsResponse =
+  | readonly AgentRichTextAtReferenceItem[]
+  | AgentRichTextAtReferenceItemsResult;
+
 export interface AgentRichTextAtProvider<TItem = any> {
   id: string;
   query: (
@@ -60,5 +78,11 @@ export interface AgentRichTextAtProvider<TItem = any> {
   getItemThumbnailUrl?: (
     item: TItem
   ) => string | null | undefined | Promise<string | null | undefined>;
+  getItemReferenceItems?: (
+    item: TItem,
+    input: AgentRichTextAtQueryInput
+  ) =>
+    | Promise<AgentRichTextAtReferenceItemsResponse>
+    | AgentRichTextAtReferenceItemsResponse;
   toInsertResult: (item: TItem) => AgentRichTextAtInsertResult;
 }

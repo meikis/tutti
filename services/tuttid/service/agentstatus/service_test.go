@@ -54,7 +54,7 @@ func TestServiceListReportsInstallActionWhenCLIMissing(t *testing.T) {
 	}
 }
 
-func TestServiceListReportsLoginActionWhenAuthMarkerMissing(t *testing.T) {
+func TestServiceListReportsLoginAndRefreshActionsWhenAuthMarkerMissing(t *testing.T) {
 	service := testService(func(name string) (string, error) {
 		return "/usr/local/bin/" + name, nil
 	}, map[string]bool{})
@@ -71,8 +71,8 @@ func TestServiceListReportsLoginActionWhenAuthMarkerMissing(t *testing.T) {
 	if status.Auth.Status != AuthRequired {
 		t.Fatalf("Auth.Status = %q, want %q", status.Auth.Status, AuthRequired)
 	}
-	if len(status.Actions) != 1 {
-		t.Fatalf("Actions length = %d, want 1", len(status.Actions))
+	if len(status.Actions) != 2 {
+		t.Fatalf("Actions length = %d, want 2", len(status.Actions))
 	}
 	action := firstAction(t, status.Actions)
 	if action.ID != ActionLogin {
@@ -80,6 +80,9 @@ func TestServiceListReportsLoginActionWhenAuthMarkerMissing(t *testing.T) {
 	}
 	if action.Command == nil || action.Command.Input != "/usr/local/bin/codex --login\n" {
 		t.Fatalf("login command = %#v", action.Command)
+	}
+	if status.Actions[1].ID != ActionRefresh || status.Actions[1].Kind != ActionKindRefresh {
+		t.Fatalf("second action = %#v, want refresh", status.Actions[1])
 	}
 }
 
@@ -153,6 +156,48 @@ func TestServiceListReportsReadyWhenInstalledAndAuthenticated(t *testing.T) {
 	}
 	if action.Command == nil || action.Command.Input != "/usr/local/bin/codex --login\n" {
 		t.Fatalf("login command = %#v", action.Command)
+	}
+}
+
+func TestServiceListTreatsUnknownAuthAsAuthRequired(t *testing.T) {
+	service := testService(func(name string) (string, error) {
+		return "/usr/local/bin/" + name, nil
+	}, map[string]bool{})
+	service.Registry = Registry{Specs: []ProviderSpec{{
+		Provider:           "codex",
+		BinaryNames:        []string{"codex"},
+		AdapterBinaryNames: []string{"codex-acp"},
+		AdapterCommand:     []string{"codex-acp"},
+		LoginArgs:          []string{"--login"},
+	}}}
+
+	snapshot, err := service.List(context.Background(), ListInput{Providers: []string{"codex"}})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	status := onlyStatus(t, snapshot)
+	if status.Auth.Status != AuthUnknown {
+		t.Fatalf("Auth.Status = %q, want %q", status.Auth.Status, AuthUnknown)
+	}
+	if status.Availability.Status != AvailabilityAuthRequired {
+		t.Fatalf("Availability.Status = %q, want %q", status.Availability.Status, AvailabilityAuthRequired)
+	}
+	if status.Availability.ReasonCode != "auth_unknown" {
+		t.Fatalf("ReasonCode = %q, want auth_unknown", status.Availability.ReasonCode)
+	}
+	if len(status.Actions) != 2 {
+		t.Fatalf("Actions length = %d, want 2", len(status.Actions))
+	}
+	action := firstAction(t, status.Actions)
+	if action.ID != ActionLogin {
+		t.Fatalf("first action ID = %q, want %q", action.ID, ActionLogin)
+	}
+	if action.Command == nil || action.Command.Input != "/usr/local/bin/codex --login\n" {
+		t.Fatalf("login command = %#v", action.Command)
+	}
+	if status.Actions[1].ID != ActionRefresh || status.Actions[1].Kind != ActionKindRefresh {
+		t.Fatalf("second action = %#v, want refresh", status.Actions[1])
 	}
 }
 
@@ -873,6 +918,49 @@ func TestServiceListReportsAuthRequiredFromClaudeAuthStatusCommand(t *testing.T)
 	}
 	if status.Auth.Status != AuthRequired {
 		t.Fatalf("Auth.Status = %q, want %q", status.Auth.Status, AuthRequired)
+	}
+}
+
+func TestServiceListRetriesClaudeAuthStatusCommandWhenOutputIsUnrecognized(t *testing.T) {
+	home := t.TempDir()
+	binDir := filepath.Join(home, ".nvm", "versions", "node", "v24.12.0", "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin dir: %v", err)
+	}
+	counterPath := filepath.Join(home, "claude-auth-count")
+	claudePath := filepath.Join(binDir, "claude")
+	writeExecutable(t, claudePath, "#!/bin/sh\ncount=$(cat "+shellQuote(counterPath)+" 2>/dev/null || printf 0)\nnext=$((count + 1))\nprintf '%s' \"$next\" > "+shellQuote(counterPath)+"\nif [ \"$next\" -eq 1 ]; then\n  printf 'temporarily unavailable'\n  exit 0\nfi\nprintf '{\"loggedIn\":true,\"email\":\"dev@example.com\"}'\n")
+	writeExecutable(t, filepath.Join(binDir, "claude-agent-acp"), "#!/bin/sh\nexit 0\n")
+
+	service := Service{
+		Environ: func() []string {
+			return []string{"PATH=/usr/bin:/bin"}
+		},
+		HomeDir: func() (string, error) {
+			return home, nil
+		},
+		LookPath: func(_ string) (string, error) {
+			return "", errors.New("not found")
+		},
+		Now: func() time.Time {
+			return time.Date(2026, 6, 2, 8, 0, 0, 0, time.UTC)
+		},
+	}
+
+	snapshot, err := service.List(context.Background(), ListInput{Providers: []string{"claude-code"}})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	status := onlyStatus(t, snapshot)
+	if status.Availability.Status != AvailabilityReady {
+		t.Fatalf("Availability.Status = %q, want %q", status.Availability.Status, AvailabilityReady)
+	}
+	if status.Auth.Status != AuthAuthenticated {
+		t.Fatalf("Auth.Status = %q, want %q", status.Auth.Status, AuthAuthenticated)
+	}
+	if status.Auth.AccountLabel != "dev@example.com" {
+		t.Fatalf("AccountLabel = %q, want dev@example.com", status.Auth.AccountLabel)
 	}
 }
 

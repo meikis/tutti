@@ -262,6 +262,36 @@ func (e ApiErrorDetailsCode) Valid() bool {
 	}
 }
 
+// Defines values for AppFileReferenceKind.
+const (
+	AppFileReferenceKindFile AppFileReferenceKind = "file"
+)
+
+// Valid indicates whether the value is a known member of the AppFileReferenceKind enum.
+func (e AppFileReferenceKind) Valid() bool {
+	switch e {
+	case AppFileReferenceKindFile:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AppReferenceKind.
+const (
+	AppReferenceKindFile AppReferenceKind = "file"
+)
+
+// Valid indicates whether the value is a known member of the AppReferenceKind enum.
+func (e AppReferenceKind) Valid() bool {
+	switch e {
+	case AppReferenceKindFile:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CliCapabilitySourceKind.
 const (
 	App     CliCapabilitySourceKind = "app"
@@ -939,16 +969,16 @@ func (e WorkspaceFileEntryKind) Valid() bool {
 
 // Defines values for WorkspaceFileFilterKind.
 const (
-	WorkspaceFileFilterKindDirectory WorkspaceFileFilterKind = "directory"
-	WorkspaceFileFilterKindFile      WorkspaceFileFilterKind = "file"
+	Directory WorkspaceFileFilterKind = "directory"
+	File      WorkspaceFileFilterKind = "file"
 )
 
 // Valid indicates whether the value is a known member of the WorkspaceFileFilterKind enum.
 func (e WorkspaceFileFilterKind) Valid() bool {
 	switch e {
-	case WorkspaceFileFilterKindDirectory:
+	case Directory:
 		return true
-	case WorkspaceFileFilterKindFile:
+	case File:
 		return true
 	default:
 		return false
@@ -1322,6 +1352,47 @@ type ApiErrorDetailsCode string
 // ApiErrorResponse defines model for ApiErrorResponse.
 type ApiErrorResponse struct {
 	Error ApiErrorDetails `json:"error"`
+}
+
+// AppFileReference defines model for AppFileReference.
+type AppFileReference struct {
+	Description *string              `json:"description"`
+	DisplayName *string              `json:"displayName"`
+	Kind        AppFileReferenceKind `json:"kind"`
+	MimeType    *string              `json:"mimeType"`
+	MtimeMs     *int64               `json:"mtimeMs"`
+
+	// Path Absolute filesystem path resolved by tuttid from the app runtime reference location. Workspace app runtimes do not provide this public API field directly.
+	Path      string   `json:"path"`
+	Score     *float32 `json:"score"`
+	SizeBytes *int64   `json:"sizeBytes"`
+}
+
+// AppFileReferenceKind defines model for AppFileReference.Kind.
+type AppFileReferenceKind string
+
+// AppReference defines model for AppReference.
+type AppReference struct {
+	union json.RawMessage
+}
+
+// AppReferenceKind defines model for AppReferenceKind.
+type AppReferenceKind string
+
+// AppReferenceSearchRequest defines model for AppReferenceSearchRequest.
+type AppReferenceSearchRequest struct {
+	Cursor *string             `json:"cursor,omitempty"`
+	Kinds  *[]AppReferenceKind `json:"kinds,omitempty"`
+	Limit  *int                `json:"limit,omitempty"`
+	Query  string              `json:"query"`
+}
+
+// AppReferenceSearchResponse defines model for AppReferenceSearchResponse.
+type AppReferenceSearchResponse struct {
+	AppId       string         `json:"appId"`
+	NextCursor  *string        `json:"nextCursor"`
+	References  []AppReference `json:"references"`
+	WorkspaceId string         `json:"workspaceId"`
 }
 
 // CheckUserProjectPathRequest defines model for CheckUserProjectPathRequest.
@@ -2271,6 +2342,7 @@ type WorkspaceApp struct {
 	Localizations    []WorkspaceAppLocalization   `json:"localizations"`
 	MinimizeBehavior WorkspaceAppMinimizeBehavior `json:"minimizeBehavior"`
 	Port             *int                         `json:"port"`
+	References       WorkspaceAppReferencesState  `json:"references"`
 	Source           WorkspaceAppSource           `json:"source"`
 	StartedAtUnixMs  *int64                       `json:"startedAtUnixMs"`
 	StateRevision    int64                        `json:"stateRevision"`
@@ -2363,6 +2435,11 @@ type WorkspaceAppLocalization struct {
 
 // WorkspaceAppMinimizeBehavior defines model for WorkspaceAppMinimizeBehavior.
 type WorkspaceAppMinimizeBehavior string
+
+// WorkspaceAppReferencesState defines model for WorkspaceAppReferencesState.
+type WorkspaceAppReferencesState struct {
+	SearchSupported bool `json:"searchSupported"`
+}
 
 // WorkspaceAppResponse defines model for WorkspaceAppResponse.
 type WorkspaceAppResponse struct {
@@ -2830,6 +2907,9 @@ type ExportWorkspaceAppJSONRequestBody = ExportWorkspaceAppRequest
 // ReplaceWorkspaceAppIconJSONRequestBody defines body for ReplaceWorkspaceAppIcon for application/json ContentType.
 type ReplaceWorkspaceAppIconJSONRequestBody = ReplaceWorkspaceAppIconRequest
 
+// SearchWorkspaceAppReferencesJSONRequestBody defines body for SearchWorkspaceAppReferences for application/json ContentType.
+type SearchWorkspaceAppReferencesJSONRequestBody = AppReferenceSearchRequest
+
 // RollbackWorkspaceAppJSONRequestBody defines body for RollbackWorkspaceApp for application/json ContentType.
 type RollbackWorkspaceAppJSONRequestBody = RollbackWorkspaceAppRequest
 
@@ -2904,6 +2984,65 @@ type ResizeWorkspaceTerminalJSONRequestBody = ResizeWorkspaceTerminalRequest
 
 // PutWorkspaceWorkbenchJSONRequestBody defines body for PutWorkspaceWorkbench for application/json ContentType.
 type PutWorkspaceWorkbenchJSONRequestBody = PutWorkspaceWorkbenchRequest
+
+// AsAppFileReference returns the union data inside the AppReference as a AppFileReference
+func (t AppReference) AsAppFileReference() (AppFileReference, error) {
+	var body AppFileReference
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAppFileReference overwrites any union data inside the AppReference as the provided AppFileReference
+func (t *AppReference) FromAppFileReference(v AppFileReference) error {
+	v.Kind = "file"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAppFileReference performs a merge with any union data inside the AppReference, using the provided AppFileReference
+func (t *AppReference) MergeAppFileReference(v AppFileReference) error {
+	v.Kind = "file"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AppReference) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t AppReference) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "file":
+		return t.AsAppFileReference()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t AppReference) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *AppReference) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsIssueManagerIssueContextRef returns the union data inside the IssueManagerContextRef as a IssueManagerIssueContextRef
 func (t IssueManagerContextRef) AsIssueManagerIssueContextRef() (IssueManagerIssueContextRef, error) {

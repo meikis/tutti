@@ -37,7 +37,8 @@ import {
   TooltipTrigger
 } from "@tutti-os/ui-system";
 import { INotificationService } from "@tutti-os/ui-notifications";
-import { useService } from "@zk-tech/bedrock/di";
+import type { CompositeNotificationMessage } from "@renderer/lib/compositeNotificationService";
+import { useService } from "@tutti-os/infra/di";
 import { MessageCenterOpenedReporter } from "@renderer/features/analytics/reporters/message-center-opened/messageCenterOpenedReporter.ts";
 import { MessageCenterNotificationActionedReporter } from "@renderer/features/analytics/reporters/message-center-notification-actioned/messageCenterNotificationActionedReporter.ts";
 import { IReporterService } from "@renderer/features/analytics";
@@ -53,7 +54,10 @@ import {
   buildWorkspaceAgentDecisionNotification,
   type WorkspaceAgentDecisionSubmitInput
 } from "../services/workspaceAgentDecisionNotification";
-import { createWorkspaceAgentMessageCenterNotificationTracker } from "../services/workspaceAgentMessageCenterNotification";
+import {
+  buildWorkspaceAgentOutcomeNotification,
+  workspaceAgentOutcomeNotificationKey
+} from "../services/workspaceAgentOutcomeNotification";
 import { resolveWorkspaceAgentMessageCenterTrigger } from "../services/workspaceAgentMessageCenterTrigger";
 import { toggleWorkspaceAgentMessageCenter } from "../services/workspaceAgentMessageCenterToggle";
 import { createWorkspaceAgentGuiSessionLaunchRequest } from "../services/workspaceAgentGuiLaunch";
@@ -208,8 +212,8 @@ function WorkspaceAgentMessageCenterAction({
   const workspaceAgentActivityService = useService(
     IWorkspaceAgentActivityService
   );
-  const notifications = useService(INotificationService);
   const reporterService = useService(IReporterService);
+  const notifications = useService(INotificationService);
   const workbenchHostService = useWorkspaceWorkbenchHostService();
   const [open, setOpen] = useState(false);
   const [highlightedMessageCenterItemId, setHighlightedMessageCenterItemId] =
@@ -220,11 +224,9 @@ function WorkspaceAgentMessageCenterAction({
   } | null>(null);
   const requestedMessageSummarySessionIdsRef = useRef<Set<string>>(new Set());
   const seenWaitingNotificationKeysRef = useRef<Set<string> | null>(null);
+  const seenOutcomeNotificationKeysRef = useRef<Set<string> | null>(null);
   const activeWaitingNotificationToastIdsRef = useRef<Map<string, string>>(
     new Map()
-  );
-  const messageCenterNotificationTrackerRef = useRef(
-    createWorkspaceAgentMessageCenterNotificationTracker()
   );
   const snapshot = useSyncExternalStore(
     (listener) =>
@@ -277,33 +279,6 @@ function WorkspaceAgentMessageCenterAction({
       }),
     [snapshot, t]
   );
-  const messageCenterNotificationLabels = useMemo(
-    () => ({
-      description({ summary }: { summary: string }) {
-        return t("workspace.agentMessageCenter.statusNotificationDescription", {
-          summary
-        });
-      },
-      fallbackSummary: t(
-        "workspace.agentMessageCenter.statusNotificationFallbackSummary"
-      ),
-      status: {
-        canceled: i18n.t("agentHost.workspaceAgentActivityStatusCanceled"),
-        completed: i18n.t("agentHost.workspaceAgentActivityStatusEnd"),
-        failed: i18n.t("agentHost.workspaceAgentActivityStatusFailed"),
-        idle: i18n.t("agentHost.workspaceAgentActivityStatusIdle"),
-        waiting: i18n.t("agentHost.workspaceAgentActivityStatusWaiting"),
-        working: i18n.t("agentHost.workspaceAgentActivityStatusWorking")
-      },
-      title({ status, title }: { status: string; title: string }) {
-        return t("workspace.agentMessageCenter.statusNotificationTitle", {
-          status,
-          title
-        });
-      }
-    }),
-    [i18n, t]
-  );
   const waitingItems = useMemo(
     () => model.items.filter(isWaitingMessageCenterItem),
     [model.items]
@@ -330,7 +305,7 @@ function WorkspaceAgentMessageCenterAction({
   useEffect(() => {
     requestedMessageSummarySessionIdsRef.current.clear();
     seenWaitingNotificationKeysRef.current = null;
-    messageCenterNotificationTrackerRef.current.reset();
+    seenOutcomeNotificationKeysRef.current = null;
     for (const toastId of activeWaitingNotificationToastIdsRef.current.values()) {
       toast.dismiss(toastId);
     }
@@ -339,14 +314,65 @@ function WorkspaceAgentMessageCenterAction({
   }, [workspace.id]);
 
   useEffect(() => {
-    const messages = messageCenterNotificationTrackerRef.current.collect(
-      model,
-      messageCenterNotificationLabels
-    );
-    for (const message of messages) {
+    const outcomeEntries = model.items
+      .map(
+        (item) => [workspaceAgentOutcomeNotificationKey(item), item] as const
+      )
+      .filter(
+        (entry): entry is readonly [string, WorkspaceAgentMessageCenterItem] =>
+          entry[0] !== null
+      );
+    const currentKeys = new Set(outcomeEntries.map(([key]) => key));
+    const seenKeys = seenOutcomeNotificationKeysRef.current;
+    if (!seenKeys) {
+      seenOutcomeNotificationKeysRef.current = currentKeys;
+      return;
+    }
+    const nextSeenKeys = new Set(seenKeys);
+    for (const key of currentKeys) {
+      nextSeenKeys.add(key);
+    }
+    seenOutcomeNotificationKeysRef.current = nextSeenKeys;
+    for (const [notificationKey, item] of outcomeEntries) {
+      if (seenKeys.has(notificationKey)) {
+        continue;
+      }
+      const notification = buildWorkspaceAgentOutcomeNotification(item, {
+        completedBody: t(
+          "workspace.agentMessageCenter.outcomeNotificationCompletedBody"
+        ),
+        failedBody: t(
+          "workspace.agentMessageCenter.outcomeNotificationFailedBody"
+        ),
+        fallbackAgentName: t("workspace.agentGui.fallbackAgentLabel")
+      });
+      if (!notification) {
+        continue;
+      }
+      const message: CompositeNotificationMessage = {
+        description: notification.body,
+        level: notification.level,
+        navigation: {
+          agentSessionId: notification.agentSessionId,
+          provider: item.provider,
+          workspaceId: workspace.id
+        },
+        // The message center panel and trigger badge already surface
+        // outcomes in-app; only the OS face should notify, and only while
+        // the window is in the background (composite checks visibility).
+        presentation: "background-only",
+        title: t(
+          notification.level === "success"
+            ? "workspace.agentMessageCenter.outcomeNotificationCompletedTitle"
+            : "workspace.agentMessageCenter.outcomeNotificationFailedTitle",
+          {
+            title: notification.conversationTitle || notification.agentName
+          }
+        )
+      };
       notifications.notify(message);
     }
-  }, [messageCenterNotificationLabels, model, notifications]);
+  }, [model, notifications, t]);
 
   useEffect(() => {
     const waitingEntries = waitingItems.map(
@@ -372,9 +398,6 @@ function WorkspaceAgentMessageCenterAction({
       nextSeenKeys.add(key);
     }
     seenWaitingNotificationKeysRef.current = nextSeenKeys;
-    if (open) {
-      return;
-    }
     const newWaitingEntries = waitingEntries.filter(
       ([key]) => !seenKeys.has(key)
     );
@@ -406,6 +429,25 @@ function WorkspaceAgentMessageCenterAction({
         ]
       });
       if (!notification || notification.options.length === 0) {
+        continue;
+      }
+      const osMessage: CompositeNotificationMessage = {
+        description: notification.description,
+        level: "warning",
+        navigation: {
+          agentSessionId: item.agentSessionId,
+          provider: item.provider,
+          workspaceId: workspace.id
+        },
+        // The decision toast below already covers the in-app face; only
+        // raise the OS notification while the window is in the background.
+        presentation: "background-only",
+        title: t("workspace.agentMessageCenter.waitingNotificationTitle", {
+          title: notification.conversationTitle || notification.agentName
+        })
+      };
+      notifications.notify(osMessage);
+      if (open) {
         continue;
       }
       const toastId = `workspace-agent-waiting:${workspace.id}:${notificationKey}`;
@@ -459,7 +501,14 @@ function WorkspaceAgentMessageCenterAction({
         }
       );
     }
-  }, [open, t, waitingItems, workspace.id, workspaceAgentActivityService]);
+  }, [
+    notifications,
+    open,
+    t,
+    waitingItems,
+    workspace.id,
+    workspaceAgentActivityService
+  ]);
 
   useEffect(() => {
     if (!open) {
@@ -528,6 +577,19 @@ function WorkspaceAgentMessageCenterAction({
       });
     },
     [launchNode]
+  );
+  useEffect(
+    () =>
+      workbenchHostService.onNotificationNavigate((payload) => {
+        if (payload.workspaceId !== workspace.id) {
+          return;
+        }
+        openMessageCenterChat({
+          agentSessionId: payload.agentSessionId,
+          provider: payload.provider
+        });
+      }),
+    [openMessageCenterChat, workbenchHostService, workspace.id]
   );
   const handleLinkAction = useCallback(
     (action: Parameters<typeof runDesktopAgentGUILinkAction>[0]) => {
@@ -622,13 +684,16 @@ function WorkspaceAgentMessageCenterAction({
         }}
         onOpenChat={openMessageCenterChat}
         onSubmitPrompt={async (input) => {
-          await workspaceAgentActivityService.submitInteractive({
+          await workspaceAgentActivityService.submitPlanDecision({
             workspaceId: workspace.id,
             agentSessionId: input.agentSessionId,
+            // "" (no pending-prompt kind) takes the interactive-prompt branch
+            // in planDecisionOps; only "plan-implementation" diverges from it.
+            promptKind: input.promptKind ?? "",
             requestId: input.requestId,
-            action: input.action ?? null,
-            optionId: input.optionId ?? null,
-            payload: input.payload ?? null
+            ...(input.action ? { action: input.action } : {}),
+            ...(input.optionId ? { optionId: input.optionId } : {}),
+            ...(input.payload ? { payload: input.payload } : {})
           });
         }}
       />

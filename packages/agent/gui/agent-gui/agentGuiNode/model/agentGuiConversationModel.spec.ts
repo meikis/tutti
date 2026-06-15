@@ -71,6 +71,53 @@ describe("agentGuiConversationModel", () => {
     ).toBeNull();
   });
 
+  it("returns null for a no-project cwd before matching parent projects", () => {
+    const noProjectPath =
+      "/Users/local/Documents/tutti/session-44444444-4444-4444-8444-444444444444";
+
+    expect(
+      resolveAgentGUIConversationProject(
+        noProjectPath,
+        [userProject("home", "/Users/local", "Home")],
+        {
+          isNoProjectPath: ({ path }) => path === noProjectPath
+        }
+      )
+    ).toBeNull();
+  });
+
+  it("builds no-project runtime sessions without parent project assignment", () => {
+    const noProjectPath =
+      "/Users/local/Documents/tutti/session-44444444-4444-4444-8444-444444444444";
+    const snapshot: AgentHostWorkspaceAgentSnapshot = {
+      presences: [],
+      sessions: [
+        workspaceAgentSession({
+          agentSessionId: "no-project-session",
+          cwd: noProjectPath,
+          provider: "codex",
+          title: "No project",
+          updatedAtUnixMs: 10
+        })
+      ]
+    };
+
+    expect(
+      buildAgentGUIConversationSummaries({
+        isNoProjectPath: ({ path }) => path === noProjectPath,
+        snapshot,
+        provider: "codex",
+        userProjects: [userProject("home", "/Users/local", "Home")]
+      })
+    ).toEqual([
+      expect.objectContaining({
+        id: "no-project-session",
+        cwd: noProjectPath,
+        project: null
+      })
+    ]);
+  });
+
   it("builds conversations only from runtime-origin Codex sessions", () => {
     const snapshot: AgentHostWorkspaceAgentSnapshot = {
       presences: [],
@@ -514,13 +561,17 @@ describe("agentGuiConversationModel", () => {
             actorId: "user-1",
             itemType: "message.user",
             role: "user",
-            payload: { text: "AAA" },
+            payload: {
+              displayPrompt: "Run Automation",
+              text: "long automation prompt",
+              content: "long automation prompt"
+            },
             occurredAtUnixMs: 10
           })
         ]
       })
     ).toEqual({
-      title: "AAA",
+      title: "Run Automation",
       titleFallback: null
     });
   });
@@ -1191,7 +1242,11 @@ describe("agentGuiConversationModel", () => {
           },
           options: [
             { kind: "allow_once", name: "Yes", optionId: "default" },
-            { kind: "reject_once", name: "No, keep planning", optionId: "plan" }
+            {
+              kind: "reject_once",
+              name: "No, keep planning",
+              optionId: "plan"
+            }
           ]
         }
       },

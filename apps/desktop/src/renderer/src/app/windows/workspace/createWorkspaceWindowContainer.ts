@@ -1,4 +1,4 @@
-import { InstantiationService, ServiceRegistry } from "@zk-tech/bedrock/di";
+import { InstantiationService, ServiceRegistry } from "@tutti-os/infra/di";
 import {
   isAnalyticsDebugAvailable,
   registerAnalyticsDebugServices
@@ -157,6 +157,7 @@ export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult
     dockPreviewCacheApi: desktopApi.dockPreviewCache,
     eventStreamClient: tuttidEventStreamClient,
     hostFilesApi: desktopApi.host.files,
+    hostNotificationsApi: desktopApi.host.notifications,
     hostWindowApi: desktopApi.host.window,
     hostWorkspaceApi: desktopApi.host.workspace,
     tuttidClient,

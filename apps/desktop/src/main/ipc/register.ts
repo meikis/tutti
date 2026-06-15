@@ -12,6 +12,7 @@ import type { DesktopDaemonEndpoint } from "../transport/paths";
 import { registerBrowserIpc } from "./browser";
 import { registerDockPreviewCacheIpc } from "./dockPreviewCache";
 import type { DesktopLogger } from "../logging";
+import type { WorkspaceFileIconCacheStore } from "../host/workspaceFileIconCacheStore.ts";
 import type { DesktopWorkspaceAppPayload } from "../../shared/contracts/ipc";
 import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 
@@ -38,6 +39,7 @@ export interface IpcRegistrationDependencies {
     payload: DesktopWorkspaceAppPayload
   ) => Promise<void>;
   preferences: DesktopHostPreferencesState;
+  workspaceFileIconCache?: WorkspaceFileIconCacheStore;
   updateService: AppUpdateService;
   workspaceLaunch: Pick<WorkspaceLaunch, "openStartupWindow" | "showWorkspace">;
 }
@@ -57,6 +59,7 @@ export function registerIpcHandlers(deps: IpcRegistrationDependencies): void {
   registerHostIpc({
     fileDialogs: deps.fileDialogs,
     openWorkspaceAppFolder: deps.openWorkspaceAppFolder,
+    workspaceFileIconCache: deps.workspaceFileIconCache,
     workspaceLaunch: deps.workspaceLaunch
   });
 }

@@ -32,6 +32,8 @@ export function WorkspaceFileManagerIconGrid({
   moveDragPreviewEntryPath,
   moveDragTargetEntryPath,
   pendingDirectoryPath,
+  onEntryIconViewportLeave,
+  onEntryIconViewportEnter,
   selectedPath,
   onCancelInlineRename,
   onClearInlineRenameValidation,
@@ -53,6 +55,8 @@ export function WorkspaceFileManagerIconGrid({
   moveDragPreviewEntryPath: string | null;
   moveDragTargetEntryPath: string | null;
   pendingDirectoryPath: string | null;
+  onEntryIconViewportLeave?: (entry: WorkspaceFileEntry) => void;
+  onEntryIconViewportEnter?: (entry: WorkspaceFileEntry) => void;
   selectedPath: string | null;
   onCancelInlineRename: () => void;
   onClearInlineRenameValidation: () => void;
@@ -92,6 +96,8 @@ export function WorkspaceFileManagerIconGrid({
           moveDragActive={moveDragActive}
           moveDragSource={moveDragPreviewEntryPath === entry.path}
           moveDragTarget={moveDragTargetEntryPath === entry.path}
+          onEntryIconViewportLeave={onEntryIconViewportLeave}
+          onEntryIconViewportEnter={onEntryIconViewportEnter}
           selected={selectedPath === entry.path}
           onCancelInlineRename={onCancelInlineRename}
           onClearInlineRenameValidation={onClearInlineRenameValidation}
@@ -119,6 +125,8 @@ function WorkspaceFileManagerIconTile({
   moveDragActive,
   moveDragSource,
   moveDragTarget,
+  onEntryIconViewportLeave,
+  onEntryIconViewportEnter,
   selected,
   onCancelInlineRename,
   onClearInlineRenameValidation,
@@ -140,6 +148,8 @@ function WorkspaceFileManagerIconTile({
   moveDragActive: boolean;
   moveDragSource: boolean;
   moveDragTarget: boolean;
+  onEntryIconViewportLeave?: (entry: WorkspaceFileEntry) => void;
+  onEntryIconViewportEnter?: (entry: WorkspaceFileEntry) => void;
   selected: boolean;
   onCancelInlineRename: () => void;
   onClearInlineRenameValidation: () => void;
@@ -169,7 +179,7 @@ function WorkspaceFileManagerIconTile({
   }, [selected]);
 
   const tileClassName = cn(
-    "flex min-w-0 max-w-[120px] flex-col items-center gap-1.5 rounded-md border border-transparent px-2 py-2 text-center transition-colors",
+    "flex min-w-0 max-w-[148px] flex-col items-center gap-1.5 rounded-md border border-transparent px-2 py-2 text-center transition-colors",
     isInlineRenaming
       ? "cursor-default"
       : "cursor-pointer hover:bg-transparency-block",
@@ -189,6 +199,8 @@ function WorkspaceFileManagerIconTile({
       iconClassName={workspaceFileManagerIconGridIconClassName()}
       iconUrlByCacheKey={iconUrlByCacheKey}
       isEnteringDirectory={isEnteringDirectory}
+      onViewportLeave={onEntryIconViewportLeave}
+      onViewportEnter={onEntryIconViewportEnter}
     />
   );
 

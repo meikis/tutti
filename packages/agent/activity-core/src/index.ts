@@ -1,5 +1,11 @@
 export type { AgentActivityAdapter } from "./adapter.ts";
 export {
+  AGENT_CAPABILITY_KEYS,
+  resolveAgentActivityCapability,
+  type AgentActivityCapabilityInput,
+  type AgentCapabilityKey
+} from "./capabilities.ts";
+export {
   cloneAgentActivitySnapshot,
   createAgentActivityController,
   createEmptyAgentActivitySnapshot,
@@ -15,12 +21,15 @@ export {
 } from "./merge.ts";
 export {
   normalizeAgentActivityDisplayStatus,
-  resolveAgentActivityPromptImagesSupported,
   selectNeedsAttentionCount,
   selectNeedsAttentionItems,
-  selectSessionDisplayStatuses,
-  type AgentActivityPromptImagesSupportInput
+  selectSessionDisplayStatuses
 } from "./selectors.ts";
+export {
+  resolveAgentActivityUsage,
+  type AgentActivityUsage,
+  type AgentActivityUsageInput
+} from "./usage.ts";
 export type {
   AgentActivityDisplayStatus,
   AgentActivityCancelReason,

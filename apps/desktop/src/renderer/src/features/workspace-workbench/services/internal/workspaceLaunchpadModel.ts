@@ -107,7 +107,7 @@ export function buildWorkspaceLaunchpadItems(input: {
       .filter((app) => app.installed)
       .map((app) => {
         const launchEnabled =
-          app.runtimeStatus === "running" && Boolean(app.url);
+          app.runtimeStatus === "running" && Boolean(app.launchUrl);
         return {
           appId: app.appId,
           disabledReason: launchEnabled ? undefined : input.copy.appUnavailable,
@@ -202,7 +202,7 @@ export function resolveWorkspaceLaunchpadPreviewIconUrls(input: {
   agentStatuses?: readonly AgentProviderStatus[];
   apps: readonly Pick<
     WorkspaceAppCenterApp,
-    "iconUrl" | "installed" | "runtimeStatus" | "url"
+    "iconUrl" | "installed" | "launchUrl" | "runtimeStatus"
   >[];
   excludedAgentProviders?: readonly WorkspaceAgentProvider[];
   fallbackIconUrl: string;

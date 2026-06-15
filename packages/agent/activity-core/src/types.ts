@@ -130,6 +130,10 @@ export interface AgentActivityComposerOptions {
   provider: string;
   models: AgentActivityComposerSettingOption[];
   reasoningEfforts: AgentActivityComposerSettingOption[];
+  /** Mirrors tuttid modelConfig.configurable; false when absent. */
+  modelConfigurable?: boolean;
+  /** Mirrors tuttid reasoningConfig.configurable; false when absent. */
+  reasoningConfigurable?: boolean;
   permissionConfig?: AgentActivityComposerPermissionConfig | null;
   runtimeContext?: Record<string, unknown>;
   skills: AgentActivityComposerSkillOption[];

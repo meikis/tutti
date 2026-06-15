@@ -286,7 +286,8 @@ export const workspaceWorkspaceAppSchema = {
     "localizations",
     "minimizeBehavior",
     "windowMinWidth",
-    "windowMinHeight"
+    "windowMinHeight",
+    "references"
   ],
   properties: {
     appId: {
@@ -396,6 +397,16 @@ export const workspaceWorkspaceAppSchema = {
       type: ["integer", "null"],
       minimum: 160,
       maximum: 1200
+    },
+    references: {
+      type: "object",
+      additionalProperties: false,
+      required: ["searchSupported"],
+      properties: {
+        searchSupported: {
+          type: "boolean"
+        }
+      }
     }
   }
 } as const;
@@ -1207,7 +1218,8 @@ export const workspaceAppUpdatedPayloadSchema = {
         "localizations",
         "minimizeBehavior",
         "windowMinWidth",
-        "windowMinHeight"
+        "windowMinHeight",
+        "references"
       ],
       properties: {
         appId: {
@@ -1324,6 +1336,16 @@ export const workspaceAppUpdatedPayloadSchema = {
           type: ["integer", "null"],
           minimum: 160,
           maximum: 1200
+        },
+        references: {
+          type: "object",
+          additionalProperties: false,
+          required: ["searchSupported"],
+          properties: {
+            searchSupported: {
+              type: "boolean"
+            }
+          }
         }
       }
     }

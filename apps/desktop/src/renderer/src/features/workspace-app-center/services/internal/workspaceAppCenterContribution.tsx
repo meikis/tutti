@@ -48,7 +48,6 @@ export const workspaceAppBrowserPartitionPrefix = "persist:tutti-app:";
 export {
   reportWorkspaceAppOpenedFromDockEntry,
   resolveWorkspaceAppDisplayName,
-  resolveWorkspaceAppSizeConstraints,
   workspaceAppCenterNodeID,
   workspaceAppDockEntryId,
   workspaceAppWebviewInstanceId,
@@ -194,7 +193,7 @@ function createWorkspaceAppDockEntry(input: {
     order: workspaceAppDockOrderStart + input.index,
     resolvePopupItem: ({ node }) => {
       const title = node.title || appTitle;
-      const subtitle = input.app.url ?? node.data.instanceId;
+      const subtitle = input.app.launchUrl ?? node.data.instanceId;
       return {
         revision: `${title}\n${subtitle}`,
         subtitle,
@@ -285,7 +284,7 @@ function createWorkspaceAppWebviewNodeDefinition(input: {
       const defaultUrl = resolveWorkspaceAppWebviewUrl({
         activation: context.activation,
         appCanUseExternalState: app ? app.runtimeStatus === "running" : false,
-        appUrl: app?.url ?? null,
+        appLaunchUrl: app?.launchUrl ?? null,
         externalNodeState: context.externalNodeState
       });
       const navigationPolicy = resolveWorkspaceAppWebviewNavigationPolicy({
@@ -443,10 +442,10 @@ function readWorkspaceAppExternalState(
     readWorkspaceAppIdFromNodeId(request.nodeId) ??
     readWorkspaceAppIdFromInstanceId(request.instanceId);
   const app = appId ? findWorkspaceApp(input.appCenterService, appId) : null;
-  return app?.url
+  return app?.launchUrl
     ? {
         title: resolveWorkspaceAppDisplayName(app),
-        url: app.url
+        url: app.launchUrl
       }
     : null;
 }
@@ -454,12 +453,12 @@ function readWorkspaceAppExternalState(
 function resolveWorkspaceAppWebviewUrl(input: {
   activation: WorkbenchHostActivation | null;
   appCanUseExternalState: boolean;
-  appUrl: string | null;
+  appLaunchUrl: string | null;
   externalNodeState: WorkspaceAppWebviewExternalState | null;
 }): string {
   return (
     readWorkspaceAppOpenPayload(input.activation)?.url ??
-    normalizeWorkspaceAppUrl(input.appUrl) ??
+    normalizeWorkspaceAppUrl(input.appLaunchUrl) ??
     (input.appCanUseExternalState ? input.externalNodeState?.url : null) ??
     "about:blank"
   );
@@ -473,7 +472,7 @@ function resolveWorkspaceAppWebviewNavigationPolicy(input: {
   const appUrl =
     input.appCenterService.store.apps.find(
       (candidate) => candidate.appId === input.appId
-    )?.url ?? input.fallbackUrl;
+    )?.launchUrl ?? input.fallbackUrl;
   const trimmedUrl = appUrl.trim();
   if (!trimmedUrl || trimmedUrl === "about:blank") {
     return null;

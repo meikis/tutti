@@ -288,6 +288,45 @@ export type WorkspaceAppCliState = {
   issues: Array<WorkspaceAppCliIssue>;
 };
 
+export type WorkspaceAppReferencesState = {
+  searchSupported: boolean;
+};
+
+export type AppReferenceKind = "file";
+
+export type AppReferenceSearchRequest = {
+  query: string;
+  limit?: number;
+  cursor?: string;
+  kinds?: Array<AppReferenceKind>;
+};
+
+export type AppReferenceSearchResponse = {
+  workspaceId: string;
+  appId: string;
+  references: Array<AppReference>;
+  nextCursor: string | null;
+};
+
+export type AppReference = {
+  kind: "file";
+} & AppFileReference;
+
+export type AppFileReference = {
+  kind: "file";
+  displayName: string | null;
+  description: string | null;
+  /**
+   * Absolute filesystem path resolved by tuttid from the app runtime reference location. Workspace app runtimes do not provide this public API field directly.
+   *
+   */
+  path: string;
+  sizeBytes: number | null;
+  mtimeMs: number | null;
+  mimeType: string | null;
+  score: number | null;
+};
+
 export type WorkspaceAppLocalization = {
   locale: string;
   displayName: string | null;
@@ -323,6 +362,7 @@ export type WorkspaceApp = {
   windowMinWidth: number | null;
   windowMinHeight: number | null;
   cli: WorkspaceAppCliState;
+  references: WorkspaceAppReferencesState;
 };
 
 export type WorkspaceAppMinimizeBehavior = "hibernate" | "keep-mounted";
@@ -2534,6 +2574,56 @@ export type InstallWorkspaceAppResponses = {
 export type InstallWorkspaceAppResponse =
   InstallWorkspaceAppResponses[keyof InstallWorkspaceAppResponses];
 
+export type SearchWorkspaceAppReferencesData = {
+  body: AppReferenceSearchRequest;
+  path: {
+    workspaceID: string;
+    appID: string;
+  };
+  query?: never;
+  url: "/v1/workspaces/{workspaceID}/apps/{appID}/references/search";
+};
+
+export type SearchWorkspaceAppReferencesErrors = {
+  /**
+   * Request payload or parameters are invalid
+   */
+  400: ApiErrorResponse;
+  /**
+   * Bearer token is missing or invalid
+   */
+  401: ApiErrorResponse;
+  /**
+   * Workspace app was not found
+   */
+  404: ApiErrorResponse;
+  /**
+   * HTTP method is not supported on this route
+   */
+  405: ApiErrorResponse;
+  /**
+   * Workspace operation failed in an upstream adapter or command
+   */
+  502: ApiErrorResponse;
+  /**
+   * Required daemon service dependency is unavailable
+   */
+  503: ApiErrorResponse;
+};
+
+export type SearchWorkspaceAppReferencesError =
+  SearchWorkspaceAppReferencesErrors[keyof SearchWorkspaceAppReferencesErrors];
+
+export type SearchWorkspaceAppReferencesResponses = {
+  /**
+   * Workspace app references
+   */
+  200: AppReferenceSearchResponse;
+};
+
+export type SearchWorkspaceAppReferencesResponse =
+  SearchWorkspaceAppReferencesResponses[keyof SearchWorkspaceAppReferencesResponses];
+
 export type ExportWorkspaceAppData = {
   body: ExportWorkspaceAppRequest;
   path: {
@@ -2734,6 +2824,56 @@ export type DeleteWorkspaceAppResponses = {
 export type DeleteWorkspaceAppResponse2 =
   DeleteWorkspaceAppResponses[keyof DeleteWorkspaceAppResponses];
 
+export type LaunchWorkspaceAppData = {
+  body?: never;
+  path: {
+    workspaceID: string;
+    appID: string;
+  };
+  query?: never;
+  url: "/v1/workspaces/{workspaceID}/apps/{appID}/launch";
+};
+
+export type LaunchWorkspaceAppErrors = {
+  /**
+   * Request payload or parameters are invalid
+   */
+  400: ApiErrorResponse;
+  /**
+   * Bearer token is missing or invalid
+   */
+  401: ApiErrorResponse;
+  /**
+   * Workspace app was not found
+   */
+  404: ApiErrorResponse;
+  /**
+   * HTTP method is not supported on this route
+   */
+  405: ApiErrorResponse;
+  /**
+   * Workspace operation failed in an upstream adapter or command
+   */
+  502: ApiErrorResponse;
+  /**
+   * Required daemon service dependency is unavailable
+   */
+  503: ApiErrorResponse;
+};
+
+export type LaunchWorkspaceAppError =
+  LaunchWorkspaceAppErrors[keyof LaunchWorkspaceAppErrors];
+
+export type LaunchWorkspaceAppResponses = {
+  /**
+   * Workspace app launch prepared
+   */
+  200: WorkspaceAppResponse;
+};
+
+export type LaunchWorkspaceAppResponse =
+  LaunchWorkspaceAppResponses[keyof LaunchWorkspaceAppResponses];
+
 export type RetryWorkspaceAppData = {
   body?: never;
   path: {
@@ -2776,7 +2916,7 @@ export type RetryWorkspaceAppError =
 
 export type RetryWorkspaceAppResponses = {
   /**
-   * Workspace app start retried
+   * Workspace app failure retried
    */
   200: WorkspaceAppResponse;
 };

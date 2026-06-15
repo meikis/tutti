@@ -20,6 +20,7 @@ import type {
   WorkspaceAppCenterRuntimeStatus,
   WorkspaceAppCenterSnapshot
 } from "@tutti-os/workspace-app-center";
+import { mapWorkspaceAppRuntimeStatus } from "@tutti-os/workspace-app-center/core";
 
 export interface DesktopWorkspaceAppExportResult {
   appId: string;
@@ -60,15 +61,18 @@ export interface WorkspaceAppLike {
   readonly failureReason?: string | null;
   readonly iconUrl?: string | null;
   readonly installed: boolean;
+  readonly installationId?: string | null;
   readonly lastError?: string | null;
   readonly launchUrl?: string | null;
   readonly localizations?: readonly WorkspaceAppLocalizationLike[];
   readonly minimizeBehavior?: "hibernate" | "keep-mounted";
   readonly port?: number | null;
+  readonly references?: WorkspaceApp["references"];
   readonly source: WorkspaceApp["source"];
   readonly startedAtUnixMs?: number | null;
   readonly stateRevision: number;
   readonly status: WorkspaceAppRuntimeStatus;
+  readonly runtimeId?: string | null;
   readonly tags?: readonly string[];
   readonly updatedAtUnixMs?: number | null;
   readonly updateAvailable?: boolean;
@@ -126,6 +130,12 @@ export function createDesktopWorkspaceAppCenterGateway(
     },
     async uninstallWorkspaceApp(workspaceId, appId) {
       await tuttidClient.uninstallWorkspaceApp(workspaceId, appId);
+      return normalizeWorkspaceAppCenterSnapshot(
+        await tuttidClient.listWorkspaceApps(workspaceId)
+      );
+    },
+    async launchWorkspaceApp(workspaceId, appId) {
+      await tuttidClient.launchWorkspaceApp(workspaceId, appId);
       return normalizeWorkspaceAppCenterSnapshot(
         await tuttidClient.listWorkspaceApps(workspaceId)
       );
@@ -306,6 +316,7 @@ export function normalizeWorkspaceAppCenterApp(
     failureReason: app.failureReason ?? null,
     iconUrl: app.iconUrl,
     installed: app.installed,
+    installationId: app.installationId ?? null,
     lastError: app.lastError ?? null,
     cli: normalizeWorkspaceAppCliState(app.cli),
     localizations: (app.localizations ?? []).map(
@@ -314,12 +325,16 @@ export function normalizeWorkspaceAppCenterApp(
     minimizeBehavior:
       app.minimizeBehavior === "hibernate" ? "hibernate" : "keep-mounted",
     name: app.displayName,
+    references: {
+      searchSupported: app.references?.searchSupported ?? false
+    },
     runtimeStatus: normalizeRuntimeStatus(app.status),
+    runtimeId: app.runtimeId ?? null,
     source: normalizeWorkspaceAppCenterSource(app.source),
     stateRevision: app.stateRevision,
     tags: app.tags ?? [],
     updateAvailable: app.updateAvailable ?? false,
-    url: app.status === "running" ? app.launchUrl : null,
+    launchUrl: app.status === "running" ? app.launchUrl : null,
     version: app.version,
     windowMinHeight: normalizeWorkspaceAppWindowMinimum(app.windowMinHeight),
     windowMinWidth: normalizeWorkspaceAppWindowMinimum(app.windowMinWidth)
@@ -378,22 +393,7 @@ function normalizeWorkspaceAppCenterSource(
 function normalizeRuntimeStatus(
   status: WorkspaceAppRuntimeStatus
 ): WorkspaceAppCenterRuntimeStatus {
-  switch (status) {
-    case "running":
-      return "running";
-    case "preparing":
-      return "preparing";
-    case "starting":
-      return "starting";
-    case "failed":
-      return "failed";
-    case "stopping":
-      return "stopping";
-    case "idle":
-      return "idle";
-    default:
-      return assertNever(status, "Unsupported workspace app runtime status");
-  }
+  return mapWorkspaceAppRuntimeStatus(status);
 }
 
 function assertNever(value: never, message: string): never {

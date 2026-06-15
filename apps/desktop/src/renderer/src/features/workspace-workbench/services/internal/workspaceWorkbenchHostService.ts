@@ -23,6 +23,7 @@ import type {
   DesktopBrowserApi,
   DesktopDockPreviewCacheApi,
   DesktopHostFilesApi,
+  DesktopHostNotificationsApi,
   DesktopHostWindowApi,
   DesktopHostWorkspaceApi,
   DesktopPlatformApi,
@@ -78,7 +79,10 @@ import { createWorkspaceDynamicDockSignature } from "./workspaceDynamicDockSigna
 import { createWorkspaceLaunchpadDockEntry } from "./workspaceLaunchpadDockEntry.ts";
 import { createDesktopWorkspaceDockPreviewCache } from "./desktopWorkspaceDockPreviewCache.ts";
 import type { IReporterService } from "../../../analytics/services/reporterService.interface.ts";
-import type { DesktopWorkspaceOpenSettingsRequest } from "@shared/contracts/ipc";
+import type {
+  DesktopHostNotificationNavigationPayload,
+  DesktopWorkspaceOpenSettingsRequest
+} from "@shared/contracts/ipc";
 import { SettingsCustomWallpaperClearedReporter } from "../../../analytics/reporters/settings-custom-wallpaper-cleared/settingsCustomWallpaperClearedReporter.ts";
 import { SettingsCustomWallpaperUploadedReporter } from "../../../analytics/reporters/settings-custom-wallpaper-uploaded/settingsCustomWallpaperUploadedReporter.ts";
 import {
@@ -94,7 +98,6 @@ import {
 const workspaceDockNativePreviewMaxWidthPx = 260;
 const workspaceDockNativePreviewMaxHeightPx = 170;
 const workspaceDockNativePreviewTimeoutMs = 2_500;
-let isolatedWorkspaceWindowPreviewQueue: Promise<void> = Promise.resolve();
 
 export interface WorkspaceWorkbenchHostServiceDependencies {
   agentProviderStatusService: AgentProviderStatusService;
@@ -103,6 +106,7 @@ export interface WorkspaceWorkbenchHostServiceDependencies {
   browserService: WorkspaceBrowserService;
   dockPreviewCacheApi: DesktopDockPreviewCacheApi;
   hostFilesApi: DesktopHostFilesApi;
+  hostNotificationsApi: Pick<DesktopHostNotificationsApi, "onNavigate">;
   hostWindowApi: DesktopHostWindowApi;
   hostWorkspaceApi: Pick<DesktopHostWorkspaceApi, "onOpenSettingsRequest">;
   workspaceFileManagerService: IWorkspaceFileManagerService;
@@ -127,6 +131,7 @@ export interface WorkspaceWorkbenchHostExternalDependencies {
   dockPreviewCacheApi: DesktopDockPreviewCacheApi;
   eventStreamClient?: TuttidEventStreamClient;
   hostFilesApi: DesktopHostFilesApi;
+  hostNotificationsApi: Pick<DesktopHostNotificationsApi, "onNavigate">;
   hostWindowApi: DesktopHostWindowApi;
   hostWorkspaceApi: Pick<DesktopHostWorkspaceApi, "onOpenSettingsRequest">;
   tuttidClient: TuttidClient;
@@ -192,6 +197,7 @@ export class WorkspaceWorkbenchHostService implements IWorkspaceWorkbenchHostSer
       dockPreviewCacheApi: externalDependencies.dockPreviewCacheApi,
       eventStreamClient: externalDependencies.eventStreamClient,
       hostFilesApi: externalDependencies.hostFilesApi,
+      hostNotificationsApi: externalDependencies.hostNotificationsApi,
       hostWindowApi: externalDependencies.hostWindowApi,
       hostWorkspaceApi: externalDependencies.hostWorkspaceApi,
       workspaceFileManagerService,
@@ -218,6 +224,12 @@ export class WorkspaceWorkbenchHostService implements IWorkspaceWorkbenchHostSer
 
   onWindowCloseRequest(listener: () => void): () => void {
     return this.dependencies.hostWindowApi.onCloseRequest(listener);
+  }
+
+  onNotificationNavigate(
+    listener: (payload: DesktopHostNotificationNavigationPayload) => void
+  ): () => void {
+    return this.dependencies.hostNotificationsApi.onNavigate(listener);
   }
 
   onOpenSettingsRequest(
@@ -428,6 +440,16 @@ export class WorkspaceWorkbenchHostService implements IWorkspaceWorkbenchHostSer
 
   getHomeDirectory(): string {
     return this.dependencies.platformApi.homeDirectory;
+  }
+
+  async openWorkspaceFile(input: {
+    path: string;
+    workspaceId: string;
+  }): Promise<void> {
+    await this.dependencies.hostFilesApi.openFile(
+      input.workspaceId,
+      input.path
+    );
   }
 
   async ensureAgentProviderStatusesLoaded(): Promise<void> {
@@ -750,6 +772,10 @@ function createDesktopWorkspaceNodePreviewCapture(
     }
 
     const { captureTarget, windowElement } = captureContext;
+    if (!isForegroundWorkspaceNodeCaptureTarget(windowElement)) {
+      return null;
+    }
+
     const rect = captureTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) {
       logDockPreviewCaptureDiagnostic(runtimeApi, workspaceId, {
@@ -805,20 +831,16 @@ function createDesktopWorkspaceNodePreviewCapture(
 
     let captureResult: DockPreviewCaptureResult;
     try {
-      const capturePromise = captureIsolatedWorkspaceWindowPreview(
-        windowElement,
-        () =>
-          hostWindowApi.capturePreview({
-            maxHeight: workspaceDockNativePreviewMaxHeightPx,
-            maxWidth: workspaceDockNativePreviewMaxWidthPx,
-            rect: {
-              height: rect.height,
-              width: rect.width,
-              x: rect.left,
-              y: rect.top
-            }
-          })
-      );
+      const capturePromise = hostWindowApi.capturePreview({
+        maxHeight: workspaceDockNativePreviewMaxHeightPx,
+        maxWidth: workspaceDockNativePreviewMaxWidthPx,
+        rect: {
+          height: rect.height,
+          width: rect.width,
+          x: rect.left,
+          y: rect.top
+        }
+      });
       capturePromise.catch(() => undefined);
       captureResult = await resolveDockPreviewCaptureWithTimeout(
         capturePromise,
@@ -900,73 +922,10 @@ function resolveNativeCaptureBlockReason(
   return null;
 }
 
-function captureIsolatedWorkspaceWindowPreview(
-  windowElement: HTMLElement,
-  capturePreview: () => Promise<string | null>
-): Promise<string | null> {
-  return enqueueIsolatedWorkspaceWindowPreviewCapture(() =>
-    runIsolatedWorkspaceWindowPreviewCapture(windowElement, capturePreview)
-  );
-}
-
-function enqueueIsolatedWorkspaceWindowPreviewCapture(
-  task: () => Promise<string | null>
-): Promise<string | null> {
-  const result = isolatedWorkspaceWindowPreviewQueue.then(task, task);
-  isolatedWorkspaceWindowPreviewQueue = result.then(
-    () => undefined,
-    () => undefined
-  );
-  return result;
-}
-
-function runIsolatedWorkspaceWindowPreviewCapture(
-  windowElement: HTMLElement,
-  capturePreview: () => Promise<string | null>
-): Promise<string | null> {
-  const activeAttribute = "data-workbench-preview-capture-active";
-  const targetAttribute = "data-workbench-preview-capture-target";
-  const styleElement = document.createElement("style");
-  styleElement.textContent = `
-html[${activeAttribute}="true"] [data-workbench-window-id]:not([${targetAttribute}="true"]),
-html[${activeAttribute}="true"] [data-desktop-dock-popup-root],
-html[${activeAttribute}="true"] [data-radix-popper-content-wrapper] {
-  visibility: hidden !important;
-}
-`;
-
-  const previousActiveValue =
-    document.documentElement.getAttribute(activeAttribute);
-  const previousTargetValue = windowElement.getAttribute(targetAttribute);
-  document.head.appendChild(styleElement);
-  windowElement.setAttribute(targetAttribute, "true");
-  document.documentElement.setAttribute(activeAttribute, "true");
-
-  return waitForAnimationFrame()
-    .then(waitForAnimationFrame)
-    .then(capturePreview)
-    .finally(() => {
-      if (previousTargetValue === null) {
-        windowElement.removeAttribute(targetAttribute);
-      } else {
-        windowElement.setAttribute(targetAttribute, previousTargetValue);
-      }
-      if (previousActiveValue === null) {
-        document.documentElement.removeAttribute(activeAttribute);
-      } else {
-        document.documentElement.setAttribute(
-          activeAttribute,
-          previousActiveValue
-        );
-      }
-      styleElement.remove();
-    });
-}
-
-function waitForAnimationFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
+function isForegroundWorkspaceNodeCaptureTarget(
+  windowElement: HTMLElement
+): boolean {
+  return windowElement.dataset.focused === "true";
 }
 
 type DockPreviewCaptureResult =

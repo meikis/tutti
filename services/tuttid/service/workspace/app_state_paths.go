@@ -55,7 +55,7 @@ func (s *AppCenterService) stateDir() string {
 
 func safeAppPathSegment(value string) string {
 	value = strings.TrimSpace(value)
-	if value == "" {
+	if value == "" || value == "." || value == ".." {
 		return "_"
 	}
 
@@ -71,7 +71,7 @@ func safeAppPathSegment(value string) string {
 		}
 	}
 	result := builder.String()
-	if result == "" {
+	if result == "" || result == "." || result == ".." {
 		return "_"
 	}
 	return result

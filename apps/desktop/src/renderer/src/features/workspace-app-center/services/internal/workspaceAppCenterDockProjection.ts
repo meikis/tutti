@@ -17,16 +17,16 @@ export function projectWorkspaceAppCenterDockApps(
     .filter((app) => app.enabled)
     .map((app) => ({
       app,
-      ...projectWorkspaceAppCenterDockState(app.runtimeStatus, app.url)
+      ...projectWorkspaceAppCenterDockState(app.runtimeStatus, app.launchUrl)
     }));
 }
 
 export function projectWorkspaceAppCenterDockState(
   status: WorkspaceAppCenterRuntimeStatus,
-  url: string | null | undefined
+  launchUrl: string | null | undefined
 ): Pick<WorkspaceAppCenterDockProjection, "launchEnabled" | "state"> {
   if (status === "running") {
-    if (!url) {
+    if (!launchUrl) {
       return {
         launchEnabled: false,
         state: {
@@ -52,7 +52,7 @@ export function projectWorkspaceAppCenterDockState(
       state: { kind: "loading" }
     };
   }
-  if (status === "failed") {
+  if (status === "failed" || status === "unavailable") {
     return {
       launchEnabled: false,
       state: { kind: "unavailable" }

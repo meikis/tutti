@@ -19,6 +19,7 @@ import (
 type acpClient struct {
 	conn                ProcessConnection
 	stderrMessageMapper acpStderrMessageMapper
+	omitWireVersion     bool
 	nextID              atomic.Int64
 	callMu              sync.Mutex
 	sendMu              sync.Mutex
@@ -94,6 +95,26 @@ func newACPClientWithStderrMessageMapper(conn ProcessConnection, mapper acpStder
 	return c
 }
 
+// newAppServerJSONRPCClient creates a JSON-RPC client for the codex
+// app-server wire format, which omits the "jsonrpc" version header.
+func newAppServerJSONRPCClient(conn ProcessConnection) *acpClient {
+	c := &acpClient{
+		conn:            conn,
+		omitWireVersion: true,
+		pending:         make(map[int64]*acpPendingCall),
+		done:            make(chan struct{}),
+	}
+	go c.readLoop()
+	return c
+}
+
+func (c *acpClient) messageEnvelope() map[string]any {
+	if c != nil && c.omitWireVersion {
+		return map[string]any{}
+	}
+	return map[string]any{"jsonrpc": "2.0"}
+}
+
 func (c *acpClient) SetMessageHandler(handler acpMessageHandler) {
 	if c == nil {
 		return
@@ -110,14 +131,22 @@ func (c *acpClient) Close() error {
 	return c.conn.Close()
 }
 
+// Done is closed when the process connection terminates.
+func (c *acpClient) Done() <-chan struct{} {
+	return c.done
+}
+
+// Err reports why the connection terminated; valid after Done is closed.
+func (c *acpClient) Err() error {
+	return c.finishError()
+}
+
 func (c *acpClient) Notify(ctx context.Context, method string, params any) error {
 	if c == nil {
 		return errors.New("acp client is nil")
 	}
-	message := map[string]any{
-		"jsonrpc": "2.0",
-		"method":  method,
-	}
+	message := c.messageEnvelope()
+	message["method"] = method
 	if params != nil {
 		message["params"] = params
 	}
@@ -182,11 +211,9 @@ func (c *acpClient) callLocked(
 	handler func(context.Context, acpMessage) error,
 ) (json.RawMessage, error) {
 	id := c.nextID.Add(1)
-	message := map[string]any{
-		"jsonrpc": "2.0",
-		"id":      id,
-		"method":  method,
-	}
+	message := c.messageEnvelope()
+	message["id"] = id
+	message["method"] = method
 	if params != nil {
 		message["params"] = params
 	}
@@ -232,6 +259,46 @@ func (c *acpClient) callLocked(
 	}
 }
 
+// CallNoHandler issues a request without claiming the single active message
+// handler slot and without serializing behind other calls. It is required for
+// requests that must run while another call is streaming (for example codex
+// app-server `turn/interrupt` and `turn/steer` while `turn/start` is pending).
+func (c *acpClient) CallNoHandler(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	if c == nil {
+		return nil, errors.New("acp client is nil")
+	}
+	id := c.nextID.Add(1)
+	message := c.messageEnvelope()
+	message["id"] = id
+	message["method"] = method
+	if params != nil {
+		message["params"] = params
+	}
+	pending := &acpPendingCall{response: make(chan acpMessage, 1)}
+	c.registerCall(id, pending, nil)
+	defer c.unregisterCall(id, nil)
+
+	slog.Info("agent session ACP request sent",
+		"event", "agent_session.acp.request.sent",
+		"method", method,
+		"id", id,
+	)
+	if err := c.sendJSON(ctx, message); err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-c.done:
+		return nil, c.finishError()
+	case response := <-pending.response:
+		if response.Error != nil {
+			return nil, &acpCallError{Method: method, Err: *response.Error}
+		}
+		return response.Result, nil
+	}
+}
+
 func (c *acpClient) registerCall(id int64, pending *acpPendingCall, active *acpActiveHandler) {
 	c.mu.Lock()
 	if c.pending == nil {
@@ -257,10 +324,8 @@ func (c *acpClient) Respond(ctx context.Context, id json.RawMessage, result any,
 	if len(bytes.TrimSpace(id)) == 0 {
 		return nil
 	}
-	message := map[string]any{
-		"jsonrpc": "2.0",
-		"id":      json.RawMessage(id),
-	}
+	message := c.messageEnvelope()
+	message["id"] = json.RawMessage(id)
 	if responseErr != nil {
 		message["error"] = responseErr
 	} else {

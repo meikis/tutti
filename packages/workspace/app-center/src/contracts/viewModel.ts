@@ -15,8 +15,17 @@ export type WorkspaceAppPrimaryAction =
   | "update"
   | "none";
 
+export interface WorkspaceAppActionContext {
+  readonly installationId?: string | null;
+  readonly runtimeId?: string | null;
+  readonly launchUrl?: string | null;
+}
+
 export interface WorkspaceAppCardViewModel {
   readonly id: string;
+  readonly installationId?: string | null;
+  readonly runtimeId?: string | null;
+  readonly launchUrl?: string | null;
   readonly name: string;
   readonly createdAtUnixMs: number | null;
   readonly description?: string;

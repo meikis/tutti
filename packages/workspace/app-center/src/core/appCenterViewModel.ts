@@ -44,15 +44,7 @@ export function createAppCenterViewModel({
   replaceableIconAppIds = [],
   runtimeStates = []
 }: CreateAppCenterViewModelInput): AppCenterViewModel {
-  const runtimeByAppId = new Map(
-    runtimeStates.map((state) => [
-      state.appId,
-      {
-        ...state,
-        status: mapWorkspaceAppRuntimeStatus(state.status)
-      }
-    ])
-  );
+  const runtimeStateMaps = createRuntimeStateMaps(runtimeStates);
   const appFactoryJobByAppId = createAppFactoryJobByAppId(factoryJobs);
   const replaceableIconAppIdSet = new Set(
     replaceableIconAppIds.map((appId) => appId.trim()).filter(Boolean)
@@ -60,7 +52,14 @@ export function createAppCenterViewModel({
 
   const appCards = apps
     .map((app) => {
-      const runtime = runtimeByAppId.get(app.manifest.appId);
+      const installationId = normalizeOptionalString(
+        app.install?.installationId
+      );
+      const runtime = findRuntimeStateForApp(
+        runtimeStateMaps,
+        app.manifest.appId,
+        installationId
+      );
       const factoryJob = appFactoryJobByAppId.get(app.manifest.appId);
       const metadata = resolveWorkspaceAppCatalogMetadata({
         catalog: app.catalog,
@@ -73,12 +72,22 @@ export function createAppCenterViewModel({
       const installed = Boolean(app.install);
       const sourceKind = resolveCatalogSourceKind(app.catalog);
       const localApp = sourceKind === "local";
+      const runtimeId = normalizeOptionalString(runtime?.runtimeId);
+      const launchUrl = normalizeOptionalString(runtime?.launchUrl);
+      const installedVersion = normalizeOptionalString(app.install?.version);
+      const manifestVersion = normalizeOptionalString(app.manifest.version);
+      const displayVersion = installedVersion ?? manifestVersion;
       const comingSoon =
         isComingSoonApp(metadata.tags) ||
         isComingSoonApp(app.manifest.tags ?? []);
       const busy = isBusyRuntimeStatus(status);
+      const unavailable = status === "unavailable";
       const canUpdate =
-        !comingSoon && !busy && installed && (app.updateAvailable ?? false);
+        !comingSoon &&
+        !busy &&
+        !unavailable &&
+        installed &&
+        (app.updateAvailable ?? false);
       const canOpen = !comingSoon && installed && canOpenInstalledApp(status);
       const canRetry = installed && status === "failed";
       const primaryAction = resolvePrimaryAction({
@@ -92,12 +101,13 @@ export function createAppCenterViewModel({
 
       return {
         id: app.manifest.appId,
+        installationId,
+        runtimeId,
+        launchUrl,
         name: metadata.name,
         createdAtUnixMs: app.createdAtUnixMs ?? null,
         ...(metadata.description ? { description: metadata.description } : {}),
-        ...(app.manifest.version && !comingSoon
-          ? { version: app.manifest.version }
-          : {}),
+        ...(displayVersion && !comingSoon ? { version: displayVersion } : {}),
         ...(app.availableVersion && !comingSoon
           ? { availableVersion: app.availableVersion }
           : {}),
@@ -119,8 +129,7 @@ export function createAppCenterViewModel({
         canDelete: localApp,
         canReplaceIcon: replaceableIconAppIdSet.has(app.manifest.appId),
         canOpenFolder: installed,
-        canOpenPackageFolder:
-          installed && localApp && Boolean(app.manifest.version?.trim()),
+        canOpenPackageFolder: installed && localApp && Boolean(displayVersion),
         canOpenFactorySession: Boolean(factoryAgentSessionId),
         canPublishFactoryUpdate:
           installed &&
@@ -151,6 +160,55 @@ export function createAppCenterViewModel({
     installedCount: appCards.filter((app) => app.installed).length,
     runningCount: appCards.filter((app) => app.status === "running").length
   };
+}
+
+interface WorkspaceAppRuntimeStateMaps {
+  readonly fallbackByAppId: Map<string, WorkspaceAppRuntimeState>;
+  readonly byInstallationId: Map<string, WorkspaceAppRuntimeState>;
+}
+
+function createRuntimeStateMaps(
+  runtimeStates: readonly WorkspaceAppRuntimeState[]
+): WorkspaceAppRuntimeStateMaps {
+  const fallbackByAppId = new Map<string, WorkspaceAppRuntimeState>();
+  const byInstallationId = new Map<string, WorkspaceAppRuntimeState>();
+
+  for (const state of runtimeStates) {
+    const runtime = {
+      ...state,
+      status: mapWorkspaceAppRuntimeStatus(state.status)
+    };
+    const installationId = normalizeOptionalString(runtime.installationId);
+    if (installationId) {
+      byInstallationId.set(installationId, runtime);
+      continue;
+    }
+
+    const appId = normalizeOptionalString(runtime.appId);
+    if (appId) {
+      fallbackByAppId.set(appId, runtime);
+    }
+  }
+
+  return {
+    fallbackByAppId,
+    byInstallationId
+  };
+}
+
+function findRuntimeStateForApp(
+  maps: WorkspaceAppRuntimeStateMaps,
+  appId: string,
+  installationId: string | null
+): WorkspaceAppRuntimeState | undefined {
+  if (installationId) {
+    const runtime = maps.byInstallationId.get(installationId);
+    if (runtime) {
+      return runtime;
+    }
+  }
+
+  return maps.fallbackByAppId.get(appId);
 }
 
 function resolveCatalogSourceKind(
@@ -226,6 +284,13 @@ function normalizeLocale(value: string | null | undefined): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function normalizeOptionalString(
+  value: string | null | undefined
+): string | null {
+  const normalized = value?.trim() ?? "";
+  return normalized.length > 0 ? normalized : null;
+}
+
 function resolvePrimaryAction(input: {
   readonly canOpen: boolean;
   readonly canRetry: boolean;
@@ -238,6 +303,9 @@ function resolvePrimaryAction(input: {
     return "none";
   }
   if (isBusyRuntimeStatus(input.status)) {
+    return "none";
+  }
+  if (input.status === "unavailable") {
     return "none";
   }
   if (!input.installed) {

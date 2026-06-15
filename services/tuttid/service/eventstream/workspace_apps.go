@@ -61,6 +61,11 @@ func (p WorkspaceAppPublisher) PublishWorkspaceAppUpdated(ctx context.Context, w
 			MinimizeBehavior: app.Package.MinimizeBehavior(),
 			WindowMinWidth:   app.Package.WindowMinWidth(),
 			WindowMinHeight:  app.Package.WindowMinHeight(),
+			References: struct {
+				SearchSupported bool `json:"searchSupported"`
+			}{
+				SearchSupported: app.Package.ReferenceSearchSupported(),
+			},
 		},
 	})
 	if err != nil {

@@ -1,6 +1,5 @@
 import type {
   AgentActivityDisplayStatus,
-  AgentActivityComposerOptions,
   AgentActivityMessage,
   AgentActivityNeedsAttentionItem,
   AgentActivityNeedsAttentionKind,
@@ -16,22 +15,6 @@ const terminalMessageStatuses = new Set([
   "answered",
   "resolved"
 ]);
-
-export interface AgentActivityPromptImagesSupportInput {
-  composerOptions?: AgentActivityComposerOptions | null;
-  sessionRuntimeContext?: Record<string, unknown> | null;
-}
-
-export function resolveAgentActivityPromptImagesSupported(
-  input: AgentActivityPromptImagesSupportInput
-): boolean | null {
-  return (
-    promptImagesSupportedFromRuntimeContext(input.sessionRuntimeContext) ??
-    promptImagesSupportedFromRuntimeContext(
-      input.composerOptions?.runtimeContext
-    )
-  );
-}
 
 export function selectNeedsAttentionCount(
   snapshot: AgentActivitySnapshot
@@ -252,10 +235,11 @@ function needsAttentionItemFromMessage(
 
 function messageSummary(message: AgentActivityMessage): string {
   return (
+    stringValue(message.payload.displayPrompt) ||
     stringValue(message.payload.summary) ||
     stringValue(message.payload.title) ||
-    stringValue(message.payload.content) ||
     stringValue(message.payload.text) ||
+    stringValue(message.payload.content) ||
     message.kind
   );
 }
@@ -289,30 +273,4 @@ function includesAny(value: string, needles: readonly string[]): boolean {
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function promptImagesSupportedFromRuntimeContext(
-  runtimeContext: Record<string, unknown> | null | undefined
-): boolean | null {
-  const promptCapabilities = recordValue(runtimeContext?.promptCapabilities);
-  const value = promptCapabilities?.image;
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "true") {
-      return true;
-    }
-    if (normalized === "false") {
-      return false;
-    }
-  }
-  return null;
-}
-
-function recordValue(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }

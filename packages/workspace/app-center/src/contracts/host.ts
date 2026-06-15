@@ -32,10 +32,16 @@ export interface WorkspaceAppCenterCliState {
   status: WorkspaceAppCenterCliStatus;
 }
 
+export interface WorkspaceAppCenterReferencesState {
+  searchSupported: boolean;
+}
+
 export interface WorkspaceAppCenterApp {
   availableIconUrl?: string | null;
   availableVersion?: string | null;
   description?: string | null;
+  installationId?: string | null;
+  runtimeId?: string | null;
   appId: string;
   createdAtUnixMs: number;
   enabled: boolean;
@@ -48,12 +54,13 @@ export interface WorkspaceAppCenterApp {
   localizations?: readonly WorkspaceAppCenterLocalization[];
   minimizeBehavior: WorkspaceAppMinimizeBehavior;
   name: string;
+  references: WorkspaceAppCenterReferencesState;
   runtimeStatus: WorkspaceAppCenterRuntimeStatus;
   source: WorkspaceAppCenterSource;
   stateRevision: number;
   tags?: readonly string[];
   updateAvailable?: boolean;
-  url?: string | null;
+  launchUrl?: string | null;
   version?: string | null;
   windowMinHeight?: number | null;
   windowMinWidth?: number | null;
@@ -156,6 +163,10 @@ export type WorkspaceAppCenterReadableStoreState =
 
 export interface WorkspaceAppCenterGateway {
   installWorkspaceApp(
+    workspaceId: string,
+    appId: string
+  ): Promise<WorkspaceAppCenterSnapshot>;
+  launchWorkspaceApp(
     workspaceId: string,
     appId: string
   ): Promise<WorkspaceAppCenterSnapshot>;

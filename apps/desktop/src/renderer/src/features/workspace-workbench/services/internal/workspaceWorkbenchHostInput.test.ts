@@ -84,7 +84,7 @@ test("workspace dynamic dock signature tracks only dock-affecting app fields", (
       name: "Notes",
       runtimeStatus: "running",
       stateRevision: 1,
-      url: "https://notes.local"
+      launchUrl: "https://notes.local"
     }
   ];
   const metadataOnlyApps = [

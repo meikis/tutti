@@ -79,6 +79,9 @@ function createWorkspaceAgentActivityService(): IWorkspaceAgentActivityService {
     submitInteractive: async () => {
       throw new Error("not implemented");
     },
+    submitPlanDecision: async () => {
+      throw new Error("not implemented");
+    },
     ensureSessionSynchronized: () => () => {},
     retainSessionEvents: () => () => {},
     sendInput: async () => {

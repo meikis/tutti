@@ -28,6 +28,10 @@ export interface WorkspaceAppManifestAuthor {
   readonly url?: string;
 }
 
+export interface WorkspaceAppManifestReferences {
+  readonly searchEndpoint: string;
+}
+
 export interface WorkspaceAppManifestLocalizationInfo {
   readonly defaultLocale: string;
   readonly additionalLocales?: readonly WorkspaceAppManifestLocalizationFile[];
@@ -48,6 +52,7 @@ export interface WorkspaceAppManifest {
   readonly runtime: WorkspaceAppManifestRuntime;
   readonly window?: WorkspaceAppManifestWindow;
   readonly author?: WorkspaceAppManifestAuthor;
+  readonly references?: WorkspaceAppManifestReferences;
   readonly tags?: readonly string[];
   readonly localizationInfo?: WorkspaceAppManifestLocalizationInfo;
 }

@@ -34,6 +34,7 @@ func GeneratedAppFromBiz(app workspacebiz.WorkspaceApp) tuttigenerated.Workspace
 		WindowMinWidth:   app.Package.WindowMinWidth(),
 		WindowMinHeight:  app.Package.WindowMinHeight(),
 		Cli:              generatedAppCLIState(app.CLI),
+		References:       generatedAppReferencesStateFromBiz(app),
 	}
 }
 
@@ -43,6 +44,15 @@ func GeneratedAppsFromBiz(apps []workspacebiz.WorkspaceApp) []tuttigenerated.Wor
 		result = append(result, GeneratedAppFromBiz(app))
 	}
 	return result
+}
+
+func GeneratedAppReferenceSearchResultFromBiz(workspaceID string, appID string, result workspacebiz.AppReferenceSearchResult) tuttigenerated.AppReferenceSearchResponse {
+	return tuttigenerated.AppReferenceSearchResponse{
+		WorkspaceId: workspaceID,
+		AppId:       appID,
+		References:  generatedAppReferencesFromBiz(result.References),
+		NextCursor:  result.NextCursor,
+	}
 }
 
 func GeneratedAppLocalizationsFromBiz(localizations []workspacebiz.AppManifestLocalization) []tuttigenerated.WorkspaceAppLocalization {
@@ -66,11 +76,63 @@ func GeneratedAppCatalogLoadStateFromBiz(state workspacebiz.AppCatalogLoadState)
 	}
 }
 
+func generatedAppReferencesStateFromBiz(app workspacebiz.WorkspaceApp) tuttigenerated.WorkspaceAppReferencesState {
+	return tuttigenerated.WorkspaceAppReferencesState{
+		SearchSupported: app.Package.ReferenceSearchSupported(),
+	}
+}
+
+func generatedAppReferencesFromBiz(references []workspacebiz.AppReference) []tuttigenerated.AppReference {
+	result := make([]tuttigenerated.AppReference, 0, len(references))
+	for _, reference := range references {
+		generated, ok := generatedAppReferenceFromBiz(reference)
+		if ok {
+			result = append(result, generated)
+		}
+	}
+	return result
+}
+
+func generatedAppReferenceFromBiz(reference workspacebiz.AppReference) (tuttigenerated.AppReference, bool) {
+	switch typed := reference.(type) {
+	case workspacebiz.AppFileReference:
+		var generated tuttigenerated.AppReference
+		if err := generated.FromAppFileReference(generatedAppFileReferenceFromBiz(typed)); err != nil {
+			return tuttigenerated.AppReference{}, false
+		}
+		return generated, true
+	default:
+		return tuttigenerated.AppReference{}, false
+	}
+}
+
+func generatedAppFileReferenceFromBiz(reference workspacebiz.AppFileReference) tuttigenerated.AppFileReference {
+	score := nullableFloat32(reference.Score)
+	return tuttigenerated.AppFileReference{
+		Kind:        tuttigenerated.AppFileReferenceKindFile,
+		DisplayName: nullableString(reference.DisplayName),
+		Description: nullableString(reference.Description),
+		Path:        reference.Path,
+		SizeBytes:   reference.SizeBytes,
+		MtimeMs:     reference.MtimeMs,
+		MimeType:    nullableString(reference.MimeType),
+		Score:       score,
+	}
+}
+
 func nullableString(value string) *string {
 	if value == "" {
 		return nil
 	}
 	return &value
+}
+
+func nullableFloat32(value *float64) *float32 {
+	if value == nil {
+		return nil
+	}
+	converted := float32(*value)
+	return &converted
 }
 
 func nonNilStrings(values []string) []string {

@@ -70,6 +70,28 @@ describe("validateWorkspaceAppManifest", () => {
     assert.equal(result.manifest?.window?.minWidth, 720);
   });
 
+  it("normalizes supported references search endpoint", () => {
+    const result = validateWorkspaceAppManifest({
+      schemaVersion: workspaceAppManifestSchemaVersion,
+      appId: "demo",
+      name: "Demo",
+      description: "Demo app",
+      runtime: {
+        bootstrap: "bootstrap.sh",
+        healthcheckPath: "/"
+      },
+      version: "1.0.0",
+      references: {
+        searchEndpoint: "/references/search"
+      }
+    });
+
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.manifest?.references, {
+      searchEndpoint: "/references/search"
+    });
+  });
+
   it("rejects unsupported window minimize behavior", () => {
     const result = validateWorkspaceAppManifest({
       schemaVersion: workspaceAppManifestSchemaVersion,
@@ -155,5 +177,38 @@ describe("validateWorkspaceAppManifest", () => {
       result.issues.map((issue) => issue.path),
       ["$.runtime.bootstrap", "$.runtime.healthcheckPath"]
     );
+  });
+
+  it("rejects references search endpoints outside relative URL paths", () => {
+    for (const searchEndpoint of [
+      "references/search",
+      "//example.com/search",
+      "https://example.com/search",
+      "/references/search?query=1",
+      "/references/search#fragment",
+      "/%zz",
+      "/foo%20bar",
+      "/foo%2Fbar",
+      "/a%2e%2e/b"
+    ]) {
+      const result = validateWorkspaceAppManifest({
+        schemaVersion: workspaceAppManifestSchemaVersion,
+        appId: "demo",
+        name: "Demo",
+        description: "Demo app",
+        runtime: {
+          bootstrap: "bootstrap.sh",
+          healthcheckPath: "/"
+        },
+        version: "1.0.0",
+        references: { searchEndpoint }
+      });
+
+      assert.equal(result.valid, false);
+      assert.deepEqual(
+        result.issues.map((issue) => issue.path),
+        ["$.references.searchEndpoint"]
+      );
+    }
   });
 });

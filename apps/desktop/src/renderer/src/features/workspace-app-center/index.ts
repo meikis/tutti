@@ -6,7 +6,6 @@ export {
   createWorkspaceAppCenterDockEntries,
   reportWorkspaceAppOpenedFromDockEntry,
   resolveWorkspaceAppDisplayName,
-  resolveWorkspaceAppSizeConstraints,
   workspaceAppBrowserPartitionPrefix,
   workspaceAppCenterNodeID,
   workspaceAppDockEntryId,

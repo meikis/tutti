@@ -45,6 +45,9 @@ function createTransportClient(
     async listCliCapabilities() {
       throw new Error("not used");
     },
+    async searchWorkspaceAppReferences() {
+      throw new Error("not used");
+    },
     async addWorkspaceIssueContextRefs() {
       throw new Error("not used");
     },
@@ -398,6 +401,9 @@ function createTransportClient(
       throw new Error("not used");
     },
     async submitWorkspaceAgentInteractive() {
+      throw new Error("not used");
+    },
+    async launchWorkspaceApp() {
       throw new Error("not used");
     },
     async retryWorkspaceApp() {

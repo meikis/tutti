@@ -5,7 +5,8 @@ export const workspaceAppRuntimeStatuses = [
   "starting",
   "running",
   "failed",
-  "stopping"
+  "stopping",
+  "unavailable"
 ] as const;
 
 export type WorkspaceAppRuntimeStatus =
@@ -17,8 +18,11 @@ export interface WorkspaceAppRuntimeError {
 }
 
 export interface WorkspaceAppRuntimeState {
+  readonly runtimeId?: string;
+  readonly installationId?: string;
   readonly appId: string;
   readonly status: WorkspaceAppRuntimeStatus;
+  readonly launchUrl?: string | null;
   readonly error?: WorkspaceAppRuntimeError | null;
   readonly startedAt?: string | null;
   readonly updatedAt?: string | null;

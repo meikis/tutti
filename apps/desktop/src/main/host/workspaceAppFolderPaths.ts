@@ -40,12 +40,15 @@ export function resolveWorkspaceAppFolderPath(
 
 export function safeWorkspaceAppPathSegment(value: string): string {
   const trimmed = value.trim();
-  if (!trimmed) {
+  if (!trimmed || trimmed === "." || trimmed === "..") {
     return "_";
   }
 
   const safe = Array.from(trimmed)
     .map((char) => (/^[\p{L}\p{N}_.-]$/u.test(char) ? char : "_"))
     .join("");
-  return safe || "_";
+  if (!safe || safe === "." || safe === "..") {
+    return "_";
+  }
+  return safe;
 }

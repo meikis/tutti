@@ -6,11 +6,13 @@ export default defineConfig({
   entry: {
     index: "index.ts",
     "agent-message-center/index": "agent-message-center/index.ts",
+    "agent-conversation/index": "agent-conversation/index.ts",
     "agent-rich-text-at-provider":
       "agent-gui/agentGuiNode/agentRichTextAtProvider.ts",
     "agent-title-text": "shared/utils/agentTitleText.ts",
     "i18n/index": "i18n/index.ts",
     "mention-file-presentation": "agent-gui/shared/mentionFilePresentation.ts",
+    "plan-decision-ops": "shared/agentConversation/planImplementation.ts",
     "workbench/index": "workbench/index.ts",
     "workbench/contribution": "workbench/contribution.ts",
     "workbench/launch": "workbench/launch.ts",

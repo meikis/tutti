@@ -922,6 +922,10 @@ func TestCodexAdapterExecUsesDisplayPromptForUserMessageOnly(t *testing.T) {
 	if !hasActivityMessage(emittedActivity, activityshared.MessageRoleUser, "Run Automation") {
 		t.Fatalf("emitted events = %#v, missing display prompt user message", emittedActivity)
 	}
+	userMessages := activityMessagesWithRole(emittedActivity, activityshared.MessageRoleUser)
+	if len(userMessages) == 0 || userMessages[0].Payload.Metadata["displayPrompt"] != "Run Automation" {
+		t.Fatalf("user message metadata = %#v, want display prompt", userMessages)
+	}
 	if hasActivityMessage(emittedActivity, activityshared.MessageRoleUser, "real automation prompt") {
 		t.Fatalf("emitted events = %#v, leaked provider prompt as user message", emittedActivity)
 	}
@@ -964,9 +968,10 @@ func TestCodexAdapterAllowsImagePromptWithoutInitializeCapability(t *testing.T) 
 		t.Fatalf("ValidatePromptContent: %v", err)
 	}
 	snapshot := adapter.SessionState(session)
-	promptCapabilities, _ := snapshot.RuntimeContext["promptCapabilities"].(map[string]any)
-	if promptCapabilities["image"] != true {
-		t.Fatalf("runtime promptCapabilities = %#v, want image support", snapshot.RuntimeContext["promptCapabilities"])
+	// The legacy codex-acp adapter reports no capabilities list; image input
+	// rides the permissive null default while ValidatePromptContent accepts it.
+	if _, ok := snapshot.RuntimeContext["capabilities"]; ok {
+		t.Fatalf("legacy codex adapter unexpectedly reports capabilities: %#v", snapshot.RuntimeContext["capabilities"])
 	}
 
 	_, err := adapter.Exec(
@@ -2708,6 +2713,7 @@ type scriptedACPConnection struct {
 	pendingPermissionPromptID  json.RawMessage
 	selectedPermissionOption   string
 	selectedInteractiveResult  map[string]any
+	appServerTurnStatus        string
 }
 
 func (c *scriptedACPConnection) Send(data []byte) error {
@@ -2722,6 +2728,9 @@ func (c *scriptedACPConnection) Send(data []byte) error {
 			Result json.RawMessage `json:"result"`
 		}
 		_ = json.Unmarshal([]byte(line), &message)
+		if c.handleAppServerMessage(line, message.ID, message.Method) {
+			continue
+		}
 		switch message.Method {
 		case acpMethodInitialize:
 			result := map[string]any{
@@ -2968,6 +2977,224 @@ func (c *scriptedACPConnection) Send(data []byte) error {
 		}
 	}
 	return nil
+}
+
+// handleAppServerMessage lets the shared scripted connection answer the codex
+// app-server protocol next to ACP, so controller tests can exercise the
+// app-server-backed codex adapter with the same fake. Returns true when the
+// message was consumed.
+func (c *scriptedACPConnection) handleAppServerMessage(line string, id json.RawMessage, method string) bool {
+	switch method {
+	case appServerMethodInitialized:
+		return true
+	case appServerMethodAccountRead:
+		requiresAuth := c.authRequiredOnNewSession
+		result := map[string]any{
+			"requiresOpenaiAuth": requiresAuth,
+		}
+		if !requiresAuth {
+			result["account"] = map[string]any{"type": "chatgpt", "planType": "pro"}
+		}
+		c.sendJSON(map[string]any{"id": id, "result": result})
+		return true
+	case appServerMethodModelList:
+		c.sendJSON(map[string]any{"id": id, "result": map[string]any{"data": []any{}}})
+		return true
+	case appServerMethodRateLimitsRead:
+		c.sendJSON(map[string]any{"id": id, "result": map[string]any{"rateLimits": map[string]any{}}})
+		return true
+	case appServerMethodThreadStart:
+		c.sendJSON(map[string]any{
+			"id": id,
+			"result": map[string]any{
+				"thread": map[string]any{"id": "codex-thread-1"},
+			},
+		})
+		return true
+	case appServerMethodThreadResume:
+		var request struct {
+			Params map[string]any `json:"params"`
+		}
+		_ = json.Unmarshal([]byte(line), &request)
+		c.sendJSON(map[string]any{
+			"id": id,
+			"result": map[string]any{
+				"thread": map[string]any{"id": asString(request.Params["threadId"])},
+			},
+		})
+		return true
+	case appServerMethodTurnStart:
+		c.mu.Lock()
+		c.appServerTurnStatus = "completed"
+		c.mu.Unlock()
+		// Mirror the real app-server: respond immediately with the
+		// inProgress turn; output streams as notifications afterwards.
+		c.sendJSON(map[string]any{
+			"id": id,
+			"result": map[string]any{
+				"turn": map[string]any{"id": "turn-1", "status": "inProgress", "items": []any{}},
+			},
+		})
+		c.sendJSON(map[string]any{
+			"method": appServerNotifyTurnStarted,
+			"params": map[string]any{
+				"threadId": "codex-thread-1",
+				"turn":     map[string]any{"id": "turn-1", "status": "inProgress", "items": []any{}},
+			},
+		})
+		if c.promptPermission || c.promptKind != "" {
+			c.sendJSON(map[string]any{
+				"id":     "permission-1",
+				"method": appServerMethodCommandApproval,
+				"params": map[string]any{
+					"threadId":    "codex-thread-1",
+					"turnId":      "turn-1",
+					"itemId":      "item-cmd",
+					"command":     "make test",
+					"cwd":         "/workspace",
+					"startedAtMs": 1750000000000,
+				},
+			})
+			return true
+		}
+		if c.pauseBeforePromptResult != nil {
+			<-c.pauseBeforePromptResult
+		}
+		for _, delta := range []string{"Need ", "context."} {
+			c.sendJSON(map[string]any{
+				"method": appServerNotifyReasoningDelta,
+				"params": map[string]any{
+					"threadId": "codex-thread-1", "turnId": "turn-1",
+					"itemId": "item-think", "contentIndex": 0, "delta": delta,
+				},
+			})
+		}
+		for _, delta := range []string{"I'll ", "check ", "the repo."} {
+			c.sendJSON(map[string]any{
+				"method": appServerNotifyAgentMessageDelta,
+				"params": map[string]any{
+					"threadId": "codex-thread-1", "turnId": "turn-1",
+					"itemId": "item-msg", "delta": delta,
+				},
+			})
+		}
+		c.sendJSON(map[string]any{
+			"method": appServerNotifyItemStarted,
+			"params": map[string]any{
+				"threadId": "codex-thread-1", "turnId": "turn-1", "startedAtMs": 1750000000000,
+				"item": map[string]any{
+					"type": "commandExecution", "id": "item-cmd",
+					"command": "ls -la", "cwd": "/workspace", "status": "inProgress",
+				},
+			},
+		})
+		c.sendJSON(map[string]any{
+			"method": appServerNotifyThreadNameUpdated,
+			"params": map[string]any{
+				"threadId":   "codex-thread-1",
+				"threadName": "Inspect repository structure",
+			},
+		})
+		c.completeAppServerTurn()
+		return true
+	case appServerMethodTurnInterrupt:
+		c.mu.Lock()
+		c.appServerTurnStatus = "interrupted"
+		c.mu.Unlock()
+		c.sendJSON(map[string]any{"id": id, "result": map[string]any{}})
+		c.completeAppServerTurn()
+		return true
+	case appServerMethodTurnSteer:
+		c.sendJSON(map[string]any{"id": id, "result": map[string]any{"turnId": "turn-1"}})
+		return true
+	case appServerMethodThreadCompact:
+		c.sendJSON(map[string]any{"id": id, "result": map[string]any{}})
+		return true
+	case appServerMethodThreadRollback:
+		c.sendJSON(map[string]any{
+			"id":     id,
+			"result": map[string]any{"thread": map[string]any{"id": "codex-thread-1"}},
+		})
+		return true
+	case appServerMethodReviewStart:
+		c.sendJSON(map[string]any{
+			"id": id,
+			"result": map[string]any{
+				"reviewThreadId": "codex-thread-1",
+				"turn": map[string]any{
+					"id": "turn-review", "status": "completed",
+					"items": []any{map[string]any{"type": "agentMessage", "id": "item-review", "text": "Review finished."}},
+				},
+			},
+		})
+		return true
+	case "":
+		if acpRequestID(id) != "permission-1" {
+			return false
+		}
+		var response struct {
+			Result struct {
+				Decision string `json:"decision"`
+			} `json:"result"`
+			Error json.RawMessage `json:"error"`
+		}
+		_ = json.Unmarshal([]byte(line), &response)
+		if response.Result.Decision == "" {
+			if len(response.Error) > 0 {
+				// App-server approval rejected (for example on cancel); the
+				// turn finishes through turn/interrupt instead.
+				return true
+			}
+			return false
+		}
+		optionID := map[string]string{
+			"accept":           "allow_once",
+			"acceptForSession": "allow_always",
+			"decline":          "reject_once",
+			"cancel":           "reject_always",
+		}[response.Result.Decision]
+		c.mu.Lock()
+		c.selectedPermissionOption = optionID
+		c.mu.Unlock()
+		c.completeAppServerTurn()
+		return true
+	default:
+		return false
+	}
+}
+
+// completeAppServerTurn finishes the in-flight app-server turn the way the
+// real server does: with a turn/completed notification (the turn/start RPC
+// already responded immediately).
+func (c *scriptedACPConnection) completeAppServerTurn() {
+	c.mu.Lock()
+	status := firstNonEmpty(c.appServerTurnStatus, "completed")
+	finalContent := firstNonEmpty(strings.TrimSpace(c.promptFinalContent), "I'll check the repo.")
+	c.mu.Unlock()
+	c.sendJSON(map[string]any{
+		"method": appServerNotifyItemCompleted,
+		"params": map[string]any{
+			"threadId": "codex-thread-1", "turnId": "turn-1", "completedAtMs": 1750000001000,
+			"item": map[string]any{
+				"type": "commandExecution", "id": "item-cmd",
+				"command": "ls -la", "cwd": "/workspace", "status": "completed",
+				"aggregatedOutput": "README.md\n", "exitCode": 0,
+			},
+		},
+	})
+	c.sendJSON(map[string]any{
+		"method": appServerNotifyTurnCompleted,
+		"params": map[string]any{
+			"threadId": "codex-thread-1",
+			"turn": map[string]any{
+				"id":     "turn-1",
+				"status": status,
+				"items": []any{
+					map[string]any{"type": "agentMessage", "id": "item-msg", "text": finalContent},
+				},
+			},
+		},
+	})
 }
 
 func (c *scriptedACPConnection) Recv() (ProcessFrame, error) {

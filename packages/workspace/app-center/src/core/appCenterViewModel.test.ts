@@ -216,6 +216,109 @@ describe("createAppCenterViewModel", () => {
     assert.equal(runningViewModel.apps[0]?.statusLabelKey, "actions.openApp");
   });
 
+  it("matches runtime state by installation id before app id fallback", () => {
+    const viewModel = createAppCenterViewModel({
+      apps: [
+        {
+          install: {
+            appId: "remote",
+            installationId: "inst-1",
+            version: "0.2.0"
+          },
+          manifest: {
+            appId: "remote",
+            description: "Remote app",
+            runtime: {
+              bootstrap: "bootstrap.sh",
+              healthcheckPath: "/"
+            },
+            schemaVersion: workspaceAppManifestSchemaVersion,
+            name: "Remote",
+            version: "0.1.0"
+          }
+        },
+        {
+          install: { appId: "legacy" },
+          manifest: {
+            appId: "legacy",
+            description: "Legacy app",
+            runtime: {
+              bootstrap: "bootstrap.sh",
+              healthcheckPath: "/"
+            },
+            schemaVersion: workspaceAppManifestSchemaVersion,
+            name: "Legacy",
+            version: "1.0.0"
+          }
+        }
+      ],
+      runtimeStates: [
+        {
+          appId: "remote",
+          launchUrl: "http://127.0.0.1:1111",
+          status: "failed"
+        },
+        {
+          appId: "remote",
+          installationId: "inst-1",
+          launchUrl: "https://remote.example/app",
+          runtimeId: "rt-1",
+          status: "running"
+        },
+        {
+          appId: "legacy",
+          launchUrl: "http://127.0.0.1:2222",
+          status: "running"
+        }
+      ]
+    });
+
+    const legacyApp = viewModel.apps.find((app) => app.id === "legacy");
+    const remoteApp = viewModel.apps.find((app) => app.id === "remote");
+    assert.equal(remoteApp?.status, "running");
+    assert.equal(remoteApp?.installationId, "inst-1");
+    assert.equal(remoteApp?.runtimeId, "rt-1");
+    assert.equal(remoteApp?.launchUrl, "https://remote.example/app");
+    assert.equal(remoteApp?.version, "0.2.0");
+    assert.equal(legacyApp?.status, "running");
+    assert.equal(legacyApp?.launchUrl, "http://127.0.0.1:2222");
+  });
+
+  it("does not use app id fallback runtime states from another installation", () => {
+    const viewModel = createAppCenterViewModel({
+      apps: [
+        {
+          install: {
+            appId: "remote",
+            installationId: "inst-1"
+          },
+          manifest: {
+            appId: "remote",
+            description: "Remote app",
+            runtime: {
+              bootstrap: "bootstrap.sh",
+              healthcheckPath: "/"
+            },
+            schemaVersion: workspaceAppManifestSchemaVersion,
+            name: "Remote",
+            version: "0.1.0"
+          }
+        }
+      ],
+      runtimeStates: [
+        {
+          appId: "remote",
+          installationId: "inst-2",
+          status: "failed"
+        }
+      ]
+    });
+
+    assert.equal(viewModel.apps[0]?.status, "idle");
+    assert.equal(viewModel.apps[0]?.runtimeId, null);
+    assert.equal(viewModel.apps[0]?.launchUrl, null);
+  });
+
   it("uses update as the primary action for installed apps with updates", () => {
     const viewModel = createAppCenterViewModel({
       apps: [
@@ -248,6 +351,43 @@ describe("createAppCenterViewModel", () => {
     assert.equal(viewModel.apps[0]?.canUpdate, true);
     assert.equal(viewModel.apps[0]?.primaryAction, "update");
     assert.equal(viewModel.apps[0]?.statusLabelKey, "actions.updateApp");
+  });
+
+  it("keeps unavailable apps inert", () => {
+    const viewModel = createAppCenterViewModel({
+      apps: [
+        {
+          availableVersion: "0.2.0",
+          install: { appId: "remote" },
+          manifest: {
+            appId: "remote",
+            description: "Remote app",
+            runtime: {
+              bootstrap: "bootstrap.sh",
+              healthcheckPath: "/"
+            },
+            schemaVersion: workspaceAppManifestSchemaVersion,
+            name: "Remote",
+            version: "0.1.0"
+          },
+          updateAvailable: true
+        }
+      ],
+      runtimeStates: [
+        {
+          appId: "remote",
+          status: "unavailable"
+        }
+      ]
+    });
+
+    assert.equal(viewModel.apps[0]?.canOpen, false);
+    assert.equal(viewModel.apps[0]?.canRetry, false);
+    assert.equal(viewModel.apps[0]?.canUpdate, false);
+    assert.equal(viewModel.apps[0]?.primaryAction, "none");
+    assert.equal(viewModel.apps[0]?.statusLabelKey, "status.unavailable");
+    assert.equal(viewModel.apps[0]?.statusTone, "amber");
+    assert.equal(viewModel.apps[0]?.statusPulse, false);
   });
 
   it("disables update actions while an app is busy", () => {

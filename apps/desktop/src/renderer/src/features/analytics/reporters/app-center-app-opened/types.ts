@@ -10,5 +10,6 @@ export interface AppCenterAppOpenedParams extends AnalyticsReporterParams {
     | "preparing"
     | "running"
     | "starting"
-    | "stopping";
+    | "stopping"
+    | "unavailable";
 }

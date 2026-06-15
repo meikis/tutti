@@ -133,9 +133,10 @@ export const zhCN = {
       promptTitle: "等待输入",
       title: "Agent 消息",
       idleStatus: "空闲中",
-      statusNotificationDescription: "{{summary}}",
-      statusNotificationFallbackSummary: "打开 Agent 消息查看详情。",
-      statusNotificationTitle: "对话 {{title}}，{{status}}",
+      outcomeNotificationCompletedBody: "Agent 已完成本次运行，点击查看会话。",
+      outcomeNotificationCompletedTitle: "{{title}} 已完成",
+      outcomeNotificationFailedBody: "Agent 本次运行失败，点击查看会话。",
+      outcomeNotificationFailedTitle: "{{title}} 运行失败",
       waitingNotificationAction: "去处理",
       waitingNotificationCommand: "命令",
       waitingNotificationConversationPrefix: "会话：",
@@ -198,16 +199,33 @@ export const zhCN = {
         custom: "自定义",
         default: "默认",
         dunes: "星夜沙丘",
-        galaxy: "星系",
         ocean: "海面",
         orbit: "地球夜景",
         peaks: "雪峰夜空",
         sand: "流沙纹理",
-        sky: "云层"
+        sky: "云层",
+        tutti: "Tutti"
       }
     },
     settings: {
       close: "关闭设置",
+      agent: {
+        skills: {
+          empty: "未发现技能",
+          loadFailed: "暂时无法加载该 provider 的技能。",
+          projectScopeNote: "项目级技能以会话内为准。",
+          sourceKinds: {
+            bundled: "内置",
+            tuttiInjected: "Tutti",
+            personal: "个人",
+            plugin: "插件",
+            project: "项目",
+            system: "系统"
+          },
+          sourceLabel: "来源",
+          title: "技能（只读）"
+        }
+      },
       appearance: {
         dockPlacementDescription: "控制工作区 dock 栏停靠的位置。",
         dockPlacementLabel: "Dock 布局",
@@ -265,6 +283,7 @@ export const zhCN = {
         updatePolicySaveFailed: "暂时无法更新更新方式。"
       },
       nav: {
+        agent: "Agent",
         apps: "应用",
         sectionsLabel: "设置分区",
         appearance: "外观",

@@ -1,4 +1,4 @@
-import { SyncDescriptor, type ServiceRegistry } from "@zk-tech/bedrock/di";
+import { SyncDescriptor, type ServiceRegistry } from "@tutti-os/infra/di";
 import type {
   TuttidClient,
   TuttidEventStreamClient
@@ -8,6 +8,7 @@ import type {
   DesktopDeveloperApi,
   DesktopDockPreviewCacheApi,
   DesktopHostFilesApi,
+  DesktopHostNotificationsApi,
   DesktopHostWindowApi,
   DesktopHostWorkspaceApi,
   DesktopPlatformApi,
@@ -27,6 +28,7 @@ export interface WorkspaceWorkbenchServiceRegistrationInput {
   dockPreviewCacheApi: DesktopDockPreviewCacheApi;
   eventStreamClient?: TuttidEventStreamClient;
   hostFilesApi: DesktopHostFilesApi;
+  hostNotificationsApi: Pick<DesktopHostNotificationsApi, "onNavigate">;
   hostWindowApi: DesktopHostWindowApi;
   hostWorkspaceApi: Pick<DesktopHostWorkspaceApi, "onOpenSettingsRequest">;
   tuttidClient: TuttidClient;
@@ -51,6 +53,7 @@ export function registerWorkspaceWorkbenchServices(
         dockPreviewCacheApi: input.dockPreviewCacheApi,
         eventStreamClient: input.eventStreamClient,
         hostFilesApi: input.hostFilesApi,
+        hostNotificationsApi: input.hostNotificationsApi,
         hostWindowApi: input.hostWindowApi,
         hostWorkspaceApi: input.hostWorkspaceApi,
         tuttidClient: input.tuttidClient,

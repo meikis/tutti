@@ -58,6 +58,13 @@ test("projectWorkspaceAppCenterDockState maps runtime status to dock state", () 
     state: { kind: "unavailable" }
   });
   assert.deepEqual(
+    projectWorkspaceAppCenterDockState("unavailable", "https://app.local"),
+    {
+      launchEnabled: false,
+      state: { kind: "unavailable" }
+    }
+  );
+  assert.deepEqual(
     projectWorkspaceAppCenterDockState("idle", "https://app.local"),
     {
       launchEnabled: false,
@@ -83,10 +90,11 @@ test("projectWorkspaceAppCenterDockApps includes only enabled apps", () => {
       installed: true,
       minimizeBehavior: "keep-mounted",
       name: "Notes",
+      references: { searchSupported: false },
       runtimeStatus: "running",
       source: "builtin",
       stateRevision: 1,
-      url: "https://notes.local"
+      launchUrl: "https://notes.local"
     },
     {
       appId: "disabled",
@@ -96,10 +104,11 @@ test("projectWorkspaceAppCenterDockApps includes only enabled apps", () => {
       installed: true,
       minimizeBehavior: "keep-mounted",
       name: "Disabled",
+      references: { searchSupported: false },
       runtimeStatus: "idle",
       source: "builtin",
       stateRevision: 1,
-      url: "https://disabled.local"
+      launchUrl: "https://disabled.local"
     }
   ]);
 

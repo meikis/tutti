@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { createDecorator } from "@zk-tech/bedrock/di";
+import { createDecorator } from "@tutti-os/infra/di";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import type { WorkspaceFileManagerPersistedState } from "@tutti-os/workspace-file-manager/services";
 import type {
@@ -29,7 +29,10 @@ import type {
   WorkspaceWallpaperDisplayMode,
   WorkspaceWallpaperId
 } from "./workspaceWallpaper";
-import type { DesktopWorkspaceOpenSettingsRequest } from "@shared/contracts/ipc";
+import type {
+  DesktopHostNotificationNavigationPayload,
+  DesktopWorkspaceOpenSettingsRequest
+} from "@shared/contracts/ipc";
 
 export type WorkspaceCustomWallpaperStatus = "idle" | "saving" | "removing";
 
@@ -101,9 +104,16 @@ export interface IWorkspaceWorkbenchHostService {
     workspaceId: string;
   }): WorkspaceWorkbenchHostInput;
   onWindowCloseRequest(listener: () => void): () => void;
+  onNotificationNavigate(
+    listener: (payload: DesktopHostNotificationNavigationPayload) => void
+  ): () => void;
   onOpenSettingsRequest(
     listener: (request: DesktopWorkspaceOpenSettingsRequest) => void
   ): () => void;
+  openWorkspaceFile(input: {
+    path: string;
+    workspaceId: string;
+  }): Promise<void>;
   readWallpaperDisplayMode(workspaceId: string): WorkspaceWallpaperDisplayMode;
   readWallpaperId(workspaceId: string): WorkspaceWallpaperId;
   ensureAgentProviderStatusesLoaded(): Promise<void>;

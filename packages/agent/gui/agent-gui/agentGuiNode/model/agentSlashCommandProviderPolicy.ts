@@ -59,18 +59,27 @@ const CLAUDE_CODE_FALLBACK_COMMANDS: readonly AgentSessionCommand[] = [
 export function resolveSlashCommandsForProvider({
   provider,
   commands,
-  hasCompactableContext = true
+  hasCompactableContext = true,
+  compactSupported
 }: {
   provider: AgentSlashCommandProvider;
   commands: readonly AgentSessionCommand[];
   hasCompactableContext?: boolean;
+  /**
+   * Negotiated `compact` capability. `false` drops the command entirely
+   * (including provider fallbacks); `undefined`/`null` means unknown and
+   * keeps the legacy `hasCompactableContext` behavior.
+   */
+  compactSupported?: boolean | null;
 }): AgentSessionCommand[] {
   return mergeSlashCommands(
     filterUnavailableSlashCommands(commands, {
+      compactSupported,
       hasCompactableContext,
       provider
     }),
     filterUnavailableSlashCommands(fallbackCommandsForProvider(provider), {
+      compactSupported,
       hasCompactableContext,
       provider
     })
@@ -204,7 +213,11 @@ function normalizedCommandName(command: AgentSessionCommand): string {
 
 function filterUnavailableSlashCommands(
   commands: readonly AgentSessionCommand[],
-  input: { hasCompactableContext: boolean; provider: AgentSlashCommandProvider }
+  input: {
+    compactSupported?: boolean | null;
+    hasCompactableContext: boolean;
+    provider: AgentSlashCommandProvider;
+  }
 ): AgentSessionCommand[] {
   return commands.filter((command) => {
     const commandName = normalizedCommandName(command);
@@ -215,6 +228,9 @@ function filterUnavailableSlashCommands(
       return false;
     }
     if (commandName === "compact") {
+      if (input.compactSupported === false) {
+        return false;
+      }
       return input.hasCompactableContext;
     }
     return true;

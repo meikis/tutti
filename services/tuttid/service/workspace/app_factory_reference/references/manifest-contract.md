@@ -20,6 +20,9 @@ Create `tutti.app.json` in the package root with this shape:
   "cli": {
     "manifest": "tutti.cli.json"
   },
+  "references": {
+    "searchEndpoint": "/tutti/references/search"
+  },
   "window": {
     "minimizeBehavior": "keep-mounted",
     "minWidth": 720,
@@ -42,6 +45,11 @@ Rules:
 - `runtime.healthcheckPath` must start with `/`.
 - `cli` is optional. Include it only when the app exposes commands through the Tutti CLI.
 - `cli.manifest` must be a relative package path to a `tutti.app.cli.v1` manifest, usually `tutti.cli.json`.
+- `references` is optional. Include it only when the app exposes searchable file references for `@应用`.
+- `references.searchEndpoint` must be a relative URL path that starts with `/` and has no scheme, host, query, hash, or percent-encoded characters.
+- v1 references may only return file references with `kind: "file"` and a `location` object. Tutti resolves the location to a filesystem path; apps must not emit host absolute paths.
+- `location.type` must be `app-data-relative` for files under the app data directory or `app-package-relative` for files under the immutable app package directory.
+- `location.path` must be a non-empty relative path using `/` separators. It must not contain a scheme, drive prefix, leading slash, NUL, or any `..` segment.
 - `window` is optional. Omit it unless the app explicitly needs non-default window behavior or minimum dimensions.
 - `window.minimizeBehavior` may be `keep-mounted` or `hibernate`; omitted defaults to `keep-mounted`.
 - `window.minWidth` and `window.minHeight` are optional integer minimum dimensions for the app webview window.
@@ -74,3 +82,51 @@ Rules:
 ```
 
 - Do not use demo app ids.
+
+## Reference Search Runtime Protocol
+
+When `references.searchEndpoint` is present, the app server must implement a JSON `POST` endpoint at that path.
+
+Request:
+
+```json
+{
+  "query": "",
+  "limit": 5,
+  "cursor": "opaque-next-page-token",
+  "kinds": ["file"]
+}
+```
+
+- `query` is already trimmed by Tutti and may be empty. Empty query should return useful recent or important file references when available.
+- `limit` is clamped by Tutti to `1..50`.
+- `cursor` is optional and opaque to Tutti.
+- v1 only sends `kinds: ["file"]`.
+
+Response:
+
+```json
+{
+  "references": [
+    {
+      "kind": "file",
+      "displayName": "Report.md",
+      "description": "Optional short context",
+      "location": {
+        "type": "app-data-relative",
+        "path": "reports/Report.md"
+      },
+      "sizeBytes": 1234,
+      "mtimeMs": 1710000000000,
+      "mimeType": "text/markdown",
+      "score": 0.8
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+- `references` is required and must be an array.
+- `nextCursor` is optional; omit it or return `null` when there is no next page.
+- `displayName`, `description`, `sizeBytes`, `mtimeMs`, `mimeType`, and `score` are optional. `score` must be between `0` and `1` when present.
+- Apps must return `location`, not an absolute `path`. Tutti resolves valid locations to absolute paths before exposing results to desktop clients.

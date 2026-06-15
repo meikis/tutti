@@ -117,12 +117,13 @@ export class WorkspaceFileManagerService implements IWorkspaceFileManagerService
     return this.sessions.get(workspaceID)?.getPersistedState() ?? null;
   }
 
-  resolveEntryIconUrl(
+  async resolveEntryIconUrl(
     workspaceID: string,
     entry: WorkspaceFileEntry
   ): Promise<string | null> {
     return this.dependencies.hostFilesApi.resolveEntryIcon(workspaceID, {
       kind: entry.kind,
+      mtimeMs: entry.mtimeMs,
       name: entry.name,
       path: entry.path
     });

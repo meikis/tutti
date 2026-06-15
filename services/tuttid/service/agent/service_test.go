@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -101,7 +102,7 @@ func TestServiceCreatePassesPlanModeToRuntime(t *testing.T) {
 		AgentSessionID: "11111111-1111-4111-8111-111111111111",
 		InitialContent: TextPromptContent("hello"),
 		PlanMode:       &planMode,
-		Provider:       "codex",
+		Provider:       "claude-code",
 	})
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
@@ -114,6 +115,31 @@ func TestServiceCreatePassesPlanModeToRuntime(t *testing.T) {
 	}
 	if session.Settings == nil || !session.Settings.PlanMode {
 		t.Fatalf("session settings = %#v, want plan mode true", session.Settings)
+	}
+}
+
+func TestServiceCreateClampsPlanModeForProvidersWithoutCapability(t *testing.T) {
+	runtime := newFakeRuntime()
+	service := NewService(runtime)
+	planMode := true
+
+	session, err := service.Create(context.Background(), "ws-1", CreateSessionInput{
+		AgentSessionID: "22222222-2222-4222-8222-222222222222",
+		InitialContent: TextPromptContent("hello"),
+		PlanMode:       &planMode,
+		Provider:       "gemini",
+	})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if len(runtime.startCalls) != 1 {
+		t.Fatalf("start calls = %d, want 1", len(runtime.startCalls))
+	}
+	if runtime.startCalls[0].PlanMode {
+		t.Fatal("runtime start plan mode = true, want clamped to false for gemini")
+	}
+	if session.Settings == nil || session.Settings.PlanMode {
+		t.Fatalf("session settings = %#v, want plan mode clamped to false", session.Settings)
 	}
 }
 
@@ -254,6 +280,26 @@ func TestServiceCreatePassesInitialDisplayPromptToRuntime(t *testing.T) {
 	}
 	if call.DisplayPrompt != "Run Automation" {
 		t.Fatalf("runtime display prompt = %q", call.DisplayPrompt)
+	}
+}
+
+func TestServiceCreateDoesNotPassDerivedPromptToRuntime(t *testing.T) {
+	runtime := newFakeRuntime()
+	service := NewService(runtime)
+
+	_, err := service.Create(context.Background(), "ws-1", CreateSessionInput{
+		AgentSessionID: "session-1",
+		Provider:       "codex",
+		InitialContent: TextPromptContent("ordinary prompt"),
+	})
+	if err != nil {
+		t.Fatalf("Create error = %v", err)
+	}
+	if len(runtime.execCalls) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(runtime.execCalls))
+	}
+	if runtime.execCalls[0].DisplayPrompt != "" {
+		t.Fatalf("runtime display prompt = %q, want empty explicit display prompt", runtime.execCalls[0].DisplayPrompt)
 	}
 }
 
@@ -444,9 +490,9 @@ func TestServiceGetsComposerOptionsWithoutStartingRuntime(t *testing.T) {
 	if options.PermissionConfig.Modes[1].Label != "Approve for me" {
 		t.Fatalf("permission label = %#v, want Approve for me", options.PermissionConfig.Modes[1])
 	}
-	promptCapabilities, ok := options.RuntimeContext["promptCapabilities"].(map[string]any)
-	if !ok || promptCapabilities["image"] != true {
-		t.Fatalf("promptCapabilities = %#v, want image support", options.RuntimeContext["promptCapabilities"])
+	capabilities, ok := options.RuntimeContext["capabilities"].([]string)
+	if !ok || !slices.Contains(capabilities, "imageInput") {
+		t.Fatalf("capabilities = %#v, want imageInput", options.RuntimeContext["capabilities"])
 	}
 }
 
@@ -477,9 +523,9 @@ func TestServiceGetsComposerOptionsLocalizesDisplayLabels(t *testing.T) {
 	if dontAsk.Label != "不再询问" || dontAsk.Description == "" {
 		t.Fatalf("dontAsk = %#v, want localized label and description", dontAsk)
 	}
-	promptCapabilities, ok := options.RuntimeContext["promptCapabilities"].(map[string]any)
-	if !ok || promptCapabilities["image"] != true {
-		t.Fatalf("promptCapabilities = %#v, want image support", options.RuntimeContext["promptCapabilities"])
+	capabilities, ok := options.RuntimeContext["capabilities"].([]string)
+	if !ok || !slices.Contains(capabilities, "imageInput") {
+		t.Fatalf("capabilities = %#v, want imageInput", options.RuntimeContext["capabilities"])
 	}
 }
 
@@ -673,9 +719,9 @@ func TestServiceGetsComposerOptionsLeavesUnresolvedProviderModelUnset(t *testing
 	if options.EffectiveSettings.ReasoningEffort != "" {
 		t.Fatalf("effectiveSettings.reasoningEffort = %q, want empty", options.EffectiveSettings.ReasoningEffort)
 	}
-	promptCapabilities, ok := options.RuntimeContext["promptCapabilities"].(map[string]any)
-	if !ok || promptCapabilities["image"] != false {
-		t.Fatalf("promptCapabilities = %#v, want image unsupported", options.RuntimeContext["promptCapabilities"])
+	if capabilities, ok := options.RuntimeContext["capabilities"].([]string); ok &&
+		slices.Contains(capabilities, "imageInput") {
+		t.Fatalf("capabilities = %#v, want no imageInput", options.RuntimeContext["capabilities"])
 	}
 }
 
@@ -883,6 +929,100 @@ func TestActivityProjectionPublishesSessionUpdateForUnappliedStatePatch(t *testi
 	}
 	if _, ok := event.payload["lifecycleStatus"]; ok {
 		t.Fatalf("payload contains stale lifecycleStatus: %#v", event.payload)
+	}
+}
+
+func TestActivityProjectionUsesRuntimeContextTitleFallback(t *testing.T) {
+	repo := &activityProjectionRepoStub{
+		stateResult: agentactivitybiz.StateReportResult{
+			Accepted:        true,
+			StateApplied:    true,
+			LastEventUnixMS: 200,
+		},
+	}
+	publisher := &activityUpdatePublisherStub{}
+	projection := NewActivityProjection(repo)
+	projection.SetPublisher(publisher)
+
+	_, err := projection.ReportSessionState(context.Background(), agentsessionstore.ReportSessionStateInput{
+		WorkspaceID:    "ws-1",
+		AgentSessionID: "session-1",
+		State: agentsessionstore.WorkspaceAgentSessionStateUpdate{
+			RuntimeContext: map[string]any{
+				"title": "Automation Review",
+			},
+			LifecycleStatus:  "failed",
+			CurrentPhase:     "failed",
+			OccurredAtUnixMS: 150,
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReportSessionState() error = %v", err)
+	}
+	if got := repo.stateInput.Title; got != "Automation Review" {
+		t.Fatalf("reported title = %q, want runtime context title", got)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+	if got := publisher.events[0].payload["title"]; got != "Automation Review" {
+		t.Fatalf("published title = %#v, want runtime context title", got)
+	}
+}
+
+func TestActivityProjectionPublishesCanonicalSessionIDForMessageUpdates(t *testing.T) {
+	repo := &activityProjectionRepoStub{
+		messageResult: agentactivitybiz.MessageReportResult{
+			AcceptedCount: 1,
+			LatestVersion: 1,
+			Messages: []agentactivitybiz.Message{{
+				AgentSessionID: "session-1",
+				MessageID:      "message-1",
+				Version:        1,
+				Role:           "assistant",
+				Kind:           "text",
+				Status:         "completed",
+				Payload:        map[string]any{"text": "hello"},
+			}},
+		},
+	}
+	publisher := &activityUpdatePublisherStub{}
+	projection := NewActivityProjection(repo)
+	projection.SetPublisher(publisher)
+
+	reply, err := projection.ReportSessionMessages(context.Background(), agentsessionstore.ReportSessionMessagesInput{
+		WorkspaceID:    "ws-1",
+		AgentSessionID: "provider-session-1",
+		SessionOrigin:  agentsessionstore.WorkspaceAgentSessionOriginRuntime,
+		Source: agentsessionstore.EventSource{
+			Provider:          "codex",
+			ProviderSessionID: "provider-session-1",
+		},
+		Updates: []agentsessionstore.WorkspaceAgentSessionMessageUpdate{{
+			MessageID: "message-1",
+			Role:      "assistant",
+			Kind:      "text",
+			Status:    "completed",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ReportSessionMessages() error = %v", err)
+	}
+	if reply.AcceptedCount != 1 {
+		t.Fatalf("reply = %#v, want accepted message", reply)
+	}
+	if repo.messageInput.Provider != "codex" {
+		t.Fatalf("repo message provider = %q, want codex", repo.messageInput.Provider)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+	event := publisher.events[0]
+	if event.agentSessionID != "session-1" {
+		t.Fatalf("published agentSessionID = %q, want session-1", event.agentSessionID)
+	}
+	if event.payload["agentSessionId"] != "session-1" {
+		t.Fatalf("payload agentSessionId = %#v, want session-1", event.payload["agentSessionId"])
 	}
 }
 
@@ -1913,7 +2053,10 @@ func (*fakeRuntime) Subscribe(string, string) (<-chan RuntimeStreamEvent, func()
 }
 
 type activityProjectionRepoStub struct {
-	stateResult agentactivitybiz.StateReportResult
+	stateResult   agentactivitybiz.StateReportResult
+	stateInput    agentactivitybiz.SessionStateReport
+	messageInput  agentactivitybiz.SessionMessageReport
+	messageResult agentactivitybiz.MessageReportResult
 }
 
 func (*activityProjectionRepoStub) DeleteSession(context.Context, string, string) (bool, error) {
@@ -1932,11 +2075,13 @@ func (*activityProjectionRepoStub) ListSessionMessages(context.Context, agentact
 	return agentactivitybiz.MessagePage{}, false, nil
 }
 
-func (*activityProjectionRepoStub) ReportSessionMessages(context.Context, agentactivitybiz.SessionMessageReport) (agentactivitybiz.MessageReportResult, error) {
-	return agentactivitybiz.MessageReportResult{}, nil
+func (r *activityProjectionRepoStub) ReportSessionMessages(_ context.Context, input agentactivitybiz.SessionMessageReport) (agentactivitybiz.MessageReportResult, error) {
+	r.messageInput = input
+	return r.messageResult, nil
 }
 
-func (r *activityProjectionRepoStub) ReportSessionState(context.Context, agentactivitybiz.SessionStateReport) (agentactivitybiz.StateReportResult, error) {
+func (r *activityProjectionRepoStub) ReportSessionState(_ context.Context, input agentactivitybiz.SessionStateReport) (agentactivitybiz.StateReportResult, error) {
+	r.stateInput = input
 	return r.stateResult, nil
 }
 

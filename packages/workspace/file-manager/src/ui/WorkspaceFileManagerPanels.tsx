@@ -86,6 +86,8 @@ export function WorkspaceFileManagerPanels({
   layoutMode,
   pendingDirectoryPath,
   previewState,
+  onEntryIconViewportLeave,
+  onEntryIconViewportEnter,
   selectedEntry,
   selectedPath,
   state,
@@ -114,6 +116,8 @@ export function WorkspaceFileManagerPanels({
   layoutMode: WorkspaceFileManagerLayoutMode;
   pendingDirectoryPath: string | null;
   previewState: WorkspaceFilePreviewState;
+  onEntryIconViewportLeave?: (entry: WorkspaceFileEntry) => void;
+  onEntryIconViewportEnter?: (entry: WorkspaceFileEntry) => void;
   selectedEntry: WorkspaceFileEntry | null;
   selectedPath: string | null;
   state: {
@@ -533,6 +537,8 @@ export function WorkspaceFileManagerPanels({
                 moveDragPreview?.targetDirectoryPath ?? null
               }
               pendingDirectoryPath={pendingDirectoryPath}
+              onEntryIconViewportLeave={onEntryIconViewportLeave}
+              onEntryIconViewportEnter={onEntryIconViewportEnter}
               selectedPath={selectedPath}
               onCancelInlineRename={onCancelInlineRename}
               onClearInlineRenameValidation={onClearInlineRenameValidation}
@@ -593,6 +599,8 @@ export function WorkspaceFileManagerPanels({
                   }
                   tableCellPaddingClassName={tableCellPaddingClassName}
                   selected={selectedPath === entry.path}
+                  onEntryIconViewportLeave={onEntryIconViewportLeave}
+                  onEntryIconViewportEnter={onEntryIconViewportEnter}
                   onCancelInlineRename={onCancelInlineRename}
                   onClearInlineRenameValidation={onClearInlineRenameValidation}
                   onConfirmInlineRename={onConfirmInlineRename}
@@ -676,6 +684,8 @@ export function WorkspaceFileManagerPanels({
         <MoveDragPreview
           iconUrlByCacheKey={iconUrlByCacheKey}
           preview={moveDragPreview}
+          onEntryIconViewportLeave={onEntryIconViewportLeave}
+          onEntryIconViewportEnter={onEntryIconViewportEnter}
         />
       ) : null}
     </div>
@@ -757,6 +767,8 @@ function EntryRow({
   moveDragActive,
   moveDragSource,
   moveDragTarget,
+  onEntryIconViewportLeave,
+  onEntryIconViewportEnter,
   selected,
   tableCellPaddingClassName,
   onCancelInlineRename,
@@ -784,6 +796,8 @@ function EntryRow({
   moveDragActive: boolean;
   moveDragSource: boolean;
   moveDragTarget: boolean;
+  onEntryIconViewportLeave?: (entry: WorkspaceFileEntry) => void;
+  onEntryIconViewportEnter?: (entry: WorkspaceFileEntry) => void;
   onCancelInlineRename: () => void;
   onClearInlineRenameValidation: () => void;
   onConfirmInlineRename: (newName: string) => Promise<boolean>;
@@ -848,6 +862,8 @@ function EntryRow({
         isEnteringDirectory={isEnteringDirectory}
         isInlineRenaming={isInlineRenaming}
         isRenaming={isRenaming}
+        onEntryIconViewportLeave={onEntryIconViewportLeave}
+        onEntryIconViewportEnter={onEntryIconViewportEnter}
         onCancelInlineRename={onCancelInlineRename}
         onClearInlineRenameValidation={onClearInlineRenameValidation}
         onConfirmInlineRename={onConfirmInlineRename}
@@ -918,10 +934,14 @@ function EntryRow({
 
 function MoveDragPreview({
   iconUrlByCacheKey,
-  preview
+  preview,
+  onEntryIconViewportLeave,
+  onEntryIconViewportEnter
 }: {
   iconUrlByCacheKey?: ReadonlyMap<string, string | null>;
   preview: WorkspaceFileManagerMoveDragPreview;
+  onEntryIconViewportLeave?: (entry: WorkspaceFileEntry) => void;
+  onEntryIconViewportEnter?: (entry: WorkspaceFileEntry) => void;
 }): ReactElement {
   return (
     <div
@@ -937,9 +957,11 @@ function MoveDragPreview({
     >
       <WorkspaceFileEntryIcon
         entry={preview.entry}
-        frameClassName="size-[18px]"
-        iconClassName="size-4"
+        frameClassName="size-7"
+        iconClassName="size-6"
         iconUrlByCacheKey={iconUrlByCacheKey}
+        onViewportLeave={onEntryIconViewportLeave}
+        onViewportEnter={onEntryIconViewportEnter}
       />
       <span className="min-w-0 truncate">{preview.entry.name}</span>
     </div>
@@ -1049,6 +1071,8 @@ function EntryNameCell({
   isEnteringDirectory = false,
   isInlineRenaming = false,
   isRenaming = false,
+  onEntryIconViewportLeave,
+  onEntryIconViewportEnter,
   onCancelInlineRename,
   onClearInlineRenameValidation,
   onConfirmInlineRename
@@ -1060,6 +1084,8 @@ function EntryNameCell({
   isEnteringDirectory?: boolean;
   isInlineRenaming?: boolean;
   isRenaming?: boolean;
+  onEntryIconViewportLeave?: (entry: WorkspaceFileEntry) => void;
+  onEntryIconViewportEnter?: (entry: WorkspaceFileEntry) => void;
   onCancelInlineRename: () => void;
   onClearInlineRenameValidation: () => void;
   onConfirmInlineRename: (newName: string) => Promise<boolean>;
@@ -1114,9 +1140,11 @@ function EntryNameCell({
       <span className="flex min-w-0 items-center gap-2">
         <WorkspaceFileEntryIcon
           entry={entry}
-          frameClassName="size-[18px]"
-          iconClassName="size-4"
+          frameClassName="size-7"
+          iconClassName="size-6"
           iconUrlByCacheKey={iconUrlByCacheKey}
+          onViewportLeave={onEntryIconViewportLeave}
+          onViewportEnter={onEntryIconViewportEnter}
         />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <input
@@ -1177,10 +1205,12 @@ function EntryNameCell({
     <span className="flex min-w-0 items-center gap-2">
       <WorkspaceFileEntryIcon
         entry={entry}
-        frameClassName="size-[18px]"
-        iconClassName="size-4"
+        frameClassName="size-7"
+        iconClassName="size-6"
         iconUrlByCacheKey={iconUrlByCacheKey}
         isEnteringDirectory={isEnteringDirectory}
+        onViewportLeave={onEntryIconViewportLeave}
+        onViewportEnter={onEntryIconViewportEnter}
       />
       <span className="flex min-w-0 max-w-full overflow-hidden whitespace-nowrap text-sm">
         <span className="min-w-0 overflow-hidden text-ellipsis">

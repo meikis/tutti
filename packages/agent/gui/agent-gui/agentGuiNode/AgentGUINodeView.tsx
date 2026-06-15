@@ -12,7 +12,7 @@ import {
   useState
 } from "react";
 import { useSnapshot } from "valtio";
-import { ChevronRight, Info } from "lucide-react";
+import { ChevronRight, Info, X } from "lucide-react";
 import type {
   WorkspaceFileReference,
   WorkspaceFileReferenceAdapter,
@@ -75,11 +75,17 @@ import { CanvasNodeTrashLinedIcon } from "../shared/canvasNodeChromeIcons";
 import { AgentSessionChrome } from "./AgentSessionChrome";
 import {
   AgentComposer,
+  formatSlashStatusTokenCount,
   type AgentComposerProps,
   type AgentComposerPromptTip,
   type AgentComposerSlashStatusLimit,
   type AgentComposerSlashStatus
 } from "./AgentComposer";
+import type { AgentActivityUsage } from "@tutti-os/agent-activity-core";
+import {
+  USAGE_CRITICAL_PERCENT,
+  USAGE_WARN_PERCENT
+} from "./model/agentUsageThresholds";
 import {
   createAgentGUIBottomDockStore,
   syncAgentGUIBottomDockStore,
@@ -265,6 +271,8 @@ export interface AgentGUIViewLabels {
   relativeTimeYears: (count: number) => string;
   slashCommandPalette: string;
   skillPickerPalette: string;
+  slashPaletteCommandsGroup: string;
+  slashPaletteSkillsGroup: string;
   slashStatusTitle: string;
   slashStatusSession: string;
   slashStatusBaseUrl: string;
@@ -278,6 +286,20 @@ export interface AgentGUIViewLabels {
   }) => string;
   slashStatusContextUnavailable: string;
   slashStatusLimitsUnavailable: string;
+  usageChipLabel: (input: { percent: number }) => string;
+  usagePopoverTitle: string;
+  usageTokensLabel: string;
+  usageLimitsLabel: string;
+  usageCompactAction: string;
+  usageCompactTooltip: string;
+  usageAlertWarnMessage: (input: { percent: number }) => string;
+  usageAlertCriticalMessage: (input: { percent: number }) => string;
+  usageAlertDismiss: string;
+  planImplementationLead: string;
+  planImplementationConfirm: string;
+  planImplementationFeedbackPlaceholder: string;
+  planImplementationSend: string;
+  planImplementationSkip: string;
   fileMentionPalette: string;
   fileMentionLoading: string;
   fileMentionEmpty: string;
@@ -319,6 +341,8 @@ interface AgentGUINodeViewProps {
     createConversation: (options?: { projectPath?: string | null }) => void;
     selectConversation: (agentSessionId: string) => void;
     submitPrompt: (content: AgentPromptContentBlock[]) => void;
+    submitCompact: () => Promise<void> | void;
+    dismissUsageAlert: () => void;
     showPromptImagesUnsupported: () => void;
     submitApprovalOption: (requestId: string, optionId: string) => void;
     submitInteractivePrompt: (input: {
@@ -1165,13 +1189,32 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       rawState: null
     };
   }, [displayedInlineNotice]);
+  // Plan decisions (claude-code exit-plan + codex plan-implementation) replace
+  // the composer in the bottom dock: the decision card takes the input box slot
+  // and the composer hides until it is acted on (optimistically cleared via
+  // bottomDockDismissedPromptRequestId) or otherwise resolves.
+  const activePromptIsPlanDecision =
+    activePrompt?.kind === "exit-plan" ||
+    activePrompt?.kind === "plan-implementation";
+  const activePromptIsVisible =
+    activePrompt !== null &&
+    bottomDockDismissedPromptRequestId !== activePromptRequestId;
+  const bottomDockReplacementPrompt =
+    activePromptIsPlanDecision && activePromptIsVisible ? activePrompt : null;
+  // Approval / ask-user prompts keep the original layout: they lift above the
+  // inline notice when one is present, otherwise they embed in the composer
+  // (which stays visible). Only plan decisions replace the composer.
   const shouldLiftActivePromptAboveInlineNotice = inlineNoticeChrome !== null;
-  const bottomDockActivePrompt =
+  const bottomDockLiftedPrompt =
+    !activePromptIsPlanDecision &&
     shouldLiftActivePromptAboveInlineNotice &&
-    activePrompt &&
-    bottomDockDismissedPromptRequestId !== activePromptRequestId
+    activePromptIsVisible
       ? activePrompt
       : null;
+  const composerActivePrompt =
+    activePromptIsPlanDecision || shouldLiftActivePromptAboveInlineNotice
+      ? null
+      : activePrompt;
   const showTimelineSkeleton =
     viewModel.isLoadingMessages &&
     (!conversation || conversation.rows.length === 0);
@@ -1306,7 +1349,13 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       nextQuestion: labels.nextQuestion,
       submitAnswers: labels.submitAnswers,
       answerPlaceholder: labels.answerPlaceholder,
-      waitingForAnswer: labels.waitingForAnswer
+      waitingForAnswer: labels.waitingForAnswer,
+      planImplementationLead: labels.planImplementationLead,
+      planImplementationConfirm: labels.planImplementationConfirm,
+      planImplementationFeedbackPlaceholder:
+        labels.planImplementationFeedbackPlaceholder,
+      planImplementationSend: labels.planImplementationSend,
+      planImplementationSkip: labels.planImplementationSkip
     }),
     [
       labels.answerPlaceholder,
@@ -1319,7 +1368,12 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       labels.sendFeedback,
       labels.stayInPlan,
       labels.submitAnswers,
-      labels.waitingForAnswer
+      labels.waitingForAnswer,
+      labels.planImplementationLead,
+      labels.planImplementationConfirm,
+      labels.planImplementationFeedbackPlaceholder,
+      labels.planImplementationSend,
+      labels.planImplementationSkip
     ]
   );
   const composerLabels = useMemo(
@@ -1355,6 +1409,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       stopping: labels.stopping,
       slashCommandPalette: labels.slashCommandPalette,
       skillPickerPalette: labels.skillPickerPalette,
+      slashPaletteCommandsGroup: labels.slashPaletteCommandsGroup,
+      slashPaletteSkillsGroup: labels.slashPaletteSkillsGroup,
       slashStatusTitle: labels.slashStatusTitle,
       slashStatusSession: labels.slashStatusSession,
       slashStatusBaseUrl: labels.slashStatusBaseUrl,
@@ -1418,6 +1474,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       labels.send,
       labels.sendQueuedPromptNext,
       labels.slashCommandPalette,
+      labels.slashPaletteCommandsGroup,
+      labels.slashPaletteSkillsGroup,
       labels.slashStatusClose,
       labels.slashStatusContext,
       labels.slashStatusContextUnavailable,
@@ -1434,6 +1492,10 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   const handleInterruptCurrentTurn = useCallback(() => {
     actions.interruptCurrentTurn(labels.noRunningResponse);
   }, [actions.interruptCurrentTurn, labels.noRunningResponse]);
+  const handleUsageAlertCompact = useCallback(() => {
+    actions.submitCompact();
+    actions.dismissUsageAlert();
+  }, [actions]);
   const submitApprovalOption = useStableEventCallback(
     actions.submitApprovalOption
   );
@@ -1500,9 +1562,9 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
         ? labels.followupPlaceholder
         : labels.initialPlaceholder,
       showStopButton,
-      activePrompt: shouldLiftActivePromptAboveInlineNotice
-        ? null
-        : activePrompt,
+      // Plan decisions replace the composer via bottomDockReplacementPrompt;
+      // approval / ask-user embed here (composerActivePrompt encodes that).
+      activePrompt: composerActivePrompt,
       activePromptKeyboardShortcutsEnabled: isActive,
       promptTips: labels.promptTips,
       composerFocusRequestSequence,
@@ -1529,7 +1591,6 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       richTextAtProviders
     }),
     [
-      activePrompt,
       canQueueWhileBusy,
       composerDisabled,
       composerDisabledReason,
@@ -1541,11 +1602,11 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       labels.followupPlaceholder,
       labels.initialPlaceholder,
       labels.promptTips,
+      composerActivePrompt,
       editQueuedPrompt,
       richTextAtProviders,
       removeQueuedPrompt,
       sendQueuedPromptNext,
-      shouldLiftActivePromptAboveInlineNotice,
       showPromptImagesUnsupported,
       showProjectSelector,
       showStopButton,
@@ -1578,14 +1639,16 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   );
   const bottomDockStoreState = useMemo<AgentGUIBottomDockStoreSnapshot>(
     () => ({
-      bottomDockActivePrompt,
+      // The lifted prompt is rendered from props on the pane; the store still
+      // carries it so the snapshot revision tracks prompt changes.
+      bottomDockActivePrompt: bottomDockLiftedPrompt,
       composerProps: bottomDockComposerProps,
       inlineNoticeChrome,
       isRespondingApproval: viewModel.isRespondingApproval,
       sessionChrome
     }),
     [
-      bottomDockActivePrompt,
+      bottomDockLiftedPrompt,
       bottomDockComposerProps,
       inlineNoticeChrome,
       sessionChrome,
@@ -1600,7 +1663,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   const bottomDockStore = bottomDockStoreRef.current;
   syncAgentGUIBottomDockStore(bottomDockStore, bottomDockStoreState);
   const bottomDockStoreRevision = [
-    bottomDockActivePrompt?.requestId ?? "",
+    bottomDockLiftedPrompt?.requestId ?? "",
+    bottomDockReplacementPrompt?.requestId ?? "",
     inlineNoticeChrome?.recovery?.message ?? "",
     sessionChrome.auth?.message ?? "",
     sessionChrome.recovery?.kind ?? "",
@@ -1749,6 +1813,10 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
         activeConversationStatus={displayConversationStatus}
         activeConversationStatusLabel={activeConversationStatusLabel}
         showFailedSyncLabel={showFailedSyncLabel}
+        usage={viewModel.usage}
+        usageLimits={slashStatusLimits}
+        compactSupported={viewModel.compactSupported}
+        onSubmitCompact={actions.submitCompact}
       />
       <ScrollArea
         scrollbarMode="native"
@@ -1783,6 +1851,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
               draftPrompt: viewModel.draftPrompt,
               availableCommands: viewModel.availableCommands,
               hasCompactableContext: viewModel.hasSentUserMessage,
+              compactSupported: viewModel.compactSupported,
               availableSkills: viewModel.availableSkills,
               disabled: composerDisabled,
               disabledReason: composerDisabledReason,
@@ -1796,7 +1865,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
                 ? labels.followupPlaceholder
                 : labels.initialPlaceholder,
               showStopButton,
-              activePrompt,
+              activePrompt: composerActivePrompt,
               activePromptKeyboardShortcutsEnabled: isActive,
               composerFocusRequestSequence,
               isActive,
@@ -1840,6 +1909,14 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       {hasActiveConversation ? (
         <AgentGUIBottomDockPane
           bottomDockRef={bottomDockRef}
+          bottomDockLiftedPrompt={bottomDockLiftedPrompt}
+          bottomDockReplacementPrompt={bottomDockReplacementPrompt}
+          usageAlert={viewModel.usageAlert}
+          usagePercent={viewModel.usage?.percentUsed ?? null}
+          usageAlertShowCompactAction={viewModel.compactSupported !== false}
+          usageAlertLabels={labels}
+          onUsageAlertCompact={handleUsageAlertCompact}
+          onUsageAlertDismiss={actions.dismissUsageAlert}
           store={bottomDockStore}
           storeRevision={bottomDockStoreRevision}
           keyboardShortcutsEnabled={isActive}
@@ -1860,7 +1937,17 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
 
 interface AgentGUIDetailHeaderProps {
   activeConversation: AgentGUINodeViewModel["activeConversation"];
-  labels: Pick<AgentGUIViewLabels, "fallbackAgentTitle" | "selectConversation">;
+  labels: Pick<
+    AgentGUIViewLabels,
+    | "fallbackAgentTitle"
+    | "selectConversation"
+    | "usageChipLabel"
+    | "usagePopoverTitle"
+    | "usageTokensLabel"
+    | "usageLimitsLabel"
+    | "usageCompactAction"
+    | "usageCompactTooltip"
+  >;
   uiLanguage: UiLanguage;
   statusGroupTitle: string;
   showSyncIndicator: boolean;
@@ -1871,6 +1958,10 @@ interface AgentGUIDetailHeaderProps {
     | undefined;
   activeConversationStatusLabel: string;
   showFailedSyncLabel: boolean;
+  usage: AgentActivityUsage | null;
+  usageLimits: readonly AgentComposerSlashStatusLimit[];
+  compactSupported: boolean | null;
+  onSubmitCompact: () => Promise<void> | void;
 }
 
 const AgentGUIDetailHeader = memo(function AgentGUIDetailHeader({
@@ -1883,7 +1974,11 @@ const AgentGUIDetailHeader = memo(function AgentGUIDetailHeader({
   syncLabel,
   activeConversationStatus,
   activeConversationStatusLabel,
-  showFailedSyncLabel
+  showFailedSyncLabel,
+  usage,
+  usageLimits,
+  compactSupported,
+  onSubmitCompact
 }: AgentGUIDetailHeaderProps): React.JSX.Element | null {
   "use memo";
 
@@ -1905,6 +2000,24 @@ const AgentGUIDetailHeader = memo(function AgentGUIDetailHeader({
         className="inline-flex flex-none items-center gap-2 whitespace-nowrap"
         title={statusGroupTitle}
       >
+        {usage && usage.percentUsed !== null ? (
+          <AgentUsageChip
+            percentUsed={usage.percentUsed}
+            usedTokens={usage.usedTokens}
+            totalTokens={usage.totalTokens}
+            limits={usageLimits}
+            labels={labels}
+          />
+        ) : null}
+        {usage && usage.percentUsed !== null && compactSupported !== false ? (
+          <AgentGUICompactButton
+            conversationId={activeConversation.id}
+            status={activeConversationStatus}
+            label={labels.usageCompactAction}
+            tooltip={labels.usageCompactTooltip}
+            onSubmitCompact={onSubmitCompact}
+          />
+        ) : null}
         <StatusDot
           tone={conversationStatusTone(activeConversationStatus)}
           pulse={conversationStatusPulse(activeConversationStatus)}
@@ -1959,6 +2072,159 @@ function AgentRunPathInfo({ path }: { path: string }): React.JSX.Element {
   );
 }
 
+function AgentGUICompactButton({
+  conversationId,
+  status,
+  label,
+  tooltip,
+  onSubmitCompact
+}: {
+  conversationId: string;
+  status: AgentGUINodeViewModel["conversations"][number]["status"] | undefined;
+  label: string;
+  tooltip: string;
+  onSubmitCompact: () => Promise<void> | void;
+}): React.JSX.Element {
+  "use memo";
+
+  const [pendingConversationId, setPendingConversationId] = useState<
+    string | null
+  >(null);
+  const lastStatusRef = useRef(status);
+
+  useEffect(() => {
+    const previousStatus = lastStatusRef.current;
+    lastStatusRef.current = status;
+    if (
+      pendingConversationId === conversationId &&
+      ((status === "ready" && previousStatus !== "ready") ||
+        status === "completed" ||
+        status === "failed" ||
+        status === "canceled")
+    ) {
+      setPendingConversationId(null);
+    }
+  }, [conversationId, pendingConversationId, status]);
+
+  const isPending = pendingConversationId === conversationId;
+  const disabled = isPending || status === "working";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className={styles.detailHeaderCompactButton}
+          data-testid="agent-gui-compact-button"
+          disabled={disabled}
+          aria-label={label}
+          onClick={() => {
+            if (disabled) {
+              return;
+            }
+            setPendingConversationId(conversationId);
+            const submission = onSubmitCompact();
+            if (submission) {
+              void submission.catch(() => {
+                setPendingConversationId(null);
+              });
+            }
+          }}
+        >
+          {label}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        align="end"
+        className="max-w-[320px] text-xs"
+      >
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+type AgentUsageChipLevel = "normal" | "warning" | "critical";
+
+function agentUsageChipLevel(percentUsed: number): AgentUsageChipLevel {
+  if (percentUsed >= USAGE_CRITICAL_PERCENT) {
+    return "critical";
+  }
+  if (percentUsed >= USAGE_WARN_PERCENT) {
+    return "warning";
+  }
+  return "normal";
+}
+
+function AgentUsageChip({
+  percentUsed,
+  usedTokens,
+  totalTokens,
+  limits,
+  labels
+}: {
+  percentUsed: number;
+  usedTokens: number | null;
+  totalTokens: number | null;
+  limits: readonly AgentComposerSlashStatusLimit[];
+  labels: Pick<
+    AgentGUIViewLabels,
+    | "usageChipLabel"
+    | "usagePopoverTitle"
+    | "usageTokensLabel"
+    | "usageLimitsLabel"
+  >;
+}): React.JSX.Element {
+  "use memo";
+
+  const chipLabel = labels.usageChipLabel({ percent: percentUsed });
+  const showTokens = usedTokens !== null && totalTokens !== null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className={styles.detailHeaderUsageChip}
+          data-testid="agent-gui-usage-chip"
+          data-usage-level={agentUsageChipLevel(percentUsed)}
+          aria-label={chipLabel}
+        >
+          {chipLabel}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        align="end"
+        className="max-w-[320px] text-xs"
+      >
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="font-semibold">{labels.usagePopoverTitle}</span>
+          {showTokens ? (
+            <span className="whitespace-nowrap">
+              {labels.usageTokensLabel}:{" "}
+              {formatSlashStatusTokenCount(usedTokens)} /{" "}
+              {formatSlashStatusTokenCount(totalTokens)}
+            </span>
+          ) : null}
+          {limits.length > 0 ? (
+            <>
+              <span className="font-semibold">{labels.usageLimitsLabel}</span>
+              {limits.map((limit) => (
+                <span key={limit.id} className="whitespace-nowrap">
+                  {limit.label}: {limit.value}
+                  {limit.reset ? ` (${limit.reset})` : ""}
+                </span>
+              ))}
+            </>
+          ) : null}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 type ChromeLabels = {
   approvalRequired: string;
   authRequired: string;
@@ -1979,6 +2245,11 @@ type InteractivePromptLabels = {
   submitAnswers: string;
   answerPlaceholder: string;
   waitingForAnswer: string;
+  planImplementationLead: string;
+  planImplementationConfirm: string;
+  planImplementationFeedbackPlaceholder: string;
+  planImplementationSend: string;
+  planImplementationSkip: string;
 };
 
 function useStableEventCallback<Args extends unknown[], Result>(
@@ -2093,11 +2364,98 @@ function EmptyHeroTitle({
   );
 }
 
+type AgentUsageAlertBannerLabels = Pick<
+  AgentGUIViewLabels,
+  | "usageAlertWarnMessage"
+  | "usageAlertCriticalMessage"
+  | "usageAlertDismiss"
+  | "usageCompactAction"
+>;
+
+function AgentUsageAlertBanner({
+  tier,
+  percent,
+  showCompactAction,
+  labels,
+  onCompact,
+  onDismiss
+}: {
+  tier: NonNullable<AgentGUINodeViewModel["usageAlert"]>;
+  percent: number | null;
+  showCompactAction: boolean;
+  labels: AgentUsageAlertBannerLabels;
+  onCompact: () => void;
+  onDismiss: () => void;
+}): React.JSX.Element {
+  "use memo";
+
+  const resolvedPercent =
+    percent ??
+    (tier === "critical" ? USAGE_CRITICAL_PERCENT : USAGE_WARN_PERCENT);
+  const message =
+    tier === "critical"
+      ? labels.usageAlertCriticalMessage({ percent: resolvedPercent })
+      : labels.usageAlertWarnMessage({ percent: resolvedPercent });
+
+  return (
+    <div
+      className={styles.usageAlertBanner}
+      data-testid="agent-gui-usage-alert"
+      data-usage-alert-tier={tier}
+      role={tier === "critical" ? "alert" : "status"}
+    >
+      <span className={styles.usageAlertMessage}>{message}</span>
+      <span className={styles.usageAlertActions}>
+        {tier === "critical" && showCompactAction ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="agent-gui-usage-alert-compact"
+            onClick={onCompact}
+          >
+            {labels.usageCompactAction}
+          </Button>
+        ) : null}
+        <button
+          type="button"
+          className={styles.usageAlertDismiss}
+          data-testid="agent-gui-usage-alert-dismiss"
+          aria-label={labels.usageAlertDismiss}
+          title={labels.usageAlertDismiss}
+          onClick={onDismiss}
+        >
+          <X size={14} strokeWidth={2} aria-hidden="true" />
+        </button>
+      </span>
+    </div>
+  );
+}
+
 interface AgentGUIBottomDockPaneProps {
   bottomDockRef: React.RefObject<HTMLDivElement | null>;
+  // Approval / ask-user prompts lifted above the inline notice (composer stays
+  // visible below). Mutually exclusive with bottomDockReplacementPrompt.
+  bottomDockLiftedPrompt:
+    | AgentGUIDetailPaneProps["viewModel"]["pendingApproval"]
+    | AgentGUIDetailPaneProps["viewModel"]["pendingInteractivePrompt"];
+  // When set, this interactive prompt takes the composer's slot in the bottom
+  // dock (the composer is hidden) for both claude-code exit-plan and codex
+  // plan-implementation decisions. Closing the prompt returns the composer.
+  bottomDockReplacementPrompt:
+    | AgentGUIDetailPaneProps["viewModel"]["pendingApproval"]
+    | AgentGUIDetailPaneProps["viewModel"]["pendingInteractivePrompt"];
+  // composerProps / inlineNoticeChrome / sessionChrome / isRespondingApproval
+  // are read from the bottom-dock store snapshot below.
   store: AgentGUIBottomDockStore;
   storeRevision: string;
   keyboardShortcutsEnabled: boolean;
+  usageAlert: AgentGUINodeViewModel["usageAlert"];
+  usagePercent: number | null;
+  usageAlertShowCompactAction: boolean;
+  usageAlertLabels: AgentUsageAlertBannerLabels;
+  onUsageAlertCompact: () => void;
+  onUsageAlertDismiss: () => void;
   chromeLabels: ChromeLabels;
   promptLabels: InteractivePromptLabels;
   onSubmitApprovalOption: AgentGUINodeViewProps["actions"]["submitApprovalOption"];
@@ -2109,9 +2467,17 @@ interface AgentGUIBottomDockPaneProps {
 
 const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
   bottomDockRef,
+  bottomDockLiftedPrompt,
+  bottomDockReplacementPrompt,
   store,
   storeRevision: _storeRevision,
   keyboardShortcutsEnabled,
+  usageAlert,
+  usagePercent,
+  usageAlertShowCompactAction,
+  usageAlertLabels,
+  onUsageAlertCompact,
+  onUsageAlertDismiss,
   chromeLabels,
   promptLabels,
   onSubmitApprovalOption,
@@ -2123,7 +2489,6 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
   "use memo";
   const state = useSnapshot(store) as AgentGUIBottomDockStoreSnapshot;
   const {
-    bottomDockActivePrompt,
     composerProps,
     inlineNoticeChrome,
     isRespondingApproval,
@@ -2136,13 +2501,13 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
       className={styles.bottomDock}
       data-testid="agent-gui-bottom-dock"
     >
-      {bottomDockActivePrompt ? (
+      {bottomDockLiftedPrompt ? (
         <div
           className={styles.bottomDockPrompt}
           data-testid="agent-gui-bottom-dock-active-prompt"
         >
           <AgentInteractivePromptSurface
-            prompt={bottomDockActivePrompt}
+            prompt={bottomDockLiftedPrompt}
             embedded={true}
             edgeGlow={true}
             keyboardShortcuts={keyboardShortcutsEnabled}
@@ -2151,6 +2516,16 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
             labels={promptLabels}
           />
         </div>
+      ) : null}
+      {usageAlert ? (
+        <AgentUsageAlertBanner
+          tier={usageAlert}
+          percent={usagePercent}
+          showCompactAction={usageAlertShowCompactAction}
+          labels={usageAlertLabels}
+          onCompact={onUsageAlertCompact}
+          onDismiss={onUsageAlertDismiss}
+        />
       ) : null}
       {inlineNoticeChrome ? (
         <AgentSessionChrome
@@ -2172,7 +2547,24 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
         onContinueInNewConversation={onContinueInNewConversation}
         labels={chromeLabels}
       />
-      <AgentComposer {...composerProps} />
+      {bottomDockReplacementPrompt ? (
+        <div
+          className={styles.bottomDockPrompt}
+          data-testid="agent-gui-bottom-dock-active-prompt"
+        >
+          <AgentInteractivePromptSurface
+            prompt={bottomDockReplacementPrompt}
+            embedded={true}
+            edgeGlow={true}
+            keyboardShortcuts={keyboardShortcutsEnabled}
+            isSubmitting={isRespondingApproval}
+            onSubmit={onSubmitBottomDockInteractivePrompt}
+            labels={promptLabels}
+          />
+        </div>
+      ) : (
+        <AgentComposer {...composerProps} />
+      )}
     </div>
   );
 });

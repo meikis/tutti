@@ -123,6 +123,55 @@ function createAgentRichTextPlaceholderExtension(
   });
 }
 
+function scrollEditorSelectionIntoView(editor: Editor): void {
+  const scrollContainer = editor.view.dom;
+  if (!(scrollContainer instanceof HTMLElement)) {
+    return;
+  }
+
+  const maxScrollTop =
+    scrollContainer.scrollHeight - scrollContainer.clientHeight;
+  if (maxScrollTop <= 0) {
+    return;
+  }
+
+  const promptEnd = editor.state.doc.content.size;
+  if (editor.state.selection.to >= Math.max(0, promptEnd - 1)) {
+    scrollContainer.scrollTop = maxScrollTop;
+    return;
+  }
+
+  const selection = scrollContainer.ownerDocument.getSelection();
+  const anchorNode = selection?.anchorNode ?? null;
+  if (
+    !selection ||
+    selection.rangeCount === 0 ||
+    !anchorNode ||
+    !scrollContainer.contains(anchorNode)
+  ) {
+    return;
+  }
+
+  const selectionRect = selection.getRangeAt(0).getBoundingClientRect();
+  const containerRect = scrollContainer.getBoundingClientRect();
+  const overflowBottom = selectionRect.bottom - containerRect.bottom;
+  if (overflowBottom > 0) {
+    scrollContainer.scrollTop = Math.min(
+      maxScrollTop,
+      scrollContainer.scrollTop + overflowBottom
+    );
+    return;
+  }
+
+  const overflowTop = containerRect.top - selectionRect.top;
+  if (overflowTop > 0) {
+    scrollContainer.scrollTop = Math.max(
+      0,
+      scrollContainer.scrollTop - overflowTop
+    );
+  }
+}
+
 export const AgentRichTextEditor = forwardRef<
   AgentRichTextEditorHandle,
   AgentRichTextEditorProps
@@ -167,6 +216,29 @@ export const AgentRichTextEditor = forwardRef<
   const placeholderRef = useRef(placeholder);
   const removeMentionLabelRef = useRef(removeMentionLabel);
   const availableSkillsRef = useRef(availableSkills);
+  const scrollFrameRef = useRef<number | null>(null);
+
+  const scheduleSelectionScroll = (targetEditor: Editor): void => {
+    if (typeof window.requestAnimationFrame !== "function") {
+      scrollEditorSelectionIntoView(targetEditor);
+      return;
+    }
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+    }
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      const currentEditor = editorRef.current;
+      if (
+        !currentEditor ||
+        currentEditor !== targetEditor ||
+        currentEditor.isDestroyed
+      ) {
+        return;
+      }
+      scrollEditorSelectionIntoView(currentEditor);
+    });
+  };
 
   const extensions = useMemo(
     () => [
@@ -390,6 +462,7 @@ export const AgentRichTextEditor = forwardRef<
     },
     onUpdate: ({ editor: nextEditor }) => {
       editorRef.current = nextEditor;
+      scheduleSelectionScroll(nextEditor);
       const nextPrompt = editorToPromptText(nextEditor);
       if (nextPrompt === lastEmittedPromptRef.current) {
         return;
@@ -437,6 +510,18 @@ export const AgentRichTextEditor = forwardRef<
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
+
+  useEffect(
+    () => () => {
+      if (
+        scrollFrameRef.current !== null &&
+        typeof window.cancelAnimationFrame === "function"
+      ) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+      }
+    },
+    []
+  );
 
   useImperativeHandle(
     ref,

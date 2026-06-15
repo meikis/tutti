@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/tutti-logo.png" alt="Tutti logo" width="120" />
-
-# Tutti
+<img src="docs/assets/banner.jpg" alt="Tutti" width="720" />
 
 **Where people and agents build in tune.**
 
@@ -12,8 +10,6 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/website-tutti.sh-black.svg)](https://tutti.sh)
-
-<!-- TODO: banner image / product screenshot -->
 
 </div>
 
@@ -35,25 +31,25 @@ Agents don't hand off summaries. They share the same live workspace. Your Codex 
 
 Shared: Context · Files & outputs · Running state · Apps
 
-<!-- TODO: workspace screenshot -->
+![The live workspace — agents sharing one live context, files, and running state](docs/assets/live-workspace.jpg)
 
 ### The Apps
 
 Apps run on Tutti, for you and your agents. Use them yourself, or let any agent call them. Create images, videos, and more with official, community-built, or custom apps.
 
-<!-- TODO: apps screenshot -->
+![The Apps — official, community-built, and custom apps you and your agents can call](docs/assets/apps.jpg)
 
 ### Goal to Tasks
 
 Stop assigning every step by hand. Describe the goal. Tutti breaks it into clear tasks. Review each task, then assign it to the agent you want.
 
-<!-- TODO: tasks screenshot -->
+![Goal to Tasks — describe a goal and Tutti breaks it into clear, assignable tasks](docs/assets/goal-to-tasks.jpg)
 
 ### Your Control
 
 One place, not twenty tabs. See every agent conversation, pending approval, and running task in one view. Approve what needs your input with one click.
 
-<!-- TODO: control center screenshot -->
+![Your Control — every agent conversation, pending approval, and running task in one view](docs/assets/your-control.jpg)
 
 ## What You Can Do With Tutti
 
@@ -137,7 +133,9 @@ Contributions are welcome — read the [Contributing Guide](CONTRIBUTING.md) to 
 
 To report a security vulnerability, see [SECURITY.md](SECURITY.md).
 
-<!-- TODO: community channels (Discord / X / WeChat) -->
+Join our Discord to meet the team and other builders:
+
+<img src="docs/assets/join-discord.jpg" alt="Join our Discord — scan to meet Tutti" width="360" />
 
 ## License
 

@@ -20,6 +20,7 @@ export type WorkspaceAppManifestValidationIssueCode =
   | "manifest.runtime"
   | "manifest.window"
   | "manifest.author"
+  | "manifest.references"
   | "manifest.tags"
   | "manifest.localizationInfo";
 
@@ -102,6 +103,7 @@ export function validateWorkspaceAppManifest(
   const runtime = validateRuntime(value.runtime, issues);
   const window = validateWindow(value.window, issues);
   const author = validateAuthor(value.author, issues);
+  const references = validateReferences(value.references, issues);
   const tags = validateTags(value.tags, issues);
   const localizationInfo = validateLocalizationInfo(
     value.localizationInfo,
@@ -134,6 +136,7 @@ export function validateWorkspaceAppManifest(
       runtime,
       ...(window ? { window } : {}),
       ...(author ? { author } : {}),
+      ...(references ? { references } : {}),
       ...(tags ? { tags } : {}),
       ...(localizationInfo ? { localizationInfo } : {})
     },
@@ -335,6 +338,37 @@ function validateAuthor(
   };
 }
 
+function validateReferences(
+  value: unknown,
+  issues: WorkspaceAppManifestValidationIssue[]
+): WorkspaceAppManifest["references"] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    issues.push({
+      code: "manifest.references",
+      message: "references must be an object when provided.",
+      path: "$.references"
+    });
+    return undefined;
+  }
+
+  const searchEndpoint = readOptionalString(value.searchEndpoint);
+  if (!searchEndpoint || !isRelativeUrlPath(searchEndpoint)) {
+    issues.push({
+      code: "manifest.references",
+      message:
+        "references.searchEndpoint must be a relative URL path without query or hash.",
+      path: "$.references.searchEndpoint"
+    });
+    return undefined;
+  }
+
+  return { searchEndpoint };
+}
+
 function validateTags(
   value: unknown,
   issues: WorkspaceAppManifestValidationIssue[]
@@ -472,6 +506,22 @@ function readOptionalString(value: unknown): string | undefined {
 
 function isRelativePackagePath(value: string): boolean {
   return !value.startsWith("/") && !value.split(/[\\/]/u).includes("..");
+}
+
+function isRelativeUrlPath(value: string): boolean {
+  const trimmed = value.trim();
+  if (
+    !trimmed ||
+    !trimmed.startsWith("/") ||
+    trimmed.startsWith("//") ||
+    trimmed.includes("\0") ||
+    trimmed.includes("?") ||
+    trimmed.includes("#") ||
+    trimmed.includes("%")
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

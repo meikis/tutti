@@ -8,6 +8,7 @@ export {
   type WorkspaceAppCenterGateway,
   type WorkspaceAppCenterLoadStatus,
   type WorkspaceAppCenterLocalization,
+  type WorkspaceAppCenterReferencesState,
   type WorkspaceAppCenterReadableStoreState,
   type WorkspaceAppCenterRuntimeStatus,
   type WorkspaceAppCenterSnapshot,
@@ -29,6 +30,7 @@ export {
   type WorkspaceAppManifestIcon,
   type WorkspaceAppManifestLocalizationFile,
   type WorkspaceAppManifestLocalizationInfo,
+  type WorkspaceAppManifestReferences,
   type WorkspaceAppManifestRuntime,
   type WorkspaceAppManifestSchemaVersion,
   type WorkspaceAppManifestWindow,
@@ -50,6 +52,7 @@ export {
 } from "./runtime.ts";
 export {
   type AppCenterViewModel,
+  type WorkspaceAppActionContext,
   type WorkspaceAppCardViewModel,
   type WorkspaceAppFactoryJobStatus,
   type WorkspaceAppFactoryJobViewModel,

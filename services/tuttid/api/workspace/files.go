@@ -189,9 +189,9 @@ func DomainEntryKindFromGenerated(
 		return ""
 	}
 	switch *kind {
-	case tuttigenerated.WorkspaceFileFilterKindFile:
+	case tuttigenerated.File:
 		return workspacefiles.EntryKindFile
-	case tuttigenerated.WorkspaceFileFilterKindDirectory:
+	case tuttigenerated.Directory:
 		return workspacefiles.EntryKindDirectory
 	default:
 		return workspacefiles.EntryKindUnknown
@@ -208,9 +208,9 @@ func DomainSearchKindsFromGenerated(
 	result := make([]workspacefiles.EntryKind, 0, len(*kinds))
 	for _, kind := range *kinds {
 		switch kind {
-		case tuttigenerated.WorkspaceFileFilterKindFile:
+		case tuttigenerated.File:
 			result = append(result, workspacefiles.EntryKindFile)
-		case tuttigenerated.WorkspaceFileFilterKindDirectory:
+		case tuttigenerated.Directory:
 			result = append(result, workspacefiles.EntryKindDirectory)
 		default:
 			result = append(result, workspacefiles.EntryKindUnknown)

@@ -115,7 +115,7 @@ func NewDefaultControllerWithOptions(
 	return NewController(
 		[]Adapter{
 			NewClaudeCodeAdapterWithHostMetadata(transport, host),
-			NewCodexAdapterWithHostMetadata(transport, host),
+			NewCodexAppServerAdapterWithHostMetadata(transport, host),
 			NewNexightAdapterWithHostMetadata(transport, host),
 			NewGeminiAdapterWithHostMetadata(transport, host),
 			NewHermesAdapterWithHostMetadata(transport, host),
@@ -449,9 +449,6 @@ func (c *Controller) Exec(_ context.Context, input ExecInput) (ExecResult, error
 		return ExecResult{}, fmt.Errorf("prompt is required")
 	}
 	displayPrompt := strings.TrimSpace(input.DisplayPrompt)
-	if displayPrompt == "" {
-		displayPrompt = promptDisplayText(content)
-	}
 	if promptAdapter, ok := adapter.(PromptContentAdapter); ok {
 		if err := promptAdapter.ValidatePromptContent(session, content); err != nil {
 			return ExecResult{}, err
@@ -1674,11 +1671,23 @@ func enrichReportStatePatches(
 	for index := range report.StatePatches {
 		report.StatePatches[index].Settings = clonePayload(patch.Settings)
 		report.StatePatches[index].RuntimeContext = clonePayload(patch.RuntimeContext)
+		if report.StatePatches[index].Provider == "" {
+			report.StatePatches[index].Provider = patch.Provider
+		}
+		if report.StatePatches[index].ProviderSessionID == "" {
+			report.StatePatches[index].ProviderSessionID = patch.ProviderSessionID
+		}
 		if report.StatePatches[index].Model == "" {
 			report.StatePatches[index].Model = patch.Model
 		}
 		if report.StatePatches[index].PermissionModeID == "" {
 			report.StatePatches[index].PermissionModeID = patch.PermissionModeID
+		}
+		if report.StatePatches[index].CWD == "" {
+			report.StatePatches[index].CWD = patch.CWD
+		}
+		if report.StatePatches[index].Title == "" {
+			report.StatePatches[index].Title = patch.Title
 		}
 	}
 }

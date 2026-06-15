@@ -75,12 +75,12 @@ export function resolveAgentProviderDockStatusProps(input: {
           input.status.actions,
           input.copy,
           input.pendingActionIds,
-          new Set(["login"])
+          new Set(["login", "refresh"])
         ),
         ...dockOrderProp(input.order),
         state: {
           kind: "disabled",
-          reason: input.copy.loginRequired
+          reason: input.copy.login
         }
       };
     case "unsupported":

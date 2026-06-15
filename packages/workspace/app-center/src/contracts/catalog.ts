@@ -22,7 +22,9 @@ export interface WorkspaceAppCatalogEntry {
 }
 
 export interface WorkspaceAppInstallRecord {
+  readonly installationId?: string;
   readonly appId: string;
+  readonly version?: string | null;
   readonly installedAt?: string | null;
   readonly updatedAt?: string | null;
   readonly catalogSourceId?: string | null;

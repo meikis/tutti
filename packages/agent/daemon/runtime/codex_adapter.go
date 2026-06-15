@@ -507,10 +507,7 @@ func (a *CodexAdapter) Exec(
 		return nil, ErrSessionDisconnected
 	}
 	session.ProviderSessionID = acpSession.providerSessionID
-	trimmedDisplayPrompt := strings.TrimSpace(displayPrompt)
-	if trimmedDisplayPrompt == "" {
-		trimmedDisplayPrompt = promptDisplayText(content)
-	}
+	explicitDisplayPrompt, visibleText := explicitAndVisiblePromptText(content, displayPrompt)
 	normalizer := newACPTurnNormalizer()
 	var events []activityshared.Event
 	emitEvents := func(next []activityshared.Event) {
@@ -523,14 +520,12 @@ func (a *CodexAdapter) Exec(
 		}
 	}
 	startEvents := make([]activityshared.Event, 0, 3)
-	if fallbackTitle := fallbackACPFamilySessionTitle(session.Title, trimmedDisplayPrompt, a.config.fallbackTitles...); fallbackTitle != "" {
+	if fallbackTitle := fallbackACPFamilySessionTitle(session.Title, visibleText, a.config.fallbackTitles...); fallbackTitle != "" {
 		startEvents = append(startEvents, newSessionTitleActivityEvent(session, fallbackTitle))
 		session.Title = fallbackTitle
 	}
 	startEvents = append(startEvents,
-		newTurnActivityEvent(session, EventMessage, turnID, "", RoleUser, trimmedDisplayPrompt, map[string]any{
-			"content": promptContentForActivity(content),
-		}),
+		newTurnActivityEvent(session, EventMessage, turnID, "", RoleUser, visibleText, userPromptActivityPayload(content, explicitDisplayPrompt, nil)),
 		newTurnActivityEvent(session, EventTurnStarted, turnID, SessionStatusWorking, "", "", nil),
 	)
 	emitEvents(startEvents)
@@ -1022,10 +1017,9 @@ func (a *CodexAdapter) SessionState(session Session) SessionStateSnapshot {
 		Status:            session.Status,
 		PermissionModeID:  session.PermissionModeID,
 		RuntimeContext: map[string]any{
-			"cwd":                session.CWD,
-			"title":              session.Title,
-			"permissionModeId":   session.PermissionModeID,
-			"promptCapabilities": promptCapabilitiesRuntimeContext(codexPromptImageSupported(nil)),
+			"cwd":              session.CWD,
+			"title":            session.Title,
+			"permissionModeId": session.PermissionModeID,
 		},
 		UpdatedAtUnixMS: session.UpdatedAtUnixMS,
 	}

@@ -5,8 +5,7 @@ import { getActiveLocale } from "../../../../i18n/runtime.ts";
 import { resolveWorkspaceAppCatalogMetadata } from "@tutti-os/workspace-app-center/core";
 import type {
   WorkbenchHostLaunchRequest,
-  WorkbenchHostLaunchResult,
-  WorkbenchNodeSizeConstraints
+  WorkbenchHostLaunchResult
 } from "@tutti-os/workbench-surface";
 import type { DesktopLocale } from "@shared/i18n";
 import type { IWorkspaceAppCenterService } from "../workspaceAppCenterService.interface";
@@ -15,7 +14,7 @@ import {
   workspaceAppCenterNodeID,
   workspaceAppWebviewTypeID
 } from "../workspaceAppCenterLaunchIds.ts";
-import { resolveWorkspaceAppWebviewFrame } from "./workspaceAppWebviewFrame.ts";
+import { workspaceAppWebviewFrame } from "./workspaceAppWebviewFrame.ts";
 
 export { workspaceAppCenterNodeID, workspaceAppWebviewTypeID };
 
@@ -51,7 +50,7 @@ export async function resolveWorkspaceAppCenterLaunchRequest(input: {
           workspaceId: input.request.workspaceId
         })
       : null;
-  if (!app?.url || app.runtimeStatus !== "running") {
+  if (!app?.launchUrl || app.runtimeStatus !== "running") {
     return null;
   }
   reportWorkspaceAppOpened({
@@ -60,47 +59,23 @@ export async function resolveWorkspaceAppCenterLaunchRequest(input: {
     reporterService: input.reporterService
   });
   const appTitle = resolveWorkspaceAppDisplayName(app);
-  const sizeConstraints = resolveWorkspaceAppSizeConstraints(app);
 
   return {
     activation: {
       payload: {
         appId: app.appId,
         title: appTitle,
-        url: app.url
+        url: app.launchUrl
       },
       type: "open-url"
     },
-    defaultFrame: resolveWorkspaceAppWebviewFrame(sizeConstraints),
+    defaultFrame: workspaceAppWebviewFrame,
     dockEntryId: workspaceAppDockEntryId(app.appId),
     framePolicy: "cascade",
     instanceId: workspaceAppWebviewInstanceId(app.appId),
-    sizeConstraints,
     title: appTitle,
     typeId: workspaceAppWebviewTypeID
   };
-}
-
-export function resolveWorkspaceAppSizeConstraints(
-  app: Pick<WorkspaceAppCenterApp, "windowMinHeight" | "windowMinWidth">
-): WorkbenchNodeSizeConstraints | null {
-  const minHeight = normalizeWorkspaceAppMinimum(app.windowMinHeight);
-  const minWidth = normalizeWorkspaceAppMinimum(app.windowMinWidth);
-  if (minHeight === undefined && minWidth === undefined) {
-    return null;
-  }
-  return {
-    ...(minHeight === undefined ? {} : { minHeight }),
-    ...(minWidth === undefined ? {} : { minWidth })
-  };
-}
-
-function normalizeWorkspaceAppMinimum(
-  value: number | null | undefined
-): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? Math.trunc(value)
-    : undefined;
 }
 
 export function resolveWorkspaceAppDisplayName(
@@ -164,7 +139,7 @@ export function reportWorkspaceAppOpenedFromDockEntry(input: {
 }): void {
   const appId = readWorkspaceAppIdFromDockEntryId(input.entryId);
   const app = appId ? findWorkspaceApp(input.appCenterService, appId) : null;
-  if (!app?.url || app.runtimeStatus !== "running") {
+  if (!app?.launchUrl || app.runtimeStatus !== "running") {
     return;
   }
   reportWorkspaceAppOpened({
@@ -212,7 +187,8 @@ function isWorkspaceAppOpenPrevStatus(
     value === "preparing" ||
     value === "running" ||
     value === "starting" ||
-    value === "stopping"
+    value === "stopping" ||
+    value === "unavailable"
   );
 }
 

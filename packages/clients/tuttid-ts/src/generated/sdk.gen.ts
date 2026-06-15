@@ -160,6 +160,9 @@ import type {
   InvokeCliCommandData,
   InvokeCliCommandErrors,
   InvokeCliCommandResponses,
+  LaunchWorkspaceAppData,
+  LaunchWorkspaceAppErrors,
+  LaunchWorkspaceAppResponses,
   ListCliCapabilitiesData,
   ListCliCapabilitiesErrors,
   ListCliCapabilitiesResponses,
@@ -262,6 +265,9 @@ import type {
   RunAgentProviderActionData,
   RunAgentProviderActionErrors,
   RunAgentProviderActionResponses,
+  SearchWorkspaceAppReferencesData,
+  SearchWorkspaceAppReferencesErrors,
+  SearchWorkspaceAppReferencesResponses,
   SearchWorkspaceFilesData,
   SearchWorkspaceFilesErrors,
   SearchWorkspaceFilesResponses,
@@ -782,6 +788,31 @@ export const installWorkspaceApp = <ThrowOnError extends boolean = false>(
   });
 
 /**
+ * Search file references exposed by one running workspace app
+ *
+ * Proxies a reference search to a running workspace app and returns daemon-resolved file references. Workspace app runtimes return scoped locations to the daemon; this public daemon API returns absolute file paths that desktop clients can use as ordinary file links.
+ *
+ */
+export const searchWorkspaceAppReferences = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<SearchWorkspaceAppReferencesData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    SearchWorkspaceAppReferencesResponses,
+    SearchWorkspaceAppReferencesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/apps/{appID}/references/search",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
+  });
+
+/**
  * Export one workspace app package archive
  */
 export const exportWorkspaceApp = <ThrowOnError extends boolean = false>(
@@ -854,7 +885,23 @@ export const deleteWorkspaceApp = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Retry starting one installed workspace app
+ * Launch one installed workspace app
+ */
+export const launchWorkspaceApp = <ThrowOnError extends boolean = false>(
+  options: Options<LaunchWorkspaceAppData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    LaunchWorkspaceAppResponses,
+    LaunchWorkspaceAppErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/apps/{appID}/launch",
+    ...options
+  });
+
+/**
+ * Retry one failed installed workspace app
  */
 export const retryWorkspaceApp = <ThrowOnError extends boolean = false>(
   options: Options<RetryWorkspaceAppData, ThrowOnError>

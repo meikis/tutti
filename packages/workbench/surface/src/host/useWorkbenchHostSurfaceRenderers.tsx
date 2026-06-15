@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from "react";
+import { Component, useCallback, useMemo } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import type { WorkbenchNode } from "../core/types.ts";
 import type {
   WorkbenchRenderNodeContext,
@@ -26,6 +27,7 @@ import type {
   WorkbenchHostChromeRenderContext,
   WorkbenchHostDockEntry,
   WorkbenchHostExternalStateSource,
+  WorkbenchHostNodeBodyContext,
   WorkbenchHostNodeData,
   WorkbenchHostNodeDefinition,
   WorkbenchHostProps,
@@ -51,20 +53,60 @@ export function useWorkbenchHostSurfaceRenderers(input: {
   renderTopChrome?: WorkbenchHostProps["renderTopChrome"];
   workspaceId: string;
 }) {
-  const renderBottomChrome = useMemo(
-    () =>
-      input.renderBottomChrome
-        ? () => input.renderBottomChrome?.(input.chromeContext)
-        : undefined,
-    [input.chromeContext, input.renderBottomChrome]
-  );
-  const renderTopChrome = useMemo(
-    () =>
-      input.renderTopChrome
-        ? () => input.renderTopChrome?.(input.chromeContext)
-        : undefined,
-    [input.chromeContext, input.renderTopChrome]
-  );
+  const renderBottomChrome = useMemo(() => {
+    const renderChrome = input.renderBottomChrome;
+    return renderChrome
+      ? () => (
+          <WorkbenchHostSurfaceRenderErrorBoundary
+            debugDiagnostics={input.debugDiagnostics}
+            details={{
+              chromeSlot: "bottom"
+            }}
+            event="workbench.chrome.render_error"
+            fallbackKind="bottom-chrome"
+            resetKey={`${input.workspaceId}:bottom-chrome`}
+            workspaceId={input.workspaceId}
+          >
+            <WorkbenchHostChromeRenderer
+              context={input.chromeContext}
+              renderChrome={renderChrome}
+            />
+          </WorkbenchHostSurfaceRenderErrorBoundary>
+        )
+      : undefined;
+  }, [
+    input.chromeContext,
+    input.debugDiagnostics,
+    input.renderBottomChrome,
+    input.workspaceId
+  ]);
+  const renderTopChrome = useMemo(() => {
+    const renderChrome = input.renderTopChrome;
+    return renderChrome
+      ? () => (
+          <WorkbenchHostSurfaceRenderErrorBoundary
+            debugDiagnostics={input.debugDiagnostics}
+            details={{
+              chromeSlot: "top"
+            }}
+            event="workbench.chrome.render_error"
+            fallbackKind="top-chrome"
+            resetKey={`${input.workspaceId}:top-chrome`}
+            workspaceId={input.workspaceId}
+          >
+            <WorkbenchHostChromeRenderer
+              context={input.chromeContext}
+              renderChrome={renderChrome}
+            />
+          </WorkbenchHostSurfaceRenderErrorBoundary>
+        )
+      : undefined;
+  }, [
+    input.chromeContext,
+    input.debugDiagnostics,
+    input.renderTopChrome,
+    input.workspaceId
+  ]);
 
   const captureNodePreviewImage = useCallback(
     async (node: WorkbenchNode<WorkbenchHostNodeData>) => {
@@ -103,22 +145,34 @@ export function useWorkbenchHostSurfaceRenderers(input: {
 
   const renderDock = useCallback(
     (context: Parameters<typeof WorkbenchHostDock>[0]["context"]) => (
-      <WorkbenchHostDock
-        captureNodePreviewImage={captureNodePreviewImage}
-        context={context}
+      <WorkbenchHostSurfaceRenderErrorBoundary
         debugDiagnostics={input.debugDiagnostics}
-        dockEntries={input.dockEntries}
-        dockPlacement={input.dockPlacement}
-        dockPreviewCache={input.dockPreviewCache}
-        dockStateSource={input.dockStateSource}
-        externalStateSource={input.externalStateSource}
-        host={input.hostSession}
-        i18n={input.hostI18n}
-        nodeDefinitions={input.nodeDefinitionByType}
-        onDockEntryAction={input.onDockEntryAction}
-        onDockEntryClick={input.onDockEntryClick}
+        details={{
+          dockEntryCount: input.dockEntries.length,
+          dockPlacement: input.dockPlacement ?? null
+        }}
+        event="workbench.dock.render_error"
+        fallbackKind="dock"
+        resetKey={`${input.workspaceId}:dock`}
         workspaceId={input.workspaceId}
-      />
+      >
+        <WorkbenchHostDock
+          captureNodePreviewImage={captureNodePreviewImage}
+          context={context}
+          debugDiagnostics={input.debugDiagnostics}
+          dockEntries={input.dockEntries}
+          dockPlacement={input.dockPlacement}
+          dockPreviewCache={input.dockPreviewCache}
+          dockStateSource={input.dockStateSource}
+          externalStateSource={input.externalStateSource}
+          host={input.hostSession}
+          i18n={input.hostI18n}
+          nodeDefinitions={input.nodeDefinitionByType}
+          onDockEntryAction={input.onDockEntryAction}
+          onDockEntryClick={input.onDockEntryClick}
+          workspaceId={input.workspaceId}
+        />
+      </WorkbenchHostSurfaceRenderErrorBoundary>
     ),
     [
       captureNodePreviewImage,
@@ -146,17 +200,30 @@ export function useWorkbenchHostSurfaceRenderers(input: {
         return null;
       }
 
-      return definition.renderBody(
-        createWorkbenchHostNodeBodyContext({
-          context,
-          definition,
-          externalStateSource: input.externalStateSource,
-          host: input.hostSession,
-          workspaceId: input.workspaceId
-        })
+      const bodyContext = createWorkbenchHostNodeBodyContext({
+        context,
+        definition,
+        externalStateSource: input.externalStateSource,
+        host: input.hostSession,
+        workspaceId: input.workspaceId
+      });
+
+      return (
+        <WorkbenchHostNodeRenderErrorBoundary
+          debugDiagnostics={input.debugDiagnostics}
+          node={context.node}
+          resetKey={`${context.node.id}:${context.node.data.typeId}`}
+          workspaceId={input.workspaceId}
+        >
+          <WorkbenchHostNodeBodyRenderer
+            context={bodyContext}
+            definition={definition}
+          />
+        </WorkbenchHostNodeRenderErrorBoundary>
       );
     },
     [
+      input.debugDiagnostics,
       input.externalStateSource,
       input.hostSession,
       input.nodeDefinitionByType,
@@ -294,4 +361,168 @@ export function useWorkbenchHostSurfaceRenderers(input: {
     resolveFullscreenHeaderMode,
     windowChromeMode
   };
+}
+
+interface WorkbenchHostNodeRenderErrorBoundaryProps {
+  children: ReactNode;
+  debugDiagnostics?: WorkbenchHostProps["debugDiagnostics"];
+  node: WorkbenchNode<WorkbenchHostNodeData>;
+  resetKey: string;
+  workspaceId: string;
+}
+
+interface WorkbenchHostSurfaceRenderErrorBoundaryProps {
+  children: ReactNode;
+  debugDiagnostics?: WorkbenchHostProps["debugDiagnostics"];
+  details?: Record<string, unknown>;
+  event: string;
+  fallbackKind: string;
+  resetKey: string;
+  workspaceId: string;
+}
+
+interface WorkbenchHostNodeRenderErrorBoundaryState {
+  hasError: boolean;
+}
+
+interface WorkbenchHostSurfaceRenderErrorBoundaryState {
+  hasError: boolean;
+}
+
+class WorkbenchHostSurfaceRenderErrorBoundary extends Component<
+  WorkbenchHostSurfaceRenderErrorBoundaryProps,
+  WorkbenchHostSurfaceRenderErrorBoundaryState
+> {
+  override state: WorkbenchHostSurfaceRenderErrorBoundaryState = {
+    hasError: false
+  };
+
+  static getDerivedStateFromError(): WorkbenchHostSurfaceRenderErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  override componentDidUpdate(
+    previousProps: WorkbenchHostSurfaceRenderErrorBoundaryProps
+  ): void {
+    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  override componentDidCatch(error: unknown, info: ErrorInfo): void {
+    try {
+      const result = this.props.debugDiagnostics?.log?.({
+        details: {
+          ...(this.props.details ?? {}),
+          componentStack: info.componentStack ?? null,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorName: error instanceof Error ? error.name : typeof error,
+          errorStack: error instanceof Error ? (error.stack ?? null) : null
+        },
+        event: this.props.event,
+        level: "error",
+        source: "workbench-host",
+        workspaceId: this.props.workspaceId
+      });
+      void Promise.resolve(result).catch(() => undefined);
+    } catch {
+      // Rendering recovery must not depend on diagnostics transport.
+    }
+  }
+
+  override render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div
+          data-workbench-surface-render-error={this.props.fallbackKind}
+          style={{ height: "100%", width: "100%" }}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+class WorkbenchHostNodeRenderErrorBoundary extends Component<
+  WorkbenchHostNodeRenderErrorBoundaryProps,
+  WorkbenchHostNodeRenderErrorBoundaryState
+> {
+  override state: WorkbenchHostNodeRenderErrorBoundaryState = {
+    hasError: false
+  };
+
+  static getDerivedStateFromError(): WorkbenchHostNodeRenderErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  override componentDidUpdate(
+    previousProps: WorkbenchHostNodeRenderErrorBoundaryProps
+  ): void {
+    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  override componentDidCatch(error: unknown, info: ErrorInfo): void {
+    try {
+      const result = this.props.debugDiagnostics?.log?.({
+        details: {
+          componentStack: info.componentStack ?? null,
+          dockEntryId: this.props.node.data.dockEntryId ?? null,
+          displayMode: this.props.node.displayMode,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorName: error instanceof Error ? error.name : typeof error,
+          errorStack: error instanceof Error ? (error.stack ?? null) : null,
+          frame: this.props.node.frame,
+          instanceId: this.props.node.data.instanceId,
+          instanceKey: this.props.node.data.instanceKey ?? null,
+          isMinimized: this.props.node.isMinimized,
+          launchSource: this.props.node.data.launchSource ?? null,
+          nodeId: this.props.node.id,
+          typeId: this.props.node.data.typeId
+        },
+        event: "workbench.node.render_error",
+        level: "error",
+        source: "workbench-host",
+        workspaceId: this.props.workspaceId
+      });
+      void Promise.resolve(result).catch(() => undefined);
+    } catch {
+      // Rendering recovery must not depend on diagnostics transport.
+    }
+  }
+
+  override render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div
+          data-workbench-node-render-error="true"
+          style={{ height: "100%", width: "100%" }}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function WorkbenchHostNodeBodyRenderer({
+  context,
+  definition
+}: {
+  context: WorkbenchHostNodeBodyContext;
+  definition: WorkbenchHostNodeDefinition;
+}): ReactNode {
+  return definition.renderBody(context);
+}
+
+function WorkbenchHostChromeRenderer({
+  context,
+  renderChrome
+}: {
+  context: WorkbenchHostChromeRenderContext;
+  renderChrome: NonNullable<WorkbenchHostProps["renderTopChrome"]>;
+}): ReactNode {
+  return renderChrome(context);
 }

@@ -95,6 +95,27 @@ func promptDisplayText(content []PromptContentBlock) string {
 	return ""
 }
 
+func explicitAndVisiblePromptText(content []PromptContentBlock, displayPrompt string) (string, string) {
+	explicitDisplayPrompt := strings.TrimSpace(displayPrompt)
+	if explicitDisplayPrompt != "" {
+		return explicitDisplayPrompt, explicitDisplayPrompt
+	}
+	return "", promptDisplayText(content)
+}
+
+func userPromptActivityPayload(content []PromptContentBlock, displayPrompt string, extra map[string]any) map[string]any {
+	payload := map[string]any{
+		"content": promptContentForActivity(content),
+	}
+	for key, value := range extra {
+		payload[key] = value
+	}
+	if explicitDisplayPrompt := strings.TrimSpace(displayPrompt); explicitDisplayPrompt != "" {
+		payload["displayPrompt"] = explicitDisplayPrompt
+	}
+	return payload
+}
+
 func promptContentForACP(content []PromptContentBlock) []map[string]any {
 	out := make([]map[string]any, 0, len(content))
 	for _, block := range content {
@@ -146,12 +167,6 @@ func promptContentHasImage(content []PromptContentBlock) bool {
 		}
 	}
 	return false
-}
-
-func promptCapabilitiesRuntimeContext(promptImage bool) map[string]any {
-	return map[string]any{
-		"image": promptImage,
-	}
 }
 
 func acpPromptImageSupported(raw json.RawMessage) bool {

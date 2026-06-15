@@ -40,6 +40,7 @@ export function mergeWorkspaceAppCatalogFields(
     localizations: snapshotApp.localizations,
     minimizeBehavior: snapshotApp.minimizeBehavior,
     name: snapshotApp.name,
+    references: snapshotApp.references,
     source: snapshotApp.source,
     tags: snapshotApp.tags,
     updateAvailable: snapshotApp.updateAvailable
@@ -66,20 +67,26 @@ export function areWorkspaceAppCenterAppsEqual(
       leftApp.exportable === rightApp.exportable &&
       leftApp.iconUrl === rightApp.iconUrl &&
       leftApp.installed === rightApp.installed &&
+      leftApp.installationId === rightApp.installationId &&
       areWorkspaceAppCenterLocalizationsEqual(
         leftApp.localizations ?? [],
         rightApp.localizations ?? []
       ) &&
       leftApp.minimizeBehavior === rightApp.minimizeBehavior &&
       leftApp.name === rightApp.name &&
+      leftApp.references.searchSupported ===
+        rightApp.references.searchSupported &&
+      leftApp.runtimeId === rightApp.runtimeId &&
       leftApp.runtimeStatus === rightApp.runtimeStatus &&
       leftApp.source === rightApp.source &&
       leftApp.stateRevision === rightApp.stateRevision &&
       areStringArraysEqual(leftApp.tags ?? [], rightApp.tags ?? []) &&
       (leftApp.updateAvailable ?? false) ===
         (rightApp.updateAvailable ?? false) &&
-      leftApp.url === rightApp.url &&
-      leftApp.version === rightApp.version
+      leftApp.launchUrl === rightApp.launchUrl &&
+      leftApp.version === rightApp.version &&
+      leftApp.windowMinHeight === rightApp.windowMinHeight &&
+      leftApp.windowMinWidth === rightApp.windowMinWidth
     );
   });
 }

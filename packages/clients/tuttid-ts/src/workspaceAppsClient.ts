@@ -8,6 +8,7 @@ import {
   getWorkspaceAppFactoryJob,
   importWorkspaceApp,
   installWorkspaceApp,
+  launchWorkspaceApp,
   listWorkspaceAppFactoryJobs,
   listWorkspaceApps,
   prepareWorkspaceAppFactoryJobModification,
@@ -17,6 +18,7 @@ import {
   retryWorkspaceApp,
   retryWorkspaceAppFactoryJobValidation,
   rollbackWorkspaceApp,
+  searchWorkspaceAppReferences,
   startEnabledWorkspaceApps,
   stopAllWorkspaceApps,
   uninstallWorkspaceApp
@@ -36,6 +38,7 @@ type WorkspaceAppsClient = Pick<
   | "getWorkspaceAppFactoryJob"
   | "importWorkspaceApp"
   | "installWorkspaceApp"
+  | "launchWorkspaceApp"
   | "listWorkspaceAppFactoryJobs"
   | "listWorkspaceApps"
   | "prepareWorkspaceAppFactoryJobModification"
@@ -45,6 +48,7 @@ type WorkspaceAppsClient = Pick<
   | "retryWorkspaceApp"
   | "retryWorkspaceAppFactoryJobValidation"
   | "rollbackWorkspaceApp"
+  | "searchWorkspaceAppReferences"
   | "startEnabledWorkspaceApps"
   | "stopAllWorkspaceApps"
   | "uninstallWorkspaceApp"
@@ -58,6 +62,17 @@ export function createWorkspaceAppsClient(client: Client): WorkspaceAppsClient {
         path: { workspaceID }
       });
       return unwrapData(response, "List workspace apps request failed.");
+    },
+    async searchWorkspaceAppReferences(workspaceID, appID, request) {
+      const response = await searchWorkspaceAppReferences({
+        client,
+        body: request,
+        path: { appID, workspaceID }
+      });
+      return unwrapData(
+        response,
+        "Search workspace app references request failed."
+      );
     },
     async refreshWorkspaceAppCatalog(workspaceID) {
       const response = await refreshWorkspaceAppCatalog({
@@ -106,6 +121,13 @@ export function createWorkspaceAppsClient(client: Client): WorkspaceAppsClient {
         path: { appID, workspaceID }
       });
       return unwrapData(response, "Delete workspace app request failed.");
+    },
+    async launchWorkspaceApp(workspaceID, appID) {
+      const response = await launchWorkspaceApp({
+        client,
+        path: { appID, workspaceID }
+      });
+      return unwrapData(response, "Launch workspace app request failed.").app;
     },
     async retryWorkspaceApp(workspaceID, appID) {
       const response = await retryWorkspaceApp({

@@ -1145,6 +1145,7 @@ function createWorkspaceAgentActivityService(
     async submitInteractive() {
       return {};
     },
+    async submitPlanDecision() {},
     subscribe() {
       return () => {};
     },
