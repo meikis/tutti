@@ -32,10 +32,27 @@ export interface WorkspaceManagedModelProviderDraft extends WorkspaceManagedMode
   apiKey: string;
 }
 
+export type WorkspaceManagedModelProviderFeedbackKind =
+  | "testOk"
+  | "testFailed"
+  | "detectEmpty"
+  | "detectFailed"
+  | "saveFailed"
+  | "deleteFailed";
+
+export interface WorkspaceManagedModelProviderFeedback {
+  kind: WorkspaceManagedModelProviderFeedbackKind;
+}
+
+export type WorkspaceManagedModelFeedbackMap = Partial<
+  Record<WorkspaceManagedModelProviderID, WorkspaceManagedModelProviderFeedback>
+>;
+
 export interface WorkspaceSettingsManagedModelsMutableState {
   deletingProvider: WorkspaceManagedModelProviderID | null;
   detectingProvider: WorkspaceManagedModelProviderID | null;
   draft: WorkspaceManagedModelProviderDraft | null;
+  feedback: WorkspaceManagedModelFeedbackMap;
   focusedProvider: WorkspaceManagedModelProviderID | null;
   focusRequestID: number;
   loading: boolean;
@@ -48,6 +65,7 @@ export interface WorkspaceSettingsManagedModelsSnapshotState {
   readonly deletingProvider: WorkspaceManagedModelProviderID | null;
   readonly detectingProvider: WorkspaceManagedModelProviderID | null;
   readonly draft: WorkspaceManagedModelProviderDraft | null;
+  readonly feedback: WorkspaceManagedModelFeedbackMap;
   readonly focusedProvider: WorkspaceManagedModelProviderID | null;
   readonly focusRequestID: number;
   readonly loading: boolean;

@@ -29,6 +29,8 @@ import type { WorkspaceSettingsDeveloperLogsSnapshotState } from "../services/wo
 import type {
   WorkspaceManagedModel,
   WorkspaceManagedModelProviderDraft,
+  WorkspaceManagedModelProviderFeedback,
+  WorkspaceManagedModelProviderFeedbackKind,
   WorkspaceManagedModelProviderID,
   WorkspaceSettingsManagedModelsSnapshotState
 } from "../services/workspaceSettingsTypes";
@@ -520,6 +522,53 @@ const managedModelProviderOrder: readonly WorkspaceManagedModelProviderID[] = [
   "anthropic"
 ];
 
+const managedModelFeedbackConfig: Record<
+  WorkspaceManagedModelProviderFeedbackKind,
+  { className: string; messageKey: DesktopI18nKey }
+> = {
+  testOk: {
+    className: "text-[var(--state-success)]",
+    messageKey: "workspace.settings.apps.managedModels.testSucceeded"
+  },
+  testFailed: {
+    className: "text-[var(--state-danger)]",
+    messageKey: "workspace.settings.apps.managedModels.testFailed"
+  },
+  detectEmpty: {
+    className: "text-[var(--text-tertiary)]",
+    messageKey: "workspace.settings.apps.managedModels.detectModelsEmpty"
+  },
+  detectFailed: {
+    className: "text-[var(--state-danger)]",
+    messageKey: "workspace.settings.apps.managedModels.detectModelsFailed"
+  },
+  saveFailed: {
+    className: "text-[var(--state-danger)]",
+    messageKey: "workspace.settings.apps.managedModels.saveFailed"
+  },
+  deleteFailed: {
+    className: "text-[var(--state-danger)]",
+    messageKey: "workspace.settings.apps.managedModels.deleteFailed"
+  }
+};
+
+function ManagedModelFeedbackLine({
+  feedback
+}: {
+  feedback: WorkspaceManagedModelProviderFeedback | undefined;
+}) {
+  const { t } = useTranslation();
+  if (!feedback) {
+    return null;
+  }
+  const config = managedModelFeedbackConfig[feedback.kind];
+  return (
+    <p className={cn("m-0 text-[12px] leading-[1.4]", config.className)}>
+      {t(config.messageKey)}
+    </p>
+  );
+}
+
 function normalizeWorkspaceManagedModelRows(
   provider: WorkspaceManagedModelProviderID,
   models: readonly WorkspaceManagedModel[]
@@ -686,6 +735,7 @@ function WorkspaceAppsSettingsSection({
               deleting={managedModels.deletingProvider === provider.provider}
               detecting={managedModels.detectingProvider === provider.provider}
               expanded={expandedProviderID === provider.provider}
+              feedback={managedModels.feedback[provider.provider]}
               provider={provider}
               saving={managedModels.savingProvider === provider.provider}
               testing={managedModels.testingProvider === provider.provider}
@@ -712,6 +762,7 @@ function WorkspaceAppsSettingsSection({
           {draft ? (
             <ManagedModelDraftItem
               draft={draft}
+              feedback={managedModels.feedback[draft.provider]}
               saving={managedModels.savingProvider === draft.provider}
               onCancel={onCancelDraft}
               onSave={onSaveDraft}
@@ -729,6 +780,7 @@ function ManagedModelProviderItem({
   deleting,
   detecting,
   expanded,
+  feedback,
   provider,
   saving,
   testing,
@@ -746,6 +798,7 @@ function ManagedModelProviderItem({
   deleting: boolean;
   detecting: boolean;
   expanded: boolean;
+  feedback: WorkspaceManagedModelProviderFeedback | undefined;
   provider: WorkspaceManagedModelProviderDraft;
   saving: boolean;
   testing: boolean;
@@ -843,6 +896,8 @@ function ManagedModelProviderItem({
         )}
       </div>
 
+      {expanded ? null : <ManagedModelFeedbackLine feedback={feedback} />}
+
       {expanded ? (
         <>
           <ManagedModelProviderFields
@@ -851,6 +906,7 @@ function ManagedModelProviderItem({
             onDetect={onDetect}
             onUpdate={onUpdate}
           />
+          <ManagedModelFeedbackLine feedback={feedback} />
           <div className="flex flex-wrap justify-end gap-2">
             <Button
               disabled={testing}
@@ -876,12 +932,14 @@ function ManagedModelProviderItem({
 
 function ManagedModelDraftItem({
   draft,
+  feedback,
   saving,
   onCancel,
   onSave,
   onUpdate
 }: {
   draft: WorkspaceManagedModelProviderDraft;
+  feedback: WorkspaceManagedModelProviderFeedback | undefined;
   saving: boolean;
   onCancel: () => void;
   onSave: () => void;
@@ -911,6 +969,8 @@ function ManagedModelDraftItem({
         onDetect={null}
         onUpdate={onUpdate}
       />
+
+      <ManagedModelFeedbackLine feedback={feedback} />
 
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>

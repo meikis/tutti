@@ -349,6 +349,148 @@ test("WorkspaceSettingsService persists a provider toggle immediately", async ()
   assert.deepEqual(puts, [{ enabled: false, hasApiKey: false }]);
 });
 
+test("WorkspaceSettingsService records an inline test result without a toast", async () => {
+  const notifications = createNotificationRecorder();
+  const service = new WorkspaceSettingsService(
+    {
+      client: createWorkspaceSettingsClient({
+        listManagedModelProviders: async () => [
+          { enabled: true, hasApiKey: true, models: [], provider: "openai" }
+        ]
+      })
+    },
+    createDesktopPreferencesService({ state: createPreferencesState({}) }),
+    notifications.service
+  );
+
+  service.openPanel({ id: "workspace-1" });
+  await waitFor(() => service.store.managedModels.loading === false);
+  await service.testManagedModelProvider("openai");
+
+  assert.equal(service.store.managedModels.feedback.openai?.kind, "testOk");
+  assert.deepEqual(notifications.items, []);
+});
+
+test("WorkspaceSettingsService records an inline test failure", async () => {
+  const service = new WorkspaceSettingsService({
+    client: createWorkspaceSettingsClient({
+      listManagedModelProviders: async () => [
+        { enabled: true, hasApiKey: true, models: [], provider: "openai" }
+      ],
+      testManagedModelProvider: async () => {
+        throw new Error("nope");
+      }
+    })
+  });
+
+  service.openPanel({ id: "workspace-1" });
+  await waitFor(() => service.store.managedModels.loading === false);
+  await service.testManagedModelProvider("openai");
+
+  assert.equal(service.store.managedModels.feedback.openai?.kind, "testFailed");
+});
+
+test("WorkspaceSettingsService flags an empty model detection inline", async () => {
+  const service = new WorkspaceSettingsService({
+    client: createWorkspaceSettingsClient({
+      listManagedModelProviders: async () => [
+        { enabled: true, hasApiKey: true, models: [], provider: "openai" }
+      ],
+      listManagedModelProviderModels: async () => []
+    })
+  });
+
+  service.openPanel({ id: "workspace-1" });
+  await waitFor(() => service.store.managedModels.loading === false);
+  await service.detectManagedModelProviderModels("openai");
+
+  assert.equal(
+    service.store.managedModels.feedback.openai?.kind,
+    "detectEmpty"
+  );
+});
+
+test("WorkspaceSettingsService clears feedback when a provider is edited", async () => {
+  const service = new WorkspaceSettingsService({
+    client: createWorkspaceSettingsClient({
+      listManagedModelProviders: async () => [
+        { enabled: true, hasApiKey: true, models: [], provider: "openai" }
+      ],
+      testManagedModelProvider: async () => {
+        throw new Error("nope");
+      }
+    })
+  });
+
+  service.openPanel({ id: "workspace-1" });
+  await waitFor(() => service.store.managedModels.loading === false);
+  await service.testManagedModelProvider("openai");
+  assert.equal(service.store.managedModels.feedback.openai?.kind, "testFailed");
+
+  service.updateManagedModelProviderDraft("openai", { apiKey: "sk-new" });
+
+  assert.equal(service.store.managedModels.feedback.openai, undefined);
+});
+
+test("WorkspaceSettingsService records a save failure inline without a toast", async () => {
+  const notifications = createNotificationRecorder();
+  const service = new WorkspaceSettingsService(
+    {
+      client: createWorkspaceSettingsClient({
+        listManagedModelProviders: async () => [
+          { enabled: true, hasApiKey: true, models: [], provider: "openai" }
+        ],
+        putManagedModelProvider: async () => {
+          throw new Error("nope");
+        }
+      })
+    },
+    createDesktopPreferencesService({ state: createPreferencesState({}) }),
+    notifications.service
+  );
+
+  service.openPanel({ id: "workspace-1" });
+  await waitFor(() => service.store.managedModels.loading === false);
+  const provider = service.store.managedModels.providers.find(
+    (candidate) => candidate.provider === "openai"
+  );
+  assert.ok(provider);
+  await service.saveManagedModelProvider(provider);
+
+  assert.equal(service.store.managedModels.feedback.openai?.kind, "saveFailed");
+  assert.deepEqual(notifications.items, []);
+});
+
+test("WorkspaceSettingsService still toasts when a provider toggle fails", async () => {
+  const notifications = createNotificationRecorder();
+  const service = new WorkspaceSettingsService(
+    {
+      client: createWorkspaceSettingsClient({
+        listManagedModelProviders: async () => [
+          { enabled: true, hasApiKey: true, models: [], provider: "openai" }
+        ],
+        putManagedModelProvider: async () => {
+          throw new Error("nope");
+        }
+      })
+    },
+    createDesktopPreferencesService({ state: createPreferencesState({}) }),
+    notifications.service
+  );
+
+  service.openPanel({ id: "workspace-1" });
+  await waitFor(() => service.store.managedModels.loading === false);
+  await service.setManagedModelProviderEnabled("openai", false);
+
+  assert.equal(
+    service.store.managedModels.providers.find(
+      (candidate) => candidate.provider === "openai"
+    )?.enabled,
+    true
+  );
+  assert.equal(notifications.items.length, 1);
+});
+
 test("WorkspaceSettingsService drops a removed provider from the list", async () => {
   const service = new WorkspaceSettingsService({
     client: createWorkspaceSettingsClient({

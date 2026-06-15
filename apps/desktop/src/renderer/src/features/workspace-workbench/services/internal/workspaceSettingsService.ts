@@ -40,6 +40,7 @@ import type {
   WorkspaceManagedModel,
   WorkspaceManagedModelProviderConfig,
   WorkspaceManagedModelProviderDraft,
+  WorkspaceManagedModelProviderFeedbackKind,
   WorkspaceManagedModelProviderID
 } from "../workspaceSettingsTypes.ts";
 
@@ -115,6 +116,7 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
       this.store.activeSection = "general";
       this.store.managedModels.providers = [];
       this.store.managedModels.draft = null;
+      this.store.managedModels.feedback = {};
       this.store.managedModels.detectingProvider = null;
       this.store.managedModels.focusedProvider = null;
       this.store.managedModels.focusRequestID = 0;
@@ -391,6 +393,7 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
       (provider) =>
         provider.provider === providerID ? { ...provider, ...patch } : provider
     );
+    this.clearManagedModelFeedback(providerID);
   }
 
   beginManagedModelProviderDraft(
@@ -402,6 +405,7 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
     if (alreadyConfigured) {
       return;
     }
+    this.clearManagedModelFeedback(provider);
     this.store.managedModels.draft = createManagedModelProviderDraft(provider);
   }
 
@@ -413,6 +417,7 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
       return;
     }
     this.store.managedModels.draft = { ...draft, ...patch };
+    this.clearManagedModelFeedback(draft.provider);
   }
 
   cancelManagedModelProviderDraft(): void {
@@ -439,17 +444,9 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
       );
       this.replaceManagedModelProviderDraft(saved);
       this.store.managedModels.draft = null;
-      this.notifications.success({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.saveSucceeded"
-        )
-      });
+      this.clearManagedModelFeedback(draft.provider);
     } catch {
-      this.notifications.error({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.saveFailed"
-        )
-      });
+      this.setManagedModelFeedback(draft.provider, "saveFailed");
     } finally {
       this.store.managedModels.savingProvider = null;
     }
@@ -518,17 +515,9 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
         }
       );
       this.replaceManagedModelProviderDraft(saved);
-      this.notifications.success({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.saveSucceeded"
-        )
-      });
+      this.clearManagedModelFeedback(provider.provider);
     } catch {
-      this.notifications.error({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.saveFailed"
-        )
-      });
+      this.setManagedModelFeedback(provider.provider, "saveFailed");
     } finally {
       this.store.managedModels.savingProvider = null;
     }
@@ -551,17 +540,9 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
         this.store.managedModels.providers.filter(
           (provider) => provider.provider !== providerID
         );
-      this.notifications.success({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.deleteSucceeded"
-        )
-      });
+      this.clearManagedModelFeedback(providerID);
     } catch {
-      this.notifications.error({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.deleteFailed"
-        )
-      });
+      this.setManagedModelFeedback(providerID, "deleteFailed");
     } finally {
       this.store.managedModels.deletingProvider = null;
     }
@@ -574,23 +555,16 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
     if (!workspaceID || this.store.managedModels.testingProvider) {
       return;
     }
+    this.clearManagedModelFeedback(providerID);
     this.store.managedModels.testingProvider = providerID;
     try {
       await this.dependencies.client.testManagedModelProvider(
         workspaceID,
         providerID
       );
-      this.notifications.success({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.testSucceeded"
-        )
-      });
+      this.setManagedModelFeedback(providerID, "testOk");
     } catch {
-      this.notifications.error({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.testFailed"
-        )
-      });
+      this.setManagedModelFeedback(providerID, "testFailed");
     } finally {
       this.store.managedModels.testingProvider = null;
     }
@@ -603,6 +577,7 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
     if (!workspaceID || this.store.managedModels.detectingProvider) {
       return;
     }
+    this.clearManagedModelFeedback(providerID);
     this.store.managedModels.detectingProvider = providerID;
     try {
       const models =
@@ -613,19 +588,11 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
       this.updateManagedModelProviderDraft(providerID, {
         models: normalizeManagedModels(providerID, models)
       });
-      this.notifications.success({
-        title: createActiveTranslator().t(
-          models.length > 0
-            ? "workspace.settings.apps.managedModels.detectModelsSucceeded"
-            : "workspace.settings.apps.managedModels.detectModelsEmpty"
-        )
-      });
+      if (models.length === 0) {
+        this.setManagedModelFeedback(providerID, "detectEmpty");
+      }
     } catch {
-      this.notifications.error({
-        title: createActiveTranslator().t(
-          "workspace.settings.apps.managedModels.detectModelsFailed"
-        )
-      });
+      this.setManagedModelFeedback(providerID, "detectFailed");
     } finally {
       this.store.managedModels.detectingProvider = null;
     }
@@ -643,6 +610,27 @@ export class WorkspaceSettingsService implements IWorkspaceSettingsService {
           provider.provider === draft.provider ? draft : provider
         )
       : [...this.store.managedModels.providers, draft];
+  }
+
+  private setManagedModelFeedback(
+    providerID: WorkspaceManagedModelProviderID,
+    kind: WorkspaceManagedModelProviderFeedbackKind
+  ): void {
+    this.store.managedModels.feedback = {
+      ...this.store.managedModels.feedback,
+      [providerID]: { kind }
+    };
+  }
+
+  private clearManagedModelFeedback(
+    providerID: WorkspaceManagedModelProviderID
+  ): void {
+    if (!this.store.managedModels.feedback[providerID]) {
+      return;
+    }
+    const next = { ...this.store.managedModels.feedback };
+    delete next[providerID];
+    this.store.managedModels.feedback = next;
   }
 
   private startDeveloperLogsLoad(): number {

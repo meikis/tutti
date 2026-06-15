@@ -16,6 +16,7 @@ export function createWorkspaceSettingsStore(): WorkspaceSettingsStoreState {
       deletingProvider: null,
       detectingProvider: null,
       draft: null,
+      feedback: {},
       focusedProvider: null,
       focusRequestID: 0,
       loading: false,
