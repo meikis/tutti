@@ -705,9 +705,7 @@ test("developer logs service does not clear generated diagnostics", async () => 
 
   assert.equal(exportResult.fileCount, 6);
   assert.ok(exportResult.filePath !== null);
-  const zipText = (await readFile(exportResult.filePath, "utf8")).toString(
-    "utf8"
-  );
+  const zipText = await readFile(exportResult.filePath, "utf8");
   assert.equal(
     zipText.includes(
       "agent-sessions/codex/workspace-1/agent-codex/manifest.json"
