@@ -40,7 +40,7 @@ const RESOLVERS = {
 test("agent session mention provider enriches meta with avatars, participant, and status", () => {
   const provider = createDesktopAgentSessionMentionProvider({
     baseProvider:
-      createBaseSessionProvider() as unknown as AgentRichTextAtProvider,
+      createBaseSessionProvider(),
     ...RESOLVERS
   });
 
@@ -53,7 +53,7 @@ test("agent session mention provider enriches meta with avatars, participant, an
       status: "working",
       title: "wang jomes & Codex hi"
     }
-  } as never);
+  });
 
   assert.equal(insertResult.kind, "mention");
   if (insertResult.kind !== "mention") {
@@ -77,7 +77,7 @@ test("agent session mention provider enriches meta with avatars, participant, an
 test("agent session mention provider omits status fields when status is absent", () => {
   const provider = createDesktopAgentSessionMentionProvider({
     baseProvider:
-      createBaseSessionProvider() as unknown as AgentRichTextAtProvider,
+      createBaseSessionProvider(),
     ...RESOLVERS
   });
 
@@ -89,7 +89,7 @@ test("agent session mention provider omits status fields when status is absent",
       provider: "codex",
       title: "session two"
     }
-  } as never);
+  });
 
   assert.equal(insertResult.kind, "mention");
   if (insertResult.kind !== "mention") {
