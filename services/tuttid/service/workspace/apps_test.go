@@ -39,6 +39,14 @@ type appRuntimeResolverStub struct {
 	err    error
 }
 
+type preloadThenFailRuntimeResolver struct {
+	called   chan struct{}
+	once     sync.Once
+	mu       sync.Mutex
+	calls    int
+	startErr error
+}
+
 type waitingAppRuntimeResolver struct {
 	waitForFetch <-chan int
 	called       chan struct{}
@@ -169,6 +177,19 @@ func (r *appRuntimeResolverStub) Resolve(context.Context) (ResolvedAppRuntime, e
 	})
 	if r.err != nil {
 		return ResolvedAppRuntime{}, r.err
+	}
+	return ResolvedAppRuntime{}, nil
+}
+
+func (r *preloadThenFailRuntimeResolver) Resolve(context.Context) (ResolvedAppRuntime, error) {
+	r.once.Do(func() {
+		close(r.called)
+	})
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls += 1
+	if r.calls > 1 && r.startErr != nil {
+		return ResolvedAppRuntime{}, r.startErr
 	}
 	return ResolvedAppRuntime{}, nil
 }
@@ -702,7 +723,7 @@ func TestAppCenterServiceListKeepsCachedBuiltinWhenCatalogNotReady(t *testing.T)
 	}
 }
 
-func TestAppCenterServiceRemoteBuiltinStartActivatesUpdate(t *testing.T) {
+func TestAppCenterServiceRemoteBuiltinInstallActivatesUpdate(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -777,12 +798,12 @@ func TestAppCenterServiceRemoteBuiltinStartActivatesUpdate(t *testing.T) {
 		},
 	}
 
-	appPackage, err := service.packageForRemoteBuiltinStart(ctx, remoteBuiltin)
+	appPackage, err := service.packageForRemoteBuiltinInstall(ctx, remoteBuiltin)
 	if err != nil {
-		t.Fatalf("packageForRemoteBuiltinStart() error = %v", err)
+		t.Fatalf("packageForRemoteBuiltinInstall() error = %v", err)
 	}
 	if appPackage.Version != "1.1.0" {
-		t.Fatalf("packageForRemoteBuiltinStart() version = %q, want 1.1.0", appPackage.Version)
+		t.Fatalf("packageForRemoteBuiltinInstall() version = %q, want 1.1.0", appPackage.Version)
 	}
 	stored, err := store.GetAppPackage(ctx, "large-builtin")
 	if err != nil {
@@ -868,6 +889,70 @@ func TestAppCenterServiceStartEnabledSkipsUninstalledRemoteBuiltinUpdate(t *test
 	}
 }
 
+func TestAppCenterServiceInstallProjectionPreservesInstalledRemoteBuiltinUpdate(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	oldDir := createWorkspaceAppPackageForTest(t, t.TempDir(), workspacebiz.AppManifest{
+		SchemaVersion: workspacebiz.AppManifestSchemaVersionV1,
+		AppID:         "large-builtin",
+		Version:       "1.0.0",
+		Name:          "Large Builtin",
+		Description:   "Old large app",
+		Runtime: workspacebiz.AppManifestRuntime{
+			Bootstrap:       "bootstrap.sh",
+			HealthcheckPath: "/",
+		},
+	})
+	remoteManifest := mustReadManifestForTest(t, oldDir)
+	remoteManifest.Version = "1.1.0"
+	store := newAppStoreStub()
+	if err := store.PutAppPackage(ctx, workspacebiz.AppPackage{
+		AppID:      "large-builtin",
+		Version:    "1.0.0",
+		PackageDir: oldDir,
+		Manifest:   mustReadManifestForTest(t, oldDir),
+		Source:     workspacebiz.AppPackageSourceBuiltin,
+	}); err != nil {
+		t.Fatalf("PutAppPackage() error = %v", err)
+	}
+	if err := store.PutWorkspaceAppInstallation(ctx, workspacebiz.AppInstallation{
+		WorkspaceID: "ws-1",
+		AppID:       "large-builtin",
+		Enabled:     true,
+	}); err != nil {
+		t.Fatalf("PutWorkspaceAppInstallation() error = %v", err)
+	}
+	service := AppCenterService{
+		Store:          store,
+		WorkspaceStore: &catalogStoreStub{getWorkspace: workspacebiz.Summary{ID: "ws-1", Name: "Workspace"}},
+		Runner:         &AppRunner{},
+		StateDir:       t.TempDir(),
+		BuiltinCatalog: func() ([]builtinapps.App, error) {
+			return []builtinapps.App{{
+				Manifest: remoteManifest,
+				Distribution: builtinapps.Distribution{
+					Kind:           builtinapps.DistributionRemote,
+					ArtifactURL:    "https://cdn.example.test/large-builtin.zip",
+					ArtifactSHA256: "sha256",
+					IconURL:        "https://cdn.example.test/large-builtin.png",
+				},
+			}}, nil
+		},
+	}
+
+	app, err := service.workspaceAppProjectionForInstall(ctx, "ws-1", "large-builtin")
+	if err != nil {
+		t.Fatalf("workspaceAppProjectionForInstall() error = %v", err)
+	}
+	if app.Installation == nil || !app.Installation.Enabled {
+		t.Fatalf("projection installation = %#v, want installed app", app.Installation)
+	}
+	if app.Package.Version != "1.0.0" || !app.UpdateAvailable || app.AvailableVersion == nil || *app.AvailableVersion != "1.1.0" {
+		t.Fatalf("projection app = %#v, want installed old package with available update", app)
+	}
+}
+
 func TestAppCenterServiceStartEnabledDoesNotBlockOnRemoteBuiltinUpdate(t *testing.T) {
 	t.Parallel()
 
@@ -904,7 +989,7 @@ func TestAppCenterServiceStartEnabledDoesNotBlockOnRemoteBuiltinUpdate(t *testin
 		t.Fatalf("PutWorkspaceAppInstallation() error = %v", err)
 	}
 	fetcher := newBlockingArtifactFetcher()
-	resolver := &appRuntimeResolverStub{called: make(chan struct{}), err: errors.New("skip runtime")}
+	resolver := &preloadThenFailRuntimeResolver{called: make(chan struct{}), startErr: errors.New("skip runtime")}
 	service := AppCenterService{
 		Store:           store,
 		WorkspaceStore:  &catalogStoreStub{getWorkspace: workspacebiz.Summary{ID: "ws-1", Name: "Workspace"}},
@@ -965,6 +1050,11 @@ func TestAppCenterServiceStartEnabledDoesNotBlockOnRemoteBuiltinUpdate(t *testin
 	case <-time.After(time.Second):
 		close(fetcher.release)
 		t.Fatal("background remote builtin sync did not start")
+	}
+	progress := waitForInstallJobProgressForTest(t, &service, "ws-1", "large-builtin")
+	if progress.UserPhase != workspacebiz.AppInstallUserPhaseDownloading {
+		close(fetcher.release)
+		t.Fatalf("auto update install progress user phase = %q, want downloading", progress.UserPhase)
 	}
 	close(fetcher.release)
 	select {
@@ -1032,7 +1122,7 @@ func TestAppCenterServiceStartEnabledUpdatesRemoteBuiltinBeforeStartingIt(t *tes
 		t.Fatalf("PutWorkspaceAppInstallation() error = %v", err)
 	}
 	fetcher := newCopyingArtifactFetcher(archivePath)
-	runner := &AppRunner{RuntimeResolver: &appRuntimeResolverStub{called: make(chan struct{}), err: errors.New("skip runtime")}}
+	runner := &AppRunner{RuntimeResolver: &preloadThenFailRuntimeResolver{called: make(chan struct{}), startErr: errors.New("skip runtime")}}
 	service := AppCenterService{
 		Store:           store,
 		WorkspaceStore:  &catalogStoreStub{getWorkspace: workspacebiz.Summary{ID: "ws-1", Name: "Workspace"}},
@@ -1120,7 +1210,7 @@ func TestAppCenterServiceStartEnabledRepairsMissingRemoteBuiltinCacheBeforeStart
 		t.Fatalf("PutWorkspaceAppInstallation() error = %v", err)
 	}
 	fetcher := newCopyingArtifactFetcher(archivePath)
-	runner := &AppRunner{RuntimeResolver: &appRuntimeResolverStub{called: make(chan struct{}), err: errors.New("skip runtime")}}
+	runner := &AppRunner{RuntimeResolver: &preloadThenFailRuntimeResolver{called: make(chan struct{}), startErr: errors.New("skip runtime")}}
 	service := AppCenterService{
 		Store:           store,
 		WorkspaceStore:  &catalogStoreStub{getWorkspace: workspacebiz.Summary{ID: "ws-1", Name: "Workspace"}},
@@ -1378,7 +1468,7 @@ func TestAppCenterServiceStartEnabledDoesNotBlockOtherAppsWhenRemoteBuiltinPacka
 		}
 	}
 	fetcher := newBlockingArtifactFetcher()
-	resolver := &appRuntimeResolverStub{called: make(chan struct{}), err: errors.New("skip runtime")}
+	resolver := &preloadThenFailRuntimeResolver{called: make(chan struct{}), startErr: errors.New("skip runtime")}
 	runner := &AppRunner{RuntimeResolver: resolver}
 	service := AppCenterService{
 		Store:           store,
@@ -1438,13 +1528,13 @@ func TestAppCenterServiceStartEnabledDoesNotBlockOtherAppsWhenRemoteBuiltinPacka
 	case <-fetcher.started:
 	case <-time.After(time.Second):
 		close(fetcher.release)
-		t.Fatal("missing remote builtin update and start did not start")
+		t.Fatal("missing remote builtin install job did not start")
 	}
 	close(fetcher.release)
 	select {
 	case <-fetcher.done:
 	case <-time.After(time.Second):
-		t.Fatal("missing remote builtin update and start did not finish")
+		t.Fatal("missing remote builtin install job did not finish")
 	}
 	waitForRunnerStatus(t, runner, "ws-1", "local-app", workspacebiz.AppRuntimeStatusFailed)
 }
@@ -3085,6 +3175,21 @@ func waitForActiveAppPackageDirChangeForTest(t *testing.T, store *appStoreStub, 
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("GetAppPackage(%s) packageDir = %q, error = %v, want different from %q", appID, appPackage.PackageDir, err, previousPackageDir)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func waitForInstallJobProgressForTest(t *testing.T, service *AppCenterService, workspaceID string, appID string) workspacebiz.AppInstallProgress {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		job, ok := service.installJob(workspaceID, appID)
+		if ok && job.Progress != nil {
+			return *job.Progress
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("install job progress for %s/%s was not published", workspaceID, appID)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
