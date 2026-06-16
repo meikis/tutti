@@ -14,6 +14,10 @@ import {
 import type { AgentPromptContentBlock } from "../../shared/contracts/dto/agentSession";
 import type { AgentGUIQueuedPromptVM } from "./model/agentGuiNodeTypes";
 import {
+  agentPromptContentDisplayText,
+  agentPromptContentImageBlocks
+} from "./model/agentComposerDraft";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -56,16 +60,13 @@ interface AgentQueuedPromptPanelProps {
 function queuedPromptImages(
   queuedPrompt: AgentGUIQueuedPromptVM
 ): QueuedPromptImageBlock[] {
-  return (queuedPrompt.content ?? []).filter(
-    (block): block is QueuedPromptImageBlock =>
-      block.type === "image" &&
-      typeof block.data === "string" &&
-      typeof block.mimeType === "string"
-  );
+  return agentPromptContentImageBlocks(
+    queuedPrompt.content
+  ) as QueuedPromptImageBlock[];
 }
 
 function queuedPromptTitle(queuedPrompt: AgentGUIQueuedPromptVM): string {
-  const prompt = queuedPrompt.prompt.trim();
+  const prompt = agentPromptContentDisplayText(queuedPrompt.content);
   if (prompt) {
     return prompt;
   }
@@ -240,6 +241,9 @@ export function AgentQueuedPromptPanel({
         {queuedPrompts.map((queuedPrompt) => {
           const isDraining = queuedPrompt.id === drainingQueuedPromptId;
           const images = queuedPromptImages(queuedPrompt);
+          const displayText = agentPromptContentDisplayText(
+            queuedPrompt.content
+          );
           const title = queuedPromptTitle(queuedPrompt);
           return (
             <div
@@ -250,7 +254,7 @@ export function AgentQueuedPromptPanel({
             >
               <div className={styles.composerQueuedPromptMain}>
                 <div className={styles.composerQueuedPromptBody} title={title}>
-                  {queuedPrompt.prompt.trim() ? (
+                  {displayText ? (
                     <div
                       ref={
                         queuedPrompts.length === 1
@@ -268,7 +272,7 @@ export function AgentQueuedPromptPanel({
                       }}
                     >
                       <AgentMessageMarkdown
-                        content={queuedPrompt.prompt}
+                        content={displayText}
                         className="agent-gui-node__composer-queued-prompt-markdown"
                         inline
                         onLinkClick={onLinkClick}

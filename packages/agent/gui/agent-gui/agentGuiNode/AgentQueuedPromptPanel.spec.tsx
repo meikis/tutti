@@ -11,17 +11,19 @@ const labels = {
   queuedPromptMoreActions: "More"
 };
 
+function textQueuedPrompt(id: string, text: string, createdAtUnixMs = 1) {
+  return {
+    id,
+    content: [{ type: "text" as const, text }],
+    createdAtUnixMs
+  };
+}
+
 describe("AgentQueuedPromptPanel", () => {
   it("shows an expand cue only when queued content can expand", () => {
     const { rerender } = render(
       <AgentQueuedPromptPanel
-        queuedPrompts={[
-          {
-            id: "queued-1",
-            prompt: "short prompt",
-            createdAtUnixMs: 1
-          }
-        ]}
+        queuedPrompts={[textQueuedPrompt("queued-1", "short prompt")]}
         drainingQueuedPromptId={null}
         labels={labels}
         onSendQueuedPromptNext={vi.fn()}
@@ -37,16 +39,8 @@ describe("AgentQueuedPromptPanel", () => {
     rerender(
       <AgentQueuedPromptPanel
         queuedPrompts={[
-          {
-            id: "queued-1",
-            prompt: "short prompt",
-            createdAtUnixMs: 1
-          },
-          {
-            id: "queued-2",
-            prompt: "second prompt",
-            createdAtUnixMs: 2
-          }
+          textQueuedPrompt("queued-1", "short prompt"),
+          textQueuedPrompt("queued-2", "second prompt", 2)
         ]}
         drainingQueuedPromptId={null}
         labels={labels}
@@ -75,11 +69,10 @@ describe("AgentQueuedPromptPanel", () => {
     render(
       <AgentQueuedPromptPanel
         queuedPrompts={[
-          {
-            id: "queued-1",
-            prompt: "single rendered line that overflows its visible row",
-            createdAtUnixMs: 1
-          }
+          textQueuedPrompt(
+            "queued-1",
+            "single rendered line that overflows its visible row"
+          )
         ]}
         drainingQueuedPromptId={null}
         labels={labels}
@@ -101,12 +94,10 @@ describe("AgentQueuedPromptPanel", () => {
     const { container } = render(
       <AgentQueuedPromptPanel
         queuedPrompts={[
-          {
-            id: "queued-1",
-            prompt:
-              "[@2046494774160003072 & Claude Code Claude Code](mention://agent-session?workspaceId=room-1&id=session-1)",
-            createdAtUnixMs: 1
-          }
+          textQueuedPrompt(
+            "queued-1",
+            "[@2046494774160003072 & Claude Code Claude Code](mention://agent-session?workspaceId=room-1&id=session-1)"
+          )
         ]}
         drainingQueuedPromptId={null}
         labels={labels}
@@ -131,12 +122,10 @@ describe("AgentQueuedPromptPanel", () => {
     const { container } = render(
       <AgentQueuedPromptPanel
         queuedPrompts={[
-          {
-            id: "queued-1",
-            prompt:
-              "local & Codex [@AI Media Canvas](mention://workspace-app)?workspaceId=workspace-1&appId=ai-media-canvas",
-            createdAtUnixMs: 1
-          }
+          textQueuedPrompt(
+            "queued-1",
+            "local & Codex [@AI Media Canvas](mention://workspace-app)?workspaceId=workspace-1&appId=ai-media-canvas"
+          )
         ]}
         drainingQueuedPromptId={null}
         labels={labels}
@@ -173,7 +162,6 @@ describe("AgentQueuedPromptPanel", () => {
         queuedPrompts={[
           {
             id: "queued-1",
-            prompt: "describe this",
             content: [
               { type: "text", text: "describe this" },
               {
@@ -213,12 +201,10 @@ describe("AgentQueuedPromptPanel", () => {
     const { container } = render(
       <AgentQueuedPromptPanel
         queuedPrompts={[
-          {
-            id: "queued-1",
-            prompt:
-              "[@2046494774160003072 & Claude Code Claude Code](mention://agent-session?workspaceId=room-1&id=session-1)",
-            createdAtUnixMs: 1
-          }
+          textQueuedPrompt(
+            "queued-1",
+            "[@2046494774160003072 & Claude Code Claude Code](mention://agent-session?workspaceId=room-1&id=session-1)"
+          )
         ]}
         drainingQueuedPromptId={null}
         labels={labels}
@@ -246,16 +232,8 @@ describe("AgentQueuedPromptPanel", () => {
     render(
       <AgentQueuedPromptPanel
         queuedPrompts={[
-          {
-            id: "queued-1",
-            prompt: "first queued prompt",
-            createdAtUnixMs: 1
-          },
-          {
-            id: "queued-2",
-            prompt: "second queued prompt",
-            createdAtUnixMs: 2
-          }
+          textQueuedPrompt("queued-1", "first queued prompt"),
+          textQueuedPrompt("queued-2", "second queued prompt", 2)
         ]}
         drainingQueuedPromptId={null}
         labels={labels}

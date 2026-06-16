@@ -59,6 +59,22 @@ function promptBlocks(text: string) {
   return [{ type: "text" as const, text }];
 }
 
+function draftContent(text: string) {
+  return { prompt: text, images: [] };
+}
+
+function queuedPromptTexts(
+  queuedPrompts: readonly { content: AgentPromptContentBlock[] }[]
+): string[] {
+  return queuedPrompts.map((item) =>
+    item.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text?.trim() ?? "")
+      .filter(Boolean)
+      .join("\n")
+  );
+}
+
 function promptContent(text: string): { content: AgentPromptContentBlock[] } {
   return { content: promptBlocks(text) };
 }
@@ -444,7 +460,7 @@ describe("useAgentGUINodeController", () => {
 
     act(() => {
       result.current.actions.updateSelectedProjectPath("/workspace/app");
-      result.current.actions.updateDraftPrompt("app draft");
+      result.current.actions.updateDraftContent(draftContent("app draft"));
     });
     expect(result.current.viewModel.draftPrompt).toBe("app draft");
 
@@ -454,7 +470,7 @@ describe("useAgentGUINodeController", () => {
     expect(result.current.viewModel.draftPrompt).toBe("app draft");
 
     act(() => {
-      result.current.actions.updateDraftPrompt("web draft");
+      result.current.actions.updateDraftContent(draftContent("web draft"));
     });
     expect(result.current.viewModel.draftPrompt).toBe("web draft");
 
@@ -2007,7 +2023,7 @@ describe("useAgentGUINodeController", () => {
     );
 
     act(() => {
-      result.current.actions.updateDraftPrompt("first prompt");
+      result.current.actions.updateDraftContent(draftContent("first prompt"));
       result.current.actions.submitPrompt(promptBlocks("first prompt"));
     });
 
@@ -5929,7 +5945,7 @@ describe("useAgentGUINodeController", () => {
     });
 
     act(() => {
-      result.current.actions.updateDraftPrompt("hi");
+      result.current.actions.updateDraftContent(draftContent("hi"));
     });
     act(() => {
       result.current.actions.continueInNewConversation();
@@ -6162,7 +6178,7 @@ describe("useAgentGUINodeController", () => {
         planMode: true,
         permissionModeId: "full-access"
       });
-      result.current.actions.updateDraftPrompt("first prompt");
+      result.current.actions.updateDraftContent(draftContent("first prompt"));
     });
 
     await waitFor(() => {
@@ -10296,9 +10312,9 @@ describe("useAgentGUINodeController", () => {
     });
 
     await waitFor(() => {
-      expect(
-        result.current.viewModel.queuedPrompts.map((item) => item.prompt)
-      ).toEqual(["first queued prompt", "second queued prompt"]);
+      expect(queuedPromptTexts(result.current.viewModel.queuedPrompts)).toEqual(
+        ["first queued prompt", "second queued prompt"]
+      );
     });
     expect(exec).not.toHaveBeenCalled();
   });
@@ -10357,7 +10373,6 @@ describe("useAgentGUINodeController", () => {
     await waitFor(() => {
       expect(result.current.viewModel.queuedPrompts).toEqual([
         expect.objectContaining({
-          prompt: "describe this",
           content: imagePromptContent
         })
       ]);
@@ -10430,7 +10445,7 @@ describe("useAgentGUINodeController", () => {
     });
 
     act(() => {
-      result.current.actions.updateDraftPrompt("first prompt");
+      result.current.actions.updateDraftContent(draftContent("first prompt"));
       result.current.actions.submitPrompt(promptBlocks("first prompt"));
     });
 
@@ -10443,7 +10458,9 @@ describe("useAgentGUINodeController", () => {
     });
 
     act(() => {
-      result.current.actions.updateDraftPrompt("keep this draft");
+      result.current.actions.updateDraftContent(
+        draftContent("keep this draft")
+      );
       resolveExec?.({
         accepted: true,
         agentSessionId: "session-1",
@@ -10517,9 +10534,9 @@ describe("useAgentGUINodeController", () => {
     });
 
     await waitFor(() => {
-      expect(
-        result.current.viewModel.queuedPrompts.map((item) => item.prompt)
-      ).toEqual(["first queued prompt", "second queued prompt"]);
+      expect(queuedPromptTexts(result.current.viewModel.queuedPrompts)).toEqual(
+        ["first queued prompt", "second queued prompt"]
+      );
     });
     const queuedPromptId = result.current.viewModel.queuedPrompts[1]?.id;
     expect(queuedPromptId).toBeTruthy();
@@ -10529,9 +10546,9 @@ describe("useAgentGUINodeController", () => {
     });
 
     await waitFor(() => {
-      expect(
-        result.current.viewModel.queuedPrompts.map((item) => item.prompt)
-      ).toEqual(["first queued prompt"]);
+      expect(queuedPromptTexts(result.current.viewModel.queuedPrompts)).toEqual(
+        ["first queued prompt"]
+      );
       expect(result.current.viewModel.draftPrompt).toBe("second queued prompt");
     });
   });
@@ -10574,7 +10591,6 @@ describe("useAgentGUINodeController", () => {
     await waitFor(() => {
       expect(result.current.viewModel.queuedPrompts).toEqual([
         expect.objectContaining({
-          prompt: "describe this",
           content: imagePromptContent
         })
       ]);
@@ -10589,20 +10605,15 @@ describe("useAgentGUINodeController", () => {
     await waitFor(() => {
       expect(result.current.viewModel.queuedPrompts).toEqual([]);
       expect(result.current.viewModel.draftPrompt).toBe("describe this");
-      expect(result.current.viewModel.draftContentRestore).toEqual({
-        id: `restore-${queuedPromptId}`,
-        content: imagePromptContent
-      });
-    });
-
-    act(() => {
-      result.current.actions.consumeDraftContentRestore(
-        `restore-${queuedPromptId}`
-      );
-    });
-
-    await waitFor(() => {
-      expect(result.current.viewModel.draftContentRestore).toBeNull();
+      expect(result.current.viewModel.draftContent.images).toEqual([
+        expect.objectContaining({
+          id: `restore-${queuedPromptId}:image:0`,
+          name: "panel.png",
+          mimeType: "image/png",
+          data: "aW1hZ2U=",
+          previewUrl: "data:image/png;base64,aW1hZ2U="
+        })
+      ]);
     });
   });
 
@@ -10663,7 +10674,7 @@ describe("useAgentGUINodeController", () => {
     await waitFor(() => {
       expect(result.current.viewModel.queuedPrompts).toEqual([
         expect.objectContaining({
-          prompt: "prompt that backend rejects"
+          content: promptBlocks("prompt that backend rejects")
         })
       ]);
       expect(result.current.viewModel.detailError).toBeNull();
@@ -10736,7 +10747,7 @@ describe("useAgentGUINodeController", () => {
     await waitFor(() => {
       expect(result.current.viewModel.queuedPrompts).toEqual([
         expect.objectContaining({
-          prompt: "locally queued prompt"
+          content: promptBlocks("locally queued prompt")
         })
       ]);
       expect(result.current.viewModel.detailError).toBeNull();
@@ -10808,9 +10819,7 @@ describe("useAgentGUINodeController", () => {
     });
 
     expect(cancel).not.toHaveBeenCalled();
-    expect(
-      result.current.viewModel.queuedPrompts.map((item) => item.prompt)
-    ).toEqual([
+    expect(queuedPromptTexts(result.current.viewModel.queuedPrompts)).toEqual([
       "third queued prompt",
       "first queued prompt",
       "second queued prompt"
@@ -10875,9 +10884,9 @@ describe("useAgentGUINodeController", () => {
     });
 
     await waitFor(() => {
-      expect(
-        result.current.viewModel.queuedPrompts.map((item) => item.prompt)
-      ).toEqual(["first queued prompt", "second queued prompt"]);
+      expect(queuedPromptTexts(result.current.viewModel.queuedPrompts)).toEqual(
+        ["first queued prompt", "second queued prompt"]
+      );
     });
     const queuedPromptId = result.current.viewModel.queuedPrompts[1]?.id;
     expect(queuedPromptId).toBeTruthy();
@@ -10886,9 +10895,10 @@ describe("useAgentGUINodeController", () => {
       result.current.actions.sendQueuedPromptNext(queuedPromptId!);
     });
 
-    expect(
-      result.current.viewModel.queuedPrompts.map((item) => item.prompt)
-    ).toEqual(["second queued prompt", "first queued prompt"]);
+    expect(queuedPromptTexts(result.current.viewModel.queuedPrompts)).toEqual([
+      "second queued prompt",
+      "first queued prompt"
+    ]);
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(cancel).not.toHaveBeenCalled();

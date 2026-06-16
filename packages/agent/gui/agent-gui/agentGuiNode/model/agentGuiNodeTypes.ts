@@ -71,6 +71,19 @@ export interface AgentGUIProviderSkillOption {
   pluginName?: string;
 }
 
+export interface AgentComposerDraftImage {
+  id: string;
+  name: string;
+  mimeType: "image/png" | "image/jpeg" | "image/webp";
+  data: string;
+  previewUrl: string;
+}
+
+export interface AgentComposerDraft {
+  prompt: string;
+  images: AgentComposerDraftImage[];
+}
+
 export interface AgentGUIComposerSettingsVM {
   sessionSettings: AgentSessionComposerSettings | null;
   draftSettings: {
@@ -107,14 +120,8 @@ export interface AgentGUIComposerSettingsVM {
 
 export interface AgentGUIQueuedPromptVM {
   id: string;
-  prompt: string;
-  content?: AgentPromptContentBlock[];
-  createdAtUnixMs: number;
-}
-
-export interface AgentGUIDraftContentRestoreVM {
-  id: string;
   content: AgentPromptContentBlock[];
+  createdAtUnixMs: number;
 }
 
 export interface AgentGUINodeViewModel {
@@ -129,7 +136,7 @@ export interface AgentGUINodeViewModel {
   availableCommands: AgentSessionCommand[];
   availableSkills: AgentGUIProviderSkillOption[];
   draftPrompt: string;
-  draftContentRestore: AgentGUIDraftContentRestoreVM | null;
+  draftContent: AgentComposerDraft;
   isLoadingConversations: boolean;
   isLoadingMessages: boolean;
   isCreatingConversation: boolean;

@@ -63,15 +63,23 @@ import {
 } from "../model/agentGuiConversationModel";
 import type { AgentHostUserProject } from "../../../host/agentHostApi";
 import type {
+  AgentComposerDraft,
   AgentGUIComposerSettingOption,
   AgentGUIComposerSettingsVM,
-  AgentGUIDraftContentRestoreVM,
   AgentGUIProviderSkillOption,
   AgentGUIProjectConversationDeleteTarget,
   AgentGUIQueuedPromptVM,
   AgentGUISessionChrome,
   OpenclawGatewayViewState
 } from "../model/agentGuiNodeTypes";
+import {
+  agentPromptContentDisplayText,
+  agentPromptContentHasImage,
+  agentPromptContentToComposerDraft,
+  emptyAgentComposerDraft,
+  normalizeAgentPromptContentBlocks,
+  textPromptContent
+} from "../model/agentComposerDraft";
 import type { AgentApprovalItemVM } from "../../../shared/agentConversation/contracts/agentApprovalItemVM";
 import type { AgentConversationVM } from "../../../shared/agentConversation/contracts/agentConversationVM";
 import { normalizeOptionalWorkspaceAgentStatus } from "../../../shared/workspaceAgentStatusNormalizer";
@@ -1041,69 +1049,6 @@ function normalizeOptionalPrompt(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function textPromptContent(prompt: string): AgentPromptContentBlock[] {
-  const text = prompt.trim();
-  return text ? [{ type: "text", text }] : [];
-}
-
-function normalizePromptContentBlocks(
-  content: readonly AgentPromptContentBlock[]
-): AgentPromptContentBlock[] {
-  const result: AgentPromptContentBlock[] = [];
-  for (const block of content) {
-    if (block.type === "text") {
-      const text = block.text?.trim() ?? "";
-      if (text) {
-        result.push({ type: "text", text });
-      }
-      continue;
-    }
-    if (block.type === "image") {
-      const mimeType = block.mimeType?.trim();
-      const data = block.data?.trim();
-      if (
-        !data ||
-        (mimeType !== "image/png" &&
-          mimeType !== "image/jpeg" &&
-          mimeType !== "image/webp")
-      ) {
-        continue;
-      }
-      result.push({
-        type: "image",
-        mimeType,
-        data,
-        ...(block.name?.trim() ? { name: block.name.trim() } : {})
-      });
-    }
-  }
-  return result;
-}
-
-function promptContentDisplayText(
-  content: readonly AgentPromptContentBlock[]
-): string {
-  return content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text?.trim() ?? "")
-    .filter(Boolean)
-    .join("\n");
-}
-
-function promptContentHasImage(
-  content: readonly AgentPromptContentBlock[]
-): boolean {
-  return content.some((block) => block.type === "image");
-}
-
-function queuedPromptContent(
-  queuedPrompt: AgentGUIQueuedPromptVM
-): AgentPromptContentBlock[] {
-  return normalizePromptContentBlocks(
-    queuedPrompt.content ?? textPromptContent(queuedPrompt.prompt)
-  );
-}
-
 function recordValue(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -1653,6 +1598,7 @@ function removeQueuedPromptById(
 }
 
 const NODE_DEFAULT_DRAFT_KEY = "__agent_gui_node_defaults__";
+const EMPTY_AGENT_COMPOSER_DRAFT = emptyAgentComposerDraft();
 
 function nodeDefaultDraftKey(
   agentProvider: AgentGUINodeData["provider"]
@@ -1660,7 +1606,7 @@ function nodeDefaultDraftKey(
   return `${NODE_DEFAULT_DRAFT_KEY}:${agentProvider}`;
 }
 
-function nodeDefaultDraftPromptKey(
+function nodeDefaultDraftContentKey(
   agentProvider: AgentGUINodeData["provider"]
 ): string {
   return nodeDefaultDraftKey(agentProvider);
@@ -1673,14 +1619,14 @@ function normalizeProjectDraftPath(
   return normalized ? normalized : null;
 }
 
-function readNodeDefaultDraftPrompt(input: {
+function readNodeDefaultDraftContent(input: {
   data: AgentGUINodeData;
-  drafts: Record<string, string>;
-}): string {
+  drafts: Record<string, AgentComposerDraft>;
+}): AgentComposerDraft {
   return (
-    input.drafts[nodeDefaultDraftPromptKey(input.data.provider)] ??
+    input.drafts[nodeDefaultDraftContentKey(input.data.provider)] ??
     input.drafts[NODE_DEFAULT_DRAFT_KEY] ??
-    ""
+    emptyAgentComposerDraft()
   );
 }
 
@@ -2127,10 +2073,8 @@ export function useAgentGUINodeController({
     data.lastActiveAgentSessionId === null
   );
   const [draftBySessionId, setDraftBySessionId] = useState<
-    Record<string, string>
+    Record<string, AgentComposerDraft>
   >({});
-  const [draftContentRestoreBySessionId, setDraftContentRestoreBySessionId] =
-    useState<Record<string, AgentGUIDraftContentRestoreVM | null>>({});
   const [draftSettingsBySessionId, setDraftSettingsBySessionId] = useState<
     Record<string, AgentSessionComposerSettings>
   >({});
@@ -4681,11 +4625,11 @@ export function useAgentGUINodeController({
         return;
       }
       const normalizedInitialContent = Array.isArray(initialContentInput)
-        ? normalizePromptContentBlocks(
+        ? normalizeAgentPromptContentBlocks(
             initialContentInput as AgentPromptContentBlock[]
           )
         : textPromptContent(normalizeOptionalPrompt(initialContentInput));
-      const normalizedInitialPrompt = promptContentDisplayText(
+      const normalizedInitialPrompt = agentPromptContentDisplayText(
         normalizedInitialContent
       );
       const initialConversationTitle =
@@ -4837,8 +4781,9 @@ export function useAgentGUINodeController({
           setActiveConversationId(conversation.id);
           setDraftBySessionId((current) => ({
             ...current,
-            [nodeDefaultDraftPromptKey(dataRef.current.provider)]: "",
-            [conversation.id]: ""
+            [nodeDefaultDraftContentKey(dataRef.current.provider)]:
+              emptyAgentComposerDraft(),
+            [conversation.id]: emptyAgentComposerDraft()
           }));
           persistActiveConversation(conversation.id);
           if (activationFailed) {
@@ -4914,8 +4859,9 @@ export function useAgentGUINodeController({
           setActiveConversationId(agentSessionId);
           setDraftBySessionId((current) => ({
             ...current,
-            [nodeDefaultDraftPromptKey(dataRef.current.provider)]: "",
-            [agentSessionId]: ""
+            [nodeDefaultDraftContentKey(dataRef.current.provider)]:
+              emptyAgentComposerDraft(),
+            [agentSessionId]: emptyAgentComposerDraft()
           }));
           setIsLoadingMessages(false);
           setDetailError(message);
@@ -4992,7 +4938,7 @@ export function useAgentGUINodeController({
       userProfilesByUserId: accountProfilesByUserId,
       provider: activeConversation.provider,
       conversationTitle: activeConversation.title,
-      existingDraftPrompt: draftBySessionId[currentConversationId] ?? ""
+      existingDraftPrompt: draftBySessionId[currentConversationId]?.prompt ?? ""
     });
     const previous = activeConversationIdRef.current;
     if (previous) {
@@ -5008,7 +4954,10 @@ export function useAgentGUINodeController({
     setDetailError(null);
     setDraftBySessionId((current) => ({
       ...current,
-      [nodeDefaultDraftPromptKey(dataRef.current.provider)]: nextDraftPrompt
+      [nodeDefaultDraftContentKey(dataRef.current.provider)]: {
+        prompt: nextDraftPrompt,
+        images: []
+      }
     }));
     persistActiveConversation(null);
     loadDraftComposerOptions();
@@ -5097,11 +5046,12 @@ export function useAgentGUINodeController({
       content: AgentPromptContentBlock[],
       queuedPromptId?: string | null
     ) => {
-      const normalizedContent = normalizePromptContentBlocks(content);
+      const normalizedContent = normalizeAgentPromptContentBlocks(content);
       if (!agentSessionId || normalizedContent.length === 0) {
         return;
       }
-      const submittedPromptText = promptContentDisplayText(normalizedContent);
+      const submittedPromptText =
+        agentPromptContentDisplayText(normalizedContent);
       const submittedAtUnixMs = Date.now();
       const previousConversationStatus =
         resolveConversationSummaryById(
@@ -5189,14 +5139,16 @@ export function useAgentGUINodeController({
           }
           if (!queuedPromptId) {
             setDraftBySessionId((current) => {
+              const currentDraft = current[agentSessionId];
               if (
-                (current[agentSessionId] ?? "").trim() !== submittedPromptText
+                currentDraft?.prompt.trim() !== submittedPromptText ||
+                currentDraft.images.length > 0
               ) {
                 return current;
               }
               return {
                 ...current,
-                [agentSessionId]: ""
+                [agentSessionId]: emptyAgentComposerDraft()
               };
             });
           }
@@ -5379,14 +5331,12 @@ export function useAgentGUINodeController({
 
   const queuePromptLocally = useCallback(
     (agentSessionId: string, content: readonly AgentPromptContentBlock[]) => {
-      const normalizedContent = normalizePromptContentBlocks(content);
-      const prompt = promptContentDisplayText(normalizedContent);
+      const normalizedContent = normalizeAgentPromptContentBlocks(content);
       if (!agentSessionId || normalizedContent.length === 0) {
         return;
       }
       const queuedPrompt: AgentGUIQueuedPromptVM = {
         id: `local-${createAgentGUIConversationId()}`,
-        prompt,
         content: normalizedContent,
         createdAtUnixMs: Date.now()
       };
@@ -5396,7 +5346,7 @@ export function useAgentGUINodeController({
       }));
       setDraftBySessionId((current) => ({
         ...current,
-        [agentSessionId]: ""
+        [agentSessionId]: emptyAgentComposerDraft()
       }));
       setDetailError(null);
     },
@@ -5425,13 +5375,13 @@ export function useAgentGUINodeController({
   const submitPrompt = useCallback(
     (content: AgentPromptContentBlock[]) => {
       const agentSessionId = activeConversationIdRef.current;
-      const normalizedContent = normalizePromptContentBlocks(content);
+      const normalizedContent = normalizeAgentPromptContentBlocks(content);
       if (normalizedContent.length === 0) {
         return;
       }
       if (
         resolvedPromptImagesSupported === false &&
-        promptContentHasImage(normalizedContent)
+        agentPromptContentHasImage(normalizedContent)
       ) {
         setDetailError(translate("agentHost.agentGui.promptImagesUnsupported"));
         return;
@@ -5699,11 +5649,14 @@ export function useAgentGUINodeController({
     ]
   );
 
-  const updateDraftPrompt = useCallback((draftPrompt: string) => {
+  const updateDraftContent = useCallback((draftContent: AgentComposerDraft) => {
     const agentSessionId = activeConversationIdRef.current;
     const draftKey =
-      agentSessionId ?? nodeDefaultDraftPromptKey(dataRef.current.provider);
-    setDraftBySessionId((current) => ({ ...current, [draftKey]: draftPrompt }));
+      agentSessionId ?? nodeDefaultDraftContentKey(dataRef.current.provider);
+    setDraftBySessionId((current) => ({
+      ...current,
+      [draftKey]: draftContent
+    }));
   }, []);
 
   const flushQueuedComposerSettingsUpdate = useCallback(
@@ -6153,11 +6106,7 @@ export function useAgentGUINodeController({
       return;
     }
     setDrainingQueuedPromptSessionId(activeConversationId);
-    executePrompt(
-      activeConversationId,
-      queuedPromptContent(queuedPrompt),
-      queuedPrompt.id
-    );
+    executePrompt(activeConversationId, queuedPrompt.content, queuedPrompt.id);
   }, [
     activeConversationId,
     agentActivityDisplayStatuses,
@@ -6370,7 +6319,6 @@ export function useAgentGUINodeController({
       if (!queuedPrompt) {
         return;
       }
-      const content = queuedPromptContent(queuedPrompt);
       setQueuedPromptsBySessionId((current) => ({
         ...current,
         [agentSessionId]: removeQueuedPromptById(
@@ -6380,14 +6328,10 @@ export function useAgentGUINodeController({
       }));
       setDraftBySessionId((current) => ({
         ...current,
-        [agentSessionId]: promptContentDisplayText(content)
-      }));
-      setDraftContentRestoreBySessionId((current) => ({
-        ...current,
-        [agentSessionId]: {
-          id: `restore-${queuedPrompt.id}`,
-          content
-        }
+        [agentSessionId]: agentPromptContentToComposerDraft(
+          queuedPrompt.content,
+          `restore-${queuedPrompt.id}`
+        )
       }));
       setSendNextQueuedPromptIdBySessionId((current) => {
         if (current[agentSessionId] !== normalizedQueuedPromptId) {
@@ -6412,20 +6356,6 @@ export function useAgentGUINodeController({
     },
     [queuedPromptsBySessionId]
   );
-
-  const consumeDraftContentRestore = useCallback((restoreId: string) => {
-    const agentSessionId = activeConversationIdRef.current;
-    const normalizedRestoreId = restoreId.trim();
-    if (!agentSessionId || !normalizedRestoreId) {
-      return;
-    }
-    setDraftContentRestoreBySessionId((current) => {
-      if (current[agentSessionId]?.id !== normalizedRestoreId) {
-        return current;
-      }
-      return { ...current, [agentSessionId]: null };
-    });
-  }, []);
 
   const sendQueuedPromptNext = useCallback(
     (queuedPromptId: string) => {
@@ -7066,15 +6996,13 @@ export function useAgentGUINodeController({
       activeConversation?.titleFallback,
       activeConversation?.userId
     ]);
-  const draftPrompt = activeConversationId
-    ? (draftBySessionId[activeConversationId] ?? "")
-    : readNodeDefaultDraftPrompt({
+  const draftContent = activeConversationId
+    ? (draftBySessionId[activeConversationId] ?? EMPTY_AGENT_COMPOSER_DRAFT)
+    : readNodeDefaultDraftContent({
         data,
         drafts: draftBySessionId
       });
-  const draftContentRestore = activeConversationId
-    ? (draftContentRestoreBySessionId[activeConversationId] ?? null)
-    : null;
+  const draftPrompt = draftContent.prompt;
   const availableCommands =
     activeSessionView?.controlCommands ?? EMPTY_AGENT_GUI_AVAILABLE_COMMANDS;
   const timelinePlanModeState = useMemo(
@@ -7551,8 +7479,8 @@ export function useAgentGUINodeController({
   );
   const stableInterruptCurrentTurn =
     useStableControllerEventCallback(interruptCurrentTurn);
-  const stableUpdateDraftPrompt =
-    useStableControllerEventCallback(updateDraftPrompt);
+  const stableUpdateDraftContent =
+    useStableControllerEventCallback(updateDraftContent);
   const stableUpdateSelectedProjectPath = useStableControllerEventCallback(
     updateSelectedProjectPath
   );
@@ -7565,9 +7493,6 @@ export function useAgentGUINodeController({
     useStableControllerEventCallback(removeQueuedPrompt);
   const stableEditQueuedPrompt =
     useStableControllerEventCallback(editQueuedPrompt);
-  const stableConsumeDraftContentRestore = useStableControllerEventCallback(
-    consumeDraftContentRestore
-  );
   const stableRemoveProject = useStableControllerEventCallback(removeProject);
   const stableRequestDeleteProjectConversations =
     useStableControllerEventCallback(requestDeleteProjectConversations);
@@ -7609,13 +7534,12 @@ export function useAgentGUINodeController({
       submitApprovalOption: stableSubmitApprovalOption,
       submitInteractivePrompt: stableSubmitInteractivePrompt,
       interruptCurrentTurn: stableInterruptCurrentTurn,
-      updateDraftPrompt: stableUpdateDraftPrompt,
+      updateDraftContent: stableUpdateDraftContent,
       updateSelectedProjectPath: stableUpdateSelectedProjectPath,
       updateComposerSettings: stableUpdateComposerSettings,
       sendQueuedPromptNext: stableSendQueuedPromptNext,
       removeQueuedPrompt: stableRemoveQueuedPrompt,
       editQueuedPrompt: stableEditQueuedPrompt,
-      consumeDraftContentRestore: stableConsumeDraftContentRestore,
       removeProject: stableRemoveProject,
       requestDeleteProjectConversations:
         stableRequestDeleteProjectConversations,
@@ -7633,7 +7557,6 @@ export function useAgentGUINodeController({
     [
       stableCancelDeleteConversation,
       stableCancelDeleteProjectConversations,
-      stableConsumeDraftContentRestore,
       stableConfirmDeleteConversation,
       stableConfirmDeleteProjectConversations,
       stableContinueInNewConversation,
@@ -7656,7 +7579,7 @@ export function useAgentGUINodeController({
       stableSubmitPrompt,
       stableToggleConversationPinned,
       stableUpdateComposerSettings,
-      stableUpdateDraftPrompt,
+      stableUpdateDraftContent,
       stableUpdateSelectedProjectPath
     ]
   );
@@ -7675,7 +7598,7 @@ export function useAgentGUINodeController({
         availableCommands,
         availableSkills,
         draftPrompt,
-        draftContentRestore,
+        draftContent,
         isLoadingConversations,
         isLoadingMessages,
         isCreatingConversation,
@@ -7734,7 +7657,7 @@ export function useAgentGUINodeController({
       controllerActions,
       data,
       detailError,
-      draftContentRestore,
+      draftContent,
       draftPrompt,
       isCreatingConversation,
       openclawGateway,

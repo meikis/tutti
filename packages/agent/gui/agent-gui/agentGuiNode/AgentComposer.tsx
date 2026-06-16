@@ -12,8 +12,9 @@ import {
 import { createPortal } from "react-dom";
 import type { AgentSessionCommand } from "../../shared/agentSessionTypes";
 import type {
+  AgentComposerDraft,
+  AgentComposerDraftImage,
   AgentGUIComposerSettingsVM,
-  AgentGUIDraftContentRestoreVM,
   AgentGUIProviderSkillOption,
   AgentGUIQueuedPromptVM
 } from "./model/agentGuiNodeTypes";
@@ -46,10 +47,16 @@ import {
   filterProviderSkills,
   getProviderSkillQueryMatch,
   labelForProviderSkill,
-  promptForProviderSkills,
   skillDescriptionForDisplay,
   skillTriggerForPrefix
 } from "./model/agentSkillOptions";
+import {
+  agentComposerDraftHasContent,
+  agentComposerDraftToPromptContent,
+  emptyAgentComposerDraft,
+  MAX_AGENT_COMPOSER_DRAFT_IMAGES,
+  textPromptContent
+} from "./model/agentComposerDraft";
 import {
   resolveSlashCommandsForProvider,
   resolveSlashCommandSelectionEffect,
@@ -117,8 +124,7 @@ export interface AgentComposerProps {
   currentUserId?: string | null;
   provider: string;
   slashStatus?: AgentComposerSlashStatus | null;
-  draftPrompt: string;
-  draftContentRestore?: AgentGUIDraftContentRestoreVM | null;
+  draftContent: AgentComposerDraft;
   availableCommands: readonly AgentSessionCommand[];
   hasCompactableContext?: boolean;
   compactSupported?: boolean | null;
@@ -231,12 +237,11 @@ export interface AgentComposerProps {
     promptTipsPrefix: string;
   };
   workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
-  onDraftChange: (prompt: string) => void;
+  onDraftContentChange: (draftContent: AgentComposerDraft) => void;
   onProjectPathChange?: (
     path: string | null,
     metadata?: AgentProjectPathChangeMetadata
   ) => void;
-  onDraftContentRestoreConsumed?: (restoreId: string) => void;
   onSettingsChange: (settings: {
     model?: string | null;
     reasoningEffort?: string | null;
@@ -309,7 +314,6 @@ const EMPTY_PROMPT_TIPS: readonly AgentComposerPromptTip[] = [];
 const EMPTY_PROVIDER_SKILLS: readonly AgentGUIProviderSkillOption[] = [];
 const EMPTY_WORKSPACE_APP_ICONS: readonly AgentMessageMarkdownWorkspaceAppIcon[] =
   [];
-const MAX_PROMPT_IMAGES = 8;
 const PROMPT_TIP_CYCLE_STEP_MS = 5_200;
 const MENTION_PALETTE_DISMISS_INTERACTION_SELECTOR = [
   "[data-node-drag-handle]",
@@ -326,14 +330,6 @@ interface MentionPaletteFrame {
   top: number;
   width: number;
   zIndex: number | string;
-}
-
-interface AgentPromptImageDraft {
-  id: string;
-  name: string;
-  mimeType: "image/png" | "image/jpeg" | "image/webp";
-  data: string;
-  previewUrl: string;
 }
 
 function resolveMentionPalettePortalTarget(anchor: HTMLElement): Element {
@@ -536,8 +532,7 @@ export function AgentComposer({
   currentUserId,
   provider,
   slashStatus = null,
-  draftPrompt,
-  draftContentRestore = null,
+  draftContent,
   availableCommands,
   hasCompactableContext = true,
   compactSupported = null,
@@ -565,9 +560,8 @@ export function AgentComposer({
   showProjectSelector = true,
   labels,
   workspaceUserProjectI18n,
-  onDraftChange,
+  onDraftContentChange,
   onProjectPathChange = () => {},
-  onDraftContentRestoreConsumed,
   onSettingsChange,
   onSubmit,
   onSendQueuedPromptNext,
@@ -581,6 +575,8 @@ export function AgentComposer({
   richTextAtProviders = EMPTY_RICH_TEXT_AT_PROVIDERS
 }: AgentComposerProps): React.JSX.Element {
   "use memo";
+  const draftPrompt = draftContent.prompt;
+  const draftImages = draftContent.images;
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [mentionHighlightedKey, setMentionHighlightedKey] = useState<
@@ -597,9 +593,8 @@ export function AgentComposer({
     useState<AgentFileMentionSuggestionState | null>(null);
   const [isSelectedProjectMissing, setIsSelectedProjectMissing] =
     useState(false);
-  const [draftImages, setDraftImages] = useState<AgentPromptImageDraft[]>([]);
   const [submittedImagePreview, setSubmittedImagePreview] = useState<
-    AgentPromptImageDraft[]
+    AgentComposerDraftImage[]
   >([]);
   const [isSlashStatusPanelOpen, setIsSlashStatusPanelOpen] = useState(false);
   const slashStatusAgentSessionId = slashStatus?.agentSessionId ?? null;
@@ -623,7 +618,6 @@ export function AgentComposer({
   const inputShellRef = useRef<HTMLDivElement | null>(null);
   const paletteContentRef = useRef<HTMLDivElement | null>(null);
   const draftPromptRef = useRef(draftPrompt);
-  const consumedDraftContentRestoreIdRef = useRef<string | null>(null);
   const submittedImagePreviewObservedBusyRef = useRef(false);
   const promptTipRef = useRef<HTMLSpanElement | null>(null);
   const mentionControllerRef = useRef<AgentMentionSearchController | null>(
@@ -778,29 +772,6 @@ export function AgentComposer({
 
   useEffect(() => {
     if (
-      !draftContentRestore ||
-      consumedDraftContentRestoreIdRef.current === draftContentRestore.id
-    ) {
-      return;
-    }
-    consumedDraftContentRestoreIdRef.current = draftContentRestore.id;
-    const restoredPrompt = promptTextFromContent(draftContentRestore.content);
-    draftPromptRef.current = restoredPrompt;
-    setPaletteDraftPrompt(restoredPrompt);
-    setDraftImages(
-      promptImageDraftsFromContent(
-        draftContentRestore.content,
-        draftContentRestore.id
-      )
-    );
-    setSubmittedImagePreview([]);
-    submittedImagePreviewObservedBusyRef.current = false;
-    setIsPaletteOpen(false);
-    onDraftContentRestoreConsumed?.(draftContentRestore.id);
-  }, [draftContentRestore, onDraftContentRestoreConsumed]);
-
-  useEffect(() => {
-    if (
       previousSlashStatusAgentSessionIdRef.current === slashStatusAgentSessionId
     ) {
       return;
@@ -812,10 +783,9 @@ export function AgentComposer({
   const clearSlashCommandDraft = useCallback((): void => {
     draftPromptRef.current = "";
     setPaletteDraftPrompt("");
-    setDraftImages([]);
     setIsPaletteOpen(false);
-    onDraftChange("");
-  }, [onDraftChange]);
+    onDraftContentChange(emptyAgentComposerDraft());
+  }, [onDraftContentChange]);
 
   const closeSlashStatusPanel = useCallback((): void => {
     setIsSlashStatusPanelOpen(false);
@@ -860,7 +830,7 @@ export function AgentComposer({
       const nextDraft = effect.draft;
       draftPromptRef.current = nextDraft;
       setPaletteDraftPrompt(nextDraft);
-      onDraftChange(nextDraft);
+      onDraftContentChange({ ...draftContent, prompt: nextDraft });
       setIsPaletteOpen(false);
     },
     [
@@ -869,7 +839,8 @@ export function AgentComposer({
       composerSettings.draftSettings.speed,
       composerSettings.selectedSpeedValue,
       composerSettings.supportsSpeed,
-      onDraftChange,
+      draftContent,
+      onDraftContentChange,
       onSettingsChange,
       onSubmit
     ]
@@ -902,10 +873,10 @@ export function AgentComposer({
         draftForProviderSkill(skill, draftPromptRef.current, skillQueryMatch);
       draftPromptRef.current = nextDraft;
       setPaletteDraftPrompt(nextDraft);
-      onDraftChange(nextDraft);
+      onDraftContentChange({ ...draftContent, prompt: nextDraft });
       setIsPaletteOpen(false);
     },
-    [onDraftChange, promptBeforeSelection, skillQueryMatch]
+    [draftContent, onDraftContentChange, promptBeforeSelection, skillQueryMatch]
   );
 
   const submitCurrentPrompt = (): void => {
@@ -919,7 +890,8 @@ export function AgentComposer({
       return;
     }
     const nextPrompt = draftPromptRef.current;
-    if (nextPrompt.trim() === "" && draftImages.length === 0) {
+    const nextDraftContent = { ...draftContent, prompt: nextPrompt };
+    if (!agentComposerDraftHasContent(nextDraftContent)) {
       return;
     }
     if (draftImages.length > 0 && !promptImagesSupported) {
@@ -937,13 +909,10 @@ export function AgentComposer({
     }
     setIsPaletteOpen(false);
     onSubmit(
-      promptContentFromDraft({
-        prompt: promptForProviderSkills({
-          prompt: nextPrompt,
-          provider,
-          skills: availableSkills
-        }),
-        images: draftImages
+      agentComposerDraftToPromptContent({
+        draft: nextDraftContent,
+        provider,
+        skills: availableSkills
       })
     );
     if (draftImages.length > 0 && !canQueueWhileBusy) {
@@ -955,8 +924,7 @@ export function AgentComposer({
     }
     draftPromptRef.current = "";
     setPaletteDraftPrompt("");
-    onDraftChange("");
-    setDraftImages([]);
+    onDraftContentChange(emptyAgentComposerDraft());
   };
 
   const submit = (event: FormEvent<HTMLFormElement>): void => {
@@ -1356,7 +1324,7 @@ export function AgentComposer({
     setIsPaletteOpen(true);
     setSubmittedImagePreview([]);
     submittedImagePreviewObservedBusyRef.current = false;
-    onDraftChange(nextDraft);
+    onDraftContentChange({ ...draftContent, prompt: nextDraft });
   };
 
   const addDraftImages = useCallback(
@@ -1370,22 +1338,31 @@ export function AgentComposer({
       }
       setSubmittedImagePreview([]);
       submittedImagePreviewObservedBusyRef.current = false;
-      setDraftImages((current) => {
-        const remainingSlots = Math.max(0, MAX_PROMPT_IMAGES - current.length);
-        if (remainingSlots === 0) {
-          return current;
-        }
-        const nextImages = images.slice(0, remainingSlots).map((image) => ({
-          id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
-          name: image.name,
-          mimeType: image.mimeType,
-          data: image.data,
-          previewUrl: `data:${image.mimeType};base64,${image.data}`
-        }));
-        return [...current, ...nextImages];
+      const remainingSlots = Math.max(
+        0,
+        MAX_AGENT_COMPOSER_DRAFT_IMAGES - draftImages.length
+      );
+      if (remainingSlots === 0) {
+        return;
+      }
+      const nextImages = images.slice(0, remainingSlots).map((image) => ({
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+        name: image.name,
+        mimeType: image.mimeType,
+        data: image.data,
+        previewUrl: `data:${image.mimeType};base64,${image.data}`
+      }));
+      onDraftContentChange({
+        prompt: draftPromptRef.current,
+        images: [...draftImages, ...nextImages]
       });
     },
-    [onPromptImagesUnsupported, promptImagesSupported]
+    [
+      draftImages,
+      onDraftContentChange,
+      onPromptImagesUnsupported,
+      promptImagesSupported
+    ]
   );
 
   const handlePastedImages = useCallback(
@@ -1395,9 +1372,15 @@ export function AgentComposer({
     [addDraftImages]
   );
 
-  const removeDraftImage = useCallback((id: string): void => {
-    setDraftImages((current) => current.filter((image) => image.id !== id));
-  }, []);
+  const removeDraftImage = useCallback(
+    (id: string): void => {
+      onDraftContentChange({
+        prompt: draftPromptRef.current,
+        images: draftImages.filter((image) => image.id !== id)
+      });
+    },
+    [draftImages, onDraftContentChange]
+  );
 
   const insertWorkspaceReferences = useCallback(
     (items: readonly WorkspaceFileReference[]) => {
@@ -1782,7 +1765,7 @@ export function AgentComposer({
     () => (showPalette ? { zIndex: composerPaletteZIndex } : undefined),
     [showPalette]
   );
-  const hasDraftContent = draftPrompt.trim() !== "" || draftImages.length > 0;
+  const hasDraftContent = agentComposerDraftHasContent(draftContent);
   const isQueueMode = canQueueWhileBusy && hasDraftContent;
   const shouldShowStopButton = showStopButton && !isQueueMode;
   const sendButtonState = isQueueMode
@@ -2310,66 +2293,6 @@ export function AgentComposer({
       </div>
     </form>
   );
-}
-
-function textPromptContent(prompt: string): AgentPromptContentBlock[] {
-  const text = prompt.trim();
-  return text ? [{ type: "text", text }] : [];
-}
-
-function promptTextFromContent(
-  content: readonly AgentPromptContentBlock[]
-): string {
-  return content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text?.trim() ?? "")
-    .filter(Boolean)
-    .join("\n");
-}
-
-function promptImageDraftsFromContent(
-  content: readonly AgentPromptContentBlock[],
-  restoreId: string
-): AgentPromptImageDraft[] {
-  return content
-    .filter(
-      (
-        block
-      ): block is AgentPromptContentBlock & {
-        type: "image";
-        mimeType: "image/png" | "image/jpeg" | "image/webp";
-        data: string;
-      } =>
-        block.type === "image" &&
-        typeof block.data === "string" &&
-        block.data.trim() !== "" &&
-        (block.mimeType === "image/png" ||
-          block.mimeType === "image/jpeg" ||
-          block.mimeType === "image/webp")
-    )
-    .slice(0, MAX_PROMPT_IMAGES)
-    .map((image, index) => ({
-      id: `${restoreId}:image:${index}`,
-      name: image.name?.trim() || `image-${index + 1}`,
-      mimeType: image.mimeType,
-      data: image.data,
-      previewUrl: `data:${image.mimeType};base64,${image.data}`
-    }));
-}
-
-function promptContentFromDraft(input: {
-  prompt: string;
-  images: readonly AgentPromptImageDraft[];
-}): AgentPromptContentBlock[] {
-  return [
-    ...textPromptContent(input.prompt),
-    ...input.images.map((image) => ({
-      type: "image" as const,
-      mimeType: image.mimeType,
-      data: image.data,
-      name: image.name
-    }))
-  ];
 }
 
 function SendFilledIcon(): React.JSX.Element {
