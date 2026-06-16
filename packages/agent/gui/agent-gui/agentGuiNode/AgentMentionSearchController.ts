@@ -70,11 +70,16 @@ const DEFAULT_ISSUE_LIMIT = 25;
 const DEFAULT_SESSION_LIMIT = 30;
 const DEFAULT_PROVIDER_TIMEOUT_MS = 3500;
 
-const BROWSE_CATEGORIES: AgentMentionBrowseCategory[] =
-  AGENT_MENTION_FILTER_TAB_ORDER.map((id) => ({
+// Resolve filter tab labels lazily so they reflect the active i18n locale at the
+// time a state is emitted. Computing this at module load froze the labels to the
+// default ("en") runtime, since the agent GUI i18n locale is only synced once the
+// AgentGuiI18nProvider renders.
+function buildBrowseCategories(): AgentMentionBrowseCategory[] {
+  return AGENT_MENTION_FILTER_TAB_ORDER.map((id) => ({
     id,
     label: agentMentionFilterLabel(id)
   }));
+}
 
 const {
   agentGeneratedFile: AGENT_GENERATED_FILE_PROVIDER_ID,
@@ -124,7 +129,7 @@ export class AgentMentionSearchController {
     query: "",
     mode: "browse",
     filter: "all",
-    categories: BROWSE_CATEGORIES,
+    categories: buildBrowseCategories(),
     groups: [],
     error: null
   };
@@ -178,7 +183,7 @@ export class AgentMentionSearchController {
         query: this.currentQuery,
         mode: "browse",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: [],
         error: null
       });
@@ -195,7 +200,7 @@ export class AgentMentionSearchController {
       query: this.currentQuery,
       mode: "results",
       filter: this.currentFilter,
-      categories: BROWSE_CATEGORIES,
+      categories: buildBrowseCategories(),
       groups: this.groupsFromRawGroups(),
       error: null
     });
@@ -225,7 +230,7 @@ export class AgentMentionSearchController {
       query: this.currentQuery,
       mode: "results",
       filter: this.currentFilter,
-      categories: BROWSE_CATEGORIES,
+      categories: buildBrowseCategories(),
       groups: this.groupsFromRawGroups(),
       error: null
     });
@@ -252,7 +257,7 @@ export class AgentMentionSearchController {
       query: this.currentQuery,
       mode: "results",
       filter: this.currentFilter,
-      categories: BROWSE_CATEGORIES,
+      categories: buildBrowseCategories(),
       groups: this.groupsFromRawGroups(),
       error: null
     });
@@ -279,7 +284,7 @@ export class AgentMentionSearchController {
         query: this.currentQuery,
         mode: this.currentQuery ? "results" : "browse",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: this.groupsFromRawGroups(),
         error: null
       });
@@ -292,7 +297,7 @@ export class AgentMentionSearchController {
         query: this.currentQuery,
         mode: this.currentQuery ? "results" : "browse",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: this.groupsFromRawGroups(),
         error: null
       });
@@ -315,7 +320,7 @@ export class AgentMentionSearchController {
         query: "",
         mode: "browse",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: this.groupsFromRawGroups(),
         error: null
       });
@@ -347,7 +352,7 @@ export class AgentMentionSearchController {
         query: this.currentQuery,
         mode: "results",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: this.groupsFromRawGroups(),
         error: null
       });
@@ -364,7 +369,7 @@ export class AgentMentionSearchController {
       query: this.currentQuery,
       mode: "results",
       filter: this.currentFilter,
-      categories: BROWSE_CATEGORIES,
+      categories: buildBrowseCategories(),
       groups: this.groupsFromRawGroups(),
       error: null
     });
@@ -397,7 +402,7 @@ export class AgentMentionSearchController {
       query: "",
       mode: "browse",
       filter: "all",
-      categories: BROWSE_CATEGORIES,
+      categories: buildBrowseCategories(),
       groups: [],
       error: null
     });
@@ -510,7 +515,7 @@ export class AgentMentionSearchController {
         query: input.query,
         mode: "results",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: this.groupsFromRawGroups(),
         error: null
       });
@@ -523,7 +528,7 @@ export class AgentMentionSearchController {
         query: input.query,
         mode: "results",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: [],
         error: error instanceof Error ? error.message : String(error)
       });
@@ -739,7 +744,7 @@ export class AgentMentionSearchController {
         query: "",
         mode: "browse",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: this.groupsFromRawGroups(),
         error: null
       });
@@ -752,7 +757,7 @@ export class AgentMentionSearchController {
         query: "",
         mode: "browse",
         filter: this.currentFilter,
-        categories: BROWSE_CATEGORIES,
+        categories: buildBrowseCategories(),
         groups: [],
         error: error instanceof Error ? error.message : String(error)
       });
@@ -938,7 +943,7 @@ export class AgentMentionSearchController {
       query: "",
       mode: "browse",
       filter: this.currentFilter,
-      categories: BROWSE_CATEGORIES,
+      categories: buildBrowseCategories(),
       groups: [],
       error: null
     });
