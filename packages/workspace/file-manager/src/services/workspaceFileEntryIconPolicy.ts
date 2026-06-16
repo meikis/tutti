@@ -30,16 +30,17 @@ const defaultApplicationIconExtensions = new Set([
   "xlsx"
 ]);
 
-const extensionDocumentIconExtensions = new Set([
+const archiveIconExtensions = new Set([
   "7z",
   "gz",
-  "pdf",
   "rar",
   "tar",
   "tgz",
   "xz",
   "zip"
 ]);
+
+const extensionDocumentIconExtensions = new Set(["pdf"]);
 
 export interface WorkspaceFileEntryIconPolicyOptions {
   includeImageThumbnails?: boolean;
@@ -71,6 +72,17 @@ export function shouldUseWorkspaceFileExtensionDocumentIcon(
     visualKind === "markdown" ||
     extensionDocumentIconExtensions.has(extension) ||
     classifyWorkspaceFilePreviewKind(entry) === "text"
+  );
+}
+
+export function shouldUseWorkspaceFileArchiveIcon(
+  entry: WorkspaceFileEntry
+): boolean {
+  return (
+    entry.kind === "file" &&
+    archiveIconExtensions.has(
+      resolveWorkspaceFileExtension(entry.name).toLowerCase()
+    )
   );
 }
 

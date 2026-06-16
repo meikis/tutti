@@ -4,6 +4,7 @@ import type { WorkspaceFileEntry } from "../services/workspaceFileManagerTypes.t
 import {
   resolveWorkspaceFileEntryIconCacheKey,
   shouldResolveWorkspaceFileEntryIcon,
+  shouldUseWorkspaceFileArchiveIcon,
   shouldUseWorkspaceFileExtensionDocumentIcon
 } from "./workspaceFileEntryIconPolicy.ts";
 
@@ -51,18 +52,20 @@ test("resolves image thumbnails only when enabled", () => {
   );
 });
 
-test("uses extension document icons for text, code, and archive files", () => {
-  for (const name of [
-    "example.txt",
-    "index.html",
-    "README.md",
-    "brief.pdf",
-    "Archive.zip",
-    "backup.tar",
-    "bundle.7z"
-  ]) {
+test("uses extension document icons for text, code, and pdf files", () => {
+  for (const name of ["example.txt", "index.html", "README.md", "brief.pdf"]) {
     const entry = createEntry({ name, path: `/workspace/${name}` });
     assert.equal(shouldUseWorkspaceFileExtensionDocumentIcon(entry), true);
+    assert.equal(shouldUseWorkspaceFileArchiveIcon(entry), false);
+    assert.equal(shouldResolveWorkspaceFileEntryIcon(entry), false);
+  }
+});
+
+test("uses the archive fallback icon for compressed files", () => {
+  for (const name of ["Archive.zip", "backup.tar", "bundle.7z"]) {
+    const entry = createEntry({ name, path: `/workspace/${name}` });
+    assert.equal(shouldUseWorkspaceFileArchiveIcon(entry), true);
+    assert.equal(shouldUseWorkspaceFileExtensionDocumentIcon(entry), false);
     assert.equal(shouldResolveWorkspaceFileEntryIcon(entry), false);
   }
 });

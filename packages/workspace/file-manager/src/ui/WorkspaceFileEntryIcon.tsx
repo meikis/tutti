@@ -15,9 +15,14 @@ import type { WorkspaceFileEntry } from "../services/workspaceFileManagerTypes.t
 import {
   resolveWorkspaceFileEntryIconCacheKey,
   isWorkspaceApplicationBundle,
+  shouldUseWorkspaceFileArchiveIcon,
   shouldUseWorkspaceFileExtensionDocumentIcon
 } from "./workspaceFileEntryIconPolicy.ts";
 
+const workspaceArchiveFallbackIconUrl = new URL(
+  "../assets/workspace-archive-fallback.png",
+  import.meta.url
+).toString();
 const workspaceFolderFallbackIconUrl = new URL(
   "../assets/workspace-folder-fallback.png",
   import.meta.url
@@ -33,6 +38,7 @@ export function WorkspaceFileEntryIcon({
   iconClassName = "size-4",
   iconUrlByCacheKey,
   isEnteringDirectory = false,
+  loadingIconClassName,
   onViewportLeave,
   onViewportEnter
 }: {
@@ -41,6 +47,7 @@ export function WorkspaceFileEntryIcon({
   iconClassName?: string;
   iconUrlByCacheKey?: ReadonlyMap<string, string | null>;
   isEnteringDirectory?: boolean;
+  loadingIconClassName?: string;
   onViewportLeave?: (entry: WorkspaceFileEntry) => void;
   onViewportEnter?: (entry: WorkspaceFileEntry) => void;
 }): ReactElement {
@@ -128,7 +135,9 @@ export function WorkspaceFileEntryIcon({
       )}
     >
       {isEnteringDirectory ? (
-        <LoadingIcon className={iconClassName + " animate-spin"} />
+        <LoadingIcon
+          className={cn(loadingIconClassName ?? iconClassName, "animate-spin")}
+        />
       ) : iconUrl ? (
         <img
           alt=""
@@ -195,6 +204,9 @@ function DefaultEntryIcon({
   if (isWorkspaceApplicationBundle(entry)) {
     return <FileTextIcon className={vectorIconClassName} />;
   }
+  if (shouldUseWorkspaceFileArchiveIcon(entry)) {
+    return <WorkspaceArchiveFallbackIcon className={iconClassName} />;
+  }
   if (shouldUseWorkspaceFileExtensionDocumentIcon(entry)) {
     return (
       <ExtensionDocumentIcon
@@ -240,6 +252,23 @@ export function WorkspaceFolderFallbackIcon({
       decoding="async"
       draggable={false}
       src={workspaceFolderFallbackIconUrl}
+    />
+  );
+}
+
+export function WorkspaceArchiveFallbackIcon({
+  className
+}: {
+  className: string;
+}): ReactElement {
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className={cn("object-contain", className)}
+      decoding="async"
+      draggable={false}
+      src={workspaceArchiveFallbackIconUrl}
     />
   );
 }

@@ -6692,10 +6692,10 @@ html[data-theme="light"] [data-message-center-item-id].agent-gui-edge-glow {
 
 .agent-gui-node__empty-hero-icon-effect {
   display: block;
-  width: 88px;
-  height: 88px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
-  border-radius: 18px;
+  border-radius: 14px;
   animation: agent-gui-empty-hero-enter 260ms cubic-bezier(0.16, 1, 0.3, 1) 40ms
     both;
 }
