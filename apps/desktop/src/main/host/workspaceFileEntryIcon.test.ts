@@ -59,7 +59,7 @@ test("resolveWorkspaceFileEntryIconUrl writes image thumbnail bytes to cache", a
       readImageThumbnailPngBytes: async (targetPath, maxEdgePx) => {
         thumbnailReads += 1;
         assert.equal(targetPath, "/workspace/photo.png");
-        assert.equal(maxEdgePx, 160);
+        assert.equal(maxEdgePx, 256);
         return thumbnailBytes;
       },
       stat: async () => fileStats({ size: 1024 })
@@ -75,7 +75,7 @@ test("resolveWorkspaceFileEntryIconUrl writes image thumbnail bytes to cache", a
     assetKind: "image-thumbnail",
     mtimeMs: 42,
     path: "/workspace/photo.png",
-    sizePx: 160,
+    sizePx: 256,
     workspaceID: "workspace-a"
   });
 });
@@ -229,6 +229,7 @@ test("resolveWorkspaceFileEntryIconUrl writes application icon bytes to cache", 
     assetKind: "application-icon",
     mtimeMs: 42,
     path: "/workspace/Safari.app",
+    sizePx: 256,
     workspaceID: "workspace-a"
   });
 });
@@ -288,7 +289,8 @@ test("resolveWorkspaceFileEntryIconUrl writes default application icon bytes for
     applicationPath: "/Applications/Preview.app",
     assetKind: "file-type-default-application-icon",
     fileExtension: "docx",
-    platform: "darwin"
+    platform: "darwin",
+    sizePx: 256
   });
 });
 
