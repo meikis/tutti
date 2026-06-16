@@ -550,7 +550,7 @@ describe("useAgentGUINodeController", () => {
     expect(exec).not.toHaveBeenCalled();
 
     act(() => {
-      result.current.actions.updateDraftPrompt("user edit");
+      result.current.actions.updateDraftContent(draftContent("user edit"));
     });
     rerender({
       prefillPromptRequest: {

@@ -4961,7 +4961,10 @@ export function useAgentGUINodeController({
     setDetailError(null);
     setDraftBySessionId((current) => ({
       ...current,
-      [nodeDefaultDraftPromptKey(dataRef.current.provider)]: draftPrompt
+      [nodeDefaultDraftContentKey(dataRef.current.provider)]: {
+        ...emptyAgentComposerDraft(),
+        prompt: draftPrompt
+      }
     }));
     persistActiveConversation(null);
     loadDraftComposerOptions();
