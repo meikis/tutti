@@ -11,7 +11,9 @@ import {
   MentionPalette,
   buildMentionPaletteState,
   flattenMentionPaletteEntries,
-  type MentionPaletteGroup
+  renderMentionRow,
+  type MentionPaletteGroup,
+  type MentionRowItem
 } from "@tutti-os/ui-rich-text/at-panel";
 import {
   RichTextAtEditor,
@@ -65,15 +67,24 @@ export function IssueManagerRichTextTextarea({
       issues: controller.copy.t("richTextAt.issues"),
       sessions: controller.copy.t("richTextAt.sessions")
     };
+    // Canonical agent filter-tab order: all, sessions, files, issues, apps
+    // (matches the agent composer's AGENT_MENTION_FILTER_TAB_ORDER so both
+    // surfaces present identical tabs).
     return {
       filterTabs: [
         { id: "all", label: labels.all },
+        { id: "agent-session", label: labels.sessions },
         { id: "file", label: labels.files },
         { id: "workspace-issue", label: labels.issues },
-        { id: "agent-session", label: labels.sessions },
         { id: "workspace-app", label: labels.apps }
       ],
       providerGroups: [
+        {
+          id: "sessions",
+          label: labels.sessions,
+          providerIds: [ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.sessions],
+          filterId: ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.sessions
+        },
         {
           id: "files",
           label: labels.files,
@@ -85,12 +96,6 @@ export function IssueManagerRichTextTextarea({
           label: labels.issues,
           providerIds: [ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.issues],
           filterId: ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.issues
-        },
-        {
-          id: "sessions",
-          label: labels.sessions,
-          providerIds: [ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.sessions],
-          filterId: ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.sessions
         },
         {
           id: "apps",
@@ -223,6 +228,73 @@ function issueManagerMentionMatchKey(match: RichTextAtQueryMatch): string {
   return `${match.providerId}:${match.key}`;
 }
 
+function issueMentionMatchMeta(
+  match: RichTextAtQueryMatch
+): Readonly<Record<string, string>> | undefined {
+  return match.insertResult.kind === "mention"
+    ? (match.insertResult.mention.meta ?? undefined)
+    : undefined;
+}
+
+function nonEmptyText(value: string | null | undefined): string | null {
+  const normalized = value?.trim() ?? "";
+  return normalized.length > 0 ? normalized : null;
+}
+
+/**
+ * Map an issue-manager `@`-mention match onto the shared, display-ready
+ * {@link MentionRowItem} consumed by {@link renderMentionRow}, so issue-manager
+ * rows render through the same component as the agent composer.
+ *
+ * The **app** branch is fully realized in Phase 2: it reads the localized
+ * display name/description + resolved icon that the wrapped
+ * `createDesktopWorkspaceAppMentionProvider` injects (into `match.label`,
+ * `match.subtitle`, and `meta.iconUrl`). The file/issue/session branches are
+ * minimal-but-valid placeholders that are completed in Phases 3-4.
+ */
+function issueMatchToRowItem(match: RichTextAtQueryMatch): MentionRowItem {
+  const meta = issueMentionMatchMeta(match);
+  const label = nonEmptyText(match.label) ?? match.key;
+
+  if (match.providerId === ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.apps) {
+    return {
+      kind: "app",
+      name: label,
+      description:
+        nonEmptyText(match.subtitle) ?? nonEmptyText(meta?.description),
+      iconUrl: nonEmptyText(meta?.iconUrl)
+    };
+  }
+
+  if (match.providerId === ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.issues) {
+    return {
+      kind: "issue",
+      title: label,
+      creatorName: nonEmptyText(meta?.creatorDisplayName)
+    };
+  }
+
+  if (match.providerId === ISSUE_MANAGER_RICH_AT_PROVIDER_GROUP_IDS.sessions) {
+    return {
+      kind: "session",
+      participant: label,
+      summary: nonEmptyText(match.subtitle),
+      userAvatarUrl: null,
+      // Neutral placeholders; Phase 4 wires the avatar/provider-icon assets.
+      userAvatarPlaceholderUrl: "",
+      agentIconUrl: ""
+    };
+  }
+
+  // Files (and any other provider) — minimal valid file row for now. The path
+  // → visual-kind mapping + thumbnail are aligned in Phase 3.
+  return {
+    kind: "file",
+    name: label,
+    visualKind: "document"
+  };
+}
+
 function IssueManagerMentionPanel({
   activeFilterId,
   context,
@@ -247,6 +319,24 @@ function IssueManagerMentionPanel({
   onSelectFilter: (filterId: string) => void;
 }): JSX.Element {
   const copy = controller.copy;
+  // Match the agent composer's conditional group-header rule: when exactly one
+  // group is visible and its label duplicates the active filter tab's label
+  // (the common single-tab case, e.g. Apps), suppress the group header so the
+  // two surfaces render identically.
+  const activeFilterLabel = useMemo(
+    () => filterTabs.find((tab) => tab.id === activeFilterId)?.label,
+    [activeFilterId, filterTabs]
+  );
+  const shouldRenderGroupLabel = useCallback(
+    (groupId: string, groupCount: number): boolean => {
+      if (activeFilterId === "all" || groupCount !== 1) {
+        return true;
+      }
+      const group = providerGroups.find((entry) => entry.id === groupId);
+      return group?.label !== activeFilterLabel;
+    },
+    [activeFilterId, activeFilterLabel, providerGroups]
+  );
   const state = useMemo(
     () =>
       buildMentionPaletteState({
@@ -257,7 +347,8 @@ function IssueManagerMentionPanel({
         expandedCounts,
         query: context.query.keyword,
         isLoading: context.isLoading,
-        showMoreLabel: (count) => copy.t("richTextAt.showMore", { count })
+        showMoreLabel: (count) => copy.t("richTextAt.showMore", { count }),
+        shouldRenderGroupLabel
       }),
     [
       activeFilterId,
@@ -267,7 +358,8 @@ function IssueManagerMentionPanel({
       copy,
       expandedCounts,
       filterTabs,
-      providerGroups
+      providerGroups,
+      shouldRenderGroupLabel
     ]
   );
 
@@ -333,20 +425,7 @@ function IssueManagerMentionPanel({
       state={state}
       highlightedKey={highlightedKey}
       getItemKey={(item) => issueManagerMentionMatchKey(item)}
-      renderItem={(item) => (
-        <span className="flex min-w-0 max-w-full items-start gap-2">
-          <span className="grid min-w-0 gap-0.5">
-            <span className="truncate text-[13px] leading-5 font-medium">
-              {item.label}
-            </span>
-            {item.subtitle ? (
-              <span className="truncate text-[11px] leading-4 text-[var(--text-secondary)]">
-                {item.subtitle}
-              </span>
-            ) : null}
-          </span>
-        </span>
-      )}
+      renderItem={(item) => renderMentionRow(issueMatchToRowItem(item))}
       labels={{
         loading: copy.t("richTextAt.loading"),
         empty: copy.t("richTextAt.noMatches"),

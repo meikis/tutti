@@ -35,7 +35,13 @@ import {
 } from "@renderer/features/workspace-agent";
 import { runDesktopAgentGUILinkAction } from "@renderer/features/workspace-agent/services/desktopAgentGUILinkActions.ts";
 import { normalizeDesktopAgentGUIProvider } from "@renderer/features/workspace-agent/desktopAgentGUINodeState";
-import type { IDesktopRichTextAtService } from "@renderer/features/rich-text-at";
+import {
+  createDesktopWorkspaceAppMentionProvider,
+  type IDesktopRichTextAtService
+} from "@renderer/features/rich-text-at";
+import { AGENT_GUI_MENTION_PROVIDER_IDS } from "@tutti-os/agent-gui/agent-rich-text-at-provider";
+import { getActiveLocale } from "../../../../i18n/runtime.ts";
+import type { RichTextAtProvider } from "@tutti-os/ui-rich-text/types";
 import type { IWorkspaceUserProjectService } from "@renderer/features/workspace-user-project";
 import { resolveWorkspaceLinkAction } from "@contexts/workspace/presentation/renderer/actions/workspaceLinkActions.ts";
 import { requestWorkspaceBrowserLaunch } from "../workspaceBrowserLaunchCoordinator.ts";
@@ -62,6 +68,7 @@ export function createWorkspaceIssueManagerContribution(input: {
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"
   >;
+  resolveAppIconUrl?: (appId: string) => string | null;
   richTextAtService: IDesktopRichTextAtService;
   runtimeApi: DesktopRuntimeApi;
   reporterService?: Pick<IReporterService, "trackEvents">;
@@ -188,14 +195,32 @@ export function createWorkspaceIssueManagerContribution(input: {
           workspaceAgentActivityService: input.workspaceAgentActivityService,
           workspaceId: input.workspaceId
         }),
-      resolveRichTextAtProviders: ({ surface, workspaceId }) =>
-        input.richTextAtService.getProviders(
+      resolveRichTextAtProviders: ({ surface, workspaceId }) => {
+        const baseProviders = input.richTextAtService.getProviders(
           createWorkspaceIssueManagerRichTextAtProviderRequestFromIdentity({
             currentUser: () => identityAdapter.currentUser(),
             surface,
             workspaceId
           })
-        )
+        );
+        // Enrich the raw workspace-app provider with the same localized
+        // name/description + resolved icon the agent composer uses, so the
+        // issue-manager `@`-mention Apps rows render identically. Wrapping here
+        // (the desktop contribution seam) keeps the issue-manager package free of
+        // any agent/desktop coupling.
+        return baseProviders.map((provider) => {
+          if (provider.id !== AGENT_GUI_MENTION_PROVIDER_IDS.workspaceApp) {
+            return provider;
+          }
+          return createDesktopWorkspaceAppMentionProvider({
+            apps: input.appCenterService.store.apps,
+            baseProvider: provider,
+            locale: getActiveLocale(),
+            resolveAppIconUrl: input.resolveAppIconUrl,
+            workspaceId
+          }) as RichTextAtProvider;
+        });
+      }
     },
     typeId: defaultIssueManagerWorkbenchTypeId
   });

@@ -16,6 +16,14 @@ export function buildMentionPaletteState(input: {
   isLoading: boolean;
   pageSize?: number;
   showMoreLabel?: (count: number) => string;
+  /**
+   * Optional predicate gating whether a group's header label is emitted. When
+   * provided and it returns false, the group renders without a label (matching
+   * the agent composer's conditional `shouldRenderMentionGroupLabel` rule, e.g.
+   * hiding a single group's header when it just duplicates the active filter
+   * tab). When omitted, the group label is always emitted (legacy behavior).
+   */
+  shouldRenderGroupLabel?: (groupId: string, groupCount: number) => boolean;
 }): MentionPaletteState<RichTextAtQueryMatch> {
   const searchGroups = groupRichTextAtMatches({
     expandedCounts: input.expandedCounts,
@@ -28,7 +36,11 @@ export function buildMentionPaletteState(input: {
   const groups: readonly MentionPaletteGroup<RichTextAtQueryMatch>[] =
     searchGroups.map((group) => ({
       id: group.id,
-      label: group.label,
+      label:
+        input.shouldRenderGroupLabel != null &&
+        !input.shouldRenderGroupLabel(group.id, searchGroups.length)
+          ? undefined
+          : group.label,
       items: group.items,
       totalCount: group.totalCount,
       visibleCount: group.visibleCount,

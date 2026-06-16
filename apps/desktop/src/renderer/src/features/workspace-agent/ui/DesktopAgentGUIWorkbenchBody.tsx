@@ -57,7 +57,7 @@ import {
   isDesktopManagedAgentProvider,
   projectDesktopManagedAgentsState
 } from "../services/internal/desktopManagedAgentProviders.ts";
-import { createDesktopWorkspaceAppMentionProvider } from "./desktopWorkspaceAppMentionProvider.ts";
+import { createDesktopWorkspaceAppMentionProvider } from "@renderer/features/rich-text-at";
 import { AGENT_GUI_MENTION_PROVIDER_IDS } from "@tutti-os/agent-gui/agent-rich-text-at-provider";
 import { resolveWorkbenchDockFileAtItems } from "../services/internal/resolveWorkbenchDockFileAtItems.ts";
 import { createDesktopAgentGeneratedFileMentionProvider } from "../services/internal/createDesktopAgentGeneratedFileMentionProvider.ts";
