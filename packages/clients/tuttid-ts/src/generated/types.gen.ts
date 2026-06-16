@@ -193,8 +193,11 @@ export type DesktopDockPlacement = "bottom" | "left";
 
 export type DesktopDockIconStyle = "default" | "flat";
 
+export type DesktopBrowserUseConnectionMode = "isolated" | "autoConnect";
+
 export type DesktopPreferences = {
   agentComposerDefaultsByProvider: DesktopAgentComposerDefaultsByProvider;
+  browserUseConnectionMode?: DesktopBrowserUseConnectionMode;
   defaultAgentProvider: WorkspaceAgentProvider;
   dockIconStyle: DesktopDockIconStyle;
   dockPlacement: DesktopDockPlacement;
@@ -621,6 +624,7 @@ export type AgentSessionComposerSettings = {
   model?: string | null;
   permissionModeId?: string | null;
   planMode?: boolean | null;
+  browserUse?: boolean | null;
   reasoningEffort?: string | null;
   speed?: string | null;
 };
@@ -871,6 +875,7 @@ export type CreateWorkspaceAgentSessionRequest = {
   reasoningEffort?: string | null;
   speed?: string | null;
   planMode?: boolean | null;
+  browserUse?: boolean | null;
   visible?: boolean | null;
 };
 

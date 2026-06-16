@@ -1198,6 +1198,7 @@ function createViewModel(): AgentGUINodeViewModel {
         reasoningEffort: null,
         speed: null,
         planMode: false,
+        browserUse: true,
         permissionModeId: "preset"
       },
       supportsModel: false,
@@ -1431,7 +1432,10 @@ function createLabels(): AgentGUIViewLabels {
     slashCommandPalette: "slashCommandPalette",
     skillPickerPalette: "skillPickerPalette",
     slashPaletteCommandsGroup: "slashPaletteCommandsGroup",
+    slashPaletteCapabilitiesGroup: "slashPaletteCapabilitiesGroup",
     slashPaletteSkillsGroup: "slashPaletteSkillsGroup",
+    browserUseCapabilityLabel: "browserUseCapabilityLabel",
+    browserUseCapabilityDescription: "browserUseCapabilityDescription",
     slashStatusTitle: "slashStatusTitle",
     slashStatusSession: "slashStatusSession",
     slashStatusBaseUrl: "slashStatusBaseUrl",

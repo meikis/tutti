@@ -1505,7 +1505,9 @@ func (a *standardACPAdapter) SessionState(session Session) SessionStateSnapshot 
 	if usage := acpUsageRuntimeContext(state.usage); len(usage) > 0 {
 		snapshot.RuntimeContext["usage"] = usage
 	}
-	if capabilities := standardACPCapabilities(a.config.provider, promptImage, state); len(capabilities) > 0 {
+	capabilities := standardACPCapabilities(a.config.provider, promptImage, state)
+	capabilities = appendBrowserUseCapability(capabilities, session.Env)
+	if len(capabilities) > 0 {
 		snapshot.RuntimeContext["capabilities"] = capabilities
 	}
 	snapshot.Settings = sessionSettingsWithACPConfig(

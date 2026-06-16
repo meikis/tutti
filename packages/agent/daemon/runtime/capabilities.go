@@ -13,6 +13,7 @@ const (
 	CapabilityRateLimits = "rateLimits"
 	CapabilityPlanMode   = "planMode"
 	CapabilityInterrupt  = "interrupt"
+	CapabilityBrowserUse = "browserUse"
 )
 
 // standardACPCapabilities derives the canonical capability list for ACP

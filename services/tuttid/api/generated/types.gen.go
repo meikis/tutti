@@ -364,6 +364,24 @@ func (e CliOutputMode) Valid() bool {
 	}
 }
 
+// Defines values for DesktopBrowserUseConnectionMode.
+const (
+	AutoConnect DesktopBrowserUseConnectionMode = "autoConnect"
+	Isolated    DesktopBrowserUseConnectionMode = "isolated"
+)
+
+// Valid indicates whether the value is a known member of the DesktopBrowserUseConnectionMode enum.
+func (e DesktopBrowserUseConnectionMode) Valid() bool {
+	switch e {
+	case AutoConnect:
+		return true
+	case Isolated:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DesktopDockIconStyle.
 const (
 	Default DesktopDockIconStyle = "default"
@@ -1382,6 +1400,7 @@ type AgentProviderTerminalCommand struct {
 
 // AgentSessionComposerSettings defines model for AgentSessionComposerSettings.
 type AgentSessionComposerSettings struct {
+	BrowserUse       *bool   `json:"browserUse,omitempty"`
 	Model            *string `json:"model,omitempty"`
 	PermissionModeId *string `json:"permissionModeId,omitempty"`
 	PlanMode         *bool   `json:"planMode,omitempty"`
@@ -1650,6 +1669,7 @@ type CreateIssueManagerTopicRequest struct {
 // CreateWorkspaceAgentSessionRequest defines model for CreateWorkspaceAgentSessionRequest.
 type CreateWorkspaceAgentSessionRequest struct {
 	AgentSessionId   openapi_types.UUID        `json:"agentSessionId"`
+	BrowserUse       *bool                     `json:"browserUse,omitempty"`
 	Cwd              *string                   `json:"cwd,omitempty"`
 	InitialContent   []AgentPromptContentBlock `json:"initialContent"`
 	Model            *string                   `json:"model,omitempty"`
@@ -1768,6 +1788,9 @@ type DesktopAgentComposerDefaultsByProvider struct {
 	Openclaw   *DesktopAgentComposerDefaults `json:"openclaw,omitempty"`
 }
 
+// DesktopBrowserUseConnectionMode defines model for DesktopBrowserUseConnectionMode.
+type DesktopBrowserUseConnectionMode string
+
 // DesktopDockIconStyle defines model for DesktopDockIconStyle.
 type DesktopDockIconStyle string
 
@@ -1780,6 +1803,7 @@ type DesktopLocale string
 // DesktopPreferences defines model for DesktopPreferences.
 type DesktopPreferences struct {
 	AgentComposerDefaultsByProvider DesktopAgentComposerDefaultsByProvider `json:"agentComposerDefaultsByProvider"`
+	BrowserUseConnectionMode        *DesktopBrowserUseConnectionMode       `json:"browserUseConnectionMode,omitempty"`
 	DefaultAgentProvider            WorkspaceAgentProvider                 `json:"defaultAgentProvider"`
 	DockIconStyle                   DesktopDockIconStyle                   `json:"dockIconStyle"`
 	DockPlacement                   DesktopDockPlacement                   `json:"dockPlacement"`

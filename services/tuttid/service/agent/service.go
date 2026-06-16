@@ -132,6 +132,7 @@ func (s *Service) Create(ctx context.Context, workspaceID string, input CreateSe
 			provider,
 			value(input.ReasoningEffort),
 		),
+		BrowserUse: input.BrowserUse,
 		Speed: normalizeSpeedForProvider(
 			provider,
 			value(input.Speed),
@@ -205,6 +206,7 @@ func (s *Service) prepareRuntime(ctx context.Context, workspaceID string, cwd st
 		Title:            value(input.Title),
 		PermissionModeID: value(input.PermissionModeID),
 		PlanMode:         clampComposerPlanModeForProvider(provider, valueBool(input.PlanMode)),
+		BrowserUse:       clampComposerBrowserUseForProvider(provider, input.BrowserUse),
 		Model:            clampComposerModelForProvider(provider, value(input.Model)),
 		ReasoningEffort: normalizeReasoningEffortForProvider(
 			provider,
@@ -787,36 +789,6 @@ func isRuntimeActiveTurnStatus(status string) bool {
 }
 
 func (s *Service) prepareRuntimeForResume(ctx context.Context, session PersistedSession) (preparedRuntime, error) {
-	input := CreateSessionInput{
-		AgentSessionID: strings.TrimSpace(session.ID),
-		Provider:       strings.TrimSpace(session.Provider),
-	}
-	if title := strings.TrimSpace(session.Title); title != "" {
-		input.Title = &title
-	}
-	if model := strings.TrimSpace(session.Settings.Model); model != "" {
-		input.Model = &model
-	}
-	if permissionModeID := strings.TrimSpace(session.Settings.PermissionModeID); permissionModeID != "" {
-		normalizedPermissionModeID := normalizePermissionModeIDForProvider(input.Provider, permissionModeID)
-		input.PermissionModeID = &normalizedPermissionModeID
-	}
-	if session.Settings.PlanMode {
-		input.PlanMode = boolPointer(true)
-	}
-	if reasoningEffort := strings.TrimSpace(session.Settings.ReasoningEffort); reasoningEffort != "" {
-		normalizedReasoningEffort := normalizeReasoningEffortForProvider(
-			strings.TrimSpace(session.Provider),
-			reasoningEffort,
-		)
-		input.ReasoningEffort = &normalizedReasoningEffort
-	}
-	if speed := strings.TrimSpace(session.Settings.Speed); speed != "" {
-		normalizedSpeed := normalizeSpeedForProvider(
-			strings.TrimSpace(session.Provider),
-			speed,
-		)
-		input.Speed = &normalizedSpeed
-	}
+	input := createSessionInputFromPersisted(session)
 	return s.prepareRuntime(ctx, strings.TrimSpace(session.WorkspaceID), strings.TrimSpace(session.Cwd), input)
 }

@@ -67,6 +67,9 @@ import {
   resolveSlashCommandsForProvider,
   resolveSlashCommandSelectionEffect,
   resolveSlashCommandSubmitEffect,
+  resolveTuttiBrowserUseSubmitEffect,
+  type AgentSlashCommand,
+  type AgentSlashCommandCapability,
   type SlashCommandSelectionEffect
 } from "./model/agentSlashCommandProviderPolicy";
 import {
@@ -101,6 +104,7 @@ import {
 } from "./agentRichText/agentRichTextPromptImages";
 import type { AgentPromptContentBlock } from "../../shared/contracts/dto/agentSession";
 import type { AgentMessageMarkdownWorkspaceAppIcon } from "../../shared/AgentMessageMarkdown";
+import type { AgentCapabilityTokenOption } from "./agentRichText/agentCapabilityTokenExtension";
 import {
   AgentMentionSearchController,
   type AgentMentionFilterId,
@@ -194,6 +198,8 @@ export interface AgentComposerProps {
     planModeOnLabel: string;
     planModeOffLabel: string;
     planUnavailable: string;
+    browserUseCapabilityLabel: string;
+    browserUseCapabilityDescription: string;
     queuedLabel: string;
     sendQueuedPromptNext: string;
     editQueuedPrompt: string;
@@ -204,6 +210,7 @@ export interface AgentComposerProps {
     slashCommandPalette: string;
     skillPickerPalette: string;
     slashPaletteCommandsGroup: string;
+    slashPaletteCapabilitiesGroup: string;
     slashPaletteSkillsGroup: string;
     slashStatusTitle: string;
     slashStatusSession: string;
@@ -275,6 +282,7 @@ export interface AgentComposerProps {
     reasoningEffort?: string | null;
     speed?: string | null;
     planMode?: boolean;
+    browserUse?: boolean;
     permissionModeId?: string | null;
   }) => void;
   onSubmit: (content: AgentPromptContentBlock[]) => void;
@@ -1009,9 +1017,16 @@ export function AgentComposer({
         provider,
         commands: availableCommands,
         hasCompactableContext,
-        compactSupported
+        compactSupported,
+        browserSupported: Boolean(composerSettings.supportsBrowser)
       }),
-    [availableCommands, compactSupported, hasCompactableContext, provider]
+    [
+      availableCommands,
+      compactSupported,
+      composerSettings.supportsBrowser,
+      hasCompactableContext,
+      provider
+    ]
   );
   const filteredCommands = useMemo(
     () =>
@@ -1031,15 +1046,40 @@ export function AgentComposer({
           }),
     [availableSkills, skillQueryMatch]
   );
+  const availableCapabilities = useMemo<AgentCapabilityTokenOption[]>(
+    () =>
+      composerSettings.supportsBrowser
+        ? [
+            {
+              capability: "browserUse",
+              label: labels.browserUseCapabilityLabel,
+              name: "browser",
+              trigger: "/browser"
+            }
+          ]
+        : [],
+    [composerSettings.supportsBrowser, labels.browserUseCapabilityLabel]
+  );
   const slashPaletteEntries = useMemo<AgentSlashPaletteEntry[]>(() => {
     const commandEntries: AgentSlashPaletteEntry[] = filteredCommands.map(
-      (command) => ({
-        type: "command",
-        key: `command:${command.name}`,
-        label: labelForSlashCommand(command),
-        ...(command.description ? { description: command.description } : {}),
-        command
-      })
+      (command) => {
+        if (isSlashCommandCapability(command)) {
+          return {
+            type: "capability",
+            key: `capability:${command.capability}`,
+            label: labels.browserUseCapabilityLabel,
+            description: labels.browserUseCapabilityDescription,
+            capability: command
+          };
+        }
+        return {
+          type: "command",
+          key: `command:${command.name}`,
+          label: labelForSlashCommand(command),
+          ...(command.description ? { description: command.description } : {}),
+          command
+        };
+      }
     );
     const skillEntries: AgentSlashPaletteEntry[] = filteredSkills.map(
       (skill) => {
@@ -1056,7 +1096,13 @@ export function AgentComposer({
       }
     );
     return [...commandEntries, ...skillEntries];
-  }, [filteredCommands, filteredSkills, skillQueryMatch?.prefix]);
+  }, [
+    filteredCommands,
+    filteredSkills,
+    labels.browserUseCapabilityDescription,
+    labels.browserUseCapabilityLabel,
+    skillQueryMatch?.prefix
+  ]);
   const showFileMentionPalette =
     !disabled && isPaletteOpen && fileMentionSuggestion !== null;
   const showSlashPalette =
@@ -1158,6 +1204,9 @@ export function AgentComposer({
     setIsSlashStatusPanelOpen(false);
   }, []);
 
+  const settingsControlsDisabled =
+    isSendingTurn || isSubmittingPrompt || showStopButton;
+
   const closeReviewPicker = useCallback((): void => {
     setIsReviewPickerOpen(false);
   }, []);
@@ -1195,6 +1244,9 @@ export function AgentComposer({
     (effect: SlashCommandSelectionEffect): void => {
       if (effect.kind === "submitPrompt") {
         clearSlashCommandDraft();
+        if (effect.enableBrowserUse && !settingsControlsDisabled) {
+          onSettingsChange({ browserUse: true });
+        }
         onSubmit(textPromptContent(effect.prompt));
         return;
       }
@@ -1217,6 +1269,17 @@ export function AgentComposer({
         onSettingsChange({
           planMode: !composerSettings.draftSettings.planMode
         });
+        return;
+      }
+      if (effect.kind === "enableBrowserUse") {
+        const nextDraft = effect.draft;
+        draftPromptRef.current = nextDraft;
+        setPaletteDraftPrompt(nextDraft);
+        onDraftContentChange({ ...draftContent, prompt: nextDraft });
+        setIsPaletteOpen(false);
+        if (!settingsControlsDisabled) {
+          onSettingsChange({ browserUse: true });
+        }
         return;
       }
       if (effect.kind === "toggleSpeed") {
@@ -1247,7 +1310,8 @@ export function AgentComposer({
       draftContent,
       onDraftContentChange,
       onSettingsChange,
-      onSubmit
+      onSubmit,
+      settingsControlsDisabled
     ]
   );
 
@@ -1256,6 +1320,18 @@ export function AgentComposer({
       const selectionEffect = resolveSlashCommandSelectionEffect({
         provider,
         command,
+        currentDraft: draftPromptRef.current
+      });
+      executeSlashCommandEffect(selectionEffect);
+    },
+    [executeSlashCommandEffect, provider]
+  );
+
+  const selectCapability = useCallback(
+    (capability: AgentSlashCommandCapability): void => {
+      const selectionEffect = resolveSlashCommandSelectionEffect({
+        provider,
+        command: capability,
         currentDraft: draftPromptRef.current
       });
       executeSlashCommandEffect(selectionEffect);
@@ -1301,6 +1377,15 @@ export function AgentComposer({
     }
     if (draftImages.length > 0 && !promptImagesSupported) {
       onPromptImagesUnsupported?.();
+      return;
+    }
+    const browserUseEffect = resolveTuttiBrowserUseSubmitEffect({
+      browserSupported: Boolean(composerSettings.supportsBrowser),
+      commands: resolvedSlashCommands,
+      draft: nextPrompt
+    });
+    if (browserUseEffect) {
+      executeSlashCommandEffect(browserUseEffect);
       return;
     }
     const slashCommandEffect = resolveSlashCommandSubmitEffect({
@@ -1369,6 +1454,8 @@ export function AgentComposer({
         const activeEntry = slashPaletteEntries[activeHighlight];
         if (activeEntry?.type === "command") {
           selectCommand(activeEntry.command);
+        } else if (activeEntry?.type === "capability") {
+          selectCapability(activeEntry.capability);
         } else if (activeEntry?.type === "skill") {
           selectSkill(activeEntry.skill);
         }
@@ -2158,8 +2245,6 @@ export function AgentComposer({
         ? "loading"
         : "send";
   const sendButtonBusy = isSendingTurn && !isQueueMode;
-  const settingsControlsDisabled =
-    isSendingTurn || isSubmittingPrompt || shouldShowStopButton;
   const activePromptRequestId = activePrompt?.requestId ?? null;
   const [dismissedPromptRequestId, setDismissedPromptRequestId] = useState<
     string | null
@@ -2426,6 +2511,7 @@ export function AgentComposer({
                   onChange={handleDraftChange}
                   onSubmit={submitCurrentPrompt}
                   availableSkills={availableSkills}
+                  availableCapabilities={availableCapabilities}
                   removeMentionLabel={labels.removeMention}
                   onKeyDownForPalette={handlePaletteKeyDown}
                   onFileMentionSuggestionChange={
@@ -2499,9 +2585,13 @@ export function AgentComposer({
                           : labels.slashCommandPalette
                       }
                       commandsGroupLabel={labels.slashPaletteCommandsGroup}
+                      capabilitiesGroupLabel={
+                        labels.slashPaletteCapabilitiesGroup
+                      }
                       skillsGroupLabel={labels.slashPaletteSkillsGroup}
                       onHighlightChange={setHighlightedIndex}
                       onSelect={selectCommand}
+                      onSelectCapability={selectCapability}
                       onSelectSkill={selectSkill}
                     />
                   </div>,
@@ -2690,6 +2780,12 @@ export function AgentComposer({
       </div>
     </form>
   );
+}
+
+function isSlashCommandCapability(
+  command: AgentSlashCommand
+): command is AgentSlashCommandCapability {
+  return "kind" in command && command.kind === "capability";
 }
 
 function useStableEventCallback<Args extends unknown[], Result>(

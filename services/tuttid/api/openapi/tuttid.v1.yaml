@@ -3022,6 +3022,11 @@ components:
       enum:
         - default
         - flat
+    DesktopBrowserUseConnectionMode:
+      type: string
+      enum:
+        - isolated
+        - autoConnect
     DesktopPreferences:
       type: object
       additionalProperties: false
@@ -3038,6 +3043,8 @@ components:
       properties:
         agentComposerDefaultsByProvider:
           $ref: "#/components/schemas/DesktopAgentComposerDefaultsByProvider"
+        browserUseConnectionMode:
+          $ref: "#/components/schemas/DesktopBrowserUseConnectionMode"
         defaultAgentProvider:
           $ref: "#/components/schemas/WorkspaceAgentProvider"
         dockIconStyle:
@@ -4122,6 +4129,9 @@ components:
         planMode:
           type: boolean
           nullable: true
+        browserUse:
+          type: boolean
+          nullable: true
         reasoningEffort:
           type: string
           nullable: true
@@ -4738,6 +4748,9 @@ components:
           type: string
           nullable: true
         planMode:
+          type: boolean
+          nullable: true
+        browserUse:
           type: boolean
           nullable: true
         visible:

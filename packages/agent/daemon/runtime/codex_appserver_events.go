@@ -1452,6 +1452,9 @@ func appServerReasoningText(item map[string]any) string {
 
 // appServerReasoningDeltaText reads a reasoning delta payload. Most app-server
 // versions use `delta`, but some event shapes expose the chunk as `text`.
+// Streaming chunks must preserve their leading/trailing whitespace (e.g. a
+// "Need " token followed by "context.") so concatenated reasoning text keeps
+// word boundaries; do not trim here.
 func appServerReasoningDeltaText(params map[string]any) string {
 	if delta := asStringRaw(params["delta"]); delta != "" {
 		return delta

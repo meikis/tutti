@@ -2,11 +2,83 @@ import { describe, expect, it } from "vitest";
 import {
   resolveSlashCommandsForProvider,
   resolveSlashCommandSelectionEffect,
-  resolveSlashCommandSubmitEffect
+  resolveSlashCommandSubmitEffect,
+  resolveTuttiBrowserUseSubmitEffect
 } from "./agentSlashCommandProviderPolicy";
 
 describe("agentSlashCommandProviderPolicy", () => {
   const reviewPickerProviders = ["codex", "claude-code"] as const;
+
+  it("adds browser-use as a composer capability when browser use is supported", () => {
+    const commands = resolveSlashCommandsForProvider({
+      provider: "codex",
+      commands: [],
+      browserSupported: true
+    });
+
+    expect(
+      commands.find(
+        (command) => "kind" in command && command.kind === "capability"
+      )
+    ).toEqual({
+      kind: "capability",
+      capability: "browserUse",
+      name: "browser",
+      aliases: ["浏览器"]
+    });
+  });
+
+  it("fills a canonical browser token from Chinese and English slash capability names", () => {
+    const commands = resolveSlashCommandsForProvider({
+      provider: "codex",
+      commands: [],
+      browserSupported: true
+    });
+
+    expect(
+      resolveSlashCommandSelectionEffect({
+        provider: "codex",
+        command: commands.find((command) => command.name === "browser")!,
+        currentDraft: "/浏览"
+      })
+    ).toEqual({ kind: "enableBrowserUse", draft: "/browser " });
+    expect(
+      resolveSlashCommandSubmitEffect({
+        provider: "codex",
+        commands,
+        draft: "/浏览器"
+      })
+    ).toBeNull();
+    expect(
+      resolveTuttiBrowserUseSubmitEffect({
+        browserSupported: true,
+        commands,
+        draft: "/browser"
+      })
+    ).toEqual({
+      kind: "submitPrompt",
+      prompt: expect.stringContaining("browser-use"),
+      enableBrowserUse: true
+    });
+    expect(
+      resolveTuttiBrowserUseSubmitEffect({
+        browserSupported: true,
+        commands,
+        draft: "$browser 帮我访问下 google.com"
+      })
+    ).toEqual({
+      kind: "submitPrompt",
+      prompt: expect.stringContaining("帮我访问下 google.com"),
+      enableBrowserUse: true
+    });
+    expect(
+      resolveTuttiBrowserUseSubmitEffect({
+        browserSupported: false,
+        commands,
+        draft: "$browser test"
+      })
+    ).toBeNull();
+  });
 
   it("adds Codex compact, status, fast, goal, and review fallback commands after provider commands", () => {
     expect(
