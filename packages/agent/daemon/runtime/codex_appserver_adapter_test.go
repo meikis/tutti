@@ -900,8 +900,8 @@ func TestCodexAppServerAdapterExecStreamsTurn(t *testing.T) {
 	state := adapter.SessionState(session)
 	usage, _ := state.RuntimeContext["usage"].(map[string]any)
 	contextWindow, _ := usage["contextWindow"].(map[string]any)
-	if used, _ := acpInt64Value(contextWindow["usedTokens"]); used != 1200 {
-		t.Fatalf("usage usedTokens = %#v", usage)
+	if used, _ := acpInt64Value(contextWindow["usedTokens"]); used != 1000 {
+		t.Fatalf("usage usedTokens = %#v, want last.inputTokens (1000)", usage)
 	}
 	if total, _ := acpInt64Value(contextWindow["totalTokens"]); total != 272000 {
 		t.Fatalf("usage totalTokens = %#v", usage)

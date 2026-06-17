@@ -2368,6 +2368,110 @@ func TestClaudeCodeAdapterApplySessionSettingsSwitchesToAdvertisedModel(t *testi
 	}
 }
 
+func TestClaudeCodeAdapterApplySessionSettingsRemapsLegacyOpusToDefault(t *testing.T) {
+	t.Parallel()
+
+	transport := newStandardACPTransport("Claude Agent", "claude-session-legacy-opus")
+	adapter := NewClaudeCodeAdapter(transport)
+	session := standardTestSession(ProviderClaudeCode)
+	session.Settings = &SessionSettings{
+		Model: "haiku",
+	}
+
+	if _, err := adapter.Start(context.Background(), session); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Mirrors claude-agent-acp 0.42+ live model options: Opus is "default",
+	// the legacy "opus" alias is no longer accepted.
+	adapter.applyACPUpdate(session.AgentSessionID, json.RawMessage(`{
+		"update": {
+			"sessionUpdate": "config_option_update",
+			"key": "model",
+			"value": "haiku",
+			"configOptions": [
+				{
+					"id": "model",
+					"currentValue": "haiku",
+					"options": [
+						{"value": "default", "name": "Default (recommended)"},
+						{"value": "sonnet", "name": "Sonnet"},
+						{"value": "sonnet[1m]", "name": "Sonnet (1M context)"},
+						{"value": "haiku", "name": "Haiku"}
+					]
+				}
+			]
+		}
+	}`))
+
+	if err := adapter.ApplySessionSettings(context.Background(), session, SessionSettingsPatch{
+		Model: stringPtr("opus"),
+	}); err != nil {
+		t.Fatalf("ApplySessionSettings should remap legacy opus to default, got: %v", err)
+	}
+
+	calls := transport.conn.setConfigOptionCalls()
+	if len(calls) == 0 {
+		t.Fatal("config option calls = none, want remapped default model switch call")
+	}
+	last := calls[len(calls)-1]
+	if got, _ := last["configId"].(string); got != "model" {
+		t.Fatalf("config id = %q, want model", got)
+	}
+	if got, _ := last["value"].(string); got != "default" {
+		t.Fatalf("config value = %q, want default", got)
+	}
+}
+
+func TestClaudeCodeAdapterApplySessionSettingsRemapsLegacyOpusToOpus1M(t *testing.T) {
+	t.Parallel()
+
+	transport := newStandardACPTransport("Claude Agent", "claude-session-legacy-opus-1m")
+	adapter := NewClaudeCodeAdapter(transport)
+	session := standardTestSession(ProviderClaudeCode)
+	session.Settings = &SessionSettings{
+		Model: "haiku",
+	}
+
+	if _, err := adapter.Start(context.Background(), session); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Mirrors claude-agent-acp 0.46 live model options on Claude Code 2.1.x.
+	adapter.applyACPUpdate(session.AgentSessionID, json.RawMessage(`{
+		"update": {
+			"sessionUpdate": "config_option_update",
+			"key": "model",
+			"value": "haiku",
+			"configOptions": [
+				{
+					"id": "model",
+					"currentValue": "haiku",
+					"options": [
+						{"value": "default", "name": "Default (recommended)"},
+						{"value": "opus[1m]", "name": "Opus"},
+						{"value": "sonnet", "name": "Sonnet"},
+						{"value": "sonnet[1m]", "name": "Sonnet (1M context)"},
+						{"value": "haiku", "name": "Haiku"}
+					]
+				}
+			]
+		}
+	}`))
+
+	if err := adapter.ApplySessionSettings(context.Background(), session, SessionSettingsPatch{
+		Model: stringPtr("opus"),
+	}); err != nil {
+		t.Fatalf("ApplySessionSettings should remap legacy opus to opus[1m], got: %v", err)
+	}
+
+	calls := transport.conn.setConfigOptionCalls()
+	last := calls[len(calls)-1]
+	if got, _ := last["value"].(string); got != "opus[1m]" {
+		t.Fatalf("config value = %q, want opus[1m]", got)
+	}
+}
+
 func TestClaudeCodeAdapterStartToleratesRejectedModelConfig(t *testing.T) {
 	t.Parallel()
 

@@ -72,6 +72,19 @@ var claudeCodeACPModelAliases = map[string]bool{
 	"opusplan":   true,
 }
 
+// claudeCodeLegacyACPModelCandidates lists live ACP model values to try when a
+// persisted alias (e.g. "opus") is not directly advertised. Order matters:
+// claude-agent-acp 0.46+ exposes Opus as "opus[1m]"; 0.42.x folded Opus into
+// "default" and rejected bare "opus".
+func claudeCodeLegacyACPModelCandidates(model string) []string {
+	switch strings.TrimSpace(model) {
+	case "opus", "opusplan":
+		return []string{"opus[1m]", "opus", "default"}
+	default:
+		return nil
+	}
+}
+
 func NewGeminiAdapter(transport ProcessTransport) *standardACPAdapter {
 	return NewGeminiAdapterWithHostMetadata(transport, LegacyHostMetadata())
 }
@@ -1219,6 +1232,7 @@ func (a *standardACPAdapter) applySessionConfigOptions(
 	// not abort the whole session. The session stays usable on the agent's
 	// default, and the user can pick a supported value from the live list.
 	if model := strings.TrimSpace(settings.Model); model != "" && a.shouldApplyACPModelConfigOption(model, supported) {
+		model = a.resolveClaudeCodeACPModelValue(session.AgentSessionID, model)
 		if err := a.setSessionConfigOption(ctx, client, session, "model", model); err != nil {
 			a.logStartupConfigOptionRejected(session, "model", model, err)
 		} else {
@@ -1389,6 +1403,7 @@ func (a *standardACPAdapter) ApplySessionSettings(
 		}
 		supported := map[string]bool{"model": true}
 		if advertised || a.shouldApplyACPModelConfigOption(model, supported) {
+			model = a.resolveClaudeCodeACPModelValue(session.AgentSessionID, model)
 			if !a.sessionConfigOptionMatches(session.AgentSessionID, "model", model) {
 				if err := a.setSessionConfigOption(ctx, acpSession.client, session, "model", model); err != nil {
 					return fmt.Errorf("agent session ACP model configuration failed: %w", err)
@@ -1942,6 +1957,22 @@ func (a *standardACPAdapter) sessionConfigOptionAdvertisesValue(agentSessionID s
 		return false
 	}
 	return acpConfigOptionAdvertisesValue(session.acpLiveState, configID, value)
+}
+
+func (a *standardACPAdapter) resolveClaudeCodeACPModelValue(agentSessionID string, model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" || a == nil || a.config.provider != ProviderClaudeCode {
+		return model
+	}
+	if a.sessionConfigOptionAdvertisesValue(agentSessionID, "model", model) {
+		return model
+	}
+	for _, candidate := range claudeCodeLegacyACPModelCandidates(model) {
+		if a.sessionConfigOptionAdvertisesValue(agentSessionID, "model", candidate) {
+			return candidate
+		}
+	}
+	return model
 }
 
 func (a *standardACPAdapter) removeSession(agentSessionID string) {

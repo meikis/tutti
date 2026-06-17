@@ -79,22 +79,95 @@ func TestAppServerUserInputAnswers(t *testing.T) {
 	}
 }
 
-func TestCodexAppServerAdapterApplyTokenUsagePrefersCumulativeTotal(t *testing.T) {
+// TestCodexAppServerAdapterApplyTokenUsagePrefersLastRequest verifies that
+// usedTokens reflects the most-recent request's context size ("last"), not the
+// running sum across all requests in the thread ("total").  The two diverge
+// quickly in agentic sessions: after ten 27 K-token calls the cumulative total
+// hits 270 K and falsely saturates a 258 K context window even though each
+// individual request was only 10 % full.
+// TestCodexAppServerAdapterApplyTokenUsagePrefersInputTokens verifies the
+// precedence chain: last.inputTokens > last.totalTokens > total.totalTokens.
+// last.inputTokens is the most accurate context-fill indicator because it
+// excludes response and reasoning tokens that don't occupy the context window.
+func TestCodexAppServerAdapterApplyTokenUsagePrefersInputTokens(t *testing.T) {
 	t.Parallel()
 
 	adapter, _, session := startedAppServerAdapter(t)
 	adapter.applyTokenUsage(session.AgentSessionID, map[string]any{
 		"tokenUsage": map[string]any{
-			"last":               map[string]any{"totalTokens": 1200},
-			"total":              map[string]any{"totalTokens": 4800},
-			"modelContextWindow": 272000,
+			"last": map[string]any{
+				"inputTokens":           int64(1000),
+				"outputTokens":          int64(150),
+				"reasoningOutputTokens": int64(50),
+				"totalTokens":           int64(1200),
+			},
+			"total":              map[string]any{"totalTokens": int64(4800)},
+			"modelContextWindow": int64(272000),
 		},
 	})
 
 	state := adapter.SessionState(session)
 	usage, _ := state.RuntimeContext["usage"].(map[string]any)
 	contextWindow, _ := usage["contextWindow"].(map[string]any)
-	if used, _ := acpInt64Value(contextWindow["usedTokens"]); used != 4800 {
-		t.Fatalf("usage usedTokens = %#v, want cumulative total", usage)
+	if used, _ := acpInt64Value(contextWindow["usedTokens"]); used != 1000 {
+		t.Fatalf("usedTokens = %v, want last.inputTokens (1000): context fill should exclude response/reasoning tokens", used)
+	}
+}
+
+// TestCodexAppServerAdapterApplyTokenUsageFallsBackToLastTotalTokens verifies
+// that last.totalTokens is used when last.inputTokens is absent — the schema
+// guarantees totalTokens is always present in a TokenUsageBreakdown.
+func TestCodexAppServerAdapterApplyTokenUsageFallsBackToLastTotalTokens(t *testing.T) {
+	t.Parallel()
+
+	adapter, _, session := startedAppServerAdapter(t)
+	adapter.applyTokenUsage(session.AgentSessionID, map[string]any{
+		"tokenUsage": map[string]any{
+			"last":               map[string]any{"totalTokens": int64(1200)},
+			"total":              map[string]any{"totalTokens": int64(4800)},
+			"modelContextWindow": int64(272000),
+		},
+	})
+
+	state := adapter.SessionState(session)
+	usage, _ := state.RuntimeContext["usage"].(map[string]any)
+	contextWindow, _ := usage["contextWindow"].(map[string]any)
+	if used, _ := acpInt64Value(contextWindow["usedTokens"]); used != 1200 {
+		t.Fatalf("usedTokens = %v, want last.totalTokens (1200), not cumulative total (4800)", used)
+	}
+}
+
+// TestCodexAppServerAdapterApplyTokenUsageNoCumulativeFalsePositive verifies
+// that repeated calls with the same per-request size do not inflate usedTokens
+// beyond the context window, which would falsely trigger the compact alert.
+func TestCodexAppServerAdapterApplyTokenUsageNoCumulativeFalsePositive(t *testing.T) {
+	t.Parallel()
+
+	adapter, _, session := startedAppServerAdapter(t)
+	window := int64(258400)
+	perRequest := int64(27000)
+
+	// Simulate 10 tool calls, each sending ~27 K tokens.  The cumulative total
+	// grows to 270 K (> window), but the per-request "last" stays at 27 K.
+	for i := range 10 {
+		adapter.applyTokenUsage(session.AgentSessionID, map[string]any{
+			"tokenUsage": map[string]any{
+				"last":               map[string]any{"totalTokens": perRequest},
+				"total":              map[string]any{"totalTokens": perRequest * int64(i+1)},
+				"modelContextWindow": window,
+			},
+		})
+	}
+
+	state := adapter.SessionState(session)
+	usage, _ := state.RuntimeContext["usage"].(map[string]any)
+	contextWindow, _ := usage["contextWindow"].(map[string]any)
+	used, _ := acpInt64Value(contextWindow["usedTokens"])
+	total, _ := acpInt64Value(contextWindow["totalTokens"])
+	if used > total {
+		t.Fatalf("usedTokens (%d) > totalTokens (%d): cumulative sum is leaking into context-window display", used, total)
+	}
+	if used != perRequest {
+		t.Fatalf("usedTokens = %d, want per-request last (%d)", used, perRequest)
 	}
 }

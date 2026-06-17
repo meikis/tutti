@@ -277,6 +277,9 @@ func (a *CodexAppServerAdapter) Start(ctx context.Context, session Session) ([]a
 	liveState.availableCommands = codexAppServerCommands()
 	liveState.commandsKnown = true
 	applyACPConfigOptionDescriptors(&liveState, codexAppServerConfigOptionDescriptors(models, session, threadResult))
+	if quotas := appServerRateLimitQuotas(rateLimits); len(quotas) > 0 {
+		liveState.usage = mergeACPUsageState(liveState.usage, acpUsageState{quotas: quotas})
+	}
 
 	started = true
 	keepSession = true
@@ -362,6 +365,9 @@ func (a *CodexAppServerAdapter) Resume(ctx context.Context, session Session) err
 	liveState.availableCommands = codexAppServerCommands()
 	liveState.commandsKnown = true
 	applyACPConfigOptionDescriptors(&liveState, codexAppServerConfigOptionDescriptors(models, session, threadResult))
+	if quotas := appServerRateLimitQuotas(rateLimits); len(quotas) > 0 {
+		liveState.usage = mergeACPUsageState(liveState.usage, acpUsageState{quotas: quotas})
+	}
 
 	started = true
 	keepSession = true
