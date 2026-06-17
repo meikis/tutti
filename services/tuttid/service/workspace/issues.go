@@ -113,7 +113,7 @@ func (s IssueManagerService) ListIssues(ctx context.Context, workspaceID string,
 	if err != nil {
 		return workspaceissues.IssueList{}, err
 	}
-	return service.ListIssues(ctx, workspaceissues.IssueListFilter{
+	list, err := service.ListIssues(ctx, workspaceissues.IssueListFilter{
 		WorkspaceID:  workspaceID,
 		TopicID:      input.TopicID,
 		PageSize:     input.PageSize,
@@ -122,6 +122,13 @@ func (s IssueManagerService) ListIssues(ctx context.Context, workspaceID string,
 		SearchQuery:  input.SearchQuery,
 		ReturnAll:    false,
 	})
+	if err != nil {
+		return workspaceissues.IssueList{}, err
+	}
+	if err := s.applyVisibleIssueSubtaskCounts(ctx, &list); err != nil {
+		return workspaceissues.IssueList{}, err
+	}
+	return list, nil
 }
 
 func (s IssueManagerService) ListTopics(ctx context.Context, workspaceID string) (workspaceissues.TopicList, error) {
@@ -178,7 +185,12 @@ func (s IssueManagerService) CreateIssue(ctx context.Context, workspaceID string
 
 func (s IssueManagerService) GetIssueDetail(ctx context.Context, workspaceID string, issueID string) (workspaceissues.IssueDetail, error) {
 	s.reconcileWorkspaceRunsBestEffort(ctx, workspaceID)
-	return s.domainService().GetIssueDetail(ctx, workspaceID, issueID)
+	detail, err := s.domainService().GetIssueDetail(ctx, workspaceID, issueID)
+	if err != nil {
+		return workspaceissues.IssueDetail{}, err
+	}
+	applyVisibleIssueSubtaskCount(&detail.Issue, detail.Tasks, detail.LatestRun)
+	return detail, nil
 }
 
 func (s IssueManagerService) UpdateIssue(ctx context.Context, workspaceID string, issueID string, input UpdateIssueManagerIssueInput) (workspaceissues.Issue, error) {
@@ -413,6 +425,105 @@ func (s IssueManagerService) CompleteRun(ctx context.Context, workspaceID string
 		ChangeKind:  eventstreamservice.WorkspaceIssueChangeRunCompleted,
 	})
 	return workspaceissues.RunDetail{Run: run, Outputs: outputs}, nil
+}
+
+func (s IssueManagerService) applyVisibleIssueSubtaskCounts(ctx context.Context, list *workspaceissues.IssueList) error {
+	if list == nil || len(list.Items) == 0 {
+		return nil
+	}
+
+	service := s.domainService()
+	for index := range list.Items {
+		issue := &list.Items[index]
+		tasks, err := service.ListTasks(ctx, workspaceissues.TaskListFilter{
+			WorkspaceID: issue.WorkspaceID,
+			IssueID:     issue.IssueID,
+			ReturnAll:   true,
+		})
+		if err != nil {
+			return err
+		}
+		runs, err := service.ListRuns(ctx, issue.WorkspaceID, issue.IssueID, "")
+		if err != nil {
+			return err
+		}
+		var latestRun *workspaceissues.Run
+		if len(runs) > 0 {
+			latestRun = &runs[0]
+		}
+		applyVisibleIssueSubtaskCount(issue, tasks.Items, latestRun)
+	}
+	return nil
+}
+
+func applyVisibleIssueSubtaskCount(issue *workspaceissues.Issue, tasks []workspaceissues.Task, latestRun *workspaceissues.Run) {
+	if issue == nil {
+		return
+	}
+	counts := countVisibleIssueSubtaskStatuses(*issue, tasks, latestRun)
+	issue.TaskCount = counts.All
+	issue.NotStartedCount = counts.NotStarted
+	issue.RunningCount = counts.Running
+	issue.PendingAcceptanceCount = counts.PendingAcceptance
+	issue.CompletedCount = counts.Completed
+	issue.FailedCount = counts.Failed
+	issue.CanceledCount = counts.Canceled
+}
+
+func countVisibleIssueSubtaskStatuses(issue workspaceissues.Issue, tasks []workspaceissues.Task, latestRun *workspaceissues.Run) workspaceissues.StatusCounts {
+	hiddenTaskID := hiddenIssueRunTaskID(issue, tasks, latestRun)
+	var counts workspaceissues.StatusCounts
+	for _, task := range tasks {
+		if task.TaskID == hiddenTaskID {
+			continue
+		}
+		incrementIssueManagerStatusCount(&counts, task.Status)
+	}
+	return counts
+}
+
+func hiddenIssueRunTaskID(issue workspaceissues.Issue, tasks []workspaceissues.Task, latestRun *workspaceissues.Run) string {
+	if latestRun == nil {
+		return ""
+	}
+	taskID := strings.TrimSpace(latestRun.TaskID)
+	if taskID == "" {
+		return ""
+	}
+	issueTitle := strings.TrimSpace(issue.Title)
+	for _, task := range tasks {
+		if task.TaskID != taskID {
+			continue
+		}
+		taskTitle := strings.TrimSpace(task.Title)
+		if taskTitle != "" && taskTitle != issueTitle {
+			return ""
+		}
+		return taskID
+	}
+	return ""
+}
+
+func incrementIssueManagerStatusCount(counts *workspaceissues.StatusCounts, status workspaceissues.Status) {
+	counts.All++
+	switch status {
+	case workspaceissues.StatusNotStarted:
+		counts.NotStarted++
+	case workspaceissues.StatusRunning:
+		counts.Running++
+	case workspaceissues.StatusPendingAcceptance:
+		counts.PendingAcceptance++
+	case workspaceissues.StatusCompleted:
+		counts.Completed++
+	case workspaceissues.StatusFailed:
+		counts.Failed++
+	case workspaceissues.StatusCanceled:
+		counts.Canceled++
+	case workspaceissues.StatusInProgress:
+		counts.InProgress++
+	default:
+		counts.NotStarted++
+	}
 }
 
 func (s IssueManagerService) RemoveIssueContextRef(ctx context.Context, workspaceID string, issueID string, contextRefID string) (bool, error) {

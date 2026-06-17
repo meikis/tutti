@@ -219,6 +219,67 @@ func TestIssueManagerServiceReconcilesRunningRunsFromBatchAgentSessions(t *testi
 	}
 }
 
+func TestIssueManagerServiceHidesIssueRunTaskFromVisibleSubtaskCounts(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := openIssueServiceStore(t)
+	if err := store.Create(ctx, workspacebiz.Summary{
+		ID:   "workspace-1",
+		Name: "Workspace One",
+	}); err != nil {
+		t.Fatalf("Create() workspace error = %v", err)
+	}
+
+	service := IssueManagerService{Store: store}
+	if _, err := service.CreateIssue(ctx, "workspace-1", CreateIssueManagerIssueInput{
+		IssueID: "issue-1",
+		TopicID: workspaceissues.DefaultTopicID,
+		Title:   "Issue One",
+	}); err != nil {
+		t.Fatalf("CreateIssue() error = %v", err)
+	}
+	run, err := service.CreateRun(ctx, "workspace-1", "issue-1", "", CreateIssueManagerRunInput{
+		AgentProvider: "codex",
+		RunID:         "run-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if _, err := service.CompleteRun(ctx, "workspace-1", "issue-1", run.TaskID, run.RunID, CompleteIssueManagerRunInput{
+		Status: string(workspaceissues.StatusCompleted),
+	}); err != nil {
+		t.Fatalf("CompleteRun() error = %v", err)
+	}
+
+	detail, err := service.GetIssueDetail(ctx, "workspace-1", "issue-1")
+	if err != nil {
+		t.Fatalf("GetIssueDetail() error = %v", err)
+	}
+	if detail.Issue.Status != workspaceissues.StatusPendingAcceptance {
+		t.Fatalf("detail issue status = %q, want %q", detail.Issue.Status, workspaceissues.StatusPendingAcceptance)
+	}
+	if detail.Issue.TaskCount != 0 || detail.Issue.CompletedCount != 0 {
+		t.Fatalf("detail issue visible subtask counts = %+v, want zero visible subtasks", detail.Issue)
+	}
+
+	list, err := service.ListIssues(ctx, "workspace-1", ListIssueManagerItemsInput{
+		TopicID: workspaceissues.DefaultTopicID,
+	})
+	if err != nil {
+		t.Fatalf("ListIssues() error = %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("list items len = %d, want 1", len(list.Items))
+	}
+	if list.Items[0].Status != workspaceissues.StatusPendingAcceptance {
+		t.Fatalf("list issue status = %q, want %q", list.Items[0].Status, workspaceissues.StatusPendingAcceptance)
+	}
+	if list.Items[0].TaskCount != 0 || list.Items[0].CompletedCount != 0 {
+		t.Fatalf("list issue visible subtask counts = %+v, want zero visible subtasks", list.Items[0])
+	}
+}
+
 func TestIssueRunReconcileCompletionWaitsGraceBeforeFailedSessionCompletion(t *testing.T) {
 	now := time.Now().UnixMilli()
 	run := workspaceissues.Run{
