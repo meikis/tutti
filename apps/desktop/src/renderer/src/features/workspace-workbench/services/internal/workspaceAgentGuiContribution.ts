@@ -108,6 +108,8 @@ export function createWorkspaceAgentGuiContribution(input: {
       workspaceFileReferenceAdapter:
         agentGUIWorkbenchHostInput.workspaceFileReferenceAdapter,
       onRequestGitBranches: agentGUIWorkbenchHostInput.onRequestGitBranches,
+      referenceSourceAggregator:
+        agentGUIWorkbenchHostInput.referenceSourceAggregator,
       workspaceId: input.workspaceId
     });
 

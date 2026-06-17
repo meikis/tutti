@@ -18,7 +18,11 @@ import type {
   WorkspaceFileReferenceAdapter,
   WorkspaceFileReferenceCopy
 } from "@tutti-os/workspace-file-reference/contracts";
-import { WorkspaceFileReferencePicker } from "@tutti-os/workspace-file-reference/ui";
+import {
+  ReferenceSourcePicker,
+  WorkspaceFileReferencePicker
+} from "@tutti-os/workspace-file-reference/ui";
+import type { ReferenceSourceAggregator } from "@tutti-os/workspace-file-reference/core";
 import {
   Tooltip,
   TooltipContent,
@@ -404,6 +408,7 @@ interface AgentGUINodeViewProps {
   onRequestGitBranches?: AgentComposerGitBranchLoader | null;
   workspaceFileReferenceCopy?: WorkspaceFileReferenceCopy | null;
   contextMentionProviders?: readonly AgentContextMentionProvider[];
+  referenceSourceAggregator?: ReferenceSourceAggregator | null;
   workspaceAppIcons?: readonly AgentMessageMarkdownWorkspaceAppIcon[];
 }
 
@@ -770,6 +775,7 @@ export function AgentGUINodeView({
   workspaceFileReferenceCopy = null,
   onRequestGitBranches = null,
   contextMentionProviders,
+  referenceSourceAggregator = null,
   workspaceAppIcons = EMPTY_WORKSPACE_APP_ICONS
 }: AgentGUINodeViewProps): React.JSX.Element {
   "use memo";
@@ -794,14 +800,22 @@ export function AgentGUINodeView({
     if (previewMode) {
       return [];
     }
-    if (!workspaceFileReferenceAdapter || !workspaceFileReferenceCopy) {
+    if (
+      (!workspaceFileReferenceAdapter && !referenceSourceAggregator) ||
+      !workspaceFileReferenceCopy
+    ) {
       return [];
     }
     setWorkspaceReferencePickerOpen(true);
     return await new Promise<WorkspaceFileReference[]>((resolve) => {
       workspaceReferencePickerResolverRef.current = resolve;
     });
-  }, [previewMode, workspaceFileReferenceAdapter, workspaceFileReferenceCopy]);
+  }, [
+    previewMode,
+    referenceSourceAggregator,
+    workspaceFileReferenceAdapter,
+    workspaceFileReferenceCopy
+  ]);
   const closeWorkspaceReferencePicker = useCallback(() => {
     workspaceReferencePickerResolverRef.current?.([]);
     workspaceReferencePickerResolverRef.current = null;
@@ -1068,15 +1082,30 @@ export function AgentGUINodeView({
           />
         </section>
       </div>
-      <WorkspaceFileReferencePicker
-        copy={workspaceFileReferenceCopy ?? fallbackWorkspaceFileReferenceCopy}
-        fileAdapter={workspaceFileReferenceAdapter ?? undefined}
-        initialPath={viewModel.composerSettings.selectedProjectPath}
-        open={workspaceReferencePickerOpen}
-        workspaceId={viewModel.workspaceId}
-        onClose={closeWorkspaceReferencePicker}
-        onConfirm={confirmWorkspaceReferencePicker}
-      />
+      {referenceSourceAggregator ? (
+        <ReferenceSourcePicker
+          aggregator={referenceSourceAggregator}
+          copy={
+            workspaceFileReferenceCopy ?? fallbackWorkspaceFileReferenceCopy
+          }
+          open={workspaceReferencePickerOpen}
+          workspaceId={viewModel.workspaceId}
+          onClose={closeWorkspaceReferencePicker}
+          onConfirm={confirmWorkspaceReferencePicker}
+        />
+      ) : (
+        <WorkspaceFileReferencePicker
+          copy={
+            workspaceFileReferenceCopy ?? fallbackWorkspaceFileReferenceCopy
+          }
+          fileAdapter={workspaceFileReferenceAdapter ?? undefined}
+          initialPath={viewModel.composerSettings.selectedProjectPath}
+          open={workspaceReferencePickerOpen}
+          workspaceId={viewModel.workspaceId}
+          onClose={closeWorkspaceReferencePicker}
+          onConfirm={confirmWorkspaceReferencePicker}
+        />
+      )}
     </TooltipProvider>
   );
 }
