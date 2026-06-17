@@ -132,6 +132,28 @@ test("workspace app external bridge requires activation for file select", async 
   );
 });
 
+test("workspace app external bridge requires activation for file open", async () => {
+  const bridge = createWorkspaceAppExternalBridge({
+    appContext: {
+      async get() {
+        return { locale: "en" };
+      },
+      subscribe() {
+        throw new Error("unexpected subscribe");
+      }
+    },
+    isUserActivationActive: () => false,
+    async invoke() {
+      throw new Error("unexpected invoke");
+    }
+  });
+
+  assert.throws(
+    () => bridge.files.open({ path: "README.md" }),
+    /files\.open requires a user action/
+  );
+});
+
 test("workspace app external bridge invokes file select with activation", async () => {
   const calls: Array<{ channel: string; payload?: unknown }> = [];
   const bridge = createWorkspaceAppExternalBridge({
@@ -165,6 +187,41 @@ test("workspace app external bridge invokes file select with activation", async 
     {
       channel: workspaceAppExternalChannels.filesSelect,
       payload: { multiple: true }
+    }
+  ]);
+});
+
+test("workspace app external bridge invokes file open with activation", async () => {
+  const calls: Array<{ channel: string; payload?: unknown }> = [];
+  const bridge = createWorkspaceAppExternalBridge({
+    appContext: {
+      async get() {
+        return { locale: "en" };
+      },
+      subscribe() {
+        throw new Error("unexpected subscribe");
+      }
+    },
+    isUserActivationActive: () => true,
+    async invoke<TResult>(channel: string, payload?: unknown) {
+      calls.push({ channel, payload });
+      return undefined as TResult;
+    }
+  });
+
+  await bridge.files.open({
+    mode: "auto",
+    name: "README.md",
+    path: "README.md"
+  });
+  assert.deepEqual(calls, [
+    {
+      channel: workspaceAppExternalChannels.filesOpen,
+      payload: {
+        mode: "auto",
+        name: "README.md",
+        path: "README.md"
+      }
     }
   ]);
 });

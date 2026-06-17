@@ -2,6 +2,7 @@ import {
   tuttiExternalAtProviderIds,
   type TuttiExternalAtProviderId,
   type TuttiExternalAtQueryInput,
+  type TuttiExternalFileOpenInput,
   type TuttiExternalFileSelectInput
 } from "../contracts/index.ts";
 
@@ -40,6 +41,31 @@ export function normalizeTuttiExternalFileSelectInput(
   }
   return {
     multiple: input.multiple === true
+  };
+}
+
+export function normalizeTuttiExternalFileOpenInput(
+  input: unknown
+): TuttiExternalFileOpenInput {
+  if (!isRecord(input)) {
+    throw new Error("files.open input must be an object.");
+  }
+  if (typeof input.path !== "string" || input.path.trim() === "") {
+    throw new Error("files.open path is required.");
+  }
+  const mode = normalizeFileOpenMode(input.mode);
+  return {
+    ...(mode ? { mode } : {}),
+    ...(typeof input.mtimeMs === "number" || input.mtimeMs === null
+      ? { mtimeMs: input.mtimeMs }
+      : {}),
+    ...(typeof input.name === "string" && input.name.trim() !== ""
+      ? { name: input.name.trim() }
+      : {}),
+    path: input.path.trim(),
+    ...(typeof input.sizeBytes === "number" || input.sizeBytes === null
+      ? { sizeBytes: input.sizeBytes }
+      : {})
   };
 }
 
@@ -85,6 +111,18 @@ function normalizeProviders(
     }
   }
   return providers;
+}
+
+function normalizeFileOpenMode(
+  value: unknown
+): TuttiExternalFileOpenInput["mode"] | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (value === "auto" || value === "preview" || value === "reveal") {
+    return value;
+  }
+  throw new Error("files.open mode is unsupported.");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

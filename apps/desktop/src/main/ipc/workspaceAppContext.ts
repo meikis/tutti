@@ -15,6 +15,7 @@ import {
 } from "../../shared/contracts/ipc";
 import {
   normalizeTuttiExternalAtQueryInput,
+  normalizeTuttiExternalFileOpenInput,
   normalizeTuttiExternalFileSelectInput
 } from "@tutti-os/workspace-external-core/core";
 import type {
@@ -117,6 +118,20 @@ export function registerWorkspaceAppContextIpc(
           workspaceId: context.workspaceID
         }
       );
+    }
+  );
+  registerDesktopIpcHandler(
+    desktopIpcChannels.appExternal.filesOpen,
+    async (event, payload) => {
+      const context = requireWorkspaceAppGuestContext(event.sender);
+      const input = normalizeTuttiExternalFileOpenInput(payload);
+      return requestWorkspaceAppExternalRenderer<void>(context, {
+        appId: context.appID,
+        input,
+        operation: "files.open",
+        requestId: randomUUID(),
+        workspaceId: context.workspaceID
+      });
     }
   );
   ipcMain.on(

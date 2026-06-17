@@ -27,6 +27,7 @@ import type {
 import type {
   TuttiExternalAtQueryInput,
   TuttiExternalAtQueryResult,
+  TuttiExternalFileOpenInput,
   TuttiExternalFileSelectInput,
   TuttiExternalFileSelectResult,
   TuttiExternalRendererRequest
@@ -41,6 +42,7 @@ export const desktopIpcChannels = {
   },
   appExternal: {
     atQuery: "workspace-app-at:query",
+    filesOpen: "workspace-app-files:open",
     filesSelect: "workspace-app-files:select",
     rendererRequest: "workspace-app-external:renderer-request",
     rendererResponse: "workspace-app-external:renderer-response"
@@ -368,7 +370,8 @@ export type DesktopIpcResult<TResult> =
 
 export type DesktopWorkspaceAppExternalRendererResult =
   | TuttiExternalAtQueryResult[]
-  | TuttiExternalFileSelectResult;
+  | TuttiExternalFileSelectResult
+  | void;
 
 export interface DesktopWorkspaceAppExternalRendererResponse {
   requestId: string;
@@ -463,6 +466,7 @@ export type { BrowserNodeEvent };
 export interface DesktopInvokePayloadByChannel {
   [desktopIpcChannels.appContext.get]: undefined;
   [desktopIpcChannels.appExternal.atQuery]: TuttiExternalAtQueryInput;
+  [desktopIpcChannels.appExternal.filesOpen]: TuttiExternalFileOpenInput;
   [desktopIpcChannels.appExternal.filesSelect]: TuttiExternalFileSelectInput;
   [desktopIpcChannels.browser.activate]: BrowserNodeActivationInput;
   [desktopIpcChannels.browser.capturePreview]: BrowserNodeNodeIdInput;
@@ -546,6 +550,7 @@ export interface DesktopInvokePayloadByChannel {
 export interface DesktopInvokeResultByChannel {
   [desktopIpcChannels.appContext.get]: DesktopWorkspaceAppContext;
   [desktopIpcChannels.appExternal.atQuery]: TuttiExternalAtQueryResult[];
+  [desktopIpcChannels.appExternal.filesOpen]: void;
   [desktopIpcChannels.appExternal.filesSelect]: TuttiExternalFileSelectResult;
   [desktopIpcChannels.browser.activate]: void;
   [desktopIpcChannels.browser.capturePreview]: string | null;

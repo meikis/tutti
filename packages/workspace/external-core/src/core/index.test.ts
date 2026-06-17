@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normalizeTuttiExternalAtQueryInput,
+  normalizeTuttiExternalFileOpenInput,
   normalizeTuttiExternalFileSelectInput,
   tuttiExternalAtDefaultMaxResults,
   tuttiExternalAtMaxResultsLimit,
@@ -60,4 +61,34 @@ test("normalizes file select input", () => {
   assert.deepEqual(normalizeTuttiExternalFileSelectInput({ multiple: false }), {
     multiple: false
   });
+});
+
+test("normalizes file open input", () => {
+  assert.deepEqual(
+    normalizeTuttiExternalFileOpenInput({
+      mode: "auto",
+      mtimeMs: 123,
+      name: " Report.md ",
+      path: " docs/report.md ",
+      sizeBytes: null
+    }),
+    {
+      mode: "auto",
+      mtimeMs: 123,
+      name: "Report.md",
+      path: "docs/report.md",
+      sizeBytes: null
+    }
+  );
+});
+
+test("rejects invalid file open input", () => {
+  assert.throws(
+    () => normalizeTuttiExternalFileOpenInput({ path: "" }),
+    /path is required/
+  );
+  assert.throws(
+    () => normalizeTuttiExternalFileOpenInput({ path: "README.md", mode: "x" }),
+    /mode is unsupported/
+  );
 });

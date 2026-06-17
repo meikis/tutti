@@ -75,6 +75,14 @@ export interface TuttiExternalFileSelectInput {
 
 export type TuttiExternalFileSelectResult = WorkspaceFileReference[];
 
+export interface TuttiExternalFileOpenInput {
+  mode?: "auto" | "preview" | "reveal";
+  mtimeMs?: number | null;
+  name?: string;
+  path: string;
+  sizeBytes?: number | null;
+}
+
 export interface TuttiExternalBridge {
   app: {
     getContext(): Promise<unknown>;
@@ -89,6 +97,7 @@ export interface TuttiExternalBridge {
     select(
       input?: TuttiExternalFileSelectInput
     ): Promise<TuttiExternalFileSelectResult>;
+    open(input: TuttiExternalFileOpenInput): Promise<void>;
   };
 }
 
@@ -104,6 +113,13 @@ export type TuttiExternalRendererRequest =
       appId: string;
       input: TuttiExternalFileSelectInput;
       operation: "files.select";
+      requestId: string;
+      workspaceId: string;
+    }
+  | {
+      appId: string;
+      input: TuttiExternalFileOpenInput;
+      operation: "files.open";
       requestId: string;
       workspaceId: string;
     };

@@ -16,6 +16,7 @@ import type {
   DesktopWorkspaceAppExternalHostRequestResult
 } from "@preload/types";
 import type { DesktopWorkspaceAppExternalRendererRequest } from "@shared/contracts/ipc";
+import type { TuttiExternalFileOpenInput } from "@tutti-os/workspace-external-core/contracts";
 import { useTranslation } from "@renderer/i18n";
 import { useWorkspaceWorkbenchHostService } from "./useWorkspaceWorkbenchHostService";
 
@@ -54,6 +55,7 @@ const workspaceFileReferenceLocaleKeyByPickerKey: Record<string, string> = {
 
 interface WorkspaceAppExternalBridgeProps {
   api?: DesktopWorkspaceAppExternalHostApi;
+  openFile: (input: TuttiExternalFileOpenInput) => Promise<void>;
   workspaceId: string;
 }
 
@@ -64,6 +66,7 @@ interface PendingFileSelect {
 
 export function WorkspaceAppExternalBridge({
   api,
+  openFile,
   workspaceId
 }: WorkspaceAppExternalBridgeProps): ReactElement | null {
   const hostService = useWorkspaceWorkbenchHostService();
@@ -126,9 +129,12 @@ export function WorkspaceAppExternalBridge({
           });
         case "files.select":
           return openFileSelect(request.input.multiple === true);
+        case "files.open":
+          await openFile(request.input);
+          return undefined;
       }
     },
-    [hostService, openFileSelect, workspaceId]
+    [hostService, openFile, openFileSelect, workspaceId]
   );
 
   useEffect(() => {

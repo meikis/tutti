@@ -54,6 +54,7 @@ import { WorkspaceLaunchpadOverlay } from "./WorkspaceLaunchpadOverlay.tsx";
 import { useWorkspaceWorkbenchShellRuntime } from "./useWorkspaceWorkbenchShellRuntime";
 import { resolveWorkspaceWorkbenchLayoutConstraints } from "./workspaceWorkbenchLayoutConstraints.ts";
 import type { DesktopWorkspaceAppExternalHostApi } from "@preload/types";
+import type { TuttiExternalFileOpenInput } from "@tutti-os/workspace-external-core/contracts";
 
 interface WorkspaceWorkbenchProps {
   enableWindowCloseGuard: boolean;
@@ -144,6 +145,21 @@ function ReadyWorkspaceWorkbench({
   const closeLaunchpad = useCallback(() => {
     setLaunchpadOpen(false);
   }, []);
+  const openWorkspaceAppExternalFile = useCallback(
+    async (input: TuttiExternalFileOpenInput) => {
+      if (!workbenchHost) {
+        throw new Error("Workspace host is unavailable.");
+      }
+      const opened = await openWorkspaceFilesNode(workbenchHost, {
+        path: input.path,
+        workspaceId: state.workspace.id
+      });
+      if (!opened) {
+        throw new Error("Workspace files could not be opened.");
+      }
+    },
+    [state.workspace.id, workbenchHost]
+  );
   const onDockEntryAction = useCallback(
     (
       request: Parameters<NonNullable<typeof hostInput.onDockEntryAction>>[0]
@@ -335,6 +351,7 @@ function ReadyWorkspaceWorkbench({
       />
       <WorkspaceAppExternalBridge
         api={workspaceAppExternalApi}
+        openFile={openWorkspaceAppExternalFile}
         workspaceId={state.workspace.id}
       />
       <WorkspaceLaunchpadOverlay
