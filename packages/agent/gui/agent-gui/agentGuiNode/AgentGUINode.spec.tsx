@@ -5745,7 +5745,7 @@ describe("AgentGUINode", () => {
     }
   });
 
-  it("keeps the bottom dock composer 24px wider than the transcript flow", () => {
+  it("centers the bottom dock composer with the transcript flow", () => {
     const css = readFileSync(
       resolve(process.cwd(), "app/renderer/agentactivity.css"),
       "utf8"
@@ -5759,7 +5759,10 @@ describe("AgentGUINode", () => {
       /\.agent-gui-node__bottom-dock\s*{[^}]*width:\s*min\(\s*100%,\s*calc\(\s*var\(--agent-gui-detail-flow-max-width\)\s*\+\s*var\(--agent-gui-detail-padding-x\)\s*\+\s*var\(--agent-gui-detail-padding-x\)\s*\)\s*\)/s
     );
     expect(css).toMatch(
-      /\.agent-gui-node__bottom-dock\s*>\s*\.agent-gui-node__composer\s*{[^}]*padding-right:\s*0[^}]*padding-left:\s*0/s
+      /\.agent-gui-node__bottom-dock\s*{[^}]*margin-right:\s*auto[^}]*margin-left:\s*auto/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__bottom-dock\s*>\s*\.agent-gui-node__composer\s*{[^}]*padding-right:\s*12px[^}]*padding-left:\s*12px/s
     );
   });
 

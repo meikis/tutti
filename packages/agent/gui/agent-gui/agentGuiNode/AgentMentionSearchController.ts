@@ -1,6 +1,13 @@
 import { resolveAgentMentionFileThumbnailUrl } from "../shared/mentionFilePresentation";
 import { presentAgentGeneratedFileMentionItems } from "./agentMentionAgentGeneratedFilesPresentation";
 import {
+  emitAgentMentionSearchDiagnostic,
+  logAgentMentionSearchInfo,
+  queryAgentMentionProviderWithDiagnostics,
+  type AgentMentionProviderQueryDiagnostic,
+  type AgentMentionSearchDiagnosticLog
+} from "./agentMentionSearchDiagnostics";
+import {
   AGENT_MENTION_FILTER_TAB_ORDER,
   buildEmptyGroup,
   compactText,
@@ -60,6 +67,9 @@ interface AgentMentionSearchControllerOptions {
   fileLimit?: number;
   issueLimit?: number;
   providerTimeoutMs?: number;
+  diagnosticInfoLogger?: (payload: AgentMentionSearchDiagnosticLog) => void;
+  diagnosticNow?: () => number;
+  diagnosticSlowThresholdMs?: number;
 }
 
 type Listener = (state: AgentMentionSearchState) => void;
@@ -69,6 +79,7 @@ const DEFAULT_FILE_LIMIT = 30;
 const DEFAULT_ISSUE_LIMIT = 25;
 const DEFAULT_SESSION_LIMIT = 30;
 const DEFAULT_PROVIDER_TIMEOUT_MS = 3500;
+const DEFAULT_DIAGNOSTIC_SLOW_THRESHOLD_MS = 250;
 
 // Resolve filter tab labels lazily so they reflect the active i18n locale at the
 // time a state is emitted. Computing this at module load froze the labels to the
@@ -98,6 +109,11 @@ export class AgentMentionSearchController {
   private readonly fileLimit: number;
   private readonly issueLimit: number;
   private readonly providerTimeoutMs: number;
+  private readonly diagnosticInfoLogger: (
+    payload: AgentMentionSearchDiagnosticLog
+  ) => void;
+  private readonly diagnosticNow: () => number;
+  private readonly diagnosticSlowThresholdMs: number;
   private readonly listeners = new Set<Listener>();
   private readonly expandedCounts: Partial<
     Record<AgentMentionGroupId, number>
@@ -146,6 +162,11 @@ export class AgentMentionSearchController {
     this.issueLimit = options.issueLimit ?? DEFAULT_ISSUE_LIMIT;
     this.providerTimeoutMs =
       options.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+    this.diagnosticInfoLogger =
+      options.diagnosticInfoLogger ?? logAgentMentionSearchInfo;
+    this.diagnosticNow = options.diagnosticNow ?? Date.now;
+    this.diagnosticSlowThresholdMs =
+      options.diagnosticSlowThresholdMs ?? DEFAULT_DIAGNOSTIC_SLOW_THRESHOLD_MS;
     this.currentFileSearchLimit = this.fileLimit;
     this.currentIssueSearchLimit = this.issueLimit;
   }
@@ -453,6 +474,8 @@ export class AgentMentionSearchController {
     query: string;
     requestId: number;
   }): Promise<void> {
+    const startedAt = this.diagnosticNow();
+    const providerDiagnostics: AgentMentionProviderQueryDiagnostic[] = [];
     try {
       const [fileItems, appItems, issueItems, sessionItems] = await Promise.all(
         [
@@ -461,28 +484,32 @@ export class AgentMentionSearchController {
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: input.query,
-            limit: this.currentFileSearchLimit
+            limit: this.currentFileSearchLimit,
+            diagnostics: providerDiagnostics
           }),
           this.queryProviderMentionItemsById({
             providerId: WORKSPACE_APP_PROVIDER_ID,
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: input.query,
-            limit: DEFAULT_MENTION_GROUP_PAGE_SIZE
+            limit: DEFAULT_MENTION_GROUP_PAGE_SIZE,
+            diagnostics: providerDiagnostics
           }),
           this.queryProviderMentionItemsById({
             providerId: WORKSPACE_ISSUE_PROVIDER_ID,
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: input.query,
-            limit: this.currentIssueSearchLimit
+            limit: this.currentIssueSearchLimit,
+            diagnostics: providerDiagnostics
           }),
           this.queryProviderMentionItemsById({
             providerId: AGENT_SESSION_PROVIDER_ID,
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: input.query,
-            limit: DEFAULT_SESSION_LIMIT
+            limit: DEFAULT_SESSION_LIMIT,
+            diagnostics: providerDiagnostics
           })
         ]
       );
@@ -509,6 +536,7 @@ export class AgentMentionSearchController {
       this.totalCounts.my_sessions = this.rawGroups.my_sessions.length;
       this.totalCounts.collab_sessions = this.rawGroups.collab_sessions.length;
       this.totalCounts.issues = this.rawGroups.issues.length;
+      const groups = this.groupsFromRawGroups();
 
       this.setState({
         status: "ready",
@@ -516,8 +544,19 @@ export class AgentMentionSearchController {
         mode: "results",
         filter: this.currentFilter,
         categories: buildBrowseCategories(),
-        groups: this.groupsFromRawGroups(),
+        groups,
         error: null
+      });
+      this.logSearchDiagnostic({
+        filter: this.currentFilter,
+        groups,
+        mode: "results",
+        providerDiagnostics,
+        query: input.query,
+        requestId: input.requestId,
+        startedAt,
+        status: "ready",
+        workspaceId: input.workspaceId
       });
     } catch (error) {
       if (!this.canApply(input.requestId, input.workspaceId, input.query)) {
@@ -532,6 +571,18 @@ export class AgentMentionSearchController {
         groups: [],
         error: error instanceof Error ? error.message : String(error)
       });
+      this.logSearchDiagnostic({
+        error,
+        filter: this.currentFilter,
+        groups: [],
+        mode: "results",
+        providerDiagnostics,
+        query: input.query,
+        requestId: input.requestId,
+        startedAt,
+        status: "error",
+        workspaceId: input.workspaceId
+      });
     }
   }
 
@@ -541,6 +592,8 @@ export class AgentMentionSearchController {
     requestId: number;
     filter: AgentMentionFilterId;
   }): Promise<void> {
+    const startedAt = this.diagnosticNow();
+    const providerDiagnostics: AgentMentionProviderQueryDiagnostic[] = [];
     try {
       if (input.filter === "file") {
         const [fileItems, agentGeneratedFileItems] = await Promise.all([
@@ -549,14 +602,16 @@ export class AgentMentionSearchController {
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: "",
-            limit: this.fileLimit
+            limit: this.fileLimit,
+            diagnostics: providerDiagnostics
           }),
           this.queryProviderMentionItemsById({
             providerId: AGENT_GENERATED_FILE_PROVIDER_ID,
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: "",
-            limit: this.fileLimit
+            limit: this.fileLimit,
+            diagnostics: providerDiagnostics
           })
         ]);
         if (!this.canApply(input.requestId, input.workspaceId, "")) {
@@ -585,7 +640,8 @@ export class AgentMentionSearchController {
           workspaceId: input.workspaceId,
           currentUserId: input.currentUserId,
           query: "",
-          limit: DEFAULT_MENTION_GROUP_PAGE_SIZE
+          limit: DEFAULT_MENTION_GROUP_PAGE_SIZE,
+          diagnostics: providerDiagnostics
         });
         if (!this.canApply(input.requestId, input.workspaceId, "")) {
           return;
@@ -610,7 +666,8 @@ export class AgentMentionSearchController {
           workspaceId: input.workspaceId,
           currentUserId: input.currentUserId,
           query: "",
-          limit: this.currentIssueSearchLimit
+          limit: this.currentIssueSearchLimit,
+          diagnostics: providerDiagnostics
         });
         if (!this.canApply(input.requestId, input.workspaceId, "")) {
           return;
@@ -635,7 +692,8 @@ export class AgentMentionSearchController {
           workspaceId: input.workspaceId,
           currentUserId: input.currentUserId,
           query: "",
-          limit: DEFAULT_SESSION_LIMIT
+          limit: DEFAULT_SESSION_LIMIT,
+          diagnostics: providerDiagnostics
         });
         if (!this.canApply(input.requestId, input.workspaceId, "")) {
           return;
@@ -680,35 +738,40 @@ export class AgentMentionSearchController {
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: "",
-            limit: DEFAULT_MENTION_GROUP_PAGE_SIZE
+            limit: DEFAULT_MENTION_GROUP_PAGE_SIZE,
+            diagnostics: providerDiagnostics
           }),
           this.queryProviderMentionItemsById({
             providerId: FILE_PROVIDER_ID,
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: "",
-            limit: this.fileLimit
+            limit: this.fileLimit,
+            diagnostics: providerDiagnostics
           }),
           this.queryProviderMentionItemsById({
             providerId: AGENT_GENERATED_FILE_PROVIDER_ID,
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: "",
-            limit: this.fileLimit
+            limit: this.fileLimit,
+            diagnostics: providerDiagnostics
           }),
           this.queryProviderMentionItemsById({
             providerId: WORKSPACE_ISSUE_PROVIDER_ID,
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: "",
-            limit: this.currentIssueSearchLimit
+            limit: this.currentIssueSearchLimit,
+            diagnostics: providerDiagnostics
           }),
           this.queryProviderMentionItemsById({
             providerId: AGENT_SESSION_PROVIDER_ID,
             workspaceId: input.workspaceId,
             currentUserId: input.currentUserId,
             query: "",
-            limit: DEFAULT_SESSION_LIMIT
+            limit: DEFAULT_SESSION_LIMIT,
+            diagnostics: providerDiagnostics
           })
         ]);
         if (!this.canApply(input.requestId, input.workspaceId, "")) {
@@ -738,6 +801,7 @@ export class AgentMentionSearchController {
           this.rawGroups.collab_sessions.length;
         this.totalCounts.issues = this.rawGroups.issues.length;
       }
+      const groups = this.groupsFromRawGroups();
 
       this.setState({
         status: "ready",
@@ -745,8 +809,19 @@ export class AgentMentionSearchController {
         mode: "browse",
         filter: this.currentFilter,
         categories: buildBrowseCategories(),
-        groups: this.groupsFromRawGroups(),
+        groups,
         error: null
+      });
+      this.logSearchDiagnostic({
+        filter: this.currentFilter,
+        groups,
+        mode: "browse",
+        providerDiagnostics,
+        query: "",
+        requestId: input.requestId,
+        startedAt,
+        status: "ready",
+        workspaceId: input.workspaceId
       });
     } catch (error) {
       if (!this.canApply(input.requestId, input.workspaceId, "")) {
@@ -760,6 +835,18 @@ export class AgentMentionSearchController {
         categories: buildBrowseCategories(),
         groups: [],
         error: error instanceof Error ? error.message : String(error)
+      });
+      this.logSearchDiagnostic({
+        error,
+        filter: this.currentFilter,
+        groups: [],
+        mode: "browse",
+        providerDiagnostics,
+        query: "",
+        requestId: input.requestId,
+        startedAt,
+        status: "error",
+        workspaceId: input.workspaceId
       });
     }
   }
@@ -823,6 +910,7 @@ export class AgentMentionSearchController {
   }
 
   private async queryProviderMentionItemsById(input: {
+    diagnostics: AgentMentionProviderQueryDiagnostic[];
     providerId: string;
     workspaceId: string;
     currentUserId: string;
@@ -830,54 +918,56 @@ export class AgentMentionSearchController {
     limit: number;
   }): Promise<AgentContextMentionItem[]> {
     const provider = this.richTextAtProviders.get(input.providerId);
-    if (!provider) {
-      return [];
-    }
-    return this.runProviderQuery(
-      (abortSignal) =>
-        this.queryProviderMentionItems({
-          provider,
-          workspaceId: input.workspaceId,
-          currentUserId: input.currentUserId,
-          query: input.query,
-          limit: input.limit,
-          abortSignal
-        }),
-      []
-    );
+    return queryAgentMentionProviderWithDiagnostics({
+      diagnosticNow: this.diagnosticNow,
+      diagnostics: input.diagnostics,
+      fallback: [] as AgentContextMentionItem[],
+      providerId: input.providerId,
+      providerTimeoutMs: this.providerTimeoutMs,
+      query: provider
+        ? (abortSignal) =>
+            this.queryProviderMentionItems({
+              provider,
+              workspaceId: input.workspaceId,
+              currentUserId: input.currentUserId,
+              query: input.query,
+              limit: input.limit,
+              abortSignal
+            })
+        : null,
+      resultCount: (result) => result.length
+    });
   }
 
-  private async runProviderQuery<T>(
-    query: (abortSignal: AbortSignal) => Promise<T>,
-    fallback: T
-  ): Promise<T> {
-    const abortController = new AbortController();
-    const queryPromise = Promise.resolve().then(() =>
-      query(abortController.signal)
-    );
-
-    if (
-      this.providerTimeoutMs <= 0 ||
-      !Number.isFinite(this.providerTimeoutMs)
-    ) {
-      return queryPromise;
-    }
-
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    const timeoutPromise = new Promise<T>((resolve) => {
-      timeout = setTimeout(() => {
-        abortController.abort();
-        resolve(fallback);
-      }, this.providerTimeoutMs);
+  private logSearchDiagnostic(input: {
+    error?: unknown;
+    filter: AgentMentionFilterId;
+    groups: readonly AgentMentionGroup[];
+    mode: "browse" | "results";
+    providerDiagnostics: readonly AgentMentionProviderQueryDiagnostic[];
+    query: string;
+    requestId: number;
+    startedAt: number;
+    status: "ready" | "error";
+    workspaceId: string;
+  }): void {
+    emitAgentMentionSearchDiagnostic({
+      debounceMs: this.debounceMs,
+      diagnosticInfoLogger: this.diagnosticInfoLogger,
+      diagnosticNow: this.diagnosticNow,
+      diagnosticSlowThresholdMs: this.diagnosticSlowThresholdMs,
+      error: input.error,
+      filter: input.filter,
+      groups: input.groups,
+      mode: input.mode,
+      providerDiagnostics: input.providerDiagnostics,
+      providerTimeoutMs: this.providerTimeoutMs,
+      query: input.query,
+      requestId: input.requestId,
+      startedAt: input.startedAt,
+      status: input.status,
+      workspaceId: input.workspaceId
     });
-
-    try {
-      return await Promise.race([queryPromise, timeoutPromise]);
-    } finally {
-      if (timeout !== null) {
-        clearTimeout(timeout);
-      }
-    }
   }
 
   private groupsFromRawGroups(): AgentMentionGroup[] {

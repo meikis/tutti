@@ -47,6 +47,9 @@ interface TestRichTextAtProviderOptions {
   loadSessionMessages?: (input: any) => Promise<any>;
   richTextAtProviders?: readonly AgentRichTextAtProvider[];
   debounceMs?: number;
+  diagnosticInfoLogger?: (payload: any) => void;
+  diagnosticNow?: () => number;
+  diagnosticSlowThresholdMs?: number;
   fileLimit?: number;
   issueLimit?: number;
   providerTimeoutMs?: number;
@@ -56,6 +59,9 @@ class AgentMentionSearchController extends BaseAgentMentionSearchController {
   constructor(options: TestRichTextAtProviderOptions) {
     super({
       debounceMs: options.debounceMs,
+      diagnosticInfoLogger: options.diagnosticInfoLogger,
+      diagnosticNow: options.diagnosticNow,
+      diagnosticSlowThresholdMs: options.diagnosticSlowThresholdMs,
       fileLimit: options.fileLimit,
       issueLimit: options.issueLimit,
       providerTimeoutMs: options.providerTimeoutMs,
@@ -496,8 +502,139 @@ describe("AgentMentionSearchController", () => {
     });
   });
 
+  it("logs completed mention search diagnostics without the raw query", async () => {
+    vi.useFakeTimers();
+    const diagnosticLogs: any[] = [];
+    const rawQuery = "secret-file";
+    const controller = new AgentMentionSearchController({
+      queryFiles: vi.fn().mockResolvedValue({
+        workspaceId: "room-1",
+        root: "/workspace",
+        entries: [
+          {
+            path: "/workspace/src/App.tsx",
+            name: "App.tsx",
+            kind: "file",
+            directoryPath: "/workspace/src",
+            score: 10
+          }
+        ]
+      }),
+      queryIssues: vi.fn().mockResolvedValue({
+        issues: [],
+        totalCount: 0,
+        statusCounts: undefined
+      }),
+      querySessions: vi.fn().mockResolvedValue({ presences: [], sessions: [] }),
+      loadSessionMessages: vi
+        .fn()
+        .mockResolvedValue({ messages: [], latestVersion: 0, hasMore: false }),
+      loadSessionSummary: vi.fn(),
+      loadUserProfiles: vi.fn().mockResolvedValue({ users: [] }),
+      debounceMs: 20,
+      diagnosticInfoLogger: (payload) => diagnosticLogs.push(payload),
+      diagnosticSlowThresholdMs: 0
+    });
+    const states: unknown[] = [];
+    controller.subscribe((state) => states.push(state));
+
+    controller.updateQuery({
+      workspaceId: "room-1",
+      currentUserId: "user-1",
+      query: rawQuery
+    });
+    await vi.advanceTimersByTimeAsync(20);
+
+    await vi.waitFor(() =>
+      expect(states.at(-1)).toMatchObject({
+        status: "ready",
+        query: rawQuery,
+        mode: "results"
+      })
+    );
+    expect(diagnosticLogs).toEqual([
+      expect.objectContaining({
+        debounceMs: 20,
+        event: "agent_gui.mention_search",
+        mode: "results",
+        queryLength: rawQuery.length,
+        status: "ready",
+        workspaceId: "room-1",
+        providerResults: expect.arrayContaining([
+          expect.objectContaining({
+            providerId: FILE_PROVIDER_ID,
+            resultCount: 1,
+            status: "success"
+          }),
+          expect.objectContaining({
+            providerId: WORKSPACE_APP_PROVIDER_ID,
+            resultCount: 0,
+            status: "missing"
+          })
+        ])
+      })
+    ]);
+    expect(JSON.stringify(diagnosticLogs)).not.toContain(rawQuery);
+  });
+
+  it("keeps mention search ready when diagnostic logging fails", async () => {
+    vi.useFakeTimers();
+    const diagnosticInfoLogger = vi.fn(() => {
+      throw new Error("diagnostic sink failed");
+    });
+    const controller = new AgentMentionSearchController({
+      queryFiles: vi.fn().mockResolvedValue({
+        workspaceId: "room-1",
+        root: "/workspace",
+        entries: [
+          {
+            path: "/workspace/src/App.tsx",
+            name: "App.tsx",
+            kind: "file",
+            directoryPath: "/workspace/src",
+            score: 10
+          }
+        ]
+      }),
+      queryIssues: vi.fn().mockResolvedValue({
+        issues: [],
+        totalCount: 0,
+        statusCounts: undefined
+      }),
+      querySessions: vi.fn().mockResolvedValue({ presences: [], sessions: [] }),
+      loadSessionMessages: vi
+        .fn()
+        .mockResolvedValue({ messages: [], latestVersion: 0, hasMore: false }),
+      loadSessionSummary: vi.fn(),
+      loadUserProfiles: vi.fn().mockResolvedValue({ users: [] }),
+      debounceMs: 20,
+      diagnosticInfoLogger,
+      diagnosticSlowThresholdMs: 0
+    });
+    const states: unknown[] = [];
+    controller.subscribe((state) => states.push(state));
+
+    controller.updateQuery({
+      workspaceId: "room-1",
+      currentUserId: "user-1",
+      query: "app"
+    });
+    await vi.advanceTimersByTimeAsync(20);
+
+    await vi.waitFor(() =>
+      expect(states.at(-1)).toMatchObject({
+        status: "ready",
+        query: "app",
+        mode: "results"
+      })
+    );
+    expect(diagnosticInfoLogger).toHaveBeenCalledTimes(1);
+  });
+
   it("times out stalled result providers and keeps partial results", async () => {
     vi.useFakeTimers();
+    const diagnosticLogs: any[] = [];
+    const rawQuery = "secret-token";
     const queryIssues = vi.fn(
       () =>
         new Promise(() => {
@@ -526,6 +663,7 @@ describe("AgentMentionSearchController", () => {
       loadSessionSummary: vi.fn(),
       loadUserProfiles: vi.fn().mockResolvedValue({ users: [] }),
       debounceMs: 20,
+      diagnosticInfoLogger: (payload) => diagnosticLogs.push(payload),
       providerTimeoutMs: 20
     });
     const states: unknown[] = [];
@@ -534,14 +672,14 @@ describe("AgentMentionSearchController", () => {
     controller.updateQuery({
       workspaceId: "room-1",
       currentUserId: "user-1",
-      query: "app"
+      query: rawQuery
     });
     await vi.advanceTimersByTimeAsync(40);
 
     await vi.waitFor(() =>
       expect(states.at(-1)).toMatchObject({
         status: "ready",
-        query: "app",
+        query: rawQuery,
         mode: "results",
         groups: expect.arrayContaining([
           expect.objectContaining({
@@ -557,6 +695,23 @@ describe("AgentMentionSearchController", () => {
       })
     );
     expect(queryIssues).toHaveBeenCalledTimes(1);
+    expect(diagnosticLogs).toEqual([
+      expect.objectContaining({
+        event: "agent_gui.mention_search",
+        mode: "results",
+        providerTimeoutMs: 20,
+        queryLength: rawQuery.length,
+        status: "ready",
+        providerResults: expect.arrayContaining([
+          expect.objectContaining({
+            providerId: WORKSPACE_ISSUE_PROVIDER_ID,
+            resultCount: 0,
+            status: "timeout"
+          })
+        ])
+      })
+    ]);
+    expect(JSON.stringify(diagnosticLogs)).not.toContain(rawQuery);
   });
 
   it("times out stalled browse providers and keeps partial results", async () => {
