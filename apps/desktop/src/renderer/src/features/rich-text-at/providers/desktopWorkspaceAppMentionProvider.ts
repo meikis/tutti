@@ -4,6 +4,7 @@ import {
   type AgentContextMentionProvider
 } from "@tutti-os/agent-gui/context-mention-provider";
 import type { WorkspaceAppCenterApp } from "@tutti-os/workspace-app-center";
+import { appCenterI18nResources } from "@tutti-os/workspace-app-center/i18n";
 
 export interface DesktopWorkspaceAppMentionItem {
   readonly appId: string;
@@ -18,6 +19,19 @@ export interface DesktopWorkspaceAppMentionItem {
   readonly iconUrl: string | null;
   readonly scopes: string;
   readonly workspaceId: string;
+}
+
+interface BuiltInWorkspaceAppMetadata {
+  readonly description: string;
+  readonly name: string;
+}
+
+interface BuiltInWorkspaceAppResource {
+  readonly appCenter: {
+    readonly catalogApps: {
+      readonly issueManager: BuiltInWorkspaceAppMetadata;
+    };
+  };
 }
 
 export interface CreateDesktopWorkspaceAppMentionProviderInput {
@@ -121,6 +135,7 @@ function workspaceAppToMentionItem(input: {
   const localization = input.app
     ? findWorkspaceAppLocalization(input.app, input.locale)
     : null;
+  const builtInMetadata = findBuiltInWorkspaceAppMetadata(appId, input.locale);
   return {
     appId,
     baseItem: input.baseItem,
@@ -135,6 +150,7 @@ function workspaceAppToMentionItem(input: {
     description:
       normalizeText(localization?.description) ??
       normalizeText(input.app?.description) ??
+      normalizeText(builtInMetadata?.description) ??
       baseDescription ??
       basePresentationSubtitle ??
       baseSubtitle ??
@@ -142,6 +158,7 @@ function workspaceAppToMentionItem(input: {
     displayName:
       normalizeText(localization?.name) ??
       normalizeText(input.app?.name) ??
+      normalizeText(builtInMetadata?.name) ??
       baseLabel ??
       appId,
     iconUrl:
@@ -152,6 +169,29 @@ function workspaceAppToMentionItem(input: {
     scopes: readBaseItemStringList(baseObject, "scopes"),
     workspaceId: input.workspaceId
   };
+}
+
+function findBuiltInWorkspaceAppMetadata(
+  appId: string,
+  locale: string
+): BuiltInWorkspaceAppMetadata | null {
+  if (appId !== "issue-manager") {
+    return null;
+  }
+  const normalizedLocale = normalizeLocale(locale);
+  if (normalizedLocale?.split("-")[0] === "zh") {
+    return builtInWorkspaceAppMetadataFromResource(
+      appCenterI18nResources["zh-CN"]
+    );
+  }
+  return builtInWorkspaceAppMetadataFromResource(appCenterI18nResources.en);
+}
+
+function builtInWorkspaceAppMetadataFromResource(
+  resource: unknown
+): BuiltInWorkspaceAppMetadata {
+  return (resource as BuiltInWorkspaceAppResource).appCenter.catalogApps
+    .issueManager;
 }
 
 function findWorkspaceAppLocalization(
