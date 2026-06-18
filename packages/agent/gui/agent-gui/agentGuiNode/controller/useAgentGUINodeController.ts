@@ -6,6 +6,7 @@ import {
   useRef,
   useState
 } from "react";
+import { debounce } from "lodash";
 import { toast } from "@tutti-os/ui-system";
 import { translate } from "../../../i18n/index";
 import {
@@ -109,7 +110,6 @@ import {
   type AgentSessionViewRef
 } from "../../../contexts/workspace/presentation/renderer/agentSessions/agentSessionViewStore";
 import {
-  useAgentSessionDurableRefresh,
   useAgentSessionView,
   useWatchAgentSession,
   useWatchAgentSessions
@@ -2505,11 +2505,6 @@ export function useAgentGUINodeController({
     query: null,
     conversations: []
   });
-  const activityStreamStateReloadSeqRef = useRef(0);
-  const stateReloadTimerRef = useRef<number | null>(null);
-  const stateReloadInFlightRef = useRef(false);
-  const stateReloadQueuedRef = useRef(false);
-  const stateReloadTargetSessionIdRef = useRef<string | null>(null);
   const selectedConversationMessageLoadSeqRef = useRef(0);
   const selectedConversationPendingMessageLoadIdsRef = useRef(
     new Set<string>()
@@ -2523,11 +2518,6 @@ export function useAgentGUINodeController({
   const handledOpenSessionSequenceRef = useRef<number | null>(null);
   const pendingOpenSessionRequestRef =
     useRef<AgentGUIOpenSessionRequest | null>(null);
-  const stateReloadCauseRef = useRef<{
-    source: "activity-stream";
-    eventType?: string;
-    requestId?: number;
-  } | null>(null);
   const selectedConversationNotFoundRetryIdsRef = useRef(new Set<string>());
   const selectedConversationNotFoundRetryTimerRef = useRef<number | null>(null);
   const sessionStateSnapshotCauseBySessionIdRef = useRef<
@@ -4009,81 +3999,26 @@ export function useAgentGUINodeController({
     previewMode
   ]);
 
-  const clearPendingSessionStateReload = useCallback(() => {
-    if (stateReloadTimerRef.current !== null) {
-      window.clearTimeout(stateReloadTimerRef.current);
-      stateReloadTimerRef.current = null;
-    }
-    stateReloadQueuedRef.current = false;
-    stateReloadTargetSessionIdRef.current = null;
-    stateReloadCauseRef.current = null;
-  }, []);
-
-  const scheduleActivityStreamStateReload = useCallback(
-    (
-      agentSessionId: string,
-      cause: {
-        source: "activity-stream";
-        eventType?: string;
-        requestId?: number;
-      }
-    ) => {
-      if (
-        blockedActivityStreamStateReloadSessionIdsRef.current.has(
-          agentSessionId
-        )
-      ) {
-        return;
-      }
-      stateReloadTargetSessionIdRef.current = agentSessionId;
-      stateReloadCauseRef.current = cause;
-      if (stateReloadInFlightRef.current) {
-        stateReloadQueuedRef.current = true;
-        return;
-      }
-      if (stateReloadTimerRef.current !== null) {
-        return;
-      }
-      stateReloadTimerRef.current = window.setTimeout(() => {
-        stateReloadTimerRef.current = null;
-        const targetSessionId = stateReloadTargetSessionIdRef.current;
-        const pendingCause = stateReloadCauseRef.current;
-        stateReloadTargetSessionIdRef.current = null;
-        stateReloadCauseRef.current = null;
-        if (
-          !targetSessionId ||
-          !pendingCause ||
-          blockedActivityStreamStateReloadSessionIdsRef.current.has(
-            targetSessionId
-          ) ||
-          activeConversationIdRef.current !== targetSessionId ||
-          !isMountedRef.current
-        ) {
-          stateReloadQueuedRef.current = false;
-          return;
-        }
-        stateReloadInFlightRef.current = true;
-        void loadSessionState(targetSessionId, {
-          ...pendingCause
-        }).finally(() => {
-          stateReloadInFlightRef.current = false;
+  const scheduleActivityStreamStateReload = useMemo(
+    () =>
+      debounce(
+        (
+          agentSessionId: string,
+          cause: { source: "activity-stream"; eventType?: string }
+        ) => {
           if (
-            stateReloadQueuedRef.current &&
-            activeConversationIdRef.current === targetSessionId &&
-            isMountedRef.current
+            blockedActivityStreamStateReloadSessionIdsRef.current.has(
+              agentSessionId
+            ) ||
+            activeConversationIdRef.current !== agentSessionId ||
+            !isMountedRef.current
           ) {
-            stateReloadQueuedRef.current = false;
-            scheduleActivityStreamStateReload(targetSessionId, {
-              source: "activity-stream",
-              eventType: pendingCause.eventType,
-              requestId: pendingCause.requestId
-            });
             return;
           }
-          stateReloadQueuedRef.current = false;
-        });
-      }, ACTIVITY_STREAM_STATE_RELOAD_DEBOUNCE_MS);
-    },
+          void loadSessionState(agentSessionId, cause);
+        },
+        ACTIVITY_STREAM_STATE_RELOAD_DEBOUNCE_MS
+      ),
     [loadSessionState]
   );
 
@@ -4467,28 +4402,6 @@ export function useAgentGUINodeController({
     });
   }, [activeConversationId, previewMode, reloadSelectedConversation]);
 
-  useAgentSessionDurableRefresh({
-    agentSessionId: activeConversationId,
-    sessionView: activeSessionView,
-    blockControlStateRefresh:
-      previewMode ||
-      activeConversationId === null ||
-      blockedActivityStreamStateReloadSessionIdsRef.current.has(
-        activeConversationId
-      ),
-    onControlStateRefresh: () => {
-      if (!activeConversationId) {
-        return;
-      }
-      const requestId = ++activityStreamStateReloadSeqRef.current;
-      void loadSessionState(activeConversationId, {
-        source: "activity-stream",
-        eventType: "state_patch",
-        requestId
-      });
-    }
-  });
-
   useWatchAgentSession({
     workspaceId,
     agentSessionId: activeConversationId,
@@ -4511,12 +4424,10 @@ export function useAgentGUINodeController({
       ) {
         return;
       }
-      if (event.eventType === "config_options_update") {
-        const requestId = ++activityStreamStateReloadSeqRef.current;
+      if (event.eventType !== "message_update") {
         scheduleActivityStreamStateReload(activeConversationId, {
           source: "activity-stream",
-          eventType: event.eventType,
-          requestId
+          eventType: event.eventType
         });
       }
     },
@@ -4539,7 +4450,7 @@ export function useAgentGUINodeController({
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
-      clearPendingSessionStateReload();
+      scheduleActivityStreamStateReload.cancel();
       clearSelectedConversationNotFoundRetry();
       const current = activeConversationIdRef.current;
       const pendingNewConversationId = startingConversationIdRef.current;
@@ -4554,7 +4465,10 @@ export function useAgentGUINodeController({
         void unactivateRef.current(pendingNewConversationId);
       }
     };
-  }, [clearPendingSessionStateReload, clearSelectedConversationNotFoundRetry]);
+  }, [
+    scheduleActivityStreamStateReload,
+    clearSelectedConversationNotFoundRetry
+  ]);
 
   const startConversation = useCallback(
     (initialContentInput?: unknown, displayPrompt?: string) => {

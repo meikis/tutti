@@ -29,6 +29,7 @@ export interface AgentActivitySession {
   resumable?: boolean;
   currentPhase?: string | null;
   lastError?: string | null;
+  runtimeContext?: Record<string, unknown>;
   messageVersion?: number;
   lastEventUnixMs?: number;
   startedAtUnixMs?: number;
@@ -186,6 +187,7 @@ export interface AgentActivityStatePatch {
   occurredAtUnixMs?: number;
   provider?: string;
   providerSessionId?: string;
+  runtimeContext?: Record<string, unknown>;
   startedAtUnixMs?: number;
   endedAtUnixMs?: number;
   title?: string;

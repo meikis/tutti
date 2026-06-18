@@ -625,7 +625,22 @@ function resolveSlashStatus({
   const contextWindow =
     objectRecord(usage?.contextWindow) ??
     objectRecord(usage?.context_window) ??
-    null;
+    (usage &&
+    (usage.used !== undefined ||
+      usage.size !== undefined ||
+      usage.usedTokens !== undefined ||
+      usage.totalTokens !== undefined)
+      ? {
+          usedTokens:
+            numberValue(usage.usedTokens) ??
+            numberValue(usage.used_tokens) ??
+            numberValue(usage.used),
+          totalTokens:
+            numberValue(usage.totalTokens) ??
+            numberValue(usage.total_tokens) ??
+            numberValue(usage.size)
+        }
+      : null);
   const providerConfig = objectRecord(rawState?.runtimeContext?.providerConfig);
   return {
     agentSessionId: rawState?.agentSessionId ?? null,
