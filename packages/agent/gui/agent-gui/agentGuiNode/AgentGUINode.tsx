@@ -799,6 +799,7 @@ export const AgentGUINode = memo(function AgentGUINode({
       usageChipLabel: (input: { percent: number }) =>
         t("agentHost.agentGui.usageChipLabel", { percent: input.percent }),
       usagePopoverTitle: t("agentHost.agentGui.usagePopoverTitle"),
+      usageContextWindowLabel: t("agentHost.agentGui.usageContextWindowLabel"),
       usageTokensLabel: t("agentHost.agentGui.usageTokensLabel"),
       usageLimitsLabel: t("agentHost.agentGui.usageLimitsLabel"),
       usageCompactAction: t("agentHost.agentGui.usageCompactAction"),
@@ -944,12 +945,6 @@ export const AgentGUINode = memo(function AgentGUINode({
       projectMissingDescription: t(
         "agentHost.agentGui.projectMissingDescription"
       ),
-      statusWorking: t("agentHost.workspaceAgentStatusWorking"),
-      statusWaiting: t("agentHost.workspaceAgentStatusWaiting"),
-      statusReady: t("agentHost.workspaceAgentStatusReady"),
-      statusCompleted: t("agentHost.workspaceAgentStatusCompleted"),
-      statusFailed: t("agentHost.workspaceAgentStatusFailed"),
-      statusCanceled: t("agentHost.workspaceAgentStatusCanceled"),
       openclawGatewayStarting: t("agentHost.agentGui.openclawGatewayStarting"),
       openclawGatewayFailed: t("agentHost.agentGui.openclawGatewayFailed"),
       openclawGatewayRetry: t("agentHost.agentGui.openclawGatewayRetry"),

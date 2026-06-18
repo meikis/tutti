@@ -5179,7 +5179,7 @@ button.agent-gui-node__conversation-section-toggle:hover
   box-sizing: border-box;
   height: 64px;
   min-height: 64px;
-  padding: 0 32px;
+  padding: 0 var(--agent-gui-detail-padding-x);
 }
 
 .agent-gui-node__detail-header-title-group {
@@ -5233,14 +5233,6 @@ button.agent-gui-node__conversation-section-toggle:hover
   background: var(--transparency-hover);
   color: var(--text-primary);
   outline: none;
-}
-
-.agent-gui-node__detail-header-status {
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 18px;
-  text-transform: capitalize;
 }
 
 .agent-gui-node__usage-alert-banner {
