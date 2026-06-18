@@ -65,12 +65,12 @@ is_macos_package_variant() {
 
 require_macos_packaging_tools() {
   if [[ "$(uname -s)" != "Darwin" ]]; then
-    echo "macOS universal release packaging requires macOS." >&2
+    echo "macOS release packaging requires macOS." >&2
     exit 1
   fi
 
   if ! command -v lipo >/dev/null 2>&1; then
-    echo "macOS universal release packaging requires lipo." >&2
+    echo "macOS release packaging requires lipo." >&2
     exit 1
   fi
 }
@@ -205,11 +205,11 @@ run_electron_builder_mac_unsigned() {
     -u APPLE_TEAM_ID \
     -u APPLE_KEYCHAIN_PROFILE \
     CSC_IDENTITY_AUTO_DISCOVERY=false \
-    pnpm exec electron-builder --mac --universal --publish never -c.mac.notarize=false "-c.extraMetadata.version=${DESKTOP_BUILD_VERSION}"
+    pnpm exec electron-builder --mac --x64 --arm64 --universal --publish never -c.mac.notarize=false "-c.extraMetadata.version=${DESKTOP_BUILD_VERSION}"
 }
 
 run_electron_builder_mac_signed() {
-  pnpm exec electron-builder --mac --universal --publish never -c.mac.notarize=true "-c.extraMetadata.version=${DESKTOP_BUILD_VERSION}"
+  pnpm exec electron-builder --mac --x64 --arm64 --universal --publish never -c.mac.notarize=true "-c.extraMetadata.version=${DESKTOP_BUILD_VERSION}"
 }
 
 run_electron_builder_win() {

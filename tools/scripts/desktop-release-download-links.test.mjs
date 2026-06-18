@@ -11,7 +11,9 @@ test("desktop release notes append only macOS direct download links for mirrored
   const nextBody = buildUpdatedReleaseBody({
     assetNames: [
       "Tutti-0.1.0-rc.2-linux-x86_64.AppImage",
+      "Tutti-0.1.0-rc.2-mac-arm64.dmg",
       "Tutti-0.1.0-rc.2-mac-universal.dmg",
+      "Tutti-0.1.0-rc.2-mac-x64.dmg",
       "Tutti-0.1.0-rc.2-win-x64.exe"
     ],
     existingBody: "## What's Changed\n- Something",

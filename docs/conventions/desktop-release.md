@@ -97,12 +97,14 @@ On Windows the bundled daemon filename is `tuttid.exe`.
 
 Expected release artifacts include:
 
-- macOS universal `.dmg`
-- macOS universal `.zip`
+- macOS x64, arm64, and universal `.dmg`
+- macOS x64, arm64, and universal `.zip`
 - Windows `.exe`
 - Linux `.AppImage`
 - update metadata such as `.yml` and `.blockmap`
 - `SHA256SUMS.txt`
+
+Release notes and Feishu notifications should point the primary macOS download at the universal `.dmg`. The x64 and arm64 artifacts remain attached to the GitHub Release for users or deployment tools that want an architecture-specific installer.
 
 ## Auto Update
 
