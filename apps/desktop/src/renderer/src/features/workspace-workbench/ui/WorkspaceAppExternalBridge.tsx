@@ -17,9 +17,14 @@ import type {
 } from "@preload/types";
 import type { DesktopWorkspaceAppExternalRendererRequest } from "@shared/contracts/ipc";
 import type { TuttiExternalFileOpenInput } from "@tutti-os/workspace-external-core/contracts";
+import { resolveWorkspaceMentionLinkAction } from "@contexts/workspace/presentation/renderer/actions/workspaceLinkActions";
+import { runDesktopAgentGUILinkAction } from "@renderer/features/workspace-agent/services/desktopAgentGUILinkActions.ts";
+import { requestWorkspaceAgentGuiLaunch } from "@renderer/features/workspace-agent";
+import { useWorkspaceAppCenterService } from "@renderer/features/workspace-app-center";
 import { useTranslation } from "@renderer/i18n";
 import { useWorkspaceWorkbenchHostService } from "./useWorkspaceWorkbenchHostService";
 import { useWorkspaceSettingsService } from "./useWorkspaceSettingsService";
+import { requestWorkspaceIssueManagerLaunch } from "../services/workspaceIssueManagerLaunchCoordinator";
 
 const workspaceFileReferenceLocaleKeyByPickerKey: Record<string, string> = {
   "actions.cancel": "common.cancel",
@@ -72,6 +77,7 @@ export function WorkspaceAppExternalBridge({
 }: WorkspaceAppExternalBridgeProps): ReactElement | null {
   const hostService = useWorkspaceWorkbenchHostService();
   const { service: settingsService } = useWorkspaceSettingsService();
+  const { service: appCenterService } = useWorkspaceAppCenterService();
   const { t } = useTranslation();
   const [pendingFileSelect, setPendingFileSelect] =
     useState<PendingFileSelect | null>(null);
@@ -147,9 +153,40 @@ export function WorkspaceAppExternalBridge({
             }
           );
           return undefined;
+        case "references.open": {
+          const action = resolveWorkspaceMentionLinkAction({
+            href: request.input.href,
+            source: "workspace-app"
+          });
+          if (!action) {
+            throw new Error("Unsupported reference link.");
+          }
+          const opened = await runDesktopAgentGUILinkAction(action, {
+            launchAgentGui: requestWorkspaceAgentGuiLaunch,
+            launchWorkspaceApp: async ({ appId, workspaceId }) => {
+              await appCenterService.openApp({ appId, workspaceId });
+              return true;
+            },
+            launchWorkspaceFiles: () => false,
+            launchWorkspaceIssueManager: requestWorkspaceIssueManagerLaunch,
+            openBrowserUrl: () => false,
+            workspaceId
+          });
+          if (!opened) {
+            throw new Error("Unable to open reference link.");
+          }
+          return undefined;
+        }
       }
     },
-    [hostService, openFile, openFileSelect, settingsService, workspaceId]
+    [
+      appCenterService,
+      hostService,
+      openFile,
+      openFileSelect,
+      settingsService,
+      workspaceId
+    ]
   );
 
   useEffect(() => {

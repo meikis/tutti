@@ -142,6 +142,10 @@ export interface TuttiExternalWorkspaceOpenFeatureInput {
   provider?: TuttiExternalWorkspaceAgentProvider;
 }
 
+export interface TuttiExternalReferenceOpenInput {
+  href: string;
+}
+
 export const tuttiExternalLogLevels = [
   "debug",
   "info",
@@ -184,6 +188,9 @@ export interface TuttiExternalBridge {
   workspace: {
     openFeature(input: TuttiExternalWorkspaceOpenFeatureInput): Promise<void>;
   };
+  references: {
+    open(input: TuttiExternalReferenceOpenInput): Promise<void>;
+  };
   logs: {
     write(input: TuttiExternalLogInput): void;
   };
@@ -215,6 +222,13 @@ export type TuttiExternalRendererRequest =
       appId: string;
       input: TuttiExternalSettingsOpenInput;
       operation: "settings.open";
+      requestId: string;
+      workspaceId: string;
+    }
+  | {
+      appId: string;
+      input: TuttiExternalReferenceOpenInput;
+      operation: "references.open";
       requestId: string;
       workspaceId: string;
     };

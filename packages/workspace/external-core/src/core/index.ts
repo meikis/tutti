@@ -10,6 +10,7 @@ import {
   type TuttiExternalLogLevel,
   type TuttiExternalManagedAiModelProviderId,
   type TuttiExternalPermissionRequestInput,
+  type TuttiExternalReferenceOpenInput,
   type TuttiExternalSettingsOpenInput,
   type TuttiExternalWorkspaceAgentProvider,
   type TuttiExternalWorkspaceFeature,
@@ -205,6 +206,19 @@ export function normalizeTuttiExternalWorkspaceOpenFeatureInput(
         }
       : {})
   };
+}
+
+export function normalizeTuttiExternalReferenceOpenInput(
+  input: unknown
+): TuttiExternalReferenceOpenInput {
+  if (!isRecord(input)) {
+    throw new Error("references.open input must be an object.");
+  }
+  const href = normalizeRequiredString(input.href, "references.open href");
+  if (!href.toLowerCase().startsWith("mention://")) {
+    throw new Error("references.open href must be a mention URL.");
+  }
+  return { href };
 }
 
 export function isTuttiExternalAtProviderId(

@@ -6,6 +6,7 @@ import {
   normalizeTuttiExternalFileSelectInput,
   normalizeTuttiExternalLogInput,
   normalizeTuttiExternalPermissionRequestInput,
+  normalizeTuttiExternalReferenceOpenInput,
   normalizeTuttiExternalSettingsOpenInput,
   normalizeTuttiExternalWorkspaceOpenFeatureInput,
   tuttiExternalAtDefaultMaxResults,
@@ -221,6 +222,25 @@ test("keeps the workspace agent provider set explicit", () => {
     "gemini",
     "openclaw"
   ]);
+});
+
+test("normalizes reference open input", () => {
+  assert.deepEqual(
+    normalizeTuttiExternalReferenceOpenInput({
+      href: "mention://workspace-app/app-1?workspaceId=workspace-1"
+    }),
+    {
+      href: "mention://workspace-app/app-1?workspaceId=workspace-1"
+    }
+  );
+});
+
+test("rejects invalid reference open input", () => {
+  assert.throws(
+    () =>
+      normalizeTuttiExternalReferenceOpenInput({ href: "https://example.com" }),
+    /mention URL/
+  );
 });
 
 test("keeps the managed AI model provider set explicit", () => {
