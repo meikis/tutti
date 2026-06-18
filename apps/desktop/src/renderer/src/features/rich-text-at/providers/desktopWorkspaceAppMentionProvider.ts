@@ -161,6 +161,7 @@ function workspaceAppCenterAppToMentionItem(
     description,
     displayName,
     iconUrl,
+    referencesListSupported: app.references?.listSupported ?? false,
     scopes: "",
     workspaceId
   };
