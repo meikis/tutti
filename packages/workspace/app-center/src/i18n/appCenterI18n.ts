@@ -184,6 +184,10 @@ export const appCenterEn = {
       description: "Collaborate with multiple agents in a group chat.",
       name: "Group Chat"
     },
+    issueManager: {
+      description: "Manage workspace tasks and runs.",
+      name: "Task Manager"
+    },
     vibeDesign: {
       description: "Create and iterate on design prototypes.",
       name: "Prototype Design"
@@ -452,6 +456,10 @@ export const appCenterZhCN = {
     groupChat: {
       description: "在群里和多个 Agent 一起协作",
       name: "群聊"
+    },
+    issueManager: {
+      description: "管理工作区任务和运行记录。",
+      name: "任务管理"
     },
     vibeDesign: {
       description: "创建并迭代产品原型设计",
