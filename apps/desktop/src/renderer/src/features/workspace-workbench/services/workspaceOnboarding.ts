@@ -1,5 +1,7 @@
 import type { WorkbenchSnapshot } from "@tutti-os/workbench-snapshot";
 
+export const workspaceOnboardingAppId = "tutti-onboarding";
+
 const workspaceOnboardingMetadataKey = "workspaceOnboarding";
 const workspaceOnboardingMetadataSchemaVersion = 1;
 
