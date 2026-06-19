@@ -34,7 +34,7 @@ import {
   TooltipTrigger,
   cn
 } from "@tutti-os/ui-system";
-import { AddIcon } from "@tutti-os/ui-system/icons";
+import { AddLinedIcon } from "@tutti-os/ui-system/icons";
 import {
   WorkspaceFilePreviewSurface,
   type WorkspaceFilePreviewSurfaceState
@@ -57,7 +57,6 @@ import {
   type ReferenceNodePreviewState,
   type ReferenceGroupedSelection
 } from "../../../react/internal/reference/useReferenceSourcePickerView.ts";
-import { formatHierarchyTitle } from "./referenceSourcePickerPresentation.ts";
 
 export interface ReferenceSourcePickerProps {
   aggregator: ReferenceSourceAggregator;
@@ -381,7 +380,6 @@ export function ReferenceSourcePicker({
                   node={view.focusedNode}
                   previewState={view.previewState}
                   sourceLabel={view.activeTabLabel}
-                  hierarchy={resolveHierarchyPath(view)}
                 />
               </ResizablePanel>
             </ResizablePanelGroup>
@@ -465,7 +463,10 @@ function SourceSidebar({
   };
   return (
     <ScrollArea className="h-full min-h-0 w-full">
-      <div ref={contentRef} className="flex flex-col gap-1 p-2">
+      <div ref={contentRef} className="flex flex-col gap-0.5 p-2">
+        <p className="px-2 py-1 text-[11px] font-semibold text-[var(--text-tertiary)]">
+          {copy.t("referencePicker.sourceColumn")}
+        </p>
         {view.tabs.map((tab) => {
           const groups = view.sidebarGroupsBySource[tab.sourceId] ?? [];
           const limit = shownBySource[tab.sourceId] ?? SIDEBAR_GROUP_PAGE_SIZE;
@@ -634,7 +635,7 @@ function SearchResultRow({
         {selected ? (
           <CheckIcon size={14} />
         ) : (
-          <AddIcon className="text-[var(--text-secondary)]" size={16} />
+          <AddLinedIcon className="text-[var(--text-secondary)]" size={16} />
         )}
       </Button>
     </div>
@@ -761,17 +762,13 @@ function PreviewInfoPane({
   copy,
   node,
   previewState,
-  sourceLabel,
-  hierarchy
+  sourceLabel
 }: {
   copy: WorkspaceFileReferenceCopy;
   node: ReferenceNode | null;
   previewState: ReferenceNodePreviewState;
   sourceLabel: string;
-  hierarchy: readonly ReferenceNode[];
 }): JSX.Element {
-  const hierarchyTitle = formatHierarchyTitle(hierarchy);
-
   return (
     <aside className="flex h-full min-h-0 w-full flex-col bg-[var(--background-fronted)]">
       {node ? (
@@ -799,11 +796,12 @@ function PreviewInfoPane({
             textClassName="h-full w-full overflow-auto p-3 text-left text-[11px] leading-5 whitespace-pre-wrap break-words text-[var(--text-primary)]"
             textFrameClassName="items-stretch justify-stretch"
           />
-          <FullTextTooltip content={node.displayName}>
+          <div className="space-y-1">
             <p className="truncate text-[15px] font-semibold">
               {node.displayName}
             </p>
-          </FullTextTooltip>
+            <ReferencePathText node={node} />
+          </div>
           <dl className="space-y-2 text-[13px]">
             <InfoRow label={copy.t("referencePicker.previewSource")}>
               <Badge
@@ -824,59 +822,67 @@ function PreviewInfoPane({
               </InfoRow>
             ) : null}
           </dl>
-          {hierarchy.length > 0 ? (
-            <div className="space-y-1.5">
-              <p className="text-[11px] font-semibold text-[var(--text-tertiary)]">
-                {copy.t("referencePicker.previewHierarchy")}
-              </p>
-              {/* 类目录路径展示:逐级 displayName 以「/」连接,如 文稿 / xx / xx。
-                  每截单独 truncate(最长 ~14ch),超长段(如哈希目录)不再换行撑乱布局。 */}
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <div className="flex flex-wrap items-center gap-y-1 text-[12px] leading-5">
-                    {hierarchy.map((crumb, index) => (
-                      <span
-                        key={nodeRefKey(crumb.ref)}
-                        className="flex min-w-0 items-center"
-                      >
-                        {index > 0 ? (
-                          <span className="mx-1 shrink-0 text-[var(--text-tertiary)]">
-                            /
-                          </span>
-                        ) : null}
-                        <span className="max-w-[14ch] truncate text-[var(--text-secondary)]">
-                          {crumb.displayName}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent
-                  className="max-w-[min(520px,calc(100vw-32px))] whitespace-normal text-left [overflow-wrap:anywhere]"
-                  side="top"
-                  style={{
-                    maxWidth: "min(520px, calc(100vw - 32px))",
-                    overflowWrap: "anywhere",
-                    whiteSpace: "normal",
-                    backgroundColor: "var(--background-fronted)",
-                    border: "1px solid var(--border-1)",
-                    borderRadius: 6,
-                    boxShadow: "var(--shadow-soft)",
-                    color: "var(--text-primary)",
-                    padding: "4px 8px"
-                  }}
-                >
-                  {hierarchyTitle}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          ) : null}
         </div>
       ) : (
         <Feedback>{copy.t("referencePicker.emptyPreview")}</Feedback>
       )}
     </aside>
   );
+}
+
+function ReferencePathText({ node }: { node: ReferenceNode }): JSX.Element {
+  const pathText = getReferenceNodePathText(node);
+  const lastSlashIndex = pathText.lastIndexOf("/");
+  if (lastSlashIndex <= 0 || lastSlashIndex === pathText.length - 1) {
+    return (
+      <p
+        className="truncate text-[12px] leading-5 text-[var(--text-tertiary)]"
+        title={pathText}
+      >
+        {pathText}
+      </p>
+    );
+  }
+
+  return (
+    <p
+      className="flex min-w-0 items-center text-[12px] leading-5 text-[var(--text-tertiary)]"
+      title={pathText}
+    >
+      <span className="min-w-0 truncate">
+        {pathText.slice(0, lastSlashIndex + 1)}
+      </span>
+      <span className="max-w-[65%] shrink-0 truncate">
+        {pathText.slice(lastSlashIndex + 1)}
+      </span>
+    </p>
+  );
+}
+
+function getReferenceNodePathText(node: ReferenceNode): string {
+  const decodedPath = decodeReferenceListFileNodeId(node.ref.nodeId);
+  if (decodedPath) {
+    return decodedPath;
+  }
+  return node.contextLabel?.trim() || node.ref.nodeId;
+}
+
+function decodeReferenceListFileNodeId(nodeId: string): string | null {
+  if (!nodeId.startsWith("f:")) {
+    return null;
+  }
+  try {
+    const normalized = nodeId.slice(2).replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "="
+    );
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
 }
 
 function InfoRow({
@@ -1161,55 +1167,6 @@ function isFocused(
 }
 
 /**
- * 焦点节点的「所属层级」完整路径(用作类目录 path 展示):
- * 导航面包屑(分组逐层,如 文稿 / 某应用)+ 就地展开树里从当前层到焦点节点
- * 父级的文件夹链。焦点节点为空或未在已加载树中命中(如搜索结果)时退回面包屑。
- */
-function resolveHierarchyPath(view: PickerView): readonly ReferenceNode[] {
-  const focused = view.focusedNode;
-  if (!focused) {
-    return view.breadcrumb;
-  }
-  const trail = findFocusedTrail(
-    view.currentEntries,
-    view.childrenByKey,
-    nodeRefKey(focused.ref),
-    []
-  );
-  return trail ? [...view.breadcrumb, ...trail] : view.breadcrumb;
-}
-
-/**
- * 在已加载的就地展开树里深度优先查找焦点节点,返回其「祖先文件夹链」(不含焦点本身)。
- * 未命中返回 null。只遍历已加载子节点,代价随展开范围而非全树增长。
- */
-function findFocusedTrail(
-  roots: readonly ReferenceNode[],
-  childrenByKey: PickerView["childrenByKey"],
-  targetKey: string,
-  trail: readonly ReferenceNode[]
-): ReferenceNode[] | null {
-  for (const node of roots) {
-    if (nodeRefKey(node.ref) === targetKey) {
-      return [...trail];
-    }
-    if (node.kind === "folder") {
-      const children = childrenByKey[nodeRefKey(node.ref)]?.entries ?? [];
-      if (children.length > 0) {
-        const found = findFocusedTrail(children, childrenByKey, targetKey, [
-          ...trail,
-          node
-        ]);
-        if (found) {
-          return found;
-        }
-      }
-    }
-  }
-  return null;
-}
-
-/**
  * 递归文件树节点,交互复刻 main 分支 `WorkspaceFileReferencePickerTreeEntry`:
  * 24px 缩进、folder 箭头旋转、点名称展开/收起、grid-rows 展开动画、add/check 勾选
  * (文件夹与文件都可作为引用选中)。
@@ -1346,7 +1303,7 @@ function TreeNodeRow({
           {selected ? (
             <CheckIcon size={14} />
           ) : (
-            <AddIcon className="text-[var(--text-secondary)]" size={16} />
+            <AddLinedIcon className="text-[var(--text-secondary)]" size={16} />
           )}
         </Button>
       </div>

@@ -17,6 +17,7 @@ import {
   CloseIcon,
   DeleteIcon,
   EyeIcon,
+  ImportLinedIcon,
   LinkIcon,
   LoadingIcon,
   Select,
@@ -1943,7 +1944,7 @@ function WorkspaceGeneralSettingsSection({
           )}
         >
           <WorkspaceSettingsActionButton
-            icon={<UploadIcon className="size-3.5" />}
+            icon={<ImportLinedIcon className="size-3.5" />}
             label={t("workspace.externalImport.settingsAction")}
             type="button"
             onClick={onOpenExternalAgentImport}

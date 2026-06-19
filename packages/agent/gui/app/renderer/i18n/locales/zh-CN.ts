@@ -805,6 +805,7 @@ export const zhCN = {
         selectGroupHint: "从左侧选择一个目录",
         selectedCount: "已选择 {{count}} 项",
         title: "选择工作区引用",
+        sourceColumn: "分类",
         workspaceRootGroup: "工作区"
       },
       projectLocked: "会话开始后项目不可更改",
