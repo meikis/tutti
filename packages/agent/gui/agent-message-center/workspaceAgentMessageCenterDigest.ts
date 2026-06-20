@@ -5,6 +5,7 @@ import type {
 import type { AgentConversationPromptVM } from "../shared/agentConversation/contracts/agentConversationVM";
 import { extractAgentMcpToolTarget } from "../shared/agentMcpToolTarget";
 import type { WorkspaceAgentActivityStatus } from "../shared/workspaceAgentActivityListViewModel";
+import { messageSummaryText } from "./messageCenterMessageSummary";
 
 export type WorkspaceAgentMessageCenterDigestPrimaryKind =
   | "input-required"
@@ -213,7 +214,7 @@ function summaryCandidate(
   source: MessageSummarySource,
   value: unknown
 ): MessageSummaryCandidate | null {
-  const summary = normalizeSummaryText(stringValue(value));
+  const summary = normalizeSummaryText(messageSummaryText(value));
   return summary ? { source, summary } : null;
 }
 
@@ -230,7 +231,7 @@ function toolErrorSummaryCandidate(
       stringValue(error.message),
       stringValue(error.detail),
       stringValue(error.text),
-      textFromContentValue(error.content),
+      messageSummaryText(error.content),
       stringValue(error.output),
       stringValue(error.stdout),
       stringValue(error.stderr),
@@ -256,7 +257,7 @@ function toolOutputSummaryCandidate(
       stringValue(output.summary),
       stringValue(output.message),
       stringValue(output.text),
-      textFromContentValue(output.content),
+      messageSummaryText(output.content),
       stringValue(output.content),
       stringValue(output.result),
       stringValue(output.output),
@@ -444,27 +445,6 @@ function stringArrayFirstValue(value: unknown): string | null {
   }
   return (
     value.map(stringValue).find((item): item is string => Boolean(item)) ?? null
-  );
-}
-
-function textFromContentValue(value: unknown): string | null {
-  if (typeof value === "string") {
-    return stringValue(value);
-  }
-  if (Array.isArray(value)) {
-    return (
-      value
-        .map(textFromContentValue)
-        .find((item): item is string => Boolean(item)) ?? null
-    );
-  }
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-  const record = value as Record<string, unknown>;
-  return firstNonEmptyString(
-    stringValue(record.text),
-    "content" in record ? textFromContentValue(record.content) : null
   );
 }
 

@@ -196,6 +196,40 @@ describe("buildWorkspaceAgentMessageCenterModel", () => {
     });
   });
 
+  it("renders structured assistant content blocks as agent replies", () => {
+    const model = buildWorkspaceAgentMessageCenterModel(
+      snapshot({
+        messages: [
+          message({
+            agentSessionId: "session-1",
+            messageId: "assistant-1",
+            role: "assistant",
+            kind: "message.assistant",
+            payload: {
+              content: [
+                { type: "text", text: "我正在检查消息中心。" },
+                {
+                  type: "content",
+                  content: { type: "text", text: "会同步修复 issue 状态。" }
+                }
+              ]
+            },
+            occurredAtUnixMs: 10
+          })
+        ],
+        sessions: [session({ agentSessionId: "session-1", status: "working" })]
+      })
+    );
+
+    expect(model.items[0]?.lastAgentMessageSummary).toBe(
+      "我正在检查消息中心。\n会同步修复 issue 状态。"
+    );
+    expect(model.items[0]?.digest.primary).toMatchObject({
+      kind: "progress",
+      summary: "我正在检查消息中心。 会同步修复 issue 状态。"
+    });
+  });
+
   it("preserves the session user id for message-center stacking", () => {
     const model = buildWorkspaceAgentMessageCenterModel(
       snapshot({

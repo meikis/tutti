@@ -19,6 +19,7 @@ import {
   buildWorkspaceAgentMessageCenterDigest,
   type WorkspaceAgentMessageCenterDigest
 } from "./workspaceAgentMessageCenterDigest";
+import { messageSummaryText } from "./messageCenterMessageSummary";
 
 export interface WorkspaceAgentMessageCenterModel {
   waitingCount: number;
@@ -693,13 +694,13 @@ function includesAny(value: string, needles: readonly string[]): boolean {
 
 function messageSummary(message: AgentActivityMessage): string {
   return firstNonEmptyString(
-    stringValue(message.payload.summary),
-    stringValue(message.payload.displayPrompt),
-    stringValue(message.payload.text),
-    stringValue(message.payload.content),
-    stringValue(message.payload.message),
-    stringValue(message.payload.body),
-    stringValue(message.payload.title)
+    messageSummaryText(message.payload.summary),
+    messageSummaryText(message.payload.displayPrompt),
+    messageSummaryText(message.payload.text),
+    messageSummaryText(message.payload.content),
+    messageSummaryText(message.payload.message),
+    messageSummaryText(message.payload.body),
+    messageSummaryText(message.payload.title)
   );
 }
 
