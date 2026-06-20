@@ -14,6 +14,7 @@ export const agentGuiWorkbenchContributionFactory: DesktopWorkbenchContributionF
         dockIconUrls: context.dockIcons.agents,
         dockPreviewCache: context.dockPreviewCache,
         hostFilesApi: context.hostFilesApi,
+        hostWindowApi: context.hostWindowApi,
         i18n: context.i18n,
         onCapabilitySettingsRequest: context.onCapabilitySettingsRequest,
         tuttidClient: context.tuttidClient,

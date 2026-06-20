@@ -18,6 +18,7 @@ import type {
 import type {
   DesktopComputerUseApi,
   DesktopHostFilesApi,
+  DesktopHostWindowApi,
   DesktopPlatformApi,
   DesktopRuntimeApi
 } from "@preload/types";
@@ -54,6 +55,7 @@ export function createWorkspaceAgentGuiContribution(input: {
     typeof createAgentGuiWorkbenchContribution
   >[0]["dockIconUrls"];
   hostFilesApi: DesktopHostFilesApi;
+  hostWindowApi: DesktopHostWindowApi;
   i18n: WorkspaceWorkbenchDesktopI18nRuntime;
   onCapabilitySettingsRequest?: Parameters<
     typeof DesktopAgentGUIWorkbenchBody
@@ -117,6 +119,9 @@ export function createWorkspaceAgentGuiContribution(input: {
       dockPreviewCache: input.dockPreviewCache,
       onCapabilitySettingsRequest: input.onCapabilitySettingsRequest,
       onLinkAction: handleLinkAction,
+      onOpenAgentConversationWindow: async (request) => {
+        await requestWorkspaceAgentGuiLaunch(request);
+      },
       onStateChange: (...args) => helpers.onStateChange(...args),
       previewMode: options?.previewMode,
       contextMentionProviders:

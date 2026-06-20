@@ -39,6 +39,7 @@ import type { WorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-p
 import { BareIconButton, ScrollArea } from "@tutti-os/ui-system/components";
 import { Button } from "../../app/renderer/components/ui/button";
 import {
+  AppWindowIcon,
   EditIcon,
   FolderIcon,
   MoreHorizontalIcon
@@ -299,6 +300,7 @@ export interface AgentGUIViewLabels {
   waitingForAnswer: string;
   thinkingLabel: string;
   toolCallsLabel: (count: number) => string;
+  openConversationWindow: string;
   deleteSession: string;
   pinSession: string;
   unpinSession: string;
@@ -446,6 +448,7 @@ interface AgentGUINodeViewProps {
   labels: AgentGUIViewLabels;
   workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
   workspaceFileReferenceAdapter?: WorkspaceFileReferenceAdapter | null;
+  onOpenConversationWindow?: (agentSessionId: string) => void;
   onRequestGitBranches?: AgentComposerGitBranchLoader | null;
   workspaceFileReferenceCopy?: WorkspaceFileReferenceCopy | null;
   contextMentionProviders?: readonly AgentContextMentionProvider[];
@@ -766,6 +769,7 @@ export function AgentGUINodeView({
   labels,
   workspaceUserProjectI18n,
   workspaceFileReferenceAdapter = null,
+  onOpenConversationWindow,
   workspaceFileReferenceCopy = null,
   onRequestGitBranches = null,
   contextMentionProviders,
@@ -1141,6 +1145,7 @@ export function AgentGUINodeView({
             onRequestDeleteConversation={actions.requestDeleteConversation}
             onCancelDeleteConversation={actions.cancelDeleteConversation}
             onConfirmDeleteConversation={actions.confirmDeleteConversation}
+            onOpenConversationWindow={onOpenConversationWindow}
           />
         </aside>
         <div
@@ -2761,6 +2766,7 @@ interface AgentGUIConversationRailPaneProps {
   onRetryOpenclawGateway: () => void;
   onSelectConversation: (agentSessionId: string) => void;
   onToggleConversationPinned: (agentSessionId: string, pinned: boolean) => void;
+  onOpenConversationWindow?: (agentSessionId: string) => void;
   onRemoveProject: (path: string) => void;
   onConfirmDeleteProjectConversations: (path?: string) => void;
   onRequestDeleteConversation: (agentSessionId: string) => void;
@@ -2818,6 +2824,7 @@ const AgentGUIConversationRailPane = memo(
     onRetryOpenclawGateway,
     onSelectConversation,
     onToggleConversationPinned,
+    onOpenConversationWindow,
     onRemoveProject,
     onConfirmDeleteProjectConversations,
     onRequestDeleteConversation,
@@ -3045,6 +3052,7 @@ const AgentGUIConversationRailPane = memo(
                     onSelectConversation={onSelectConversation}
                     setPendingProjectAction={setPendingProjectAction}
                     onToggleConversationPinned={onToggleConversationPinned}
+                    onOpenConversationWindow={onOpenConversationWindow}
                     onToggleProjectSectionCollapsed={
                       toggleProjectSectionCollapsed
                     }
@@ -3129,6 +3137,7 @@ interface AgentGUIConversationRailSectionProps {
   setPendingProjectAction: (action: AgentGUIProjectActionDialog | null) => void;
   onSelectConversation: (agentSessionId: string) => void;
   onToggleConversationPinned: (agentSessionId: string, pinned: boolean) => void;
+  onOpenConversationWindow?: (agentSessionId: string) => void;
   onRequestDeleteConversation: (agentSessionId: string) => void;
   onCancelDeleteConversation: () => void;
   onConfirmDeleteConversation: () => void;
@@ -3154,6 +3163,7 @@ const AgentGUIConversationRailSection = memo(
     onSelectConversation,
     setPendingProjectAction,
     onToggleConversationPinned,
+    onOpenConversationWindow,
     onRequestDeleteConversation,
     onCancelDeleteConversation,
     onConfirmDeleteConversation
@@ -3282,6 +3292,7 @@ const AgentGUIConversationRailSection = memo(
                 onRequestDeleteConversation={onRequestDeleteConversation}
                 onSelectConversation={onSelectConversation}
                 onToggleConversationPinned={onToggleConversationPinned}
+                onOpenConversationWindow={onOpenConversationWindow}
               />
             ))}
           </div>
@@ -3302,6 +3313,7 @@ interface AgentGUIConversationRailItemProps {
   registerItemElement: (itemId: string, element: HTMLDivElement | null) => void;
   onSelectConversation: (agentSessionId: string) => void;
   onToggleConversationPinned: (agentSessionId: string, pinned: boolean) => void;
+  onOpenConversationWindow?: (agentSessionId: string) => void;
   onRequestDeleteConversation: (agentSessionId: string) => void;
   onCancelDeleteConversation: () => void;
   onConfirmDeleteConversation: () => void;
@@ -3319,6 +3331,7 @@ const AgentGUIConversationRailItem = memo(
     registerItemElement,
     onSelectConversation,
     onToggleConversationPinned,
+    onOpenConversationWindow,
     onRequestDeleteConversation,
     onCancelDeleteConversation,
     onConfirmDeleteConversation
@@ -3342,6 +3355,9 @@ const AgentGUIConversationRailItem = memo(
     const handleTogglePinned = useCallback(() => {
       onToggleConversationPinned(item.id, !pinned);
     }, [item.id, onToggleConversationPinned, pinned]);
+    const handleOpenConversationWindow = useCallback(() => {
+      onOpenConversationWindow?.(item.id);
+    }, [item.id, onOpenConversationWindow]);
     const handleRequestDelete = useCallback(() => {
       onRequestDeleteConversation(item.id);
     }, [item.id, onRequestDeleteConversation]);
@@ -3385,6 +3401,26 @@ const AgentGUIConversationRailItem = memo(
             </button>
           ) : (
             <>
+              {onOpenConversationWindow ? (
+                <BareIconButton
+                  className={styles.conversationOpenWindowButton}
+                  aria-label={labels.openConversationWindow}
+                  title={labels.openConversationWindow}
+                  size="md"
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleOpenConversationWindow();
+                  }}
+                >
+                  <AppWindowIcon aria-hidden="true" />
+                </BareIconButton>
+              ) : null}
               <BareIconButton
                 className={styles.conversationPinButton}
                 aria-label={pinned ? labels.unpinSession : labels.pinSession}

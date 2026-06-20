@@ -1414,6 +1414,7 @@ function createLabels(): AgentGUIViewLabels {
     waitingForAnswer: "waitingForAnswer",
     thinkingLabel: "thinkingLabel",
     toolCallsLabel: (count: number) => `toolCalls:${count}`,
+    openConversationWindow: "openConversationWindow",
     deleteSession: "deleteSession",
     pinSession: "pinSession",
     unpinSession: "unpinSession",
