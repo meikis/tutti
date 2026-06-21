@@ -3,6 +3,7 @@ import { setAgentGuiI18nTestLocale } from "../../i18n/testUtils";
 import {
   AgentMentionSearchController as BaseAgentMentionSearchController,
   MAX_BROWSE_CACHE_ENTRIES,
+  preloadAgentMentionBrowse,
   resetAgentMentionSearchBrowseCacheForTests
 } from "./AgentMentionSearchController";
 import { issuePreviewText } from "./agentMentionSearchHelpers";
@@ -702,6 +703,69 @@ describe("AgentMentionSearchController", () => {
       expect(queryFiles).toHaveBeenCalledTimes(warmCount + 1)
     );
 
+    controller.dispose();
+  });
+
+  it("preloadAgentMentionBrowse warms the shared cache for a later controller", async () => {
+    const queryFiles = vi.fn().mockResolvedValue({
+      workspaceId: "room-1",
+      root: "/workspace",
+      entries: [
+        {
+          path: "/workspace/preloaded.md",
+          name: "preloaded.md",
+          kind: "file"
+        }
+      ]
+    });
+    const providerOptions: TestContextMentionProviderOptions = {
+      queryFiles,
+      queryIssues: vi.fn().mockResolvedValue({
+        issues: [],
+        totalCount: 0,
+        statusCounts: undefined
+      }),
+      querySessions: vi.fn().mockResolvedValue({ presences: [], sessions: [] }),
+      loadSessionMessages: vi
+        .fn()
+        .mockResolvedValue({ messages: [], latestVersion: 0, hasMore: false }),
+      loadSessionSummary: vi.fn(),
+      loadUserProfiles: vi.fn().mockResolvedValue({ users: [] })
+    };
+
+    // Warm the shared cache without a mounted controller (startup-style).
+    preloadAgentMentionBrowse({
+      workspaceId: "room-1",
+      contextMentionProviders:
+        createTestContextMentionProviders(providerOptions)
+    });
+    await vi.waitFor(() => expect(queryFiles).toHaveBeenCalledTimes(1));
+
+    // A later controller built with the same providers hits the warmed cache.
+    const controller = new AgentMentionSearchController({
+      contextMentionProviders:
+        createTestContextMentionProviders(providerOptions)
+    });
+    const states: any[] = [];
+    controller.subscribe((state) => states.push(state));
+    controller.updateQuery({ workspaceId: "room-1", query: "" });
+
+    expect(states.at(-1)).toMatchObject({
+      status: "ready",
+      mode: "browse",
+      groups: expect.arrayContaining([
+        expect.objectContaining({
+          id: "files",
+          items: [
+            expect.objectContaining({
+              kind: "file",
+              path: "/workspace/preloaded.md"
+            })
+          ]
+        })
+      ])
+    });
+    expect(queryFiles).toHaveBeenCalledTimes(1);
     controller.dispose();
   });
 

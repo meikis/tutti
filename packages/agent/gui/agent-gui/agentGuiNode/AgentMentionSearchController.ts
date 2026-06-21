@@ -1506,6 +1506,31 @@ export class AgentMentionSearchController {
   }
 }
 
+// Warm the shared browse cache without a mounted controller — e.g. from an app
+// startup flow, so the first time the @ palette opens its results are already
+// cached. Spins up a transient controller (no listeners, default limits/ttl) so
+// the produced cacheKey matches a live composer controller built with the same
+// providers; the global cache + in-flight dedup are reused, so this never
+// double-fetches against a focus-driven preload. The instance holds no timers
+// after the idle warm runs, so it is garbage-collected.
+export function preloadAgentMentionBrowse(input: {
+  workspaceId: string;
+  currentUserId?: string | null;
+  sessionCwd?: string | null;
+  contextMentionProviders?: readonly AgentContextMentionProvider[];
+  filter?: AgentMentionFilterId;
+}): void {
+  const controller = new AgentMentionSearchController({
+    contextMentionProviders: input.contextMentionProviders
+  });
+  controller.preloadBrowse({
+    workspaceId: input.workspaceId,
+    currentUserId: input.currentUserId,
+    sessionCwd: input.sessionCwd,
+    filter: input.filter
+  });
+}
+
 function emptyAgentMentionRawGroups(): AgentMentionRawGroups {
   return {
     apps: [],
