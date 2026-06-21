@@ -986,6 +986,24 @@ export function AgentComposer({
   }, [contextMentionProviders]);
 
   useEffect(() => {
+    const preloadTimer = window.setTimeout(() => {
+      mentionControllerRef.current?.preloadBrowse?.({
+        workspaceId,
+        currentUserId,
+        sessionCwd: selectedProjectPath || null
+      });
+    }, 0);
+    return () => {
+      window.clearTimeout(preloadTimer);
+    };
+  }, [
+    currentUserId,
+    selectedProjectPath,
+    workspaceId,
+    contextMentionProviders
+  ]);
+
+  useEffect(() => {
     const isExternalDraftReplacement = draftPromptRef.current !== draftPrompt;
     draftPromptRef.current = draftPrompt;
     setPaletteDraftPrompt(draftPrompt);

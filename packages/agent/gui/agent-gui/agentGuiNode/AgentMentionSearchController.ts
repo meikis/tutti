@@ -1,4 +1,6 @@
 import { resolveAgentMentionFileThumbnailUrl } from "../shared/mentionFilePresentation";
+import { getOptionalAgentHostApi } from "../../agentActivityHost";
+import type { RuntimeDiagnosticsDetailValue } from "../../shared/contracts/dto/debug";
 import { presentAgentGeneratedFileMentionItems } from "./agentMentionAgentGeneratedFilesPresentation";
 import {
   emitAgentMentionSearchDiagnostic,
@@ -83,6 +85,7 @@ const DEFAULT_SESSION_LIMIT = 30;
 const DEFAULT_PROVIDER_TIMEOUT_MS = 3500;
 const DEFAULT_DIAGNOSTIC_SLOW_THRESHOLD_MS = 250;
 const DEFAULT_BROWSE_CACHE_TTL_MS = 30_000;
+const AGENT_MENTION_LIFECYCLE_LOG_PREFIX = "[agent-gui] mention-lifecycle";
 
 type AgentMentionRawGroups = Record<
   AgentMentionRawGroupId,
@@ -100,6 +103,44 @@ interface AgentMentionBrowseFetchResult {
 interface AgentMentionBrowseCacheEntry extends AgentMentionBrowseFetchResult {
   cachedAt: number;
 }
+
+type AgentMentionBrowseLoadReason = "open" | "preload";
+
+interface AgentMentionLifecycleDiagnosticLog {
+  event:
+    | "controller.construct"
+    | "controller.dispose"
+    | "browse.open"
+    | "browse.preload"
+    | "browse.cache"
+    | "browse.fetch.start"
+    | "browse.fetch.dedupe"
+    | "browse.fetch.success"
+    | "browse.fetch.error"
+    | "browse.apply.skipped";
+  details: Record<string, RuntimeDiagnosticsDetailValue>;
+}
+
+const sharedAgentMentionBrowseCache = new Map<
+  string,
+  AgentMentionBrowseCacheEntry
+>();
+const sharedAgentMentionBrowseFetches = new Map<
+  string,
+  Promise<AgentMentionBrowseFetchResult>
+>();
+
+export function resetAgentMentionSearchBrowseCacheForTests(): void {
+  sharedAgentMentionBrowseCache.clear();
+  sharedAgentMentionBrowseFetches.clear();
+}
+
+(
+  globalThis as typeof globalThis & {
+    __tuttiResetAgentMentionSearchBrowseCacheForTests?: () => void;
+  }
+).__tuttiResetAgentMentionSearchBrowseCacheForTests =
+  resetAgentMentionSearchBrowseCacheForTests;
 
 // Resolve filter tab labels lazily so they reflect the active i18n locale at the
 // time a state is emitted. Computing this at module load froze the labels to the
@@ -153,14 +194,6 @@ export class AgentMentionSearchController {
   private currentIssueSearchLimit: number;
   private agentGeneratedBrowsePath: string | null = null;
   private rawGroups: AgentMentionRawGroups = emptyAgentMentionRawGroups();
-  private readonly browseCache = new Map<
-    string,
-    AgentMentionBrowseCacheEntry
-  >();
-  private readonly browseFetches = new Map<
-    string,
-    Promise<AgentMentionBrowseFetchResult>
-  >();
   private state: AgentMentionSearchState = {
     status: "idle",
     query: "",
@@ -192,6 +225,10 @@ export class AgentMentionSearchController {
       options.diagnosticSlowThresholdMs ?? DEFAULT_DIAGNOSTIC_SLOW_THRESHOLD_MS;
     this.currentFileSearchLimit = this.fileLimit;
     this.currentIssueSearchLimit = this.issueLimit;
+    this.logLifecycle("controller.construct", {
+      providerIds: this.providerIdsForDiagnostics(),
+      providerCount: this.contextMentionProviders.size
+    });
   }
 
   subscribe(listener: Listener): () => void {
@@ -277,6 +314,67 @@ export class AgentMentionSearchController {
       categories: buildBrowseCategories(),
       groups: this.groupsFromRawGroups(),
       error: null
+    });
+  }
+
+  preloadBrowse(input: {
+    workspaceId: string;
+    currentUserId?: string | null;
+    sessionCwd?: string | null;
+    filter?: AgentMentionFilterId;
+  }): void {
+    if (this.disposed) {
+      return;
+    }
+    const workspaceId = input.workspaceId.trim();
+    if (!workspaceId) {
+      return;
+    }
+    const filter = input.filter ?? "all";
+    if (!shouldPrefetchBrowseFilter(filter)) {
+      return;
+    }
+    const currentUserId = input.currentUserId?.trim() ?? "";
+    const sessionCwd = input.sessionCwd?.trim() ?? "";
+    const cacheKey = this.browseCacheKey({
+      currentUserId,
+      filter,
+      sessionCwd,
+      workspaceId
+    });
+    this.logLifecycle("browse.preload", {
+      filter,
+      providerIds: this.providerIdsForDiagnostics(),
+      sessionCwdPresent: Boolean(sessionCwd),
+      workspaceId
+    });
+    const cached = this.readBrowseCache(cacheKey);
+    this.logBrowseCacheState({
+      cacheKey,
+      cached,
+      filter,
+      reason: "preload",
+      workspaceId
+    });
+    if (cached.isFresh) {
+      return;
+    }
+    void this.loadBrowseFetchResult(
+      {
+        workspaceId,
+        currentUserId,
+        filter,
+        sessionCwd
+      },
+      cacheKey,
+      "preload"
+    ).catch((error) => {
+      this.logLifecycle("browse.fetch.error", {
+        errorKind: diagnosticErrorKind(error),
+        filter,
+        reason: "preload",
+        workspaceId
+      });
     });
   }
 
@@ -443,6 +541,10 @@ export class AgentMentionSearchController {
     this.clearTimer();
     this.listeners.clear();
     this.requestId += 1;
+    this.logLifecycle("controller.dispose", {
+      requestId: this.requestId,
+      workspaceId: this.activeWorkspaceId
+    });
   }
 
   private startBrowseModeFetch(filter: AgentMentionFilterId): void {
@@ -457,9 +559,30 @@ export class AgentMentionSearchController {
     const cacheKey = this.browseCacheKey({
       currentUserId: this.currentUserId,
       filter,
+      sessionCwd: this.currentSessionCwd,
       workspaceId: this.activeWorkspaceId
     });
-    const cached = this.readBrowseCache(cacheKey);
+    this.logLifecycle("browse.open", {
+      filter,
+      providerIds: this.providerIdsForDiagnostics(),
+      requestId,
+      sessionCwdPresent: Boolean(this.currentSessionCwd),
+      workspaceId: this.activeWorkspaceId
+    });
+    const cached = this.readBrowseCacheForBrowseInput({
+      cacheKey,
+      currentUserId: this.currentUserId,
+      filter,
+      sessionCwd: this.currentSessionCwd,
+      workspaceId: this.activeWorkspaceId
+    });
+    this.logBrowseCacheState({
+      cacheKey,
+      cached,
+      filter,
+      reason: "open",
+      workspaceId: this.activeWorkspaceId
+    });
     if (cached.entry) {
       this.applyBrowseFetchResult(cached.entry);
       this.setState({
@@ -483,7 +606,8 @@ export class AgentMentionSearchController {
       workspaceId: this.activeWorkspaceId,
       currentUserId: this.currentUserId,
       requestId,
-      filter
+      filter,
+      sessionCwd: this.currentSessionCwd
     });
   }
 
@@ -610,14 +734,21 @@ export class AgentMentionSearchController {
     currentUserId: string;
     requestId: number;
     filter: AgentMentionFilterId;
+    sessionCwd: string;
   }): Promise<void> {
     const startedAt = this.diagnosticNow();
     let providerDiagnostics: AgentMentionProviderQueryDiagnostic[] = [];
     const cacheKey = this.browseCacheKey(input);
     try {
-      const result = await this.loadBrowseFetchResult(input, cacheKey);
+      const result = await this.loadBrowseFetchResult(input, cacheKey, "open");
       providerDiagnostics = result.providerDiagnostics;
       if (!this.canApply(input.requestId, input.workspaceId, "")) {
+        this.logLifecycle("browse.apply.skipped", {
+          filter: input.filter,
+          requestId: input.requestId,
+          reason: "open",
+          workspaceId: input.workspaceId
+        });
         return;
       }
       this.applyBrowseFetchResult(result);
@@ -676,27 +807,51 @@ export class AgentMentionSearchController {
       workspaceId: string;
       currentUserId: string;
       filter: AgentMentionFilterId;
+      sessionCwd: string;
     },
-    cacheKey: string
+    cacheKey: string,
+    reason: AgentMentionBrowseLoadReason
   ): Promise<AgentMentionBrowseFetchResult> {
-    const existingFetch = this.browseFetches.get(cacheKey);
+    const existingFetch = sharedAgentMentionBrowseFetches.get(cacheKey);
     if (existingFetch) {
+      this.logLifecycle("browse.fetch.dedupe", {
+        filter: input.filter,
+        reason,
+        workspaceId: input.workspaceId
+      });
       return existingFetch;
     }
+    const startedAt = this.diagnosticNow();
+    this.logLifecycle("browse.fetch.start", {
+      filter: input.filter,
+      providerIds: this.providerIdsForDiagnostics(),
+      reason,
+      workspaceId: input.workspaceId
+    });
     const fetchPromise = this.fetchBrowseResult(input)
       .then((result) => {
-        this.browseCache.set(cacheKey, {
+        sharedAgentMentionBrowseCache.set(cacheKey, {
           ...result,
           cachedAt: this.diagnosticNow()
+        });
+        this.logLifecycle("browse.fetch.success", {
+          durationMs: elapsedDiagnosticMs(this.diagnosticNow(), startedAt),
+          filter: input.filter,
+          itemCount: rawGroupItemCount(result.rawGroups),
+          providerResults: providerDiagnosticsSummary(
+            result.providerDiagnostics
+          ),
+          reason,
+          workspaceId: input.workspaceId
         });
         return result;
       })
       .finally(() => {
-        if (this.browseFetches.get(cacheKey) === fetchPromise) {
-          this.browseFetches.delete(cacheKey);
+        if (sharedAgentMentionBrowseFetches.get(cacheKey) === fetchPromise) {
+          sharedAgentMentionBrowseFetches.delete(cacheKey);
         }
       });
-    this.browseFetches.set(cacheKey, fetchPromise);
+    sharedAgentMentionBrowseFetches.set(cacheKey, fetchPromise);
     return fetchPromise;
   }
 
@@ -704,6 +859,7 @@ export class AgentMentionSearchController {
     workspaceId: string;
     currentUserId: string;
     filter: AgentMentionFilterId;
+    sessionCwd: string;
   }): Promise<AgentMentionBrowseFetchResult> {
     const providerDiagnostics: AgentMentionProviderQueryDiagnostic[] = [];
     if (input.filter === "file") {
@@ -714,6 +870,7 @@ export class AgentMentionSearchController {
           currentUserId: input.currentUserId,
           query: "",
           limit: this.fileLimit,
+          sessionCwd: input.sessionCwd,
           diagnostics: providerDiagnostics
         }),
         this.queryProviderMentionItemsById({
@@ -722,6 +879,7 @@ export class AgentMentionSearchController {
           currentUserId: input.currentUserId,
           query: "",
           limit: this.fileLimit,
+          sessionCwd: input.sessionCwd,
           diagnostics: providerDiagnostics
         })
       ]);
@@ -748,6 +906,7 @@ export class AgentMentionSearchController {
         currentUserId: input.currentUserId,
         query: "",
         limit: DEFAULT_MENTION_GROUP_PAGE_SIZE,
+        sessionCwd: input.sessionCwd,
         diagnostics: providerDiagnostics
       });
       const rawGroups: AgentMentionRawGroups = {
@@ -771,6 +930,7 @@ export class AgentMentionSearchController {
         currentUserId: input.currentUserId,
         query: "",
         limit: this.currentIssueSearchLimit,
+        sessionCwd: input.sessionCwd,
         diagnostics: providerDiagnostics
       });
       const rawGroups: AgentMentionRawGroups = {
@@ -794,6 +954,7 @@ export class AgentMentionSearchController {
         currentUserId: input.currentUserId,
         query: "",
         limit: DEFAULT_SESSION_LIMIT,
+        sessionCwd: input.sessionCwd,
         diagnostics: providerDiagnostics
       });
       const sessionMentionItems = sessionItems.filter(
@@ -829,6 +990,7 @@ export class AgentMentionSearchController {
         currentUserId: input.currentUserId,
         query: "",
         limit: DEFAULT_MENTION_GROUP_PAGE_SIZE,
+        sessionCwd: input.sessionCwd,
         diagnostics: providerDiagnostics
       }),
       this.queryProviderMentionItemsById({
@@ -837,6 +999,7 @@ export class AgentMentionSearchController {
         currentUserId: input.currentUserId,
         query: "",
         limit: this.fileLimit,
+        sessionCwd: input.sessionCwd,
         diagnostics: providerDiagnostics
       }),
       this.queryProviderMentionItemsById({
@@ -845,6 +1008,7 @@ export class AgentMentionSearchController {
         currentUserId: input.currentUserId,
         query: "",
         limit: this.currentIssueSearchLimit,
+        sessionCwd: input.sessionCwd,
         diagnostics: providerDiagnostics
       }),
       this.queryProviderMentionItemsById({
@@ -853,6 +1017,7 @@ export class AgentMentionSearchController {
         currentUserId: input.currentUserId,
         query: "",
         limit: DEFAULT_SESSION_LIMIT,
+        sessionCwd: input.sessionCwd,
         diagnostics: providerDiagnostics
       })
     ]);
@@ -881,6 +1046,7 @@ export class AgentMentionSearchController {
     currentUserId: string;
     query: string;
     limit: number;
+    sessionCwd: string;
     abortSignal: AbortSignal;
   }): Promise<AgentContextMentionItem[]> {
     const items = await input.provider.query({
@@ -891,7 +1057,7 @@ export class AgentMentionSearchController {
       context: {
         metadata: {
           currentUserId: input.currentUserId,
-          sessionCwd: this.currentSessionCwd || undefined,
+          sessionCwd: input.sessionCwd || undefined,
           target: "agent-gui",
           workspaceId: input.workspaceId
         }
@@ -949,7 +1115,7 @@ export class AgentMentionSearchController {
     entry: AgentMentionBrowseCacheEntry | null;
     isFresh: boolean;
   } {
-    const entry = this.browseCache.get(cacheKey);
+    const entry = sharedAgentMentionBrowseCache.get(cacheKey);
     if (!entry) {
       return { entry: null, isFresh: false };
     }
@@ -961,20 +1127,88 @@ export class AgentMentionSearchController {
     return { entry, isFresh };
   }
 
+  private readBrowseCacheForBrowseInput(input: {
+    cacheKey: string;
+    workspaceId: string;
+    currentUserId: string;
+    filter: AgentMentionFilterId;
+    sessionCwd: string;
+  }): {
+    entry: AgentMentionBrowseCacheEntry | null;
+    isFresh: boolean;
+  } {
+    const direct = this.readBrowseCache(input.cacheKey);
+    if (direct.entry || input.filter === "all") {
+      return direct;
+    }
+    const allCacheKey = this.browseCacheKey({
+      workspaceId: input.workspaceId,
+      currentUserId: input.currentUserId,
+      filter: "all",
+      sessionCwd: input.sessionCwd
+    });
+    const allCached = this.readBrowseCache(allCacheKey);
+    if (!allCached.entry || !canDeriveBrowseFilterFromAll(input.filter)) {
+      return direct;
+    }
+    return {
+      entry: deriveBrowseCacheEntryForFilter(allCached.entry, input.filter),
+      isFresh: allCached.isFresh
+    };
+  }
+
   private browseCacheKey(input: {
     workspaceId: string;
     currentUserId: string;
     filter: AgentMentionFilterId;
+    sessionCwd: string;
   }): string {
     return JSON.stringify({
       workspaceId: input.workspaceId,
       currentUserId: input.currentUserId,
-      sessionCwd: this.currentSessionCwd,
+      sessionCwd: input.sessionCwd,
       filter: input.filter,
       fileLimit: this.fileLimit,
       issueLimit: this.currentIssueSearchLimit,
       providerIds: [...this.contextMentionProviders.keys()].sort()
     });
+  }
+
+  private logBrowseCacheState(input: {
+    cacheKey: string;
+    cached: { entry: AgentMentionBrowseCacheEntry | null; isFresh: boolean };
+    filter: AgentMentionFilterId;
+    reason: AgentMentionBrowseLoadReason;
+    workspaceId: string;
+  }): void {
+    this.logLifecycle("browse.cache", {
+      ageMs: input.cached.entry
+        ? elapsedDiagnosticMs(this.diagnosticNow(), input.cached.entry.cachedAt)
+        : null,
+      cacheKeyLength: input.cacheKey.length,
+      cacheState: input.cached.entry
+        ? input.cached.isFresh
+          ? "fresh"
+          : "stale"
+        : "miss",
+      filter: input.filter,
+      itemCount: input.cached.entry
+        ? rawGroupItemCount(input.cached.entry.rawGroups)
+        : 0,
+      reason: input.reason,
+      workspaceId: input.workspaceId
+    });
+  }
+
+  private logLifecycle(
+    event: AgentMentionLifecycleDiagnosticLog["event"],
+    details: Record<string, RuntimeDiagnosticsDetailValue>
+  ): void {
+    logAgentMentionLifecycleDiagnostic({ event, details });
+  }
+
+  private providerIdsForDiagnostics(): string {
+    return [...this.contextMentionProviders.keys()].sort().join(",");
   }
 
   private async queryProviderMentionItemsById(input: {
@@ -984,6 +1218,7 @@ export class AgentMentionSearchController {
     currentUserId: string;
     query: string;
     limit: number;
+    sessionCwd?: string;
   }): Promise<AgentContextMentionItem[]> {
     const provider = this.contextMentionProviders.get(input.providerId);
     return queryAgentMentionProviderWithDiagnostics({
@@ -1000,6 +1235,7 @@ export class AgentMentionSearchController {
               currentUserId: input.currentUserId,
               query: input.query,
               limit: input.limit,
+              sessionCwd: input.sessionCwd ?? this.currentSessionCwd,
               abortSignal
             })
         : null,
@@ -1210,6 +1446,114 @@ function totalCountsFromRawGroups(
     collab_sessions: rawGroups.collab_sessions.length,
     issues: rawGroups.issues.length
   };
+}
+
+function rawGroupItemCount(rawGroups: AgentMentionRawGroups): number {
+  return Object.values(rawGroups).reduce(
+    (count, items) => count + items.length,
+    0
+  );
+}
+
+function canDeriveBrowseFilterFromAll(
+  filter: AgentMentionFilterId
+): filter is "app" | "issue" | "session" {
+  return filter === "app" || filter === "issue" || filter === "session";
+}
+
+function deriveBrowseCacheEntryForFilter(
+  entry: AgentMentionBrowseCacheEntry,
+  filter: "app" | "issue" | "session"
+): AgentMentionBrowseCacheEntry {
+  const rawGroups = deriveRawGroupsForFilter(entry.rawGroups, filter);
+  return {
+    providerDiagnostics: entry.providerDiagnostics,
+    rawGroups,
+    totalCounts: totalCountsFromRawGroups(rawGroups),
+    cachedAt: entry.cachedAt
+  };
+}
+
+function deriveRawGroupsForFilter(
+  rawGroups: AgentMentionRawGroups,
+  filter: "app" | "issue" | "session"
+): AgentMentionRawGroups {
+  if (filter === "app") {
+    return {
+      apps: rawGroups.apps,
+      opened_files: [],
+      agent_generated_files: [],
+      my_sessions: [],
+      collab_sessions: [],
+      issues: []
+    };
+  }
+  if (filter === "issue") {
+    return {
+      apps: [],
+      opened_files: [],
+      agent_generated_files: [],
+      my_sessions: [],
+      collab_sessions: [],
+      issues: rawGroups.issues
+    };
+  }
+  return {
+    apps: [],
+    opened_files: [],
+    agent_generated_files: [],
+    my_sessions: rawGroups.my_sessions,
+    collab_sessions: [],
+    issues: []
+  };
+}
+
+function providerDiagnosticsSummary(
+  diagnostics: readonly AgentMentionProviderQueryDiagnostic[]
+): string {
+  return diagnostics
+    .map(
+      (diagnostic) =>
+        `${diagnostic.providerId}:${diagnostic.status}:${diagnostic.resultCount}:${diagnostic.durationMs}`
+    )
+    .join(",");
+}
+
+function elapsedDiagnosticMs(now: number, startedAt: number): number {
+  const durationMs = now - startedAt;
+  return Number.isFinite(durationMs) ? Math.max(0, Math.round(durationMs)) : 0;
+}
+
+function diagnosticErrorKind(error: unknown): string {
+  if (error instanceof Error && error.name.trim()) {
+    return error.name.trim();
+  }
+  if (error === null) {
+    return "null";
+  }
+  return typeof error;
+}
+
+function logAgentMentionLifecycleDiagnostic(
+  payload: AgentMentionLifecycleDiagnosticLog
+): void {
+  try {
+    console.info(AGENT_MENTION_LIFECYCLE_LOG_PREFIX, JSON.stringify(payload));
+  } catch {
+    // Diagnostic logging must never affect mention search state.
+  }
+  try {
+    getOptionalAgentHostApi()?.debug?.logRuntimeDiagnostics?.({
+      source: "renderer-workspace-surface",
+      level: "info",
+      event: `agent-gui.mention.${payload.event}`,
+      // i18n-check-ignore: Internal diagnostic log message.
+      message: "Agent GUI mention search lifecycle event.",
+      details: payload.details
+    });
+  } catch {
+    // Diagnostic logging must never affect mention search state.
+  }
 }
 
 function orderMentionGroupsForFilter(input: {
