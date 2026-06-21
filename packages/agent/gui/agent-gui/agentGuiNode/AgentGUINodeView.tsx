@@ -12,7 +12,7 @@ import {
   useState
 } from "react";
 import { useSnapshot } from "valtio";
-import { ChevronRight, Info, X } from "lucide-react";
+import { ChevronRight, ExternalLink, Info, X } from "lucide-react";
 import type {
   ReferenceLocateTarget,
   WorkspaceFileReference,
@@ -39,7 +39,6 @@ import type { WorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-p
 import { BareIconButton, ScrollArea } from "@tutti-os/ui-system/components";
 import { Button } from "../../app/renderer/components/ui/button";
 import {
-  AppWindowIcon,
   EditIcon,
   FolderIcon,
   MoreHorizontalIcon
@@ -3418,7 +3417,7 @@ const AgentGUIConversationRailItem = memo(
                     handleOpenConversationWindow();
                   }}
                 >
-                  <AppWindowIcon aria-hidden="true" />
+                  <ExternalLink aria-hidden="true" />
                 </BareIconButton>
               ) : null}
               <BareIconButton
