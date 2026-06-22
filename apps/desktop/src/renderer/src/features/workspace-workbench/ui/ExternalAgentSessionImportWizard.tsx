@@ -192,7 +192,7 @@ export function ExternalAgentSessionImportWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(640px,calc(100vh-32px))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+      <DialogContent className="flex max-h-[min(640px,calc(100vh-32px))] flex-col gap-0 overflow-hidden bg-[var(--background-fronted)] p-0 sm:max-w-[640px]">
         <DialogHeader className="shrink-0 border-b border-[var(--border-1)] px-5 py-4">
           <DialogTitle>{t("workspace.externalImport.title")}</DialogTitle>
           <DialogDescription>

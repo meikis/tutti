@@ -2492,6 +2492,20 @@
       "iconVariant": "lined"
     },
     {
+      "id": "open-link-lined-icon",
+      "layer": "base",
+      "name": "OpenLinkLinedIcon",
+      "export": "OpenLinkLinedIcon",
+      "from": "@tutti-os/ui-system/icons",
+      "category": "icon",
+      "status": "stable",
+      "source": "src/icons/system-icons.tsx",
+      "description": "Lined system icon for opening an external link in a new surface.",
+      "useCases": ["External links", "Open in browser actions"],
+      "migrationHints": [],
+      "iconVariant": "lined"
+    },
+    {
       "id": "locate-folder-lined-icon",
       "layer": "base",
       "name": "LocateFolderIcon",

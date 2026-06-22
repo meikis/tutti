@@ -293,7 +293,7 @@ export const zhCN = {
         defaultAgentProviderSaveFailed: "暂时无法更新默认 Provider。",
         computerUseLabel: "电脑控制",
         computerUseDescription:
-          "让 Agent 控制你的 Mac 桌面——截图、点击、键盘输入等。",
+          "让 Agent 控制你的 Mac 桌面——截图、点击、键盘输入等",
         computerUseInstallButton: "安装",
         computerUseInstalling: "正在安装…",
         computerUseInstallSuccess: "cua-driver 安装成功。",
@@ -321,7 +321,7 @@ export const zhCN = {
         computerUseStatusNotInstalled: "未安装",
         computerUseStatusCheckAgain: "重新检查",
         browserUseConnectionModeDescription:
-          "选择 Agent 执行网页任务时控制哪个浏览器：你电脑上的 Chrome，或由 Tutti 单独启动的浏览器。",
+          "选择 Agent 执行网页任务时控制哪个浏览器：你电脑上的 Chrome，或由 Tutti 单独启动的浏览器",
         browserUseConnectionModeLabel: "浏览器连接",
         browserUseConnectionModeOptions: {
           autoConnect: "复用我的 Chrome",

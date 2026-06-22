@@ -479,7 +479,7 @@ function AgentUsageChip({
         >
           <span
             aria-hidden="true"
-            className="absolute inset-0.5 rounded-full bg-[var(--background-panel)]"
+            className="absolute inset-0.5 rounded-full bg-[var(--agent-gui-surface-raised,var(--background-fronted))]"
           />
         </button>
       </PopoverTrigger>

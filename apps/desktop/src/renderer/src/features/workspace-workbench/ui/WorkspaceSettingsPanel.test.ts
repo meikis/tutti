@@ -180,5 +180,23 @@ test("workspace managed provider API key is masked until toggled visible", () =>
 
 test("workspace managed provider models use compact rows instead of a textarea", () => {
   assert.match(source, /models\.map\(\(model, index\)/);
+  assert.match(source, /grid-cols-\[max-content_minmax\(0,1fr\)_32px\]/);
+  assert.match(source, /workspaceManagedModelInputClass/);
+  assert.match(source, /focus-visible:!border-\[var\(--border-1\)\]/);
+  assert.match(source, /h-px w-full bg-\[var\(--border-1\)\]/);
+  assert.match(source, /setPendingFocusModelIndex\(nextIndex\)/);
+  assert.match(source, /\{ id: "", name: "", provider: draft\.provider \}/);
+  assert.match(
+    source,
+    /className="flex flex-wrap items-center justify-between gap-2"/
+  );
+  assert.match(source, /<Button[^>]*variant="ghost"[^>]*onClick=\{addModel\}/);
+  assert.match(source, /className="flex flex-wrap justify-end gap-2"/);
+  assert.doesNotMatch(
+    source,
+    /<Button[^>]*variant="secondary"[^>]*onClick=\{addModel\}/
+  );
+  assert.doesNotMatch(source, /grid-cols-\[72px_minmax\(0,1fr\)_/);
+  assert.doesNotMatch(source, /newModelID/);
   assert.doesNotMatch(source, /modelsText/);
 });

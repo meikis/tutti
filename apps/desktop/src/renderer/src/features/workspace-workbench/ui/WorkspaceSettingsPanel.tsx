@@ -22,8 +22,8 @@ import {
   GitHubBrandIcon,
   ImportLinedIcon,
   Input,
-  LinkIcon,
   LoadingIcon,
+  OpenLinkLinedIcon,
   Select,
   SelectContent,
   SelectItem,
@@ -100,6 +100,9 @@ const workspaceSettingsSelectContentClass =
   "w-[var(--radix-select-trigger-width)] rounded-[8px] border border-[var(--border-1)] bg-[var(--background-fronted)] px-1 text-[var(--text-primary)] shadow-[0_16px_40px_var(--shadow-elevated)] [--tutti-select-content-min-width:100%] !outline-none !ring-0";
 const workspaceSettingsInputClass =
   "h-8 w-full rounded-[6px] border border-[var(--border-1)] bg-[var(--transparency-block)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-tertiary)] hover:bg-[var(--transparency-hover)] focus-visible:border-[var(--border-focus)]";
+const workspaceManagedModelInputClass = `${workspaceSettingsInputClass} focus-visible:!border-[var(--border-1)]`;
+const workspaceManagedModelProviderPrefixClass =
+  "flex h-8 items-center justify-end px-2 text-[11px] text-[var(--text-secondary)]";
 
 const developerPanelUnlockTaps = 7;
 const computerUseOperationSettleMs = 280;
@@ -911,6 +914,10 @@ function ManagedModelProviderItem({
   onUpdate: (patch: Partial<WorkspaceManagedModelProviderDraft>) => void;
 }) {
   const { t } = useTranslation();
+  const { addModel, modelInputRefs, updateModels } = useManagedModelRows(
+    provider,
+    onUpdate
+  );
   const label = managedModelProviderLabels[provider.provider];
   const status = provider.hasApiKey
     ? `${t("workspace.settings.apps.managedModels.keyConfigured")} · ${t(
@@ -957,6 +964,35 @@ function ManagedModelProviderItem({
           </div>
         ) : (
           <div className="flex shrink-0 items-center gap-1">
+            <Button
+              aria-expanded={expanded}
+              aria-label={t(
+                expanded
+                  ? "workspace.settings.apps.managedModels.collapse"
+                  : "workspace.settings.apps.managedModels.expand"
+              )}
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              size="icon"
+              type="button"
+              variant="ghost"
+              onClick={onToggleExpand}
+            >
+              {expanded ? (
+                <ChevronUpIcon aria-hidden="true" size={16} />
+              ) : (
+                <ChevronDownIcon aria-hidden="true" size={16} />
+              )}
+            </Button>
+            <Button
+              aria-label={t("workspace.settings.apps.managedModels.delete")}
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              size="icon"
+              type="button"
+              variant="ghost"
+              onClick={onRequestDelete}
+            >
+              <DeleteIcon aria-hidden="true" size={15} />
+            </Button>
             <Switch
               aria-label={t("workspace.settings.apps.managedModels.enabled", {
                 provider: label
@@ -965,31 +1001,6 @@ function ManagedModelProviderItem({
               disabled={saving}
               onCheckedChange={onSetEnabled}
             />
-            <button
-              aria-expanded={expanded}
-              aria-label={t(
-                expanded
-                  ? "workspace.settings.apps.managedModels.collapse"
-                  : "workspace.settings.apps.managedModels.expand"
-              )}
-              className="flex size-8 items-center justify-center rounded-[6px] text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--transparency-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
-              type="button"
-              onClick={onToggleExpand}
-            >
-              {expanded ? (
-                <ChevronUpIcon aria-hidden="true" size={16} />
-              ) : (
-                <ChevronDownIcon aria-hidden="true" size={16} />
-              )}
-            </button>
-            <button
-              aria-label={t("workspace.settings.apps.managedModels.delete")}
-              className="flex size-8 items-center justify-center rounded-[6px] text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--transparency-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
-              type="button"
-              onClick={onRequestDelete}
-            >
-              <DeleteIcon aria-hidden="true" size={15} />
-            </button>
           </div>
         )}
       </div>
@@ -1001,26 +1012,40 @@ function ManagedModelProviderItem({
           <ManagedModelProviderFields
             detecting={detecting}
             draft={provider}
+            modelInputRefs={modelInputRefs}
             onDetect={onDetect}
             onUpdate={onUpdate}
+            updateModels={updateModels}
           />
           <ManagedModelFeedbackLine feedback={feedback} />
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <Button
-              disabled={testing}
+              className="h-auto px-0 text-[12px] font-medium text-[var(--text-primary)] hover:bg-transparent hover:text-[var(--text-primary)]"
+              size="sm"
               type="button"
-              variant="secondary"
-              onClick={onTest}
+              variant="ghost"
+              onClick={addModel}
             >
-              {testing
-                ? t("workspace.settings.apps.managedModels.testing")
-                : t("workspace.settings.apps.managedModels.test")}
+              <AddIcon className="size-3.5" />
+              {t("workspace.settings.apps.managedModels.addModel")}
             </Button>
-            <Button disabled={saving} type="button" onClick={onSave}>
-              {saving
-                ? t("workspace.settings.apps.managedModels.saving")
-                : t("workspace.settings.apps.managedModels.save")}
-            </Button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                disabled={testing}
+                type="button"
+                variant="secondary"
+                onClick={onTest}
+              >
+                {testing
+                  ? t("workspace.settings.apps.managedModels.testing")
+                  : t("workspace.settings.apps.managedModels.test")}
+              </Button>
+              <Button disabled={saving} type="button" onClick={onSave}>
+                {saving
+                  ? t("workspace.settings.apps.managedModels.saving")
+                  : t("workspace.settings.apps.managedModels.save")}
+              </Button>
+            </div>
           </div>
         </>
       ) : null}
@@ -1044,9 +1069,13 @@ function ManagedModelDraftItem({
   onUpdate: (patch: Partial<WorkspaceManagedModelProviderDraft>) => void;
 }) {
   const { t } = useTranslation();
+  const { addModel, modelInputRefs, updateModels } = useManagedModelRows(
+    draft,
+    onUpdate
+  );
 
   return (
-    <section className="flex w-full flex-col gap-4 rounded-[10px] border border-[var(--border-focus)] bg-[var(--transparency-block)] p-4">
+    <section className="flex w-full flex-col gap-4 rounded-[10px] border border-[var(--border-1)] bg-[var(--transparency-block)] p-4">
       <div className="flex items-center justify-between gap-3">
         <strong className="text-[13px] font-semibold text-[var(--text-primary)]">
           {managedModelProviderLabels[draft.provider]}
@@ -1064,41 +1093,103 @@ function ManagedModelDraftItem({
       <ManagedModelProviderFields
         detecting={false}
         draft={draft}
+        modelInputRefs={modelInputRefs}
         onDetect={null}
         onUpdate={onUpdate}
+        updateModels={updateModels}
       />
 
       <ManagedModelFeedbackLine feedback={feedback} />
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          {t("common.cancel")}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          className="h-auto px-0 text-[12px] font-medium text-[var(--text-primary)] hover:bg-transparent hover:text-[var(--text-primary)]"
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={addModel}
+        >
+          <AddIcon className="size-3.5" />
+          {t("workspace.settings.apps.managedModels.addModel")}
         </Button>
-        <Button disabled={saving} type="button" onClick={onSave}>
-          {saving
-            ? t("workspace.settings.apps.managedModels.saving")
-            : t("workspace.settings.apps.managedModels.save")}
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            {t("common.cancel")}
+          </Button>
+          <Button disabled={saving} type="button" onClick={onSave}>
+            {saving
+              ? t("workspace.settings.apps.managedModels.saving")
+              : t("workspace.settings.apps.managedModels.save")}
+          </Button>
+        </div>
       </div>
     </section>
   );
 }
 
+function useManagedModelRows(
+  draft: WorkspaceManagedModelProviderDraft,
+  onUpdate: (patch: Partial<WorkspaceManagedModelProviderDraft>) => void
+): {
+  addModel: () => void;
+  modelInputRefs: React.MutableRefObject<Map<number, HTMLInputElement>>;
+  updateModels: (models: readonly WorkspaceManagedModel[]) => void;
+} {
+  const modelInputRefs = useRef(new Map<number, HTMLInputElement>());
+  const [pendingFocusModelIndex, setPendingFocusModelIndex] = useState<
+    number | null
+  >(null);
+
+  const updateModels = useCallback(
+    (models: readonly WorkspaceManagedModel[]) => {
+      onUpdate({
+        models: normalizeWorkspaceManagedModelRows(draft.provider, models)
+      });
+    },
+    [draft.provider, onUpdate]
+  );
+
+  const addModel = useCallback(() => {
+    const nextIndex = draft.models.length;
+    setPendingFocusModelIndex(nextIndex);
+    onUpdate({
+      models: [...draft.models, { id: "", name: "", provider: draft.provider }]
+    });
+  }, [draft.models, draft.provider, onUpdate]);
+
+  useEffect(() => {
+    if (pendingFocusModelIndex === null) {
+      return;
+    }
+    const input = modelInputRefs.current.get(pendingFocusModelIndex);
+    if (!input) {
+      return;
+    }
+    input.focus();
+    setPendingFocusModelIndex(null);
+  }, [draft.models.length, pendingFocusModelIndex]);
+
+  return { addModel, modelInputRefs, updateModels };
+}
+
 function ManagedModelProviderFields({
   detecting,
   draft,
+  modelInputRefs,
   onDetect,
-  onUpdate
+  onUpdate,
+  updateModels
 }: {
   detecting: boolean;
   draft: WorkspaceManagedModelProviderDraft;
+  modelInputRefs: React.MutableRefObject<Map<number, HTMLInputElement>>;
   onDetect: (() => void) | null;
   onUpdate: (patch: Partial<WorkspaceManagedModelProviderDraft>) => void;
+  updateModels: (models: readonly WorkspaceManagedModel[]) => void;
 }) {
   const { t } = useTranslation();
   const [visibleAPIKeyProviderID, setVisibleAPIKeyProviderID] =
     useState<WorkspaceManagedModelProviderID | null>(null);
-  const [newModelID, setNewModelID] = useState("");
 
   const apiKeyVisible = visibleAPIKeyProviderID === draft.provider;
   const presets = getManagedModelProviderPresets(draft.provider);
@@ -1110,20 +1201,6 @@ function ManagedModelProviderFields({
     selectedPreset?.baseUrl ?? CUSTOM_MANAGED_MODEL_PROVIDER_PRESET;
   const apiKeyPreset = presets.length === 1 ? presets[0] : selectedPreset;
   const apiKeyUrl = apiKeyPreset?.apiKeyUrl ?? "";
-
-  const updateModels = (models: readonly WorkspaceManagedModel[]) => {
-    onUpdate({
-      models: normalizeWorkspaceManagedModelRows(draft.provider, models)
-    });
-  };
-  const addModel = () => {
-    const id = newModelID.trim();
-    if (!id) {
-      return;
-    }
-    updateModels([...draft.models, { id, name: id, provider: draft.provider }]);
-    setNewModelID("");
-  };
 
   return (
     <>
@@ -1238,22 +1315,25 @@ function ManagedModelProviderFields({
         </label>
       </div>
 
-      {apiKeyUrl ? (
-        <button
-          className="inline-flex w-fit items-center gap-1.5 rounded-[5px] text-left text-[12px] font-medium text-[var(--text-primary)] underline underline-offset-4 transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
-          type="button"
-          onClick={() => {
-            window.open(apiKeyUrl, "_blank", "noopener,noreferrer");
-          }}
-        >
-          {t("workspace.settings.apps.managedModels.getApiKey", {
-            provider:
-              (apiKeyPreset ? t(apiKeyPreset.labelKey) : null) ??
-              managedModelProviderLabels[draft.provider]
-          })}
-          <LinkIcon aria-hidden="true" size={13} />
-        </button>
-      ) : null}
+      <div className="flex flex-col gap-3">
+        {apiKeyUrl ? (
+          <button
+            className="inline-flex w-fit items-center gap-1.5 rounded-[5px] text-left text-[12px] font-medium text-[var(--text-primary)] transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-focus)]"
+            type="button"
+            onClick={() => {
+              window.open(apiKeyUrl, "_blank", "noopener,noreferrer");
+            }}
+          >
+            {t("workspace.settings.apps.managedModels.getApiKey", {
+              provider:
+                (apiKeyPreset ? t(apiKeyPreset.labelKey) : null) ??
+                managedModelProviderLabels[draft.provider]
+            })}
+            <OpenLinkLinedIcon aria-hidden="true" size={13} />
+          </button>
+        ) : null}
+        <div aria-hidden="true" className="h-px w-full bg-[var(--border-1)]" />
+      </div>
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
@@ -1262,10 +1342,11 @@ function ManagedModelProviderFields({
           </span>
           {onDetect ? (
             <Button
+              className="h-auto px-0 text-[12px] font-medium text-[var(--text-primary)] hover:bg-transparent hover:text-[var(--text-primary)]"
               disabled={detecting}
               size="sm"
               type="button"
-              variant="secondary"
+              variant="ghost"
               onClick={onDetect}
             >
               {detecting
@@ -1278,15 +1359,28 @@ function ManagedModelProviderFields({
           {draft.models.map((model, index) => (
             <div
               key={`${model.provider}:${model.id}:${index}`}
-              className="grid grid-cols-[72px_minmax(0,1fr)_32px] items-center gap-1.5"
+              className="grid grid-cols-[max-content_minmax(0,1fr)_32px] items-center gap-1.5"
             >
-              <span className="flex h-8 items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--transparency-block)] px-2 text-[11px] text-[var(--text-secondary)]">
+              <span className={workspaceManagedModelProviderPrefixClass}>
                 {draft.provider}:
               </span>
               <input
                 aria-label={t("workspace.settings.apps.managedModels.modelId")}
-                className={workspaceSettingsInputClass}
-                placeholder={defaultManagedProviderModel(draft.provider)}
+                className={workspaceManagedModelInputClass}
+                placeholder={
+                  model.id
+                    ? defaultManagedProviderModel(draft.provider)
+                    : t(
+                        "workspace.settings.apps.managedModels.modelIdPlaceholder"
+                      )
+                }
+                ref={(input) => {
+                  if (input) {
+                    modelInputRefs.current.set(index, input);
+                    return;
+                  }
+                  modelInputRefs.current.delete(index);
+                }}
                 value={model.id}
                 onChange={(event) => {
                   const id = event.currentTarget.value;
@@ -1315,36 +1409,6 @@ function ManagedModelProviderFields({
               </button>
             </div>
           ))}
-          <div className="grid grid-cols-[72px_minmax(0,1fr)_72px] items-center gap-1.5">
-            <span className="flex h-8 items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--transparency-block)] px-2 text-[11px] text-[var(--text-secondary)]">
-              {draft.provider}:
-            </span>
-            <input
-              aria-label={t("workspace.settings.apps.managedModels.modelId")}
-              className={workspaceSettingsInputClass}
-              placeholder={t(
-                "workspace.settings.apps.managedModels.modelIdPlaceholder"
-              )}
-              value={newModelID}
-              onChange={(event) => setNewModelID(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  addModel();
-                }
-              }}
-            />
-            <Button
-              disabled={!newModelID.trim()}
-              size="sm"
-              type="button"
-              variant="secondary"
-              onClick={addModel}
-            >
-              <AddIcon className="size-3.5" />
-              {t("workspace.settings.apps.managedModels.addModel")}
-            </Button>
-          </div>
         </div>
       </div>
     </>
