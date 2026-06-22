@@ -111,6 +111,37 @@ func TestServiceListReportsLoginAndRefreshActionsWhenAuthMarkerMissing(t *testin
 	}
 }
 
+// specWithSeparateAdapter returns a synthetic provider spec that ships a
+// distinct ACP adapter binary (separate from its CLI). The codex provider no
+// longer has one — it talks to the codex app-server directly — but the
+// separate-adapter machinery is still exercised by other providers (e.g.
+// nexight), so these tests pin a local spec rather than DefaultRegistry's codex.
+func specWithSeparateAdapter() ProviderSpec {
+	return ProviderSpec{
+		Provider:           "codex",
+		BinaryNames:        []string{"codex"},
+		AdapterBinaryNames: []string{"codex-acp"},
+		AdapterCommand:     []string{"codex-acp"},
+		AuthMarkerPaths:    []string{"~/.codex/auth.json"},
+		Install: InstallerSpec{
+			Kind:           InstallerKindOfficialScript,
+			DisplayCommand: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
+			ScriptURL:      "https://chatgpt.com/codex/install.sh",
+			ScriptShell:    "sh",
+		},
+		AdapterInstall: InstallerSpec{
+			Kind:           InstallerKindGitHubReleaseBinary,
+			DisplayCommand: "Install test adapter from GitHub releases",
+			ReleaseBinary: &ReleaseBinaryInstallerSpec{
+				BinaryName: "codex-acp",
+				Version:    "v0.0.0-test",
+				Assets:     map[string]ReleaseBinaryAsset{},
+			},
+		},
+		LoginArgs: []string{"login"},
+	}
+}
+
 func TestServiceListReportsInstallActionWhenACPAdapterMissing(t *testing.T) {
 	service := testService(func(name string) (string, error) {
 		if name == "codex" {
@@ -118,6 +149,7 @@ func TestServiceListReportsInstallActionWhenACPAdapterMissing(t *testing.T) {
 		}
 		return "", errors.New("not found")
 	}, map[string]bool{"/home/test/.codex/auth.json": true})
+	service.Registry = Registry{Specs: []ProviderSpec{specWithSeparateAdapter()}}
 
 	snapshot, err := service.List(context.Background(), ListInput{Providers: []string{"codex"}})
 	if err != nil {
@@ -252,6 +284,7 @@ func TestServiceListReportsInstallActionWhenCodexAdapterCommandFails(t *testing.
 	writeExecutable(t, adapterPath, "#!/bin/sh\necho 'codex-acp failed to start' >&2\nexit 127\n")
 
 	service := Service{
+		Registry: Registry{Specs: []ProviderSpec{specWithSeparateAdapter()}},
 		Environ: func() []string {
 			return []string{"PATH=" + binDir}
 		},
@@ -585,6 +618,7 @@ func TestServiceListUsesRuntimeCommandResolverForKnownNodeGlobalBin(t *testing.T
 	writeExecutable(t, adapterPath, "#!/bin/sh\nexit 0\n")
 
 	service := Service{
+		Registry: Registry{Specs: []ProviderSpec{specWithSeparateAdapter()}},
 		Environ: func() []string {
 			return []string{"PATH=/usr/bin:/bin"}
 		},
@@ -630,7 +664,9 @@ func TestServiceProbeReportsReadyWhenAdapterStarts(t *testing.T) {
 	adapterPath := filepath.Join(binDir, "codex-acp")
 	writeExecutable(t, adapterPath, "#!/bin/sh\nsleep 5\n")
 
-	result, err := probeTestService(home).Probe(context.Background(), ProbeInput{Provider: "codex"})
+	service := probeTestService(home)
+	service.Registry = Registry{Specs: []ProviderSpec{specWithSeparateAdapter()}}
+	result, err := service.Probe(context.Background(), ProbeInput{Provider: "codex"})
 	if err != nil {
 		t.Fatalf("Probe() error = %v", err)
 	}
@@ -665,8 +701,12 @@ func TestServiceProbeReportsFailureWhenAdapterCommandCannotStart(t *testing.T) {
 			ScriptURL:      "https://chatgpt.com/codex/install.sh",
 			ScriptShell:    "sh",
 		},
-		AdapterInstall: codexACPInstallerSpec(),
-		LoginArgs:      []string{"login"},
+		AdapterInstall: InstallerSpec{
+			Kind:           InstallerKindShellCommand,
+			DisplayCommand: "install adapter",
+			ShellCommand:   "true",
+		},
+		LoginArgs: []string{"login"},
 	}}}
 
 	result, err := service.Probe(context.Background(), ProbeInput{Provider: "codex"})
