@@ -259,6 +259,10 @@ export function resolveBrowserMcpDaemonEnv(
 const vendoredClaudeAcpRelPath = join(
   "bin",
   "claude-acp",
+  // Nested under bridge/ so the vendored node_modules survives electron-builder
+  // packaging (it strips a node_modules dir at the extraResources `from` root).
+  // Kept in sync with outDir in scripts/vendor-claude-acp.mjs.
+  "bridge",
   "node_modules",
   "@agentclientprotocol",
   "claude-agent-acp",

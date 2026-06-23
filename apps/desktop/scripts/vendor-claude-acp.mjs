@@ -22,7 +22,14 @@ const CLAUDE_ACP_VERSION = "0.46.0";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const desktopDir = join(__dirname, "..");
 const repoRoot = join(desktopDir, "..", "..");
-const outDir = join(desktopDir, "build", "claude-acp");
+// stageDir is the extraResources `from` root (shipped to Resources/bin/claude-acp).
+// We install one level BELOW it, under bridge/, because electron-builder's file
+// matcher hard-excludes a `node_modules` directory that sits at the ROOT of an
+// extraResources `from` dir (app-builder-lib util/filter.js: `relative ===
+// "node_modules"` -> excluded) but KEEPS a nested one. Without this nesting the
+// vendored dependency tree is silently stripped from the packaged app.
+const stageDir = join(desktopDir, "build", "claude-acp");
+const outDir = join(stageDir, "bridge");
 const packageDistDir = join(
   "node_modules",
   "@agentclientprotocol",
@@ -47,7 +54,7 @@ function log(msg) {
   process.stderr.write(`[vendor-claude-acp] ${msg}\n`);
 }
 
-rmSync(outDir, { recursive: true, force: true });
+rmSync(stageDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 // A minimal package.json so `npm install` materializes a self-contained tree.

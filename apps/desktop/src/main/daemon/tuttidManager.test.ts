@@ -190,6 +190,7 @@ test("resolveClaudeAcpDaemonEnv points the daemon at a vendored bridge when pres
       resourcesPath,
       "bin",
       "claude-acp",
+      "bridge",
       "node_modules",
       "@agentclientprotocol",
       "claude-agent-acp",
