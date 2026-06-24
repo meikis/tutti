@@ -118,6 +118,38 @@ test("workspace app launch request preserves prepared payload previous status", 
   );
 });
 
+test("workspace app launch request restarts pending app from dock", async () => {
+  const app = createApp({
+    appId: "ready",
+    runtimeStatus: "installed_pending_restart",
+    launchUrl: "http://127.0.0.1:3000"
+  });
+  const restartCalls: Array<{ appId: string; workspaceId: string }> = [];
+  const result = await resolveWorkspaceAppCenterLaunchRequest({
+    appCenterService: createAppCenterService([app], {
+      restartAndOpenApp: async (input) => {
+        restartCalls.push(input);
+        return true;
+      }
+    }),
+    request: {
+      ...createLaunchRequestContext(),
+      dockEntryId: workspaceAppDockEntryId("ready"),
+      reason: "dock",
+      typeId: workspaceAppWebviewTypeID,
+      workspaceId: "workspace-1"
+    }
+  });
+
+  assert.equal(result, null);
+  assert.deepEqual(restartCalls, [
+    {
+      appId: "ready",
+      workspaceId: "workspace-1"
+    }
+  ]);
+});
+
 test("workspace app dock entry focus reports app open from the dock entry id", () => {
   const reporterCalls: ReporterEventInput[][] = [];
   const app = createApp({

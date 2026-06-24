@@ -33,6 +33,13 @@ test("projectWorkspaceAppCenterDockState maps runtime status to dock state", () 
     }
   );
   assert.deepEqual(
+    projectWorkspaceAppCenterDockState("installed_pending_restart", null),
+    {
+      launchEnabled: true,
+      state: { kind: "enabled" }
+    }
+  );
+  assert.deepEqual(
     projectWorkspaceAppCenterDockState("starting", "https://app.local"),
     {
       launchEnabled: false,

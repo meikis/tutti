@@ -25,6 +25,12 @@ export function projectWorkspaceAppCenterDockState(
   status: WorkspaceAppCenterRuntimeStatus,
   launchUrl: string | null | undefined
 ): Pick<WorkspaceAppCenterDockProjection, "launchEnabled" | "state"> {
+  if (status === "installed_pending_restart") {
+    return {
+      launchEnabled: true,
+      state: { kind: "enabled" }
+    };
+  }
   if (status === "running") {
     if (!launchUrl) {
       return {
