@@ -11,6 +11,10 @@ export {
   createIssueReferenceSource
 } from "./issueReferenceSource.ts";
 export {
+  USER_PROJECT_REFERENCE_SOURCE_ID,
+  createUserProjectReferenceSource
+} from "./userProjectReferenceSource.ts";
+export {
   resolveMentionReferenceTarget,
   type MentionReferenceTargetResolver
 } from "./mentionReferenceTarget.ts";

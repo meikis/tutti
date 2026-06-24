@@ -21,8 +21,10 @@ import {
 } from "@tutti-os/workspace-file-reference/core";
 import { createDesktopWorkspaceFileReferenceAdapter } from "../../workspace-file-manager/services/createDesktopWorkspaceFileReferenceAdapter.ts";
 import {
+  USER_PROJECT_REFERENCE_SOURCE_ID,
   createAppArtifactReferenceSource,
   createIssueReferenceSource,
+  createUserProjectReferenceSource,
   createWorkspaceFileReferenceSource,
   resolveMentionReferenceTarget
 } from "../../agent-reference-sources/index.ts";
@@ -50,6 +52,9 @@ export interface DesktopAgentGUIWorkbenchHostInput {
   referenceSourceAggregator: ReferenceSourceAggregator;
   resolveMentionReferenceTarget: NonNullable<
     AgentGUIProps["resolveMentionReferenceTarget"]
+  >;
+  resolveWorkspaceReferenceInitialTarget: NonNullable<
+    AgentGUIProps["resolveWorkspaceReferenceInitialTarget"]
   >;
 }
 
@@ -130,10 +135,20 @@ export function createDesktopAgentGUIWorkbenchHostInput({
       tuttidClient,
       workspaceId
     });
-  // 多源引用聚合:本地文件 + 应用产物(任务产物为将来一个新源)。
-  // 应用源的 open/preview 复用本地 adapter 同一条 host 链路。
+  // 多源引用聚合:项目快捷入口 + 本地文件 + 应用产物 + 任务产物。
+  // 非本地源的 open/preview 复用本地 adapter 同一条 host 链路。
   const referenceSourceAggregator = createReferenceSourceAggregator(
     createStaticReferenceSourceRegistry([
+      ...(workspaceUserProjectService
+        ? [
+            createUserProjectReferenceSource({
+              adapter: workspaceFileReferenceAdapter,
+              label: translate("workspace.referenceSources.projectSourceLabel"),
+              order: -1,
+              workspaceUserProjectService
+            })
+          ]
+        : []),
       createWorkspaceFileReferenceSource({
         adapter: workspaceFileReferenceAdapter,
         label: translate("workspace.referenceSources.localSourceLabel"),
@@ -190,8 +205,49 @@ export function createDesktopAgentGUIWorkbenchHostInput({
       };
     },
     referenceSourceAggregator,
-    resolveMentionReferenceTarget
+    resolveMentionReferenceTarget,
+    resolveWorkspaceReferenceInitialTarget
   };
+}
+
+const resolveWorkspaceReferenceInitialTarget: NonNullable<
+  AgentGUIProps["resolveWorkspaceReferenceInitialTarget"]
+> = ({ activeConversation, composerSelectedProjectPath, userProjects }) => {
+  const project =
+    activeConversation?.project ??
+    findUserProjectByPath(userProjects, composerSelectedProjectPath) ??
+    userProjects[0] ??
+    null;
+  if (!project) {
+    return null;
+  }
+  return {
+    sourceId: USER_PROJECT_REFERENCE_SOURCE_ID,
+    params: {
+      projectId: project.id,
+      projectPath: project.path
+    }
+  };
+};
+
+function findUserProjectByPath<
+  T extends {
+    path: string;
+  }
+>(projects: readonly T[], path: string | null | undefined): T | null {
+  const normalizedPath = normalizeProjectPath(path);
+  if (!normalizedPath) {
+    return null;
+  }
+  return (
+    projects.find(
+      (project) => normalizeProjectPath(project.path) === normalizedPath
+    ) ?? null
+  );
+}
+
+function normalizeProjectPath(path: string | null | undefined): string {
+  return path?.trim().replaceAll("\\", "/").replace(/\/+$/, "") ?? "";
 }
 
 function richTextTriggerProviderToContextMentionProvider(
