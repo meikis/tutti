@@ -36,6 +36,10 @@ export interface AgentMessageImageVM {
   mimeType: string;
   name?: string | null;
   data?: string | null;
+  path?: string | null;
+  uri?: string | null;
+  uploadStatus?: "pending" | "uploaded" | "failed" | string | null;
+  assetId?: string | null;
 }
 
 export interface AgentThinkingContentVM {

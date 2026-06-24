@@ -143,9 +143,24 @@ export interface AgentActivityRuntimeReadSessionAttachmentInput {
   workspaceId: string;
 }
 
+export interface AgentActivityRuntimeReadPromptAssetInput {
+  agentSessionId?: string | null;
+  assetId?: string | null;
+  mimeType: string;
+  name?: string | null;
+  path?: string | null;
+  sha256?: string | null;
+  uploadStatus?: "pending" | "uploaded" | "failed" | string | null;
+  uri?: string | null;
+  workspaceId: string;
+}
+
 export type AgentActivityRuntimePromptContentBlock =
   AgentActivitySendInput["content"][number] & {
-    url?: string;
+    assetId?: string;
+    path?: string;
+    uri?: string;
+    uploadStatus?: "pending" | "uploaded" | "failed" | string;
   };
 
 export interface AgentActivityRuntimeUploadPromptContentInput {
@@ -161,6 +176,16 @@ export interface AgentActivityRuntimeSessionAttachment {
   attachmentId: string;
   mimeType: string;
   name?: string;
+  data: string;
+}
+
+export interface AgentActivityRuntimePromptAsset {
+  assetId?: string;
+  mimeType: string;
+  name?: string;
+  path: string;
+  uri?: string;
+  uploadStatus?: "pending" | "uploaded" | "failed" | string;
   data: string;
 }
 
@@ -218,6 +243,9 @@ export interface AgentActivityRuntime {
   readSessionAttachment?(
     input: AgentActivityRuntimeReadSessionAttachmentInput
   ): Promise<AgentActivityRuntimeSessionAttachment>;
+  readPromptAsset?(
+    input: AgentActivityRuntimeReadPromptAssetInput
+  ): Promise<AgentActivityRuntimePromptAsset>;
   setSessionPinned(
     input: AgentActivityRuntimeSetSessionPinnedInput
   ): Promise<AgentActivitySession>;

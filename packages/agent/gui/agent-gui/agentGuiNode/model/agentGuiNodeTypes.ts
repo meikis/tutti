@@ -79,7 +79,10 @@ export interface AgentComposerDraftImage {
   name: string;
   mimeType: "image/png" | "image/jpeg" | "image/webp";
   data?: string;
-  url?: string;
+  path?: string;
+  uri?: string;
+  uploadStatus?: "pending" | "uploaded" | "failed" | string;
+  assetId?: string;
   previewUrl: string;
   uploading?: boolean;
   uploadError?: string;

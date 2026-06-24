@@ -331,23 +331,40 @@ function useAgentMessageImageSources(
           !sources.has(image.id) &&
           image.workspaceId &&
           image.agentSessionId &&
-          image.attachmentId
+          (image.attachmentId || image.path || image.uri)
       ),
     [images, sources]
   );
 
   useEffect(() => {
-    if (!runtime?.readSessionAttachment || missingImages.length === 0) {
+    if (
+      (!runtime?.readSessionAttachment && !runtime?.readPromptAsset) ||
+      missingImages.length === 0
+    ) {
       return;
     }
     let canceled = false;
     for (const image of missingImages) {
-      void runtime
-        .readSessionAttachment({
-          workspaceId: image.workspaceId ?? "",
-          agentSessionId: image.agentSessionId,
-          attachmentId: image.attachmentId ?? ""
-        })
+      const readImage = image.attachmentId
+        ? runtime.readSessionAttachment?.({
+            workspaceId: image.workspaceId ?? "",
+            agentSessionId: image.agentSessionId,
+            attachmentId: image.attachmentId ?? ""
+          })
+        : runtime.readPromptAsset?.({
+            workspaceId: image.workspaceId ?? "",
+            agentSessionId: image.agentSessionId,
+            assetId: image.assetId,
+            mimeType: image.mimeType,
+            name: image.name,
+            path: image.path,
+            uri: image.uri,
+            uploadStatus: image.uploadStatus
+          });
+      if (!readImage) {
+        continue;
+      }
+      void readImage
         .then((attachment) => {
           if (canceled) {
             return;
