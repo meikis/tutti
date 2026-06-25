@@ -330,6 +330,17 @@ export function AgentEnvPanel({
 
   const displayStages = projectRevealedStages(stages, revealIndex);
 
+  // When the CLI + adapter are in place and the only thing left is signing in,
+  // the primary action is login — not install/repair. Without this the wizard
+  // parks on the "login" stage with no way forward.
+  const stageStatus = (id: AgentSetupStageId): CodexSetupStepStatus | null =>
+    stages.find((entry) => entry.id === id)?.status ?? null;
+  const authActionable =
+    !ready &&
+    stageStatus("install") === "ok" &&
+    stageStatus("adapter") === "ok" &&
+    stageStatus("login") !== "ok";
+
   const manualCommand = MANUAL_INSTALL_COMMANDS[provider] ?? null;
   const registry = activeAction?.registry ?? null;
 
@@ -418,6 +429,15 @@ export function AgentEnvPanel({
                 {t("workspace.agentEnv.actionRelogin")}
               </Button>
             </>
+          ) : authActionable ? (
+            <Button
+              size="dialog"
+              type="button"
+              disabled={loginPending}
+              onClick={() => runAction("login")}
+            >
+              {t("workspace.agentEnv.actionLogin")}
+            </Button>
           ) : (
             <Button
               size="dialog"
@@ -622,8 +642,14 @@ function ConfigPanelBody({
     },
     {
       label: t("workspace.agentEnv.fieldAccount"),
+      // Some providers (e.g. codex) authenticate without exposing an account
+      // label; show "signed in" rather than the contradictory "not signed in"
+      // when auth is confirmed but no label is available.
       value:
-        status?.auth.accountLabel ?? t("workspace.agentEnv.valueNotSignedIn")
+        status?.auth.accountLabel ??
+        (status?.auth.status === "authenticated"
+          ? t("workspace.agentEnv.valueSignedIn")
+          : t("workspace.agentEnv.valueNotSignedIn"))
     },
     {
       label: t("workspace.agentEnv.fieldRegistry"),
