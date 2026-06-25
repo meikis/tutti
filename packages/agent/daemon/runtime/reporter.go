@@ -393,6 +393,7 @@ func forwardSystemNoticeMessageMetadata(payload map[string]any, metadata map[str
 		"title",
 		"detail",
 		"additionalDetails",
+		"code",
 	} {
 		if value := stringFromPayload(metadata, key); value != "" {
 			payload[key] = value

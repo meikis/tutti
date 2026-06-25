@@ -12,6 +12,13 @@ import (
 	activityshared "github.com/tutti-os/tutti/packages/agentactivity/daemon/activity/events"
 )
 
+const (
+	codexVisibleErrorCodeVersionTooOld = "CODEX_VERSION_TOO_OLD"
+
+	appServerInvalidRequestErrorCode = "invalid_request_error"
+	appServerVersionTooOldMessage    = "requires a newer version"
+)
+
 // handleAppServerMessage routes codex app-server server->client traffic.
 // Server requests (approvals, user-input questions) block until the user
 // answers; notifications are translated into activity events through the
@@ -133,7 +140,7 @@ func (a *CodexAppServerAdapter) appServerNotificationEvents(
 		if willRetry, _ := params["willRetry"].(bool); willRetry {
 			return []activityshared.Event{appServerSystemNoticeEvent(session, turnID, "transport_retry", "", detail)}
 		}
-		return []activityshared.Event{appServerSystemNoticeEvent(session, turnID, "warning", "Codex reported an error.", detail)}
+		return []activityshared.Event{appServerSystemNoticeEvent(session, turnID, "warning", "Codex reported an error.", detail, appServerErrorMetadata(turnError))}
 	case appServerNotifyWarning:
 		return []activityshared.Event{appServerSystemNoticeEvent(session, turnID, "warning", "", asString(params["message"]))}
 	case appServerNotifyDeprecation:
@@ -628,7 +635,7 @@ func appServerRateLimitQuotas(snapshot map[string]any) []map[string]any {
 	return quotas
 }
 
-func appServerSystemNoticeEvent(session Session, turnID string, noticeKind string, title string, detail string) activityshared.Event {
+func appServerSystemNoticeEvent(session Session, turnID string, noticeKind string, title string, detail string, metadata ...map[string]any) activityshared.Event {
 	update := map[string]any{
 		"sessionUpdate": "system_notice",
 		"kind":          "agent_system_notice",
@@ -640,8 +647,25 @@ func appServerSystemNoticeEvent(session Session, turnID string, noticeKind strin
 	if detail != "" {
 		update["detail"] = detail
 	}
+	for _, extra := range metadata {
+		for key, value := range extra {
+			if value != nil {
+				update[key] = value
+			}
+		}
+	}
 	event, _ := acpSystemNoticeEvent(session, turnID, update, "system_notice", true)
 	return event
+}
+
+func appServerErrorMetadata(turnError map[string]any) map[string]any {
+	if asString(turnError["code"]) != appServerInvalidRequestErrorCode {
+		return nil
+	}
+	if !strings.Contains(strings.ToLower(asString(turnError["message"])), appServerVersionTooOldMessage) {
+		return nil
+	}
+	return map[string]any{"code": codexVisibleErrorCodeVersionTooOld}
 }
 
 // --- server -> client requests (approvals, user input) ---
