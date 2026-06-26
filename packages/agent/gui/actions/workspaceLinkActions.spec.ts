@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveLocalAssetPreviewLinkAction,
+  resolveWorkspaceLinkAction,
   resolveWorkspaceMentionLinkAction,
   resolveWorkspaceFileLinkAction,
   resolveWorkspaceFilePathCandidate
@@ -315,5 +317,56 @@ describe("resolveWorkspaceMentionLinkAction", () => {
         source: "agent-markdown"
       })
     ).toBeNull();
+  });
+});
+
+describe("resolveLocalAssetPreviewLinkAction", () => {
+  it("resolves staged local asset paths as preview actions", () => {
+    expect(
+      resolveLocalAssetPreviewLinkAction({
+        path: "/var/cache/tsh/local-assets/room-1/user-1/asset.png",
+        source: "agent-markdown"
+      })
+    ).toEqual({
+      type: "open-local-asset-preview",
+      path: "/var/cache/tsh/local-assets/room-1/user-1/asset.png",
+      name: "asset.png",
+      source: "agent-markdown"
+    });
+  });
+
+  it("rejects local asset metadata sidecars", () => {
+    expect(
+      resolveLocalAssetPreviewLinkAction({
+        path: "/var/cache/tsh/local-assets/room-1/user-1/asset.png.metadata.json",
+        source: "agent-markdown"
+      })
+    ).toBeNull();
+  });
+
+  it("rejects other VM absolute paths", () => {
+    expect(
+      resolveLocalAssetPreviewLinkAction({
+        path: "/var/lib/tsh/notes.md",
+        source: "agent-markdown"
+      })
+    ).toBeNull();
+  });
+});
+
+describe("resolveWorkspaceLinkAction", () => {
+  it("opens staged local asset links with the preview action", () => {
+    expect(
+      resolveWorkspaceLinkAction({
+        href: "/var/cache/tsh/local-assets/room-1/user-1/photo.png",
+        workspaceRoot: "/workspace/project-a",
+        source: "agent-markdown"
+      })
+    ).toEqual({
+      type: "open-local-asset-preview",
+      path: "/var/cache/tsh/local-assets/room-1/user-1/photo.png",
+      name: "photo.png",
+      source: "agent-markdown"
+    });
   });
 });

@@ -36,6 +36,13 @@ export interface OpenWorkspaceFileLinkAction {
   prefetchedDirectoryListing?: WorkspaceFileLinkDirectoryListing | null;
 }
 
+export interface OpenLocalAssetPreviewLinkAction {
+  type: "open-local-asset-preview";
+  path: string;
+  name: string;
+  source: WorkspaceLinkActionSource;
+}
+
 export interface WorkspaceFileLinkDirectoryEntry {
   path: string;
   name: string;
@@ -107,12 +114,14 @@ export interface ResolveWorkspaceLinkActionInput {
 
 export type WorkspaceLinkAction =
   | OpenWorkspaceFileLinkAction
+  | OpenLocalAssetPreviewLinkAction
   | OpenWorkspaceUrlLinkAction
   | OpenAgentSessionLinkAction
   | OpenWorkspaceIssueLinkAction
   | OpenWorkspaceAppLinkAction;
 
 const URL_LIKE_LINK_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:|^#/;
+const LOCAL_ASSET_ROOT = "/var/cache/tsh/local-assets";
 
 export function resolveWorkspaceFilePathCandidate({
   path,
@@ -196,6 +205,37 @@ export function resolveWorkspaceFileLinkAction({
     path: candidate.path,
     directoryPath: candidate.directoryPath,
     workspaceRoot: candidate.workspaceRoot,
+    source
+  };
+}
+
+export function resolveLocalAssetPreviewLinkAction({
+  path,
+  source
+}: {
+  path: string;
+  source: WorkspaceLinkActionSource;
+}): OpenLocalAssetPreviewLinkAction | null {
+  const rawPath = decodeWorkspaceLinkPath(path.trim());
+  if (!rawPath || isUrlLikeWorkspaceFilePath(rawPath)) {
+    return null;
+  }
+
+  const resolvedPath = normalizeWorkspaceFilePath(rawPath);
+  if (
+    resolvedPath === LOCAL_ASSET_ROOT ||
+    !isInsideOrEqual(resolvedPath, LOCAL_ASSET_ROOT)
+  ) {
+    return null;
+  }
+  if (resolvedPath.endsWith(".metadata.json")) {
+    return null;
+  }
+
+  return {
+    type: "open-local-asset-preview",
+    path: resolvedPath,
+    name: basename(resolvedPath),
     source
   };
 }
@@ -302,6 +342,10 @@ export function resolveWorkspaceLinkAction({
       basePath,
       source
     }) ??
+    resolveLocalAssetPreviewLinkAction({
+      path: href,
+      source
+    }) ??
     resolveWorkspaceUrlLinkAction({ url: href, source })
   );
 }
@@ -402,6 +446,10 @@ function dirname(path: string): string {
     return "/";
   }
   return path.slice(0, index);
+}
+
+function basename(path: string): string {
+  return path.split("/").filter(Boolean).at(-1) ?? path;
 }
 
 function isInsideOrEqual(path: string, root: string): boolean {
