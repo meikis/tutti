@@ -41,7 +41,7 @@ import type { WorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-p
 import { BareIconButton, ScrollArea } from "@tutti-os/ui-system/components";
 import { Button } from "../../app/renderer/components/ui/button";
 import {
-  EditIcon,
+  CreateChatIcon,
   FolderIcon,
   MoreHorizontalIcon
 } from "@tutti-os/ui-system/icons";
@@ -3323,12 +3323,13 @@ const AgentGUIConversationRailPane = memo(
           <Button
             type="button"
             variant="secondary"
+            size="dialog"
             className={styles.newConversationIconButton}
             title={labels.newConversation}
             disabled={createConversationDisabled}
             onClick={() => onCreateConversation()}
           >
-            <EditIcon aria-hidden="true" />
+            <CreateChatIcon aria-hidden="true" />
             <span>{labels.newConversation}</span>
           </Button>
         </div>
@@ -3622,44 +3623,88 @@ const AgentGUIConversationRailSection = memo(
           )}
           {canCreateConversationFromSection ? (
             <div className={styles.conversationSectionActions}>
-              <span className={styles.conversationSectionActionTooltipWrap}>
-                <BareIconButton
-                  className={styles.conversationSectionMoreButton}
-                  aria-label={createConversationLabel}
-                  size="sm"
-                  disabled={createConversationDisabled}
-                  onClick={handleCreateConversation}
-                >
-                  <EditIcon aria-hidden="true" />
-                </BareIconButton>
-                <span
-                  aria-hidden="true"
-                  className={styles.conversationSectionActionTooltip}
-                >
-                  {createConversationLabel}
+              {previewMode ? (
+                <span className={styles.conversationSectionActionTooltipWrap}>
+                  <BareIconButton
+                    className={styles.conversationSectionMoreButton}
+                    aria-label={createConversationLabel}
+                    size="sm"
+                    disabled={createConversationDisabled}
+                    onClick={handleCreateConversation}
+                  >
+                    <CreateChatIcon aria-hidden="true" />
+                  </BareIconButton>
                 </span>
-              </span>
-              {projectPath ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
                     <span
                       className={styles.conversationSectionActionTooltipWrap}
                     >
                       <BareIconButton
                         className={styles.conversationSectionMoreButton}
-                        aria-label={labels.projectSectionMoreActions}
+                        aria-label={createConversationLabel}
                         size="sm"
+                        disabled={createConversationDisabled}
+                        onClick={handleCreateConversation}
                       >
-                        <MoreHorizontalIcon aria-hidden="true" />
+                        <CreateChatIcon aria-hidden="true" />
                       </BareIconButton>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="right"
+                    sideOffset={6}
+                    className={styles.conversationSectionActionTooltip}
+                  >
+                    {createConversationLabel}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {projectPath ? (
+                <DropdownMenu>
+                  {previewMode ? (
+                    <DropdownMenuTrigger asChild>
                       <span
-                        aria-hidden="true"
+                        className={styles.conversationSectionActionTooltipWrap}
+                      >
+                        <BareIconButton
+                          className={styles.conversationSectionMoreButton}
+                          aria-label={labels.projectSectionMoreActions}
+                          size="sm"
+                        >
+                          <MoreHorizontalIcon aria-hidden="true" />
+                        </BareIconButton>
+                      </span>
+                    </DropdownMenuTrigger>
+                  ) : (
+                    <Tooltip>
+                      <DropdownMenuTrigger asChild>
+                        <TooltipTrigger asChild>
+                          <span
+                            className={
+                              styles.conversationSectionActionTooltipWrap
+                            }
+                          >
+                            <BareIconButton
+                              className={styles.conversationSectionMoreButton}
+                              aria-label={labels.projectSectionMoreActions}
+                              size="sm"
+                            >
+                              <MoreHorizontalIcon aria-hidden="true" />
+                            </BareIconButton>
+                          </span>
+                        </TooltipTrigger>
+                      </DropdownMenuTrigger>
+                      <TooltipContent
+                        side="right"
+                        sideOffset={6}
                         className={styles.conversationSectionActionTooltip}
                       >
                         {labels.projectSectionMoreActions}
-                      </span>
-                    </span>
-                  </DropdownMenuTrigger>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                   <DropdownMenuContent
                     align="end"
                     className={`${styles.composerMenuContent} nodrag [-webkit-app-region:no-drag]`}

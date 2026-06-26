@@ -1448,7 +1448,7 @@ describe("AgentGUINode", () => {
     );
 
     expect(css).toMatch(
-      /\.agent-gui-node__new-conversation-icon-button\s+svg\s*\{[\s\S]{0,120}width:\s*16px;[\s\S]{0,120}height:\s*16px;/
+      /\.agent-gui-node__new-conversation-icon-button\s+svg\s*\{[\s\S]{0,120}width:\s*14px;[\s\S]{0,120}height:\s*14px;/
     );
   });
 
