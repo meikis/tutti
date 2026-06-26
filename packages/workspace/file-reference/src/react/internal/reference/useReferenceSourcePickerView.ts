@@ -42,13 +42,34 @@ export type ReferenceNodePreviewState =
   | { status: "empty" }
   | { node: ReferenceNode; status: "directory" }
   | { node: ReferenceNode; status: "loading" }
-  | { content: string; node: ReferenceNode; status: "text" }
-  | { content: string; node: ReferenceNode; status: "html" }
-  | { node: ReferenceNode; objectUrl: string; status: "image" }
-  | { node: ReferenceNode; objectUrl: string; status: "video" }
+  | {
+      content: string;
+      node: ReferenceNode;
+      previewSizeBytes?: number;
+      status: "text";
+    }
+  | {
+      content: string;
+      node: ReferenceNode;
+      previewSizeBytes?: number;
+      status: "html";
+    }
+  | {
+      node: ReferenceNode;
+      objectUrl: string;
+      previewSizeBytes?: number;
+      status: "image";
+    }
+  | {
+      node: ReferenceNode;
+      objectUrl: string;
+      previewSizeBytes?: number;
+      status: "video";
+    }
   | {
       maxSizeBytes?: number;
       node: ReferenceNode;
+      previewSizeBytes?: number;
       reason: WorkspaceFilePreviewReadonlyReason;
       status: "readonly";
     }
@@ -468,14 +489,20 @@ export function useReferenceSourcePickerView({
       if (!sourceId) {
         return;
       }
+      const nextScopeNodeId =
+        node.ref.nodeId === WORKSPACE_ROOT_GROUP_NODE_ID
+          ? null
+          : node.ref.nodeId;
       if (sourceId !== snapshot.activeSourceId) {
-        controller.setActiveSource(sourceId);
+        controller.setActiveSource(sourceId, nextScopeNodeId);
       }
       if (node.ref.nodeId === WORKSPACE_ROOT_GROUP_NODE_ID) {
+        controller.setSearchScope(null);
         navigateToRoot(sourceId);
         return;
       }
       controller.ensureChildren(node);
+      controller.setSearchScope(nextScopeNodeId);
       setBreadcrumbBySource((current) => ({ ...current, [sourceId]: [node] }));
       setFocusedNode(null);
     },
@@ -591,6 +618,11 @@ export function useReferenceSourcePickerView({
           setPreviewState({ node, status: "unsupported" });
           return;
         }
+        const previewSizeBytes = preview.bytes.byteLength;
+        const loadedSizeBytes =
+          node.sizeBytes != null && node.sizeBytes > 0
+            ? node.sizeBytes
+            : previewSizeBytes;
         const loaded = createWorkspaceFilePreviewLoadedState({
           bytes: preview.bytes,
           contentType: preview.contentType,
@@ -599,7 +631,7 @@ export function useReferenceSourcePickerView({
             name: node.displayName,
             path: node.ref.nodeId,
             mtimeMs: node.mtimeMs ?? null,
-            sizeBytes: node.sizeBytes ?? null
+            sizeBytes: loadedSizeBytes
           },
           renderHtml: true,
           target: {
@@ -607,7 +639,7 @@ export function useReferenceSourcePickerView({
             name: node.displayName,
             path: node.ref.nodeId,
             mtimeMs: node.mtimeMs ?? null,
-            sizeBytes: node.sizeBytes ?? null
+            sizeBytes: loadedSizeBytes
           }
         });
         if (cancelled) {
@@ -618,7 +650,12 @@ export function useReferenceSourcePickerView({
             new Blob([loaded.bytes], { type: loaded.contentType })
           );
           previewObjectUrlRef.current = objectUrl;
-          setPreviewState({ node, objectUrl, status: "image" });
+          setPreviewState({
+            node,
+            objectUrl,
+            previewSizeBytes,
+            status: "image"
+          });
           return;
         }
         if (loaded.status === "video") {
@@ -626,19 +663,35 @@ export function useReferenceSourcePickerView({
             new Blob([loaded.bytes], { type: loaded.contentType })
           );
           previewObjectUrlRef.current = objectUrl;
-          setPreviewState({ node, objectUrl, status: "video" });
+          setPreviewState({
+            node,
+            objectUrl,
+            previewSizeBytes,
+            status: "video"
+          });
           return;
         }
         if (loaded.status === "text") {
-          setPreviewState({ content: loaded.content, node, status: "text" });
+          setPreviewState({
+            content: loaded.content,
+            node,
+            previewSizeBytes,
+            status: "text"
+          });
           return;
         }
         if (loaded.status === "html") {
-          setPreviewState({ content: loaded.content, node, status: "html" });
+          setPreviewState({
+            content: loaded.content,
+            node,
+            previewSizeBytes,
+            status: "html"
+          });
           return;
         }
         setPreviewState({
           node,
+          previewSizeBytes,
           reason: loaded.reason,
           ...(loaded.maxSizeBytes == null
             ? {}

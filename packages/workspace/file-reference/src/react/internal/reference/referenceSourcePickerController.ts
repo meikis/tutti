@@ -99,7 +99,7 @@ export interface ReferenceSourcePickerController {
   open(): void;
   close(): void;
   reset(): void;
-  setActiveSource(sourceId: string): void;
+  setActiveSource(sourceId: string, scopeNodeId?: string | null): void;
   /**
    * 把「定位目标」解析为从源根到目标的真实 ReferenceNode 路径(root → leaf)。
    * 纯数据解析:逐层 listChildren 找到真实节点(带 displayName 等),不改动任何 UI/导航态。
@@ -590,7 +590,7 @@ export function createReferenceSourcePickerController(
         selection: []
       });
     },
-    setActiveSource(sourceId) {
+    setActiveSource(sourceId, scopeNodeId) {
       if (!snapshot.tabs.some((tab) => tab.sourceId === sourceId)) {
         return;
       }
@@ -603,6 +603,10 @@ export function createReferenceSourcePickerController(
       const carriedQuery = prevTab?.searchQuery ?? "";
       const carriedFilters = prevTab?.searchFilters ?? [];
       const trimmed = carriedQuery.trim();
+      const nextScopeNodeId =
+        scopeNodeId !== undefined
+          ? scopeNodeId
+          : (snapshot.bySource[sourceId]?.searchScopeNodeId ?? null);
       cancelSearch();
       setSnapshot({ activeSourceId: sourceId });
       if (trimmed === "" && carriedFilters.length === 0) {
@@ -617,6 +621,7 @@ export function createReferenceSourcePickerController(
                 mode: "browse",
                 searchQuery: "",
                 searchFilters: [],
+                searchScopeNodeId: nextScopeNodeId,
                 searchEntries: [],
                 searchHasMore: false,
                 isSearchLoading: false,
@@ -629,8 +634,6 @@ export function createReferenceSourcePickerController(
       }
       // 范围用目标源自身已选分组(尚未进过分组则 null=跨整源);随后左栏自动/手动
       // 进入分组会经 setSearchScope 再以新范围重搜(去抖窗口内合并,不重复请求)。
-      const nextScopeNodeId =
-        snapshot.bySource[sourceId]?.searchScopeNodeId ?? null;
       updateTab(sourceId, (tab) => ({
         ...tab,
         searchQuery: carriedQuery,
