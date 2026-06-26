@@ -74,7 +74,7 @@ func TestProbeRegistryFallsBackToMirror(t *testing.T) {
 	}
 }
 
-func TestProbeProviderAPIChecksKnownEndpoints(t *testing.T) {
+func TestProbeProviderAPIChecksCodexChatGPTEndpointFirst(t *testing.T) {
 	var probed string
 	svc := networkProbeService(func(r *http.Request) (*http.Response, error) {
 		probed = r.URL.String()
@@ -84,8 +84,23 @@ func TestProbeProviderAPIChecksKnownEndpoints(t *testing.T) {
 	if got == nil || !got.Reachable {
 		t.Fatalf("probeProviderAPI(codex) = %#v, want reachable", got)
 	}
-	if !strings.Contains(probed, "api.openai.com") {
-		t.Fatalf("probed %q, want api.openai.com", probed)
+	// ChatGPT-login codex talks to chatgpt.com, so that is probed first.
+	if !strings.Contains(probed, "chatgpt.com") {
+		t.Fatalf("probed %q, want chatgpt.com first", probed)
+	}
+}
+
+func TestProbeProviderAPICodexReachableViaOpenAIWhenChatGPTBlocked(t *testing.T) {
+	// chatgpt.com blocked but api.openai.com reachable → still reachable (either).
+	svc := networkProbeService(func(r *http.Request) (*http.Response, error) {
+		if strings.Contains(r.URL.Host, "chatgpt.com") {
+			return nil, errors.New("connection refused")
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})
+	got := svc.probeProviderAPI(context.Background(), agentprovider.Codex)
+	if got == nil || !got.Reachable {
+		t.Fatalf("probeProviderAPI(codex) = %#v, want reachable via openai fallback", got)
 	}
 }
 

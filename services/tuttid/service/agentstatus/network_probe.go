@@ -2,6 +2,7 @@ package agentstatus
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -10,6 +11,47 @@ import (
 	"github.com/tutti-os/tutti/packages/agentactivity/daemon/runtimecmd"
 	"github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
 )
+
+// logNetworkProbe records each provider's network probe outcome so a confusing
+// "service API unreachable but the agent works" report is diagnosable from logs.
+func logNetworkProbe(
+	provider string,
+	registry NetworkEndpointStatus,
+	api *NetworkEndpointStatus,
+	proxy *NetworkProxyStatus,
+) {
+	apiReachable := "skipped"
+	apiEndpoint := ""
+	if api != nil {
+		apiReachable = boolWord(api.Reachable)
+		apiEndpoint = api.Endpoint
+	}
+	proxyConfigured := false
+	proxyReachable := false
+	proxyURL := ""
+	if proxy != nil {
+		proxyConfigured = proxy.Configured
+		proxyReachable = proxy.Reachable
+		proxyURL = proxy.URL
+	}
+	slog.Info("agent network probe",
+		"provider", provider,
+		"registry_reachable", registry.Reachable,
+		"registry_endpoint", registry.Endpoint,
+		"api_reachable", apiReachable,
+		"api_endpoint", apiEndpoint,
+		"proxy_configured", proxyConfigured,
+		"proxy_reachable", proxyReachable,
+		"proxy_url", proxyURL,
+	)
+}
+
+func boolWord(value bool) string {
+	if value {
+		return "reachable"
+	}
+	return "unreachable"
+}
 
 // NetworkEndpointStatus is the verdict of probing a single endpoint: whether it
 // was reachable and which URL answered (or was tried).
@@ -80,32 +122,45 @@ func (s Service) probeRegistry(ctx context.Context) NetworkEndpointStatus {
 	}
 }
 
-// providerAPIEndpoint is the base URL the provider's CLI talks to at run/login
-// time. Empty for providers without a known public endpoint (the API check is
-// skipped for them).
-func providerAPIEndpoint(provider string) string {
+// providerAPIEndpoints lists the base URL(s) the provider's CLI talks to at
+// run/login time, in priority order. Reachability of ANY of them counts — we
+// only check connectivity, not which account/mode is in use. Empty for providers
+// with no known public endpoint (the API check is skipped for them).
+//
+// Codex notably has two: a ChatGPT login talks to chatgpt.com, while an API key
+// talks to api.openai.com. Probing only api.openai.com produced a false
+// "unreachable" for ChatGPT-login users (e.g. in regions where api.openai.com is
+// blocked but chatgpt.com — which codex actually uses — is reachable).
+func providerAPIEndpoints(provider string) []string {
 	switch provider {
 	case agentprovider.Codex:
-		return "https://api.openai.com"
+		return []string{"https://chatgpt.com", "https://api.openai.com"}
 	case agentprovider.ClaudeCode:
-		return "https://api.anthropic.com"
+		return []string{"https://api.anthropic.com"}
 	case agentprovider.Gemini:
-		return "https://generativelanguage.googleapis.com"
+		return []string{"https://generativelanguage.googleapis.com"}
 	default:
-		return ""
+		return nil
 	}
 }
 
-// probeProviderAPI checks the provider's API endpoint, or returns nil when the
-// provider has no known endpoint, or when the CLI is configured with a custom
-// API key / endpoint (env or on-disk config) — in that case the user points at
-// their own base URL/gateway, so probing the default endpoint would mislead.
+// probeProviderAPI checks the provider's API endpoint(s) — reachable if any one
+// answers. Returns nil when the provider has no known endpoint, or when the CLI
+// is configured with a custom API key / endpoint (env or on-disk config), since
+// the user points at their own base URL/gateway and probing the defaults would
+// mislead.
 func (s Service) probeProviderAPI(ctx context.Context, provider string) *NetworkEndpointStatus {
-	endpoint := providerAPIEndpoint(provider)
-	if endpoint == "" || s.providerUsesCustomConfig(provider) {
+	endpoints := providerAPIEndpoints(provider)
+	if len(endpoints) == 0 || s.providerUsesCustomConfig(provider) {
 		return nil
 	}
-	status := s.probeEndpoint(ctx, endpoint)
+	var status NetworkEndpointStatus
+	for _, endpoint := range endpoints {
+		status = s.probeEndpoint(ctx, endpoint)
+		if status.Reachable {
+			return &status
+		}
+	}
 	return &status
 }
 

@@ -239,11 +239,13 @@ func (s Service) List(ctx context.Context, input ListInput) (Snapshot, error) {
 		registry := s.probeRegistry(ctx)
 		proxy := s.probeProxy(ctx)
 		for i := range statuses {
+			api := s.probeProviderAPI(ctx, statuses[i].Provider)
 			statuses[i].Network = &NetworkStatus{
 				Registry:    registry,
-				ProviderAPI: s.probeProviderAPI(ctx, statuses[i].Provider),
+				ProviderAPI: api,
 				Proxy:       proxy,
 			}
+			logNetworkProbe(statuses[i].Provider, registry, api, proxy)
 		}
 	}
 
