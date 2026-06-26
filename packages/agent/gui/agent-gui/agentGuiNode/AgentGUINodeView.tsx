@@ -142,6 +142,7 @@ export type AgentWorkspaceReferenceInitialTargetResolver = (
 ) => ReferenceLocateTarget | null;
 
 const AGENT_GUI_STICK_TO_BOTTOM_THRESHOLD_PX = 24;
+const AGENT_GUI_TOP_HISTORY_PREFETCH_THRESHOLD_PX = 240;
 const AGENT_GUI_CONVERSATION_RAIL_SECTION_PAGE_SIZE = 5;
 
 const AGENT_GUI_TIMELINE_SCROLL_AREA_CONTENT_STYLE: CSSProperties = {
@@ -425,6 +426,7 @@ interface AgentGUINodeViewProps {
     ) => void;
     submitCompact: () => Promise<void> | void;
     dismissUsageAlert: () => void;
+    loadOlderConversationMessages: () => void;
     showPromptImagesUnsupported: () => void;
     submitApprovalOption: (requestId: string, optionId: string) => void;
     submitInteractivePrompt: (input: {
@@ -1677,6 +1679,11 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     scrollTop: number;
     clientHeight: number;
   } | null>(null);
+  const pendingPrependScrollAnchorRef = useRef<{
+    conversationId: string;
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
   const [
     bottomDockDismissedPromptRequestId,
     setBottomDockDismissedPromptRequestId
@@ -2372,11 +2379,26 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       timeline.scrollHeight - timeline.clientHeight
     );
     const anchor = timelineScrollAnchorRef.current;
+    const prependAnchor = pendingPrependScrollAnchorRef.current;
     let nextScrollTop = timeline.scrollTop;
 
     if (!anchor || anchor.conversationId !== activeConversationId) {
       timeline.scrollTop = maxScrollTop;
       nextScrollTop = maxScrollTop;
+    } else if (prependAnchor?.conversationId === activeConversationId) {
+      const nextScrollHeight = timeline.scrollHeight;
+      const delta = nextScrollHeight - prependAnchor.scrollHeight;
+      nextScrollTop = Math.max(0, prependAnchor.scrollTop + delta);
+      timeline.scrollTop = nextScrollTop;
+      if (viewModel.isLoadingOlderMessages) {
+        pendingPrependScrollAnchorRef.current = {
+          conversationId: activeConversationId,
+          scrollHeight: nextScrollHeight,
+          scrollTop: nextScrollTop
+        };
+      } else {
+        pendingPrependScrollAnchorRef.current = null;
+      }
     } else {
       const distanceFromBottom =
         anchor.scrollHeight - anchor.scrollTop - anchor.clientHeight;
@@ -2395,7 +2417,12 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       scrollTop: nextScrollTop,
       clientHeight: timeline.clientHeight
     };
-  }, [conversation, showTimelineSkeleton, viewModel.activeConversationId]);
+  }, [
+    conversation,
+    showTimelineSkeleton,
+    viewModel.activeConversationId,
+    viewModel.isLoadingOlderMessages
+  ]);
 
   useLayoutEffect(() => {
     const timeline = timelineRef.current;
@@ -2471,6 +2498,18 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
         scrollTop: timeline.scrollTop,
         clientHeight: timeline.clientHeight
       };
+      if (
+        viewModel.hasOlderMessages &&
+        !viewModel.isLoadingOlderMessages &&
+        timeline.scrollTop <= AGENT_GUI_TOP_HISTORY_PREFETCH_THRESHOLD_PX
+      ) {
+        pendingPrependScrollAnchorRef.current = {
+          conversationId: activeConversationId,
+          scrollHeight: timeline.scrollHeight,
+          scrollTop: timeline.scrollTop
+        };
+        actions.loadOlderConversationMessages();
+      }
     };
 
     captureScrollAnchor();
@@ -2478,7 +2517,12 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     return () => {
       timeline.removeEventListener("scroll", captureScrollAnchor);
     };
-  }, [viewModel.activeConversationId]);
+  }, [
+    actions,
+    viewModel.activeConversationId,
+    viewModel.hasOlderMessages,
+    viewModel.isLoadingOlderMessages
+  ]);
 
   return (
     <main className={styles.detail}>
@@ -2540,6 +2584,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
           <AgentGUIConversationTimelinePane
             conversation={conversation}
             isLoading={showTimelineSkeleton}
+            isLoadingOlderMessages={viewModel.isLoadingOlderMessages}
             loadingLabel={labels.loadingConversation}
             empty={conversationFlowEmpty}
             onLinkAction={stableLinkAction}
@@ -4204,6 +4249,7 @@ function AgentGUIProjectRailHeader({
 interface AgentGUIConversationTimelinePaneProps {
   conversation: AgentConversationVM | null;
   isLoading: boolean;
+  isLoadingOlderMessages: boolean;
   loadingLabel: string;
   empty: React.JSX.Element;
   onLinkAction?: (action: WorkspaceLinkAction) => void;
@@ -4223,6 +4269,7 @@ const AgentGUIConversationTimelinePane = memo(
   function AgentGUIConversationTimelinePane({
     conversation,
     isLoading,
+    isLoadingOlderMessages,
     loadingLabel,
     empty,
     onLinkAction,
@@ -4235,18 +4282,29 @@ const AgentGUIConversationTimelinePane = memo(
     "use memo";
 
     return (
-      <AgentConversationFlow
-        conversation={conversation}
-        isLoading={isLoading}
-        loadingLabel={loadingLabel}
-        empty={empty}
-        onLinkAction={onLinkAction}
-        onAuthLogin={onAuthLogin}
-        availableSkills={availableSkills}
-        workspaceAppIcons={workspaceAppIcons}
-        previewMode={previewMode}
-        labels={labels}
-      />
+      <>
+        {isLoadingOlderMessages && !isLoading ? (
+          <div
+            className="mx-auto flex h-8 items-center justify-center text-[12px] text-[var(--text-secondary)]"
+            data-testid="agent-gui-older-messages-loading"
+            role="status"
+          >
+            <span className="tsh-inline-loading-ellipsis">{loadingLabel}</span>
+          </div>
+        ) : null}
+        <AgentConversationFlow
+          conversation={conversation}
+          isLoading={isLoading}
+          loadingLabel={loadingLabel}
+          empty={empty}
+          onLinkAction={onLinkAction}
+          onAuthLogin={onAuthLogin}
+          availableSkills={availableSkills}
+          workspaceAppIcons={workspaceAppIcons}
+          previewMode={previewMode}
+          labels={labels}
+        />
+      </>
     );
   }
 );

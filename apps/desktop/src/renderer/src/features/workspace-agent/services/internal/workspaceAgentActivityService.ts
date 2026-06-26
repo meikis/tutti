@@ -135,6 +135,7 @@ export class WorkspaceAgentActivityService implements IWorkspaceAgentActivitySer
       agentSessionId: input.agentSessionId,
       afterVersion: input.afterVersion,
       beforeVersion: input.beforeVersion,
+      cache: input.cache,
       limit: input.limit,
       order: input.order,
       signal: input.signal

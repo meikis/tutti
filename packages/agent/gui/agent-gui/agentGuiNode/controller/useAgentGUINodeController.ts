@@ -92,7 +92,6 @@ import { isWorkspaceAgentUntitledTask } from "../../../shared/workspaceAgentLate
 import { projectWorkspaceAgentMessagesToTimelineItems } from "../../../shared/agentConversation/projection/workspaceAgentMessageProjection";
 import { mergeWorkspaceAgentMessages } from "../../../host/workspaceAgentSessionMessages";
 import {
-  mergeWorkspaceAgentActivityDurableAndOverlayMessages,
   selectWorkspaceAgentActivityOverlayMessages,
   type WorkspaceAgentActivityMessage,
   type WorkspaceAgentActivityStatePatch,
@@ -105,11 +104,15 @@ import { getAppErrorCode } from "../../../shared/errors/appError";
 import {
   deleteAgentSessionView,
   getAgentSessionView,
+  mergeAgentSessionViewDetailMessages,
+  resetAgentSessionViewDetailMessages,
   setAgentSessionViewError,
   setAgentSessionViewControlState,
   setAgentSessionViewControlStateLoading,
+  setAgentSessionViewDetailMessages,
   setAgentSessionViewOverlayMessages,
   setAgentSessionViewMessagesLoading,
+  setAgentSessionViewOlderMessagesLoading,
   updateAgentSessionViewControlState,
   type AgentSessionViewRef
 } from "../../../contexts/workspace/presentation/renderer/agentSessions/agentSessionViewStore";
@@ -178,6 +181,7 @@ import {
 const EMPTY_AGENT_GUI_MESSAGES: readonly WorkspaceAgentActivityMessage[] = [];
 const EMPTY_AGENT_GUI_AVAILABLE_COMMANDS: AgentSessionCommand[] = [];
 const ACTIVITY_STREAM_STATE_RELOAD_DEBOUNCE_MS = 150;
+const AGENT_GUI_DETAIL_MESSAGES_PAGE_SIZE = 100;
 
 function mergeAgentModelCatalogInvalidationEvents(
   events: AgentModelCatalogInvalidatedEvent[]
@@ -1024,11 +1028,9 @@ function sessionHasRenderableMessages(input: {
   const sessionView = getAgentSessionView(
     input.sessionViewRef(normalizedAgentSessionId)
   );
-  if ((sessionView?.overlayMessages?.length ?? 0) > 0) {
-    return true;
-  }
   return (
-    (input.snapshotMessagesById[normalizedAgentSessionId]?.length ?? 0) > 0
+    (sessionView?.detailMessages?.length ?? 0) > 0 ||
+    (sessionView?.overlayMessages?.length ?? 0) > 0
   );
 }
 
@@ -2655,15 +2657,15 @@ export function useAgentGUINodeController({
       if (!normalizedAgentSessionId) {
         return EMPTY_AGENT_GUI_MESSAGES;
       }
-      return mergeWorkspaceAgentActivityDurableAndOverlayMessages({
-        durableMessages:
-          agentActivitySnapshot.sessionMessagesById[normalizedAgentSessionId],
-        localMessages:
-          getAgentSessionView(sessionViewRef(normalizedAgentSessionId))
-            ?.overlayMessages ?? EMPTY_AGENT_GUI_MESSAGES
-      });
+      const sessionView = getAgentSessionView(
+        sessionViewRef(normalizedAgentSessionId)
+      );
+      return mergeWorkspaceAgentMessages(
+        sessionView?.detailMessages ?? EMPTY_AGENT_GUI_MESSAGES,
+        sessionView?.overlayMessages ?? EMPTY_AGENT_GUI_MESSAGES
+      );
     },
-    [agentActivitySnapshot.sessionMessagesById, sessionViewRef]
+    [sessionViewRef]
   );
   const activeMessages = useMemo(() => {
     return activeConversationId
@@ -2671,6 +2673,7 @@ export function useAgentGUINodeController({
       : (activeSessionView?.overlayMessages ?? EMPTY_AGENT_GUI_MESSAGES);
   }, [
     activeConversationId,
+    activeSessionView?.detailMessages,
     activeSessionView?.overlayMessages,
     resolveSessionMessages
   ]);
@@ -2885,6 +2888,7 @@ export function useAgentGUINodeController({
     conversations: []
   });
   const selectedConversationMessageLoadSeqRef = useRef(0);
+  const selectedConversationOlderMessageLoadSeqRef = useRef(0);
   const selectedConversationPendingMessageLoadIdsRef = useRef(
     new Set<string>()
   );
@@ -3349,6 +3353,9 @@ export function useAgentGUINodeController({
       selectedConversationPendingMessageLoadIdsRef.current.add(
         normalizedAgentSessionId
       );
+      resetAgentSessionViewDetailMessages(
+        sessionViewRef(normalizedAgentSessionId)
+      );
       setIsLoadingMessages(true);
       setAgentSessionViewMessagesLoading(
         sessionViewRef(normalizedAgentSessionId),
@@ -3730,12 +3737,17 @@ export function useAgentGUINodeController({
       const localMessages =
         getAgentSessionView(sessionViewRef(normalizedAgentSessionId))
           ?.overlayMessages ?? [];
+      const detailMessages =
+        getAgentSessionView(sessionViewRef(normalizedAgentSessionId))
+          ?.detailMessages ?? [];
+      const baseMessages =
+        detailMessages.length > 0 ? detailMessages : durableMessages;
       const overlayMessages = selectWorkspaceAgentActivityOverlayMessages({
-        durableMessages,
+        durableMessages: baseMessages,
         localMessages
       });
       const mergedMessages = mergeWorkspaceAgentMessages(
-        durableMessages,
+        baseMessages,
         overlayMessages
       );
       const mergedItems =
@@ -4144,9 +4156,15 @@ export function useAgentGUINodeController({
         setIsLoadingMessages(true);
       }
       try {
+        resetAgentSessionViewDetailMessages(
+          sessionViewRef(normalizedAgentSessionId)
+        );
         const page = await agentActivityRuntime.listSessionMessages({
           workspaceId,
-          agentSessionId: normalizedAgentSessionId
+          agentSessionId: normalizedAgentSessionId,
+          cache: false,
+          limit: AGENT_GUI_DETAIL_MESSAGES_PAGE_SIZE,
+          order: "desc"
         });
         if (
           !isMountedRef.current ||
@@ -4161,28 +4179,37 @@ export function useAgentGUINodeController({
         clearSelectedConversationNotFoundRetryWhenInitialLoadsSettled(
           normalizedAgentSessionId
         );
-        const durableMessages = mergeWorkspaceAgentMessages(
-          [],
-          agentActivitySnapshotRef.current.sessionMessagesById[
-            normalizedAgentSessionId
-          ] ?? []
+        const currentDetailMessages =
+          getAgentSessionView(sessionViewRef(normalizedAgentSessionId))
+            ?.detailMessages ?? [];
+        const detailMessages = mergeWorkspaceAgentMessages(
+          currentDetailMessages,
+          page.messages
         );
         const currentOverlayMessages =
           getAgentSessionView(sessionViewRef(normalizedAgentSessionId))
             ?.overlayMessages ?? [];
-        const localMessages = mergeWorkspaceAgentMessages(
-          currentOverlayMessages,
-          page.messages as WorkspaceAgentActivityMessage[]
-        );
         const overlayMessages = selectWorkspaceAgentActivityOverlayMessages({
-          durableMessages,
-          localMessages
+          durableMessages: detailMessages,
+          localMessages: currentOverlayMessages
         });
+        setAgentSessionViewDetailMessages(
+          sessionViewRef(normalizedAgentSessionId),
+          detailMessages,
+          {
+            hasOlderMessages: page.hasMore && page.messages.length > 0,
+            isLoadingOlderMessages: false
+          }
+        );
         setAgentSessionViewOverlayMessages(
           sessionViewRef(normalizedAgentSessionId),
           overlayMessages
         );
-        refreshMessagesFromSnapshot(normalizedAgentSessionId);
+        setAgentSessionViewMessagesLoading(
+          sessionViewRef(normalizedAgentSessionId),
+          false
+        );
+        setIsLoadingMessages(false);
       } catch (error) {
         if (
           !isMountedRef.current ||
@@ -4219,11 +4246,108 @@ export function useAgentGUINodeController({
     [
       agentActivityRuntime,
       clearSelectedConversationNotFoundRetryWhenInitialLoadsSettled,
-      refreshMessagesFromSnapshot,
       scheduleSelectedConversationNotFoundRetry,
       sessionViewRef,
       workspaceId
     ]
+  );
+
+  const loadOlderConversationMessages = useCallback(
+    async (agentSessionId?: string | null) => {
+      const normalizedAgentSessionId = (
+        agentSessionId ??
+        activeConversationIdRef.current ??
+        ""
+      ).trim();
+      if (!normalizedAgentSessionId) {
+        return;
+      }
+      const currentView = getAgentSessionView(
+        sessionViewRef(normalizedAgentSessionId)
+      );
+      if (
+        !currentView?.hasOlderMessages ||
+        currentView.isLoadingOlderMessages ||
+        currentView.oldestLoadedVersion === null ||
+        activeConversationIdRef.current !== normalizedAgentSessionId
+      ) {
+        return;
+      }
+      const requestId = ++selectedConversationOlderMessageLoadSeqRef.current;
+      setAgentSessionViewOlderMessagesLoading(
+        sessionViewRef(normalizedAgentSessionId),
+        true
+      );
+      try {
+        const page = await agentActivityRuntime.listSessionMessages({
+          workspaceId,
+          agentSessionId: normalizedAgentSessionId,
+          beforeVersion: currentView.oldestLoadedVersion,
+          cache: false,
+          limit: AGENT_GUI_DETAIL_MESSAGES_PAGE_SIZE,
+          order: "desc"
+        });
+        if (
+          !isMountedRef.current ||
+          activeConversationIdRef.current !== normalizedAgentSessionId ||
+          selectedConversationOlderMessageLoadSeqRef.current !== requestId
+        ) {
+          setAgentSessionViewOlderMessagesLoading(
+            sessionViewRef(normalizedAgentSessionId),
+            false
+          );
+          return;
+        }
+        const nextDetailMessages = mergeWorkspaceAgentMessages(
+          currentView.detailMessages,
+          page.messages
+        );
+        const currentOverlayMessages =
+          getAgentSessionView(sessionViewRef(normalizedAgentSessionId))
+            ?.overlayMessages ?? [];
+        const overlayMessages = selectWorkspaceAgentActivityOverlayMessages({
+          durableMessages: nextDetailMessages,
+          localMessages: currentOverlayMessages
+        });
+        mergeAgentSessionViewDetailMessages(
+          sessionViewRef(normalizedAgentSessionId),
+          page.messages,
+          {
+            hasOlderMessages: page.hasMore && page.messages.length > 0,
+            isLoadingOlderMessages: false
+          }
+        );
+        setAgentSessionViewOverlayMessages(
+          sessionViewRef(normalizedAgentSessionId),
+          overlayMessages
+        );
+      } catch (error) {
+        if (
+          !isMountedRef.current ||
+          activeConversationIdRef.current !== normalizedAgentSessionId ||
+          selectedConversationOlderMessageLoadSeqRef.current !== requestId
+        ) {
+          setAgentSessionViewOlderMessagesLoading(
+            sessionViewRef(normalizedAgentSessionId),
+            false
+          );
+          return;
+        }
+        reportAgentGUIRuntimeError({
+          agentSessionId: normalizedAgentSessionId,
+          error,
+          phase: "load_session_messages",
+          provider: dataRef.current.provider,
+          runtime: agentActivityRuntime,
+          workspaceId
+        });
+        setAgentSessionViewOlderMessagesLoading(
+          sessionViewRef(normalizedAgentSessionId),
+          false
+        );
+      }
+    },
+    [agentActivityRuntime, sessionViewRef, workspaceId]
   );
 
   const reloadSelectedConversation = useCallback(
@@ -4249,7 +4373,13 @@ export function useAgentGUINodeController({
           selectedConversationPendingMessageLoadIdsRef.current.delete(
             normalizedAgentSessionId
           );
-        if (hadPendingMessageLoad) {
+        const hasRenderableMessages = sessionHasRenderableMessages({
+          agentSessionId: normalizedAgentSessionId,
+          sessionViewRef,
+          snapshotMessagesById:
+            agentActivitySnapshotRef.current.sessionMessagesById
+        });
+        if (hadPendingMessageLoad || !hasRenderableMessages) {
           void loadSelectedConversationMessages(normalizedAgentSessionId);
         } else {
           void refreshMessagesFromSnapshot(normalizedAgentSessionId);
@@ -4530,16 +4660,34 @@ export function useAgentGUINodeController({
       const currentMessages =
         getAgentSessionView(sessionViewRef(agentSessionId))?.overlayMessages ??
         [];
+      const currentDetailMessages =
+        getAgentSessionView(sessionViewRef(agentSessionId))?.detailMessages ??
+        [];
+      const shouldUpdateDetailWindow =
+        currentDetailMessages.length > 0 ||
+        activeConversationIdRef.current === agentSessionId;
+      const nextDetailMessages = shouldUpdateDetailWindow
+        ? mergeWorkspaceAgentMessages(currentDetailMessages, nextMessages)
+        : currentDetailMessages;
+      if (shouldUpdateDetailWindow) {
+        mergeAgentSessionViewDetailMessages(
+          sessionViewRef(agentSessionId),
+          nextMessages
+        );
+      }
+      const durableMessages =
+        nextDetailMessages.length > 0
+          ? nextDetailMessages
+          : (agentActivitySnapshot.sessionMessagesById[agentSessionId] ?? []);
       const overlayMessages = selectWorkspaceAgentActivityOverlayMessages({
-        durableMessages:
-          agentActivitySnapshot.sessionMessagesById[agentSessionId],
+        durableMessages,
         localMessages: mergeWorkspaceAgentMessages(
           currentMessages,
           nextMessages
         )
       });
       const mergedMessages = mergeWorkspaceAgentMessages(
-        agentActivitySnapshot.sessionMessagesById[agentSessionId] ?? [],
+        durableMessages,
         overlayMessages
       );
       const nextItems = projectAgentGUIMessagesToTimelineItems(nextMessages);
@@ -4727,6 +4875,7 @@ export function useAgentGUINodeController({
       >();
       const flushPendingMessages = () => {
         for (const [agentSessionId, messages] of pendingMessagesBySessionId) {
+          recordLocalMessages(agentSessionId, messages);
           applyBackgroundTimelineStatusUpdate(
             agentSessionId,
             projectAgentGUIMessagesToTimelineItems(messages)
@@ -4771,7 +4920,8 @@ export function useAgentGUINodeController({
     [
       applyStatePatch,
       applyBackgroundTimelineStatusUpdate,
-      conversationListQuery
+      conversationListQuery,
+      recordLocalMessages
     ]
   );
   const handleBackgroundActivityStreamEvents = useCallback(
@@ -8018,6 +8168,9 @@ export function useAgentGUINodeController({
   const stableSubmitCompact = useStableControllerEventCallback(submitCompact);
   const stableDismissUsageAlert =
     useStableControllerEventCallback(dismissUsageAlert);
+  const stableLoadOlderConversationMessages = useStableControllerEventCallback(
+    loadOlderConversationMessages
+  );
   const controllerActions = useMemo(
     () => ({
       createConversation: stableCreateConversation,
@@ -8025,6 +8178,7 @@ export function useAgentGUINodeController({
       submitPrompt: stableSubmitPrompt,
       submitCompact: stableSubmitCompact,
       dismissUsageAlert: stableDismissUsageAlert,
+      loadOlderConversationMessages: stableLoadOlderConversationMessages,
       showPromptImagesUnsupported: stableShowPromptImagesUnsupported,
       submitApprovalOption: stableSubmitApprovalOption,
       submitInteractivePrompt: stableSubmitInteractivePrompt,
@@ -8059,6 +8213,7 @@ export function useAgentGUINodeController({
       stableDismissUsageAlert,
       stableEditQueuedPrompt,
       stableInterruptCurrentTurn,
+      stableLoadOlderConversationMessages,
       stableRemoveProject,
       stableRemoveQueuedPrompt,
       stableRequestDeleteConversation,
@@ -8096,6 +8251,9 @@ export function useAgentGUINodeController({
         draftContent,
         isLoadingConversations,
         isLoadingMessages,
+        isLoadingOlderMessages:
+          activeSessionView?.isLoadingOlderMessages ?? false,
+        hasOlderMessages: activeSessionView?.hasOlderMessages ?? false,
         isCreatingConversation,
         isSubmitting,
         isInterrupting,
@@ -8163,6 +8321,8 @@ export function useAgentGUINodeController({
       isInterrupting,
       isLoadingConversations,
       isLoadingMessages,
+      activeSessionView?.hasOlderMessages,
+      activeSessionView?.isLoadingOlderMessages,
       isRespondingApproval,
       listError,
       isDeletingConversation,

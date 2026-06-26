@@ -31,6 +31,7 @@ import type {
 export interface AgentActivityRuntimeListSessionMessagesInput {
   afterVersion?: number;
   beforeVersion?: number;
+  cache?: boolean;
   agentSessionId: string;
   limit?: number;
   order?: AgentActivityMessageOrder;
