@@ -132,10 +132,11 @@ The runtime must:
 
 For a full agent-enabled app repository, prefer `$tutti-agent-workspace-app` first. When this skill still needs to package or repair an app that already uses `@tutti-os/agent-acp-kit`, keep the app in control of agent policy:
 
-- Do not make `@tutti-os/agent-acp-kit` product-specific. The app should pass selected skills, MCP servers, and `systemPrompt` explicitly through `runtime.run(...)`.
-- To give the app's local Codex or Claude run access to Tutti's dynamic CLI skills, call `$TUTTI_CLI agent tutti-cli-skill-bundle --provider <provider> --agent-session-id <runId> --json` from the app host process when `$TUTTI_CLI` is available.
-- Parse the command output as the Tutti dynamic skill bundle. Pass `bundle.skills` to `runtime.run({ ..., skillManifest: bundle.skills })`.
-- Treat `bundle.recommendedSystemPrompt?.content` as advisory. The app may merge it into its own `systemPrompt`, edit it, or ignore it; do not inject it silently and do not hide this control inside a generic helper.
+- Keep the generic `@tutti-os/agent-acp-kit` runtime path product-neutral. Tutti-specific behavior should stay behind the explicit `@tutti-os/agent-acp-kit/tutti` subpath and app-owned policy.
+- To give the app's local Codex or Claude run access to Tutti's dynamic CLI skills, prefer the `@tutti-os/agent-acp-kit/tutti` helper instead of hand-writing `$TUTTI_CLI agent tutti-cli-skill-bundle` execution and response parsing in each app.
+- Use `loadTuttiAgentSkillContext(...)` from the app host process. Pass the selected provider, run id, workspace cwd, the app-owned system prompt, and an explicit `systemPromptMode` such as `"append-recommended"` only when the app wants Tutti's recommended prompt appended.
+- Pass `tuttiContext.skillManifest` into `runtime.run({ ..., skillManifest })`, merging it with app-owned skills when needed. Pass `tuttiContext.systemPrompt` as the run system prompt when using the helper to compose the prompt.
+- Treat the helper's prompt composition mode as an app policy choice. Do not silently append Tutti's recommended prompt, and do not reintroduce duplicated CLI parsing unless the installed kit lacks the helper.
 - Keep run-scoped app tools and MCP credentials app-owned. Do not pass broad Tutti daemon credentials or app secrets directly to the agent process.
 
 Do not assume a Tutti API token, browser extension, daemon internals, or broad desktop APIs. The only browser-side host surface a generated app may optionally consume is the app context described in `references/runtime-env.md`.
