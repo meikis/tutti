@@ -1,7 +1,10 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow } from "electron";
-import { initializeDesktopEnvironment } from "./defaults";
+import {
+  initializeDesktopEnvironment,
+  resolveDesktopUserDataPath
+} from "./defaults";
 import { registerDesktopAppLifecycle } from "./desktopAppLifecycle";
 import { createDesktopAppServices } from "./desktopAppServices";
 import { startDesktopAppUpdateAnalytics } from "./appUpdateAnalytics.ts";
@@ -75,6 +78,13 @@ export async function bootstrapDesktopApp(): Promise<void> {
     appVersion: app.getVersion(),
     isPackaged: app.isPackaged
   });
+  const userDataPath = resolveDesktopUserDataPath({
+    appDataDir: app.getPath("appData"),
+    appName: app.getName()
+  });
+  if (userDataPath) {
+    app.setPath("userData", userDataPath);
+  }
   const logger = await setupDesktopLogger();
 
   // A single live desktop instance per environment. The managed tuttid daemon is

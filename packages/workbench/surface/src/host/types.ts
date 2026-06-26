@@ -299,7 +299,7 @@ export interface WorkbenchHostDockEntryStateSource {
 export interface WorkbenchHostNodeWindowCapabilities {
   closable?: boolean;
   defaultOpen?: boolean;
-  fullscreenHeaderMode?: "persistent" | "reveal";
+  fullscreenHeaderMode?: "persistent";
   fullscreenable?: boolean;
   keepMountedWhenMinimized?:
     | boolean

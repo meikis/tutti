@@ -171,6 +171,102 @@ test("preview state is stable across repeated selection and same i18n runtime", 
   session.dispose();
 });
 
+test("reselecting the same entry repairs an empty preview state", async () => {
+  const entry: WorkspaceFileEntry = {
+    hasChildren: false,
+    kind: "file",
+    mtimeMs: null,
+    name: "notes.txt",
+    path: "/Users/demo/project/notes.txt",
+    sizeBytes: 5
+  };
+  const session = createWorkspaceFileManagerService().createSession({
+    i18n: createTestI18nRuntime(),
+    host: {
+      async listDirectory(input) {
+        return {
+          directoryPath: input.path,
+          entries: [entry],
+          root: "/Users/demo/project",
+          workspaceID: input.workspaceID
+        };
+      },
+      async readPreviewFile() {
+        return new TextEncoder().encode("hello");
+      }
+    },
+    workspaceID: "workspace-1"
+  });
+
+  await session.initialize();
+  session.store.selectedPath = entry.path;
+  await flushMicrotasks();
+  session.store.previewState = { status: "empty" };
+  await flushMicrotasks();
+
+  session.select(entry.path);
+  await flushMicrotasks();
+  await flushMicrotasks();
+
+  assert.equal(previewStatus(session), "text");
+
+  session.dispose();
+});
+
+test("preview follows selected entries inside expanded directories", async () => {
+  const downloadsEntry: WorkspaceFileEntry = {
+    hasChildren: true,
+    kind: "directory",
+    mtimeMs: null,
+    name: "Downloads",
+    path: "/Users/demo/Downloads",
+    sizeBytes: null
+  };
+  const nestedEntry: WorkspaceFileEntry = {
+    hasChildren: false,
+    kind: "file",
+    mtimeMs: null,
+    name: "notes.txt",
+    path: "/Users/demo/Downloads/notes.txt",
+    sizeBytes: 5
+  };
+  const previewReads: string[] = [];
+  const session = createWorkspaceFileManagerService().createSession({
+    i18n: createTestI18nRuntime(),
+    host: {
+      async listDirectory(input) {
+        const directoryPath = input.path || "/Users/demo";
+        return {
+          directoryPath,
+          entries:
+            directoryPath === downloadsEntry.path
+              ? [nestedEntry]
+              : [downloadsEntry],
+          root: "/Users/demo",
+          workspaceID: input.workspaceID
+        };
+      },
+      async readPreviewFile(_workspaceID, path) {
+        previewReads.push(path);
+        return new TextEncoder().encode("hello");
+      }
+    },
+    workspaceID: "workspace-1"
+  });
+
+  await session.initialize();
+  await session.toggleDirectoryExpanded(downloadsEntry);
+
+  session.select(nestedEntry.path);
+  await flushMicrotasks();
+  await flushMicrotasks();
+
+  assert.equal(previewStatus(session), "text");
+  assert.deepEqual(previewReads, [nestedEntry.path]);
+
+  session.dispose();
+});
+
 test("openEntry enters directories and records navigation history", async () => {
   const srcEntry: WorkspaceFileEntry = {
     hasChildren: true,
@@ -1435,6 +1531,58 @@ test("applyRevealIntent opens target directories directly when requested", async
   assert.deepEqual(listedPaths, ["/Users/demo/project/src"]);
   assert.equal(session.store.currentDirectoryPath, "/Users/demo/project/src");
   assert.equal(session.store.selectedPath, null);
+  session.dispose();
+});
+
+test("applyRevealIntent reveals external absolute file paths", async () => {
+  const session = createWorkspaceFileManagerService().createSession({
+    host: {
+      async listDirectory(input) {
+        assert.equal(input.path, "/var/folders/demo/T/codex-presentations");
+        assert.equal(input.includeHidden, false);
+        return {
+          directoryPath: input.path,
+          entries: [
+            {
+              hasChildren: false,
+              kind: "file",
+              mtimeMs: null,
+              name: "slides.pptx",
+              path: "/var/folders/demo/T/codex-presentations/slides.pptx",
+              sizeBytes: 42
+            }
+          ],
+          root: "/",
+          workspaceID: input.workspaceID
+        };
+      }
+    },
+    i18n: createTestI18nRuntime(),
+    persistedState: {
+      currentDirectoryPath: "/Users/demo",
+      navigationBackStack: [],
+      navigationForwardStack: [],
+      selectedLocationId: null,
+      schemaVersion: 3
+    },
+    workspaceID: "workspace-1"
+  });
+  session.store.root = "/Users/demo";
+
+  await session.applyRevealIntent({
+    path: "/var/folders/demo/T/codex-presentations/slides.pptx",
+    requestID: "external-reveal-1"
+  });
+
+  assert.equal(session.store.root, "/");
+  assert.equal(
+    session.store.currentDirectoryPath,
+    "/var/folders/demo/T/codex-presentations"
+  );
+  assert.equal(
+    session.store.selectedPath,
+    "/var/folders/demo/T/codex-presentations/slides.pptx"
+  );
   session.dispose();
 });
 

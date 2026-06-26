@@ -32,7 +32,7 @@ vi.mock("../../i18n/index", async () => {
     "agentHost.agentGui.mentionNoMatchingFiles": "没有匹配到文件",
     "agentHost.roomIssueNode.issueStatusNotStarted": "未启动",
     "agentHost.roomIssueNode.issueStatusRunning": "执行中",
-    "agentHost.roomIssueNode.issueStatusInProgress": "已推进",
+    "agentHost.roomIssueNode.issueStatusInProgress": "执行中",
     "agentHost.roomIssueNode.issueStatusPendingAcceptance": "待验收",
     "agentHost.roomIssueNode.issueStatusCompleted": "已完成",
     "agentHost.roomIssueNode.issueStatusFailed": "失败",
@@ -167,8 +167,7 @@ describe("AgentFileMentionPalette", () => {
     );
 
     expect(screen.getByText("未启动")).toBeVisible();
-    expect(screen.getByText("执行中")).toBeVisible();
-    expect(screen.getByText("已推进")).toBeVisible();
+    expect(screen.getAllByText("执行中")).toHaveLength(2);
     expect(screen.getByText("待验收")).toBeVisible();
     expect(screen.getByText("已完成")).toBeVisible();
     expect(screen.getAllByText("失败")).toHaveLength(1);
@@ -367,17 +366,24 @@ describe("AgentFileMentionPalette", () => {
       "green",
       "red"
     ]);
-    expect(statusTags[0]).toHaveClass("bg-sky-500/10", "text-sky-700");
+    expect(statusTags[0]).toHaveClass(
+      "bg-transparent",
+      "px-0",
+      "text-[var(--status-running)]"
+    );
     expect(statusTags[1]).toHaveClass(
-      "bg-[color:color-mix(in_srgb,var(--color-amber-500)_12%,transparent)]",
-      "text-[var(--color-amber-500)]"
+      "bg-transparent",
+      "px-0",
+      "text-[var(--state-warning)]"
     );
     expect(statusTags[2]).toHaveClass(
-      "bg-[var(--tsh-ui-pill-success-bg)]",
-      "text-[var(--tsh-ui-pill-success-fg)]"
+      "bg-transparent",
+      "px-0",
+      "text-[var(--state-success)]"
     );
     expect(statusTags[8]).toHaveClass(
-      "bg-[var(--on-danger)]",
+      "bg-transparent",
+      "px-0",
       "text-[var(--state-danger)]"
     );
     const selectedOption = screen.getByRole("option", { selected: true });
@@ -1772,17 +1778,17 @@ describe("AgentFileMentionPalette", () => {
     );
   });
 
-  it("uses package-owned status tokens for agent gui chrome", () => {
+  it("uses shared semantic status tokens for agent gui chrome", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
     expect(css).toMatch(
-      /\.agent-gui-node__shell\s*{[^}]*--agent-gui-package-success:\s*rgb\(34 197 94\)[^}]*--agent-gui-package-warning:\s*rgb\(234 121 8\)[^}]*--agent-gui-package-danger:\s*rgb\(220 38 38\)[^}]*--agent-gui-success:\s*var\(--agent-gui-package-success\)[^}]*--agent-gui-warning:\s*var\(--agent-gui-package-warning\)[^}]*--agent-gui-danger:\s*var\(--agent-gui-package-danger\)/s
+      /\.agent-gui-node__shell\s*{[^}]*--agent-gui-package-success:\s*var\(--state-success\)[^}]*--agent-gui-package-warning:\s*var\(--state-warning\)[^}]*--agent-gui-package-danger:\s*var\(--state-danger\)[^}]*--agent-gui-success:\s*var\(--agent-gui-package-success\)[^}]*--agent-gui-warning:\s*var\(--agent-gui-package-warning\)[^}]*--agent-gui-danger:\s*var\(--agent-gui-package-danger\)/s
     );
     expect(css).toMatch(
-      /\[data-testid="workspace-agent-message-center"\]\s*{[^}]*--agent-gui-package-success:\s*rgb\(34 197 94\)[^}]*--agent-gui-package-warning:\s*rgb\(234 121 8\)[^}]*--agent-gui-package-danger:\s*rgb\(220 38 38\)[^}]*--agent-gui-success:\s*var\(--agent-gui-package-success\)[^}]*--agent-gui-warning:\s*var\(--agent-gui-package-warning\)[^}]*--agent-gui-danger:\s*var\(--agent-gui-package-danger\)/s
+      /\[data-testid="workspace-agent-message-center"\]\s*{[^}]*--agent-gui-package-success:\s*var\(--state-success\)[^}]*--agent-gui-package-warning:\s*var\(--state-warning\)[^}]*--agent-gui-package-danger:\s*var\(--state-danger\)[^}]*--agent-gui-success:\s*var\(--agent-gui-package-success\)[^}]*--agent-gui-warning:\s*var\(--agent-gui-package-warning\)[^}]*--agent-gui-danger:\s*var\(--agent-gui-package-danger\)/s
     );
     expect(css).toMatch(
-      /\.agent-gui-node__composer-menu-content\s*{[^}]*--agent-gui-surface-raised:\s*var\(--background-fronted\)[^}]*--agent-gui-border-subtle:\s*var\(--line-2\)[^}]*--agent-gui-package-success:\s*rgb\(34 197 94\)[^}]*--agent-gui-success:\s*var\(--agent-gui-package-success\)/s
+      /\.agent-gui-node__composer-menu-content\s*{[^}]*--agent-gui-surface-raised:\s*var\(--background-fronted\)[^}]*--agent-gui-border-subtle:\s*var\(--line-2\)[^}]*--agent-gui-package-success:\s*var\(--state-success\)[^}]*--agent-gui-success:\s*var\(--agent-gui-package-success\)/s
     );
   });
 
@@ -1847,7 +1853,10 @@ describe("AgentFileMentionPalette", () => {
       /\.agent-gui-node__layout\s+\[data-slot="status-dot"\]\[data-size="md"\],\s*\[data-testid="workspace-agent-message-center"\]\s+\[data-slot="status-dot"\]\[data-size="md"\]\s*{[^}]*width:\s*10px[^}]*height:\s*10px/s
     );
     expect(css).toMatch(
-      /\.agent-gui-node__layout\s+\[data-slot="status-dot"\]\[data-tone="green"\],\s*\[data-testid="workspace-agent-message-center"\]\s+\[data-slot="status-dot"\]\[data-tone="green"\]\s*{[^}]*--agent-gui-status-dot-color:\s*var\(--agent-gui-success,\s*var\(--state-success\)\)/s
+      /\.agent-gui-node__layout\s+\[data-slot="status-dot"\]\[data-tone="green"\],\s*\[data-testid="workspace-agent-message-center"\]\s+\[data-slot="status-dot"\]\[data-tone="green"\]\s*{[^}]*--agent-gui-status-dot-color:\s*var\(--state-success\)/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__layout\s+\[data-slot="status-dot"\]\[data-tone="red"\],\s*\[data-testid="workspace-agent-message-center"\]\s+\[data-slot="status-dot"\]\[data-tone="red"\]\s*{[^}]*--agent-gui-status-dot-color:\s*var\(--state-danger\)/s
     );
     expect(css).toMatch(
       /\.agent-gui-node__layout\s+\[data-slot="status-dot"\]\[data-pulse="true"\],\s*\[data-testid="workspace-agent-message-center"\]\s+\[data-slot="status-dot"\]\[data-pulse="true"\]\s*{[^}]*animation:\s*agent-gui-status-dot-pulse\s+1\.8s\s+ease-in-out\s+infinite/s

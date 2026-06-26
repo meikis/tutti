@@ -48,7 +48,7 @@ test("agent provider dock state source resolves dynamic login state", () => {
       order: 0,
       state: {
         kind: "disabled",
-        reason: "login"
+        reason: "login required"
       },
       visibility: "always"
     }
@@ -71,6 +71,54 @@ test("agent provider dock state source emits subscription updates", () => {
   service.emit();
 
   assert.equal(callCount, 1);
+});
+
+test("agent provider dock state source loads statuses when subscribed", () => {
+  let ensureLoadedCount = 0;
+  const service = createAgentProviderStatusService({
+    onEnsureLoaded: async () => {
+      ensureLoadedCount += 1;
+      return null;
+    },
+    statuses: []
+  });
+  const source = createWorkspaceAgentProviderDockStateSource({
+    agentProviderStatusService: service,
+    i18n: createI18n()
+  });
+
+  const unsubscribe = source.subscribe(() => {});
+  unsubscribe();
+
+  assert.equal(ensureLoadedCount, 1);
+});
+
+test("agent provider dock state source shows checking before first status load", () => {
+  const service = createAgentProviderStatusService({ statuses: [] });
+  const source = createWorkspaceAgentProviderDockStateSource({
+    agentProviderStatusService: service,
+    i18n: createI18n()
+  });
+
+  assert.deepEqual(
+    source.getEntryState(workspaceAgentGuiDockEntryId("claude-code")),
+    {
+      diagnostics: createExpectedDiagnostics({
+        actions: [],
+        adapterInstalled: null,
+        authStatus: null,
+        availability: null,
+        cliInstalled: null,
+        provider: "claude-code"
+      }),
+      order: 100,
+      state: {
+        kind: "loading",
+        reason: "checking"
+      },
+      visibility: "always"
+    }
+  );
 });
 
 test("agent provider dock state source refreshes when agent activity changes", () => {
@@ -172,7 +220,7 @@ test("agent provider dock state source reads latest service snapshot without rec
       order: 0,
       state: {
         kind: "disabled",
-        reason: "login"
+        reason: "login required"
       },
       visibility: "always"
     }
@@ -502,6 +550,10 @@ test("agent provider dock state source hides Nexight until ready", () => {
 });
 
 function createAgentProviderStatusService(input: {
+  capturedAt?: string | null;
+  error?: string | null;
+  isLoading?: boolean;
+  onEnsureLoaded?: AgentProviderStatusService["ensureLoaded"];
   pendingActions?: Array<{
     actionId: string;
     provider: AgentProviderStatus["provider"];
@@ -522,17 +574,17 @@ function createAgentProviderStatusService(input: {
     },
     getRevision: () => 0,
     getSnapshot: () => ({
-      capturedAt: null,
+      capturedAt: input.capturedAt ?? null,
       defaultProvider: null,
-      error: null,
-      isLoading: false,
+      error: input.error ?? null,
+      isLoading: input.isLoading ?? false,
       pendingActions: input.pendingActions ?? [],
       statuses
     }),
     getStatus: (provider) =>
       statuses.find((status) => status.provider === provider) ?? null,
     isActionPending: () => false,
-    ensureLoaded: async () => null,
+    ensureLoaded: input.onEnsureLoaded ?? (async () => null),
     refresh: async () => {},
     runAction: async () => {},
     setStatuses(nextStatuses) {
@@ -543,7 +595,10 @@ function createAgentProviderStatusService(input: {
       return () => {
         listeners.delete(listener);
       };
-    }
+    },
+    getDiagnosticsConsent: () => false,
+    setDiagnosticsConsent: () => {},
+    reportEnvIssue: async () => {}
   };
 }
 
@@ -604,10 +659,10 @@ function createStatus(input: {
 
 function createExpectedDiagnostics(input: {
   actions: Array<{ id: string; kind: string }>;
-  adapterInstalled: boolean;
-  authStatus: string;
-  availability: string;
-  cliInstalled: boolean;
+  adapterInstalled: boolean | null;
+  authStatus: string | null;
+  availability: string | null;
+  cliInstalled: boolean | null;
   pendingActionIds?: string[];
   provider: AgentProviderStatus["provider"];
 }): Record<string, unknown> {

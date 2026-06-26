@@ -43,6 +43,65 @@ Use this shape for new entries:
 
 ## Current Entries
 
+### Desktop dev GUI exits before opening
+
+- Symptom:
+  `make dev-gui` exits during startup before the desktop window is usable. The
+  early form reports `pnpm <version> installation did not succeed`; the later
+  form reaches `start electron app...` and then `make` exits while desktop logs
+  say `secondary tutti instance detected`.
+- Quick checks:
+  Run `DEV_GUI_SKIP_START=1 make dev-gui` to isolate prerequisite setup from
+  Electron startup. If full startup exits after `start electron app...`, inspect
+  `~/.tutti-dev/logs/tutti-desktop.log` and check whether `/Applications/Tutti.app`
+  or another Tutti instance is already running.
+- Root cause:
+  Shells launched by tools can put another `pnpm` earlier on `PATH` than
+  corepack's shim, so `corepack prepare` succeeds but the script still validates
+  the wrong `pnpm`. Electron's single-instance lock also follows Electron
+  userData; if development and production share userData, a running production
+  app makes the dev app quit as a secondary instance.
+- Fix:
+  Prefer the corepack shim directory before checking or running `pnpm`, and set
+  development Electron userData to an environment-specific path before
+  requesting the single-instance lock.
+- Validation:
+  Run `DEV_GUI_SKIP_START=1 make dev-gui`, then run full `make dev-gui` while
+  the packaged app is open and confirm the renderer dev server and development
+  `tuttid` start. Also run `pnpm --filter @tutti-os/desktop test`,
+  `pnpm --filter @tutti-os/desktop typecheck`, and
+  `pnpm check:electron-runtime-boundaries`.
+- References:
+  [dev-gui.sh](../../tools/scripts/dev-gui.sh)
+  [bootstrap.ts](../../apps/desktop/src/main/bootstrap.ts)
+  [defaults.ts](../../apps/desktop/src/main/defaults.ts)
+
+### App Center list requests repeatedly log runtime preload
+
+- Symptom:
+  `tuttid` logs repeated `workspace app runtime preload started` and
+  `workspace app runtime preload completed` lines while App Center is merely
+  open or refreshing, even when the user is not installing an app.
+- Quick checks:
+  Trace the call path from `ListWorkspaceApps` to
+  `AppCenterService.List`. A list or catalog refresh request should not call
+  `AppRunner.PreloadRuntimeForProfile` or the managed runtime resolver.
+- Root cause:
+  Treating App Center list/read requests as an opportunity to prepare runtimes
+  gives a pure read operation hidden background side effects. Frequent renderer
+  refreshes then turn a fast idempotent runtime check into noisy repeated logs.
+- Fix:
+  Keep passive runtime preloading in daemon startup or another explicit
+  runtime-preparation workflow. Install, launch, retry, and enabled-app start
+  paths may still resolve runtimes because they actually need executable app
+  runtimes.
+- Validation:
+  Add or run service coverage that `AppCenterService.List` returns visible
+  uninstalled apps without invoking the runtime resolver.
+- References:
+  [apps.go](../../services/tuttid/service/workspace/apps.go)
+  [apps_test.go](../../services/tuttid/service/workspace/apps_test.go)
+
 ### Load unpacked project roots with source manifests
 
 - Symptom:
@@ -306,6 +365,41 @@ delimited by ---`, and the composer skill picker may show partial or
   [daemon_app_mentions.go](../../services/tuttid/api/daemon_app_mentions.go)
   [desktopRichTextAtService.ts](../../apps/desktop/src/renderer/src/features/rich-text-at/services/internal/desktopRichTextAtService.ts)
   [desktopAgentProviderStatusService.ts](../../apps/desktop/src/renderer/src/features/workspace-agent/services/internal/desktopAgentProviderStatusService.ts)
+
+### Agent GUI no-project sessions appear under a user project
+
+- Symptom:
+  A conversation started with the "No project" selection appears in the Agent
+  GUI rail under a parent user-project group such as the user's home directory.
+- Quick checks:
+  Inspect the session `cwd` from the activity snapshot. Generated no-project
+  sessions should resolve as no-project before `cwd` is matched against parent
+  user-project paths. Check both the in-memory `rememberNoProjectPath` path and
+  the restart fallback that recognizes `Documents/tutti/session-<uuid>`.
+- Root cause:
+  Conversation project grouping is a view-model join of `cwd x userProjects`.
+  If a generated no-project cwd is not recognized before prefix/parent project
+  matching, the longest-parent project match can assign the session to a broad
+  project such as `$HOME`. Keep generated-path recognition in the host
+  `isNoProjectPath` callback because it has the user home-directory context;
+  a package-level suffix check would misclassify real projects that contain a
+  `Documents/tutti/session-<uuid>` subdirectory.
+- Fix:
+  Treat exact user-project path matches as explicit user intent, then call the
+  host no-project resolver before parent project matching. The desktop resolver
+  should recognize generated `$HOME/Documents/tutti/session-<uuid>` cwd values
+  while allowing explicit registered projects to override them. Keep the project
+  field derived in the Agent GUI view-model rather than writing it back into the
+  conversation store.
+- Validation:
+  Run
+  `pnpm --filter @tutti-os/agent-gui test -- agent-gui/agentGuiNode/model/agentGuiConversationModel.spec.ts`,
+  `node --import ./test/register-asset-stub.mjs --test --experimental-strip-types ./src/renderer/src/features/workspace-user-project/services/internal/desktopWorkspaceUserProjectService.test.ts`
+  from `apps/desktop`, then run `pnpm check:changed`.
+- References:
+  [desktopWorkspaceUserProjectService.ts](../../apps/desktop/src/renderer/src/features/workspace-user-project/services/internal/desktopWorkspaceUserProjectService.ts)
+  [agentGuiConversationProjectResolver.ts](../../packages/agent/gui/agent-gui/agentGuiNode/model/agentGuiConversationProjectResolver.ts)
+  [agentGuiConversationListStore.ts](../../packages/agent/gui/contexts/workspace/presentation/renderer/agentGuiConversationList/agentGuiConversationListStore.ts)
 
 ### Electron main/preload crashes on a workspace package `.ts` export
 
@@ -872,3 +966,23 @@ information is not available yet`, but `ps` or `lsof` still shows an older
   [webviewSecurity.ts](../../packages/browser/workbench-node/src/electron-main/webviewSecurity.ts)
   [workspaceApp.ts](../../apps/desktop/src/preload/entries/workspaceApp.ts)
   [workspaceAppInteractionForwarding.ts](../../apps/desktop/src/preload/entries/workspaceAppInteractionForwarding.ts)
+
+### Agent generated files under system temp do not open
+
+- Symptom:
+  Agent GUI shows a generated or changed file under a path such as
+  `/var/folders/.../T/codex-presentations/...`, but clicking the file does not
+  reveal it in FileManager.
+- Quick checks:
+  Confirm the desktop workspace files launch coordinator accepts the path, then
+  confirm `tuttid` resolves the workspace file root for the requested absolute
+  path instead of forcing the user home root.
+- Root cause:
+  Some agent tools write durable-looking outputs to system temporary
+  directories. FileManager can reveal a precise local path, but both the
+  renderer launch filter and daemon workspace root resolution must allow that
+  external absolute path.
+- Fix:
+  Treat explicitly launched local absolute paths like direct hidden-file reveal:
+  do not add them as projects or default locations, but allow FileManager to
+  load the parent directory and apply normal local-file operations.

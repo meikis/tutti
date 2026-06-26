@@ -1448,7 +1448,7 @@ describe("AgentGUINode", () => {
     );
 
     expect(css).toMatch(
-      /\.agent-gui-node__new-conversation-icon-button\s+svg\s*\{[\s\S]{0,120}width:\s*16px;[\s\S]{0,120}height:\s*16px;/
+      /\.agent-gui-node__new-conversation-icon-button\s+svg\s*\{[\s\S]{0,120}width:\s*14px;[\s\S]{0,120}height:\s*14px;/
     );
   });
 
@@ -2541,6 +2541,29 @@ describe("AgentGUINode", () => {
     });
     expect(sendButton).toHaveAttribute("data-state", "send");
     expect(screen.queryByTestId("agent-gui-composer-send-spinner")).toBeNull();
+  });
+
+  it("keeps the composer ready while managed agent install state is still loading", () => {
+    mockViewModel = createViewModel({
+      data: {
+        provider: "codex",
+        lastActiveAgentSessionId: null,
+        conversationRailWidthPx: null
+      },
+      activeConversationId: "session-1",
+      draftPrompt: "@请处理这个任务引用。",
+      canQueueWhileBusy: true
+    });
+
+    renderAgentGUINode({
+      managedAgentsState: null
+    });
+
+    expect(getComposerEditor()).not.toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByTestId("agent-gui-provider-setup-notice")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "agentHost.agentGui.send" })
+    ).not.toBeDisabled();
   });
 
   it("shows a provider setup notice while keeping the disabled composer reason on the input placeholder", () => {
@@ -4904,7 +4927,7 @@ describe("AgentGUINode", () => {
       expect(mockListWorkspaceApps).toHaveBeenCalledWith({
         workspaceId: "room-1",
         query: "",
-        limit: 10
+        limit: undefined
       })
     );
     expect(within(palette).getByRole("tab", { name: "App" })).toHaveAttribute(
@@ -7239,9 +7262,12 @@ function createViewModel(
     draftContent,
     isLoadingConversations: false,
     isLoadingMessages: false,
+    isLoadingOlderMessages: false,
+    hasOlderMessages: false,
     isCreatingConversation: false,
     isSubmitting: false,
     isInterrupting: false,
+    isCancelPending: false,
     isRespondingApproval: false,
     promptImagesSupported: true,
     compactSupported: null,

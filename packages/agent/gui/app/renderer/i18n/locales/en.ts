@@ -355,6 +355,7 @@ export const en = {
       followupPlaceholder: "Request follow-up changes from {{provider}}",
       installRequiredPlaceholder:
         "Install {{provider}} from the dock to send messages",
+      installRequiredAction: "Set up",
       collaboratorSessionReadOnlyPlaceholder:
         "This session belongs to another user and cannot be replied to directly",
       send: "Send",
@@ -596,6 +597,7 @@ export const en = {
       empty: "What can {{provider}} help you with?",
       conversations: "Sessions",
       newConversation: "New session",
+      agentEnvSetup: "Environment check",
       noConversations: "No sessions yet",
       emptyProjectConversations: "No chats yet",
       batchRunnerStandaloneTitle: "Agent GUI batch runner",
@@ -724,6 +726,7 @@ export const en = {
       authRequired: "Authentication required",
       authLogin: "Sign in",
       activatingSession: "Connecting session...",
+      cancellingSession: "Cancelling...",
       retryActivation: "Retry",
       continueInNewConversation: "New session",
       goalLabel: "Goal",
@@ -750,6 +753,24 @@ export const en = {
       visibleErrorQuotaOrRateLimit:
         "{{provider}} request failed because a quota or rate limit was reached",
       visibleErrorDetails: "View details",
+      visibleErrorRawDetails: "Raw error",
+      visibleErrorCliNotFound:
+        "{{provider}} CLI wasn't found, so it couldn't run. Set it up to continue.",
+      visibleErrorVersionUnsupported:
+        "{{provider}}'s installed version is unsupported for this request. Upgrade to continue.",
+      visibleErrorNetwork:
+        "{{provider}} couldn't reach the network to complete this request.",
+      visibleErrorConfigTimeout:
+        "{{provider}} couldn't apply session settings before the request timed out. Try again in a moment.",
+      visibleErrorStreamDisconnected:
+        "{{provider}}'s response was interrupted before it completed. Try again in a moment.",
+      visibleErrorConcurrencyLimit:
+        "{{provider}} is handling too many requests right now. Try again after another task finishes.",
+      visibleErrorActionInstall: "Set up",
+      visibleErrorActionUpgrade: "Upgrade",
+      visibleErrorActionRelogin: "Sign in",
+      visibleErrorActionCheckNetwork: "Check network",
+      visibleErrorActionDetect: "Open setup",
       systemNoticeTransportRetry:
         "Codex connection interrupted. Reconnecting...",
       systemNoticeTransportFallback: "Codex switched to HTTPS transport",
@@ -937,7 +958,7 @@ export const en = {
         requirementStayInWorkspace:
           "1. Work under {{workspaceRoot}}; do not switch to unrelated directories.",
         requirementSummaryOutput:
-          "2. Unless the user specifies another location, write at least docs/tutti/issue_summary_{{issueId}}.md with the result, changes, and conclusion.",
+          "2. Unless the user specifies another location, write at least docs/tutti/task_summary_{{issueId}}.md with the result, changes, and conclusion.",
         taskContentLabel: "Task content",
         taskTitleLabel: "Task title"
       },
@@ -1719,7 +1740,7 @@ export const en = {
       taskCompletedCount: "{{count}} completed",
       issueStatusNotStarted: "To run",
       issueStatusRunning: "Running",
-      issueStatusInProgress: "Progress started",
+      issueStatusInProgress: "Running",
       issueStatusPendingAcceptance: "Pending acceptance",
       issueStatusCompleted: "Completed",
       issueStatusFailed: "Failed",

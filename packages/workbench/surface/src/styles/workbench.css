@@ -173,16 +173,8 @@
     box-shadow 0.16s ease;
 }
 
-.workbench-window[data-display-mode="fullscreen"] {
-  grid-template-rows: minmax(0, 1fr);
-}
-
 .workbench-window[data-display-mode="floating"] {
   background: var(--background-panel);
-}
-
-.workbench-window[data-display-mode="fullscreen"][data-fullscreen-header-mode="persistent"] {
-  grid-template-rows: var(--workbench-header-height) minmax(0, 1fr);
 }
 
 .workbench-window[data-focused="true"] {
@@ -218,66 +210,6 @@
   cursor: default;
 }
 
-.workbench-window[data-display-mode="fullscreen"] .workbench-window__header {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 3;
-  backdrop-filter: var(--workbench-window-backdrop-filter);
-  -webkit-backdrop-filter: var(--workbench-window-backdrop-filter);
-  opacity: 0;
-  transform: translateY(calc(-100% - 8px));
-  pointer-events: none;
-  transition:
-    opacity 0.16s ease,
-    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.workbench-window[data-display-mode="fullscreen"][data-fullscreen-header-mode="persistent"]
-  .workbench-window__header {
-  position: relative;
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
-}
-
-.workbench-window[data-display-mode="fullscreen"]:has(
-    .workbench-window__header-reveal-zone:hover
-  )
-  .workbench-window__header {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-  transition:
-    opacity 0.16s ease,
-    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.workbench-window[data-display-mode="fullscreen"]:has(
-    .workbench-window__header:hover
-  )
-  .workbench-window__header,
-.workbench-window[data-display-mode="fullscreen"]:has(
-    .workbench-window__header:focus-within
-  )
-  .workbench-window__header {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-  transition: none;
-}
-
-.workbench-window__header-reveal-zone {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 2;
-  height: 16px;
-  pointer-events: auto;
-}
-
 [data-workbench-drag-handle="true"] {
   cursor: grab;
   user-select: none;
@@ -292,15 +224,6 @@
   min-height: 0;
   overflow: auto;
   background: var(--background-panel);
-}
-
-.workbench-window[data-display-mode="fullscreen"] .workbench-window__body {
-  grid-row: 1;
-}
-
-.workbench-window[data-display-mode="fullscreen"][data-fullscreen-header-mode="persistent"]
-  .workbench-window__body {
-  grid-row: 2;
 }
 
 .workbench-window__resize-handle {
@@ -1291,7 +1214,7 @@
 
 .desktop-dock__slot[data-node-state="open"]::before,
 .desktop-dock__slot[data-node-state="minimized"]::before {
-  --desktop-dock-indicator-color: var(--text-tertiary);
+  --desktop-dock-indicator-color: rgb(0 0 0 / 46%);
   position: absolute;
   bottom: calc(var(--desktop-dock-indicator-offset) - 2px);
   left: 50%;
@@ -1325,10 +1248,6 @@
   bottom: auto;
   left: calc(var(--desktop-dock-indicator-offset) - 2px);
   transform: translateY(-50%);
-}
-
-.desktop-dock__slot[data-node-state="minimized"]::before {
-  opacity: 0.72;
 }
 
 .desktop-dock__btn {
@@ -1380,10 +1299,14 @@
   cursor: default;
 }
 
-.desktop-dock__icon-shell {
+.desktop-dock__icon-shell,
+.desktop-dock__minimized-stack-icon {
   --desktop-dock-loading-badge-offset: -3.6px;
   --desktop-dock-loading-badge-size: 16.2px;
   --desktop-dock-loading-spinner-size: 9px;
+}
+
+.desktop-dock__icon-shell {
   position: relative;
   box-sizing: border-box;
   display: inline-flex;
@@ -1417,7 +1340,7 @@
   align-items: center;
   justify-content: center;
   padding: 0 4.5px;
-  border: 1px solid color-mix(in srgb, var(--workbench-panel) 72%, white);
+  border: 1px solid var(--text-inverted);
   border-radius: 999px;
   background: var(--workbench-foreground);
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
@@ -1497,8 +1420,8 @@
 }
 
 .desktop-dock__count-badge {
-  color: var(--workbench-panel);
-  font-size: 10px;
+  color: var(--text-inverted);
+  font-size: 11px;
   font-weight: 700;
   line-height: 1;
 }
@@ -1519,7 +1442,7 @@
   bottom: -1.8px;
   width: 10.8px;
   height: 10.8px;
-  border: 1.8px solid color-mix(in srgb, var(--workbench-panel) 82%, white);
+  border: 1.8px solid var(--text-inverted);
   border-radius: 999px;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
 }
@@ -1789,7 +1712,8 @@
 }
 
 .desktop-dock__slot--minimized .desktop-dock__count-badge {
-  right: -10.8px;
+  right: -12px;
+  bottom: var(--desktop-dock-loading-badge-offset);
   z-index: 8;
 }
 

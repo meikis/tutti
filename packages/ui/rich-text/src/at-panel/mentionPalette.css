@@ -775,6 +775,15 @@
   color: var(--rich-text-at-mention-text-secondary);
 }
 
+.rich-text-at-mention-status--activity {
+  padding-inline: 0;
+  background: transparent;
+}
+
+.rich-text-at-mention-status--activity[data-tone] {
+  background: transparent;
+}
+
 .rich-text-at-mention-status [data-slot="status-dot"] {
   display: inline-flex;
   width: 6px;
