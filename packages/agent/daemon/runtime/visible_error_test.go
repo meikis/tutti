@@ -41,6 +41,21 @@ func TestVisibleFailureCodeClassifiesStreamDisconnected(t *testing.T) {
 	}
 }
 
+func TestVisibleFailureCodeDoesNotTreatPatchContextLoginTextAsAuth(t *testing.T) {
+	detail := `acp process exited with code 0: process exited: ERROR codex_core::tools::router: error=apply_patch verification failed: Failed to find expected lines in /Users/wwcome/work/tutti-os/tutti/services/tuttid/service/agentstatus/service_test.go:
+func TestServiceLoginRunsProviderLoginCommand(t *testing.T) {
+	service := testService(func(name string) (string, error) {`
+	if got := visibleFailureCode(detail); got != "process_exited" {
+		t.Fatalf("visibleFailureCode() = %q, want process_exited", got)
+	}
+}
+
+func TestVisibleFailureCodeClassifiesExplicitLoginFailureAsAuth(t *testing.T) {
+	if got := visibleFailureCode("Please login to continue."); got != "auth_required" {
+		t.Fatalf("visibleFailureCode() = %q, want auth_required", got)
+	}
+}
+
 func TestVisibleFailureTimelineItemCarriesTimeoutCodeForTurnFailures(t *testing.T) {
 	session := reportTestSession()
 	event := newTurnActivityEvent(session, EventTurnFailed, "turn-1", SessionStatusFailed, "", "", map[string]any{
