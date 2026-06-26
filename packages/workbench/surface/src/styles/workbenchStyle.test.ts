@@ -104,7 +104,11 @@ test("left dock placement owns vertical frame and popup placement styles", () =>
   );
   assert.match(
     css,
-    /\.desktop-dock__slot\[data-node-state="open"\]::before,[\s\S]*?\.desktop-dock__slot\[data-node-state="minimized"\]::before\s*{[^}]*--desktop-dock-indicator-color:\s*var\(--text-tertiary\);[^}]*bottom:\s*calc\(var\(--desktop-dock-indicator-offset\) - 2px\);[^}]*width:\s*5px;[^}]*height:\s*5px;[^}]*background:\s*var\(--desktop-dock-indicator-color\);[^}]*box-shadow:\s*0 0 0 0\.5px rgb\(0 0 0 \/ 12%\);/s
+    /\.desktop-dock__slot\[data-node-state="open"\]::before,[\s\S]*?\.desktop-dock__slot\[data-node-state="minimized"\]::before\s*{[^}]*--desktop-dock-indicator-color:\s*color-mix\(\s*in srgb,\s*var\(--workbench-foreground\) 46%,\s*transparent\s*\);[^}]*bottom:\s*calc\(var\(--desktop-dock-indicator-offset\) - 2px\);[^}]*width:\s*5px;[^}]*height:\s*5px;[^}]*background:\s*var\(--desktop-dock-indicator-color\);[^}]*box-shadow:\s*0 0 0 0\.5px rgb\(0 0 0 \/ 12%\);/s
+  );
+  assert.doesNotMatch(
+    css,
+    /\.desktop-dock__slot\[data-node-state="minimized"\]::before\s*{[^}]*opacity:/s
   );
   assert.match(
     css,
