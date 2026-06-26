@@ -338,6 +338,25 @@ function DesktopAgentGUIWorkbenchBodyImpl({
     provider,
     trackAgentProviderChatReady
   ]);
+  // When a turn fails authentication (a dropped login the daemon now flags), the
+  // status is pull-based, so re-probe immediately to flip the dock/wizard to
+  // "needs login" without the user having to re-detect manually.
+  useEffect(() => {
+    if (previewMode || !agentProviderStatusService) {
+      return;
+    }
+    return agentActivityRuntime.subscribeSessionEvents(workspaceId, (event) => {
+      if (sessionEventLooksLikeAuthFailure(event)) {
+        void agentProviderStatusService.refresh([provider]);
+      }
+    });
+  }, [
+    agentActivityRuntime,
+    agentProviderStatusService,
+    previewMode,
+    provider,
+    workspaceId
+  ]);
   useEffect(() => {
     if (previewMode || !computerUseApi) {
       setComputerUseStatus(null);
@@ -993,3 +1012,47 @@ export const DesktopAgentGUIWorkbenchBody = memo(
   DesktopAgentGUIWorkbenchBodyImpl,
   areDesktopAgentGUIWorkbenchBodyPropsEqual
 );
+
+const AUTH_FAILURE_MARKERS = [
+  "authentication_failed",
+  "invalid authentication credentials",
+  "401 invalid authentication",
+  "unauthorized",
+  "not logged in",
+  "please run /login",
+  "invalid api key"
+];
+
+// Read defensively: session events arrive as `unknown`, in either the
+// {eventType:"message_update", data:{status,payload}} runtime shape or a flatter
+// {status,payload,content} shape. We only care about a failed turn whose payload
+// looks like an authentication failure (matching the daemon's classification).
+function sessionEventLooksLikeAuthFailure(event: unknown): boolean {
+  if (typeof event !== "object" || event === null) {
+    return false;
+  }
+  const record = event as {
+    status?: unknown;
+    content?: unknown;
+    payload?: Record<string, unknown>;
+    data?: { status?: unknown; payload?: Record<string, unknown> };
+  };
+  const status = record.data?.status ?? record.status;
+  if (status !== "failed") {
+    return false;
+  }
+  const payload = record.data?.payload ?? record.payload ?? {};
+  if (payload["code"] === "auth_required") {
+    return true;
+  }
+  const text = [
+    payload["content"],
+    payload["text"],
+    payload["detail"],
+    record.content
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+  return AUTH_FAILURE_MARKERS.some((marker) => text.includes(marker));
+}
