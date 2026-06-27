@@ -1066,7 +1066,7 @@ export type WorkspaceAgentSessionMessage = {
   id: number;
   agentSessionId: string;
   messageId: string;
-  turnId?: string;
+  turnId: string;
   role: string;
   kind: string;
   status?: string;
@@ -1074,7 +1074,7 @@ export type WorkspaceAgentSessionMessage = {
   payload?: {
     [key: string]: unknown;
   };
-  occurredAtUnixMs?: number;
+  occurredAtUnixMs: number;
   startedAtUnixMs?: number;
   completedAtUnixMs?: number;
   createdAtUnixMs?: number;

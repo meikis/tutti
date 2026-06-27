@@ -427,7 +427,7 @@ func (s *Service) importExternalSession(ctx context.Context, workspaceID string,
 		}
 		updates = append(updates, agentactivitybiz.MessageUpdate{
 			MessageID:         messageID,
-			TurnID:            externalImportedTurnID(session.Provider, session.ProviderSessionID, i),
+			TurnID:            externalImportedTurnID(session.Provider, session.ProviderSessionID, messageID),
 			Role:              message.Role,
 			Kind:              message.Kind,
 			Status:            message.Status,
@@ -532,8 +532,8 @@ func externalImportedMessageIDForMessage(provider string, providerSessionID stri
 	return externalImportedMessageID(provider, providerSessionID, message.RawID, index)
 }
 
-func externalImportedTurnID(provider string, providerSessionID string, index int) string {
-	return "imported-turn-" + externalStableHash(provider + "\x00" + providerSessionID + "\x00" + strconv.Itoa(index/2))[:24]
+func externalImportedTurnID(provider string, providerSessionID string, messageID string) string {
+	return "imported-turn-" + externalStableHash(provider + "\x00" + providerSessionID + "\x00" + messageID)[:24]
 }
 
 func externalImportedMessagePayload(message externalImportedMessage) map[string]any {
