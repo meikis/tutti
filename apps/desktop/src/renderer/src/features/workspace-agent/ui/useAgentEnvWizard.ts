@@ -61,6 +61,7 @@ export function useAgentEnvWizard(input: {
   workspaceId: string;
   workbenchHost?: unknown;
 }): {
+  open: boolean;
   provider: WorkspaceAgentProvider;
   isSupported: boolean;
   viewModel: AgentEnvWizardViewModel;
@@ -184,9 +185,10 @@ export function useAgentEnvWizard(input: {
     (c: string) => void copyManual(c),
     [copyManual]
   );
-  const toggleLog = useCallback(() => toggleWizardLog(), []);
+  const toggleLog = useCallback(toggleWizardLog, []);
 
   return {
+    open: request.open,
     provider,
     isSupported: isDesktopManagedAgentProvider(provider),
     viewModel,

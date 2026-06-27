@@ -9,10 +9,7 @@ import {
   DialogTitle,
   RefreshIcon
 } from "@tutti-os/ui-system";
-import {
-  closeAgentEnvPanel,
-  useAgentEnvPanelRequest
-} from "@tutti-os/agent-gui/agent-env";
+import { closeAgentEnvPanel } from "@tutti-os/agent-gui/agent-env";
 import { useTranslation } from "@renderer/i18n";
 import type { IAgentProviderStatusService } from "../services/agentProviderStatusService.interface";
 import { useAgentEnvWizard } from "./useAgentEnvWizard";
@@ -32,8 +29,8 @@ export function AgentEnvPanel({
   workbenchHost
 }: AgentEnvPanelProps): JSX.Element | null {
   const { t } = useTranslation();
-  const request = useAgentEnvPanelRequest();
   const {
+    open,
     provider,
     isSupported,
     viewModel,
@@ -57,7 +54,7 @@ export function AgentEnvPanel({
   // DialogContent wrapper unmounts its own subtree after the close animation.
   return (
     <Dialog
-      open={request.open}
+      open={open}
       onOpenChange={(next) => {
         if (!next) closeAgentEnvPanel();
       }}

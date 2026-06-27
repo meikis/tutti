@@ -92,6 +92,7 @@ describe("deriveAgentSetupStages", () => {
       cliVersionDetail: { kind: "text", text: "1.2.3 · /usr/bin/codex" }
     });
     const install = stages.find((s) => s.id === "install");
+    expect(install).toBeDefined();
     expect(install?.detail).toEqual({
       kind: "text",
       text: "1.2.3 · /usr/bin/codex"

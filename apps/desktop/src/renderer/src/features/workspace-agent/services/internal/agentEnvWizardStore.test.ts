@@ -7,8 +7,10 @@ import {
   resetAgentEnvWizardStoreForTests,
   resetWizardForOpen,
   restartWizardReveal,
+  setWizardCopied,
   setWizardReportState,
   subscribeAgentEnvWizardStore,
+  toggleWizardLog,
   REVEAL_ALL
 } from "./agentEnvWizardStore.ts";
 
@@ -40,13 +42,24 @@ test("markWizardAutoStarted records the dedup sequence", () => {
   assert.equal(getAgentEnvWizardSnapshot().autoStartedSeq, 7);
 });
 
-test("restartWizardReveal rewinds reveal and clears report state", () => {
+test("restartWizardReveal rewinds reveal and clears report state, copied, logExpanded", () => {
   resetAgentEnvWizardStoreForTests();
   resetWizardForOpen("install");
   setWizardReportState("dismissed");
+  setWizardCopied(true);
+  toggleWizardLog();
   restartWizardReveal();
   assert.equal(getAgentEnvWizardSnapshot().revealIndex, 0);
   assert.equal(getAgentEnvWizardSnapshot().reportState, "idle");
+  assert.equal(getAgentEnvWizardSnapshot().copied, false);
+  assert.equal(getAgentEnvWizardSnapshot().logExpanded, false);
+});
+
+test("restartWizardReveal PRESERVES autoStartedSeq", () => {
+  resetAgentEnvWizardStoreForTests();
+  markWizardAutoStarted(5);
+  restartWizardReveal();
+  assert.equal(getAgentEnvWizardSnapshot().autoStartedSeq, 5);
 });
 
 test("subscribers fire on mutation", () => {

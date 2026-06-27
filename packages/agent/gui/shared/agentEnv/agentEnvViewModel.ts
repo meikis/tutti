@@ -65,10 +65,8 @@ export interface AgentEnvWizardViewModelInput {
 }
 
 export interface AgentEnvWizardViewModel {
-  provider: WorkspaceAgentProvider;
   ready: boolean;
   busy: boolean;
-  detected: boolean;
   redetecting: boolean;
   displayStages: AgentSetupStage[];
   blockingStageId: AgentSetupStageId | null;
@@ -214,10 +212,8 @@ export function buildAgentEnvWizardViewModel(
       : null;
 
   return {
-    provider,
     ready: Boolean(ready),
     busy: Boolean(busy),
-    detected: status !== null,
     redetecting: input.isLoading,
     displayStages,
     blockingStageId,

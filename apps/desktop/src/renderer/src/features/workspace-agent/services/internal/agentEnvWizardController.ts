@@ -182,6 +182,5 @@ export function restartAgentEnvWizardDetection(
   params: AttachAgentEnvWizardParams
 ): void {
   restartWizardReveal();
-  setWizardReportState("idle");
   void params.service.refresh([params.provider]);
 }
