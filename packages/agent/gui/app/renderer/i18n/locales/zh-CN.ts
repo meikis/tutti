@@ -1615,7 +1615,7 @@ export const zhCN = {
       taskRunningCount: "{{count}} 个执行中",
       taskPendingAcceptanceCount: "{{count}} 个待验收",
       taskCompletedCount: "{{count}} 个已完成",
-      issueStatusNotStarted: "未启动",
+      issueStatusNotStarted: "待开始",
       issueStatusRunning: "执行中",
       issueStatusInProgress: "执行中",
       issueStatusPendingAcceptance: "待验收",

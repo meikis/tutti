@@ -103,7 +103,7 @@
 - Bug: @ 面板的任务列表里不同任务状态都显示成灰色，任务中心也需要统一颜色和文案。
 - Evidence: Feishu attachment `image.png` shows `未启动`、`执行中`、`待验收` badges all rendered as the same gray badge.
 - Cause: @ 面板和任务中心分别维护任务状态展示映射，且 `ui-rich-text` 的 issue badge 只给 completed/failed 类状态上色，running/pending 状态最终落到灰色。
-- Fix: Add a shared issue-manager status presentation helper for badge variant、mention tone and normalized `data-status`; have @ 面板 consume it, extend rich-text issue badges with running blue and pending purple, and align task-center status copy with @ 面板 (`未启动` / `To run`, `待验收` / `Pending acceptance`, `已完成` / `Completed`).
+- Fix: Add a shared issue-manager status presentation helper for badge variant、mention tone and normalized `data-status`; have @ 面板 consume it, extend rich-text issue badges with running blue and pending purple, and keep @ 面板 status copy aligned to task-center copy (`待开始` / `Todo`, `待验收` / `In review`, `已完成` / `Done`).
 - Verification:
   - `corepack pnpm --filter @tutti-os/workspace-issue-manager test -- --test-name-pattern status`
   - `corepack pnpm --filter @tutti-os/agent-gui exec vitest run --environment jsdom agent-gui/agentGuiNode/AgentFileMentionPalette.spec.tsx`

@@ -490,7 +490,7 @@ vi.mock("../../i18n/index", () => ({
       return "错误";
     }
     const mentionLabels: Record<string, string> = {
-      "agentHost.roomIssueNode.issueStatusNotStarted": "未启动",
+      "agentHost.roomIssueNode.issueStatusNotStarted": "待开始",
       "agentHost.roomIssueNode.issueStatusRunning": "执行中",
       "agentHost.roomIssueNode.issueStatusPendingAcceptance": "待验收",
       "agentHost.roomIssueNode.issueStatusCompleted": "已完成",

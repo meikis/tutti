@@ -30,7 +30,7 @@ vi.mock("../../i18n/index", async () => {
     "agentHost.agentGui.mentionGroupAgentGeneratedFiles": "Agent 生成的文件",
     "agentHost.agentGui.mentionAgentGeneratedFolderBack": "返回",
     "agentHost.agentGui.mentionNoMatchingFiles": "没有匹配到文件",
-    "agentHost.roomIssueNode.issueStatusNotStarted": "未启动",
+    "agentHost.roomIssueNode.issueStatusNotStarted": "待开始",
     "agentHost.roomIssueNode.issueStatusRunning": "执行中",
     "agentHost.roomIssueNode.issueStatusInProgress": "执行中",
     "agentHost.roomIssueNode.issueStatusPendingAcceptance": "待验收",
@@ -166,7 +166,7 @@ describe("AgentFileMentionPalette", () => {
       />
     );
 
-    expect(screen.getByText("未启动")).toBeVisible();
+    expect(screen.getByText("待开始")).toBeVisible();
     expect(screen.getAllByText("执行中")).toHaveLength(2);
     expect(screen.getByText("待验收")).toBeVisible();
     expect(screen.getByText("已完成")).toBeVisible();
