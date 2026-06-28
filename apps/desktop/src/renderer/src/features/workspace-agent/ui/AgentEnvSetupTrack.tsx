@@ -128,7 +128,9 @@ export function AgentEnvSetupTrack({
             remediation?.actionId === "login"
               ? loginPending
               : remediation?.actionId === "redetect"
-                ? redetecting
+                ? // Re-detect stays disabled for the whole install (busy is
+                  // stable, unlike redetecting/isLoading which flickers per poll).
+                  redetecting || busy
                 : installPending;
           return (
             <li

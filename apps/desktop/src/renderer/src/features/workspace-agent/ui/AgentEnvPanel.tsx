@@ -105,7 +105,7 @@ export function AgentEnvPanel({
             size="dialog"
             type="button"
             variant="ghost"
-            disabled={viewModel.redetecting}
+            disabled={viewModel.redetecting || viewModel.busy}
             onClick={actions.redetect}
           >
             <RefreshIcon className="size-4" />
