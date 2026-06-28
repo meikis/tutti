@@ -4723,6 +4723,10 @@ export type GetAgentProviderStatusesData = {
   path?: never;
   query?: {
     providers?: Array<WorkspaceAgentProvider>;
+    /**
+     * Opt into the network connectivity probe (registry / provider API / proxy reachability). Off by default so the common detection path stays local and never blocks on the network; only the agent-env wizard's network diagnostic sets this.
+     */
+    includeNetwork?: boolean;
   };
   url: "/v1/agent-providers/status";
 };

@@ -65,6 +65,12 @@ const (
 
 type ListInput struct {
 	Providers []string
+	// IncludeNetwork opts into the network connectivity probe (registry / provider
+	// API / proxy reachability). It is OFF by default so the common detection path
+	// — the dock, startup, polling, provider-availability — stays purely local and
+	// never blocks on the network. Only the agent-env wizard, which renders the
+	// network diagnostic, sets this.
+	IncludeNetwork bool
 }
 
 type ProbeInput struct {
@@ -247,19 +253,24 @@ func (s Service) List(ctx context.Context, input ListInput) (Snapshot, error) {
 		statuses = append(statuses, s.statusForSpec(ctx, spec, now))
 	}
 
+	// The network connectivity probe is OPT-IN (input.IncludeNetwork). The dock /
+	// startup / polling / provider-availability path leaves it off so detection is
+	// purely local and never blocks on a slow or black-holed network — those
+	// callers only need local availability (CLI/adapter/auth), never Network. Only
+	// the wizard, which renders the network diagnostic, opts in.
+	//
 	// Registry reachability (install path) and proxy detection are provider-
 	// independent, so probe them once; the API endpoint (run/login path) differs
 	// per provider, so probe that per status. All are reported separately on each
 	// provider's Network.
 	//
-	// Skip the (slow, flaky-proxy-prone) connectivity probe for any provider that
-	// is mid-install: the network doesn't change during an install, and the
-	// per-second install-progress poll would otherwise re-probe it every tick,
-	// making the network step flicker. Such a provider reports no Network (the UI
-	// treats nil as "not a blocker"); a full re-detect after the install
-	// refreshes it. When every requested provider is installing, even the shared
-	// registry/proxy probes are skipped.
-	if len(statuses) > 0 {
+	// Even when opted in, skip the probe for any provider that is mid-install: the
+	// network doesn't change during an install, and the per-second install-progress
+	// poll would otherwise re-probe it every tick, making the network step flicker.
+	// Such a provider reports no Network (the UI treats nil as "not a blocker"); a
+	// full re-detect after the install refreshes it. When every requested provider
+	// is installing, even the shared registry/proxy probes are skipped.
+	if input.IncludeNetwork && len(statuses) > 0 {
 		installing := make([]bool, len(statuses))
 		anyNeedsNetwork := false
 		for i := range statuses {

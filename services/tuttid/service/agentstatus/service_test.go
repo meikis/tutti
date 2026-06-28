@@ -86,7 +86,10 @@ func TestServiceListReturnsLatestActiveActionAfterNetworkProbe(t *testing.T) {
 		return nil, nil
 	}
 
-	snapshot, err := service.List(context.Background(), ListInput{Providers: []string{"codex"}})
+	snapshot, err := service.List(context.Background(), ListInput{
+		Providers:      []string{"codex"},
+		IncludeNetwork: true,
+	})
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}

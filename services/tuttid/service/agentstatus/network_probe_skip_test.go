@@ -8,11 +8,13 @@ import (
 	"testing"
 )
 
-// While a provider is installing, List must skip the network connectivity probe
-// (the network doesn't change during an install, and re-probing a flaky proxy on
-// every progress poll makes the network step flicker). Such a provider reports
-// no Network; the active-action is still surfaced.
-func TestListSkipsNetworkProbeWhileInstalling(t *testing.T) {
+// The network connectivity probe is opt-in. Without IncludeNetwork, List is
+// purely local — no network call and no Network on the result — so the dock /
+// startup path never blocks on a slow or black-holed network. With
+// IncludeNetwork it probes, except for a provider mid-install (the network
+// doesn't change during an install, so re-probing a flaky proxy on every
+// progress poll would flicker).
+func TestListNetworkProbeIsOptIn(t *testing.T) {
 	const provider = "codex"
 
 	// Force a clean active-action baseline for this provider.
@@ -33,20 +35,43 @@ func TestListSkipsNetworkProbeWhileInstalling(t *testing.T) {
 		return s
 	}
 
-	// Baseline: no install in flight → List probes the network.
+	// Default (IncludeNetwork=false): local-only. No network call, no Network,
+	// but full local availability is still resolved.
 	networkCalls = 0
-	snap, err := newService().List(context.Background(), ListInput{Providers: []string{provider}})
+	local, err := newService().List(context.Background(), ListInput{Providers: []string{provider}})
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if len(snap.Providers) != 1 || snap.Providers[0].Network == nil {
-		t.Fatalf("baseline: Network = %#v, want probed", snap.Providers)
+	if len(local.Providers) != 1 {
+		t.Fatalf("local: providers = %#v, want 1", local.Providers)
 	}
-	if networkCalls == 0 {
-		t.Fatal("baseline: expected the network to be probed")
+	if networkCalls != 0 {
+		t.Fatalf("local: network probed %d times, want 0", networkCalls)
+	}
+	if local.Providers[0].Network != nil {
+		t.Fatalf("local: Network = %#v, want nil (probe not requested)", local.Providers[0].Network)
+	}
+	if local.Providers[0].Availability.Status == "" {
+		t.Fatal("local: Availability is empty, want local availability resolved")
 	}
 
-	// With a running install action, List skips the probe entirely.
+	// IncludeNetwork=true, not installing: List probes the network.
+	networkCalls = 0
+	probed, err := newService().List(context.Background(), ListInput{
+		Providers:      []string{provider},
+		IncludeNetwork: true,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if probed.Providers[0].Network == nil {
+		t.Fatalf("opted-in: Network = nil, want probed")
+	}
+	if networkCalls == 0 {
+		t.Fatal("opted-in: expected the network to be probed")
+	}
+
+	// IncludeNetwork=true, but a running install action: skip the probe.
 	installCtx := withActiveActionToken(context.Background(), nextActiveActionToken())
 	claimActiveAction(installCtx, provider, ActiveAction{
 		ID:     ActionInstall,
@@ -56,17 +81,20 @@ func TestListSkipsNetworkProbeWhileInstalling(t *testing.T) {
 	t.Cleanup(func() { clearActiveAction(installCtx, provider) })
 
 	networkCalls = 0
-	snap2, err := newService().List(context.Background(), ListInput{Providers: []string{provider}})
+	installing, err := newService().List(context.Background(), ListInput{
+		Providers:      []string{provider},
+		IncludeNetwork: true,
+	})
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if snap2.Providers[0].Network != nil {
-		t.Fatalf("installing: Network = %#v, want nil (probe skipped)", snap2.Providers[0].Network)
+	if installing.Providers[0].Network != nil {
+		t.Fatalf("installing: Network = %#v, want nil (probe skipped)", installing.Providers[0].Network)
 	}
 	if networkCalls != 0 {
 		t.Fatalf("installing: network probed %d times, want 0", networkCalls)
 	}
-	if snap2.Providers[0].ActiveAction == nil {
+	if installing.Providers[0].ActiveAction == nil {
 		t.Fatal("installing: ActiveAction = nil, want the running install action surfaced")
 	}
 }

@@ -3614,6 +3614,9 @@ type bearerAuthContextKey string
 // GetAgentProviderStatusesParams defines parameters for GetAgentProviderStatuses.
 type GetAgentProviderStatusesParams struct {
 	Providers *[]WorkspaceAgentProvider `form:"providers,omitempty" json:"providers,omitempty"`
+
+	// IncludeNetwork Opt into the network connectivity probe (registry / provider API / proxy reachability). Off by default so the common detection path stays local and never blocks on the network; only the agent-env wizard's network diagnostic sets this.
+	IncludeNetwork *bool `form:"includeNetwork,omitempty" json:"includeNetwork,omitempty"`
 }
 
 // ListCliCapabilitiesParams defines parameters for ListCliCapabilities.

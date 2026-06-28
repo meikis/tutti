@@ -30,7 +30,8 @@ func (api DaemonAPI) GetAgentProviderStatuses(ctx context.Context, request tutti
 	}
 
 	snapshot, err := api.AgentStatusService.List(ctx, agentstatusservice.ListInput{
-		Providers: generatedAgentStatusProviders(request.Params.Providers),
+		Providers:      generatedAgentStatusProviders(request.Params.Providers),
+		IncludeNetwork: request.Params.IncludeNetwork != nil && *request.Params.IncludeNetwork,
 	})
 	if err != nil {
 		return writeGetAgentProviderStatusesError(err), nil

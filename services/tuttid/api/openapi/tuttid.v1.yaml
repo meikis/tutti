@@ -1760,6 +1760,16 @@ paths:
             type: array
             items:
               $ref: "#/components/schemas/WorkspaceAgentProvider"
+        - name: includeNetwork
+          in: query
+          required: false
+          description: >-
+            Opt into the network connectivity probe (registry / provider API /
+            proxy reachability). Off by default so the common detection path
+            stays local and never blocks on the network; only the agent-env
+            wizard's network diagnostic sets this.
+          schema:
+            type: boolean
       responses:
         "200":
           description: Agent provider status snapshot

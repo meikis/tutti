@@ -155,6 +155,7 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
   async ensureLoaded(
     input: {
       providers?: WorkspaceAgentProvider[];
+      includeNetwork?: boolean;
     } = {}
   ): Promise<AgentProviderStatusListResponse | null> {
     if (this.hasLoadedProviderSnapshot(input.providers)) {
@@ -174,6 +175,7 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
   private async requestStatuses(
     input: {
       providers?: WorkspaceAgentProvider[];
+      includeNetwork?: boolean;
     } = {}
   ): Promise<AgentProviderStatusListResponse | null> {
     if (this.inflightRequest) {
@@ -332,11 +334,17 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
     }
   }
 
-  async refresh(providers?: WorkspaceAgentProvider[]): Promise<void> {
+  async refresh(
+    providers?: WorkspaceAgentProvider[],
+    options?: { includeNetwork?: boolean }
+  ): Promise<void> {
     if (this.inflightRequest) {
       await this.inflightRequest;
     }
-    await this.requestStatuses({ providers });
+    await this.requestStatuses({
+      providers,
+      includeNetwork: options?.includeNetwork
+    });
   }
 
   subscribe(listener: () => void): () => void {
@@ -409,7 +417,10 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
       const previous = previousByProvider.get(status.provider);
       nextByProvider.set(
         status.provider,
-        this.stabilizeProviderStatus(previous, status)
+        this.preserveNetwork(
+          previous,
+          this.stabilizeProviderStatus(previous, status)
+        )
       );
     }
 
@@ -429,6 +440,23 @@ export class DesktopAgentProviderStatusService implements IAgentProviderStatusSe
       }
     }
     return merged;
+  }
+
+  /**
+   * Network reachability is now fetched on-demand (only the wizard requests it),
+   * so a local-only poll (dock / visibility / install / login) returns a status
+   * with no `network`. Carry the last-known network forward so those polls don't
+   * wipe the diagnostic the wizard fetched; a later with-network response replaces
+   * it.
+   */
+  private preserveNetwork(
+    previous: AgentProviderStatus | undefined,
+    next: AgentProviderStatus
+  ): AgentProviderStatus {
+    if (next.network || !previous?.network) {
+      return next;
+    }
+    return { ...next, network: previous.network };
   }
 
   private stabilizeProviderStatus(

@@ -100,10 +100,15 @@ export function attachAgentEnvWizard(
   let detached = false;
 
   resetWizardForOpen(params.focus);
+  // The wizard renders the network diagnostic, so its detections opt into the
+  // network probe; the dock and other callers stay local-only.
   if (params.focus) {
-    void params.service.refresh([params.provider]);
+    void params.service.refresh([params.provider], { includeNetwork: true });
   } else {
-    void params.service.ensureLoaded({ providers: [params.provider] });
+    void params.service.ensureLoaded({
+      providers: [params.provider],
+      includeNetwork: true
+    });
   }
 
   const clearRevealTimer = (): void => {
@@ -202,5 +207,5 @@ export function restartAgentEnvWizardDetection(
   params: AttachAgentEnvWizardParams
 ): void {
   restartWizardReveal();
-  void params.service.refresh([params.provider]);
+  void params.service.refresh([params.provider], { includeNetwork: true });
 }
