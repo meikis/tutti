@@ -760,6 +760,22 @@ corepack pnpm --filter @tutti-os/agent-gui exec vitest run agent-gui/agentGuiNod
 corepack pnpm --filter @tutti-os/agent-gui exec vitest run shared/AgentRichTextReadonly.spec.tsx shared/AgentMessageMarkdown.spec.tsx
 ```
 
+### Agent Generated File Mentions
+
+```text
+Agent activity messages
+  -> generated-file collector in tuttid or AgentGUI fallback
+  -> desktop mention provider
+  -> mention palette grouping/count presentation
+  -> composer file mention insertion
+```
+
+Generated-file counts must be computed from collector output, not from palette
+rendering state. The collector owns the semantic filter: only successful
+file-change tool messages should contribute paths, and failed, canceled,
+running, or read-only tool calls must be ignored even when their payloads carry
+`path`, `filePath`, `fileChanges`, or `changes` fields.
+
 ### Approval Or Ask-User Prompt
 
 ```text
@@ -802,6 +818,21 @@ rich text document
 
 IME behavior, search state, serialization, and transcript rendering are separate
 links. A local picker fix can break prompt serialization or rendered links.
+
+Rendered transcript markdown should only promote explicit file targets to
+workspace file actions: local absolute paths, home-relative paths, and Windows
+absolute paths. Relative markdown links remain display text unless another
+structured reference contract marks them as a workspace reference. Host adapters
+that open workspace file nodes should validate explicit agent-command file
+targets before launching the files surface, so a speculative or stale agent
+path does not open a misleading workbench node.
+
+Quick checks:
+
+```sh
+pnpm --filter @tutti-os/agent-gui test -- shared/AgentMessageMarkdown.spec.tsx
+pnpm --filter @tutti-os/desktop test -- src/renderer/src/features/workspace-file-manager/services/internal/workspaceFileManagerService.test.ts src/renderer/src/features/workspace-workbench/services/workspaceFilesRevealIntent.test.ts
+```
 
 ## Troubleshooting Playbook
 

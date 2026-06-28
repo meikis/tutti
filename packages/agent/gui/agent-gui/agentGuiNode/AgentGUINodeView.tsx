@@ -416,7 +416,6 @@ interface AgentGUINodeViewProps {
   slashStatusLimits?: readonly AgentComposerSlashStatusLimit[];
   slashStatusLimitsLoading?: boolean;
   previewMode?: boolean;
-  showProjectSelector?: boolean;
   onAgentProviderLogin?: (provider?: string | null) => void;
   actions: {
     createConversation: (options?: { projectPath?: string | null }) => void;
@@ -470,6 +469,7 @@ interface AgentGUINodeViewProps {
   workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
   workspaceFileReferenceAdapter?: WorkspaceFileReferenceAdapter | null;
   onOpenConversationWindow?: (agentSessionId: string) => void;
+  selectProjectDirectory?: () => Promise<{ path: string } | null>;
   onRequestGitBranches?: AgentComposerGitBranchLoader | null;
   workspaceFileReferenceCopy?: WorkspaceFileReferenceCopy | null;
   contextMentionProviders?: readonly AgentContextMentionProvider[];
@@ -788,7 +788,6 @@ export function AgentGUINodeView({
   slashStatusLimits = [],
   slashStatusLimitsLoading = false,
   previewMode = false,
-  showProjectSelector = true,
   onAgentProviderLogin,
   actions,
   conversationRailCollapsed,
@@ -803,6 +802,7 @@ export function AgentGUINodeView({
   workspaceUserProjectI18n,
   workspaceFileReferenceAdapter = null,
   onOpenConversationWindow,
+  selectProjectDirectory,
   workspaceFileReferenceCopy = null,
   onRequestGitBranches = null,
   contextMentionProviders,
@@ -1211,7 +1211,6 @@ export function AgentGUINodeView({
         labels,
         workspaceUserProjectI18n,
         uiLanguage,
-        showProjectSelector,
         previewMode,
         createConversationDisabled,
         openclawGateway,
@@ -1227,7 +1226,8 @@ export function AgentGUINodeView({
         onCancelDeleteConversation: cancelDeleteConversation,
         onConfirmDeleteConversation: confirmDeleteConversation,
         onOpenProjectFiles: openProjectFiles,
-        onOpenConversationWindow: openConversationWindow
+        onOpenConversationWindow: openConversationWindow,
+        selectProjectDirectory
       }),
       [
         cancelDeleteConversation,
@@ -1246,7 +1246,7 @@ export function AgentGUINodeView({
         requestDeleteConversation,
         retryOpenclawGateway,
         selectConversation,
-        showProjectSelector,
+        selectProjectDirectory,
         toggleConversationPinned,
         uiLanguage,
         viewModel.activeConversationId,
@@ -1338,12 +1338,12 @@ export function AgentGUINodeView({
             isAgentProviderReady={isAgentProviderReady}
             slashStatusLimits={slashStatusLimits}
             slashStatusLimitsLoading={slashStatusLimitsLoading}
-            showProjectSelector={showProjectSelector}
             onLinkAction={onLinkAction}
             capabilityMenuState={capabilityMenuState}
             onCapabilitySettingsRequest={onCapabilitySettingsRequest}
             onAgentProviderLogin={onAgentProviderLogin}
             onRequestWorkspaceReferences={requestWorkspaceReferences}
+            selectProjectDirectory={selectProjectDirectory}
             onRequestGitBranches={onRequestGitBranches}
             contextMentionProviders={contextMentionProviders}
             workspaceAppIcons={effectiveWorkspaceAppIcons}
@@ -1399,7 +1399,6 @@ interface AgentGUIDetailPaneProps {
   isAgentProviderReady: boolean;
   slashStatusLimits: readonly AgentComposerSlashStatusLimit[];
   slashStatusLimitsLoading: boolean;
-  showProjectSelector: boolean;
   onLinkAction?: (action: WorkspaceLinkAction) => void;
   capabilityMenuState?: AgentComposerProps["capabilityMenuState"];
   onCapabilitySettingsRequest?: AgentComposerProps["onCapabilitySettingsRequest"];
@@ -1409,6 +1408,7 @@ interface AgentGUIDetailPaneProps {
         entity?: AgentContextMentionItem | null
       ) => Promise<WorkspaceReferencePickResult>)
     | null;
+  selectProjectDirectory?: () => Promise<{ path: string } | null>;
   onRequestGitBranches?: AgentComposerGitBranchLoader | null;
   contextMentionProviders?: readonly AgentContextMentionProvider[];
   workspaceAppIcons?: readonly AgentMessageMarkdownWorkspaceAppIcon[];
@@ -1493,12 +1493,12 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   isAgentProviderReady,
   slashStatusLimits,
   slashStatusLimitsLoading,
-  showProjectSelector,
   onLinkAction,
   capabilityMenuState,
   onCapabilitySettingsRequest,
   onAgentProviderLogin,
   onRequestWorkspaceReferences,
+  selectProjectDirectory,
   onRequestGitBranches,
   contextMentionProviders,
   workspaceAppIcons = EMPTY_WORKSPACE_APP_ICONS
@@ -2027,6 +2027,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   const stableRequestWorkspaceReferences = useOptionalStableEventCallback(
     onRequestWorkspaceReferences
   );
+  const stableSelectProjectDirectory =
+    useOptionalStableEventCallback(selectProjectDirectory);
   const stableRequestGitBranches =
     useOptionalStableEventCallback(onRequestGitBranches);
   const authLogin = useOptionalStableEventCallback(onAgentProviderLogin);
@@ -2075,7 +2077,6 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       composerFocusRequestSequence,
       isActive,
       promptImagesSupported: viewModel.promptImagesSupported,
-      showProjectSelector,
       isInterrupting: viewModel.isInterrupting,
       isSendingTurn: isComposerSending,
       isSubmittingPrompt: viewModel.isRespondingApproval,
@@ -2095,6 +2096,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       onCapabilitySettingsRequest,
       onLinkAction: stableLinkAction,
       onRequestWorkspaceReferences: stableRequestWorkspaceReferences,
+      selectProjectDirectory: stableSelectProjectDirectory,
       onRequestGitBranches: stableRequestGitBranches,
       contextMentionProviders
     }),
@@ -2119,7 +2121,6 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       removeQueuedPrompt,
       sendQueuedPromptNext,
       showPromptImagesUnsupported,
-      showProjectSelector,
       showStopButton,
       slashStatus,
       submitDisabled,
@@ -2127,6 +2128,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       submitPrompt,
       stableLinkAction,
       stableRequestGitBranches,
+      stableSelectProjectDirectory,
       stableRequestWorkspaceReferences,
       updateComposerSettings,
       updateDraftContent,
@@ -2858,7 +2860,6 @@ interface AgentGUIConversationRailPaneProps {
   labels: AgentGUIViewLabels;
   workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
   uiLanguage: UiLanguage;
-  showProjectSelector: boolean;
   previewMode: boolean;
   createConversationDisabled: boolean;
   openclawGateway: OpenclawGatewayViewModel | null;
@@ -2870,6 +2871,7 @@ interface AgentGUIConversationRailPaneProps {
   onToggleConversationPinned: (agentSessionId: string, pinned: boolean) => void;
   onOpenProjectFiles?: ((action: WorkspaceLinkAction) => void) | null;
   onOpenConversationWindow?: (agentSessionId: string) => void;
+  selectProjectDirectory?: () => Promise<{ path: string } | null>;
   onRemoveProject: (path: string) => void;
   onConfirmDeleteProjectConversations: (path?: string) => void;
   onRequestDeleteConversation: (agentSessionId: string) => void;
@@ -2939,7 +2941,6 @@ function agentGUIConversationRailStoreSnapshotsEqual(
     current.labels === next.labels &&
     current.workspaceUserProjectI18n === next.workspaceUserProjectI18n &&
     current.uiLanguage === next.uiLanguage &&
-    current.showProjectSelector === next.showProjectSelector &&
     current.previewMode === next.previewMode &&
     current.createConversationDisabled === next.createConversationDisabled &&
     current.openclawGateway === next.openclawGateway &&
@@ -2951,6 +2952,7 @@ function agentGUIConversationRailStoreSnapshotsEqual(
     current.onToggleConversationPinned === next.onToggleConversationPinned &&
     current.onOpenProjectFiles === next.onOpenProjectFiles &&
     current.onOpenConversationWindow === next.onOpenConversationWindow &&
+    current.selectProjectDirectory === next.selectProjectDirectory &&
     current.onRemoveProject === next.onRemoveProject &&
     current.onConfirmDeleteProjectConversations ===
       next.onConfirmDeleteProjectConversations &&
@@ -3146,7 +3148,6 @@ const AgentGUIConversationRailPane = memo(
     labels,
     workspaceUserProjectI18n,
     uiLanguage,
-    showProjectSelector,
     previewMode,
     createConversationDisabled,
     openclawGateway,
@@ -3158,6 +3159,7 @@ const AgentGUIConversationRailPane = memo(
     onToggleConversationPinned,
     onOpenProjectFiles,
     onOpenConversationWindow,
+    selectProjectDirectory,
     onRemoveProject,
     onConfirmDeleteProjectConversations,
     onRequestDeleteConversation,
@@ -3353,7 +3355,6 @@ const AgentGUIConversationRailPane = memo(
                 section.kind === "project" ? section.label : "";
               const isProjectSection = section.kind === "project";
               const showProjectRailHeader =
-                showProjectSelector &&
                 !conversationQuery.trim() &&
                 section.kind !== "pinned" &&
                 (sectionIndex === 0 ||
@@ -3369,6 +3370,7 @@ const AgentGUIConversationRailPane = memo(
                   {showProjectRailHeader ? (
                     <AgentGUIProjectRailHeader
                       labels={labels}
+                      selectProjectDirectory={selectProjectDirectory}
                       workspaceUserProjectI18n={workspaceUserProjectI18n}
                     />
                   ) : null}
@@ -3976,12 +3978,14 @@ const AgentGUIConversationRailItem = memo(
 
 function AgentGUIProjectRailHeader({
   labels,
+  selectProjectDirectory,
   workspaceUserProjectI18n
 }: {
   labels: Pick<
     AgentGUIViewLabels,
     "projectRailCreateProject" | "projectRailLinkExistingProject"
   >;
+  selectProjectDirectory?: () => Promise<{ path: string } | null>;
   workspaceUserProjectI18n: WorkspaceUserProjectI18nRuntime;
 }): React.JSX.Element {
   "use memo";
@@ -3991,10 +3995,15 @@ function AgentGUIProjectRailHeader({
       agentHostApi.userProjects
         ? {
             ...agentHostApi.userProjects,
-            selectDirectory: agentHostApi.workspace.selectDirectory
+            selectDirectory:
+              selectProjectDirectory ?? agentHostApi.workspace.selectDirectory
           }
         : null,
-    [agentHostApi.userProjects, agentHostApi.workspace.selectDirectory]
+    [
+      agentHostApi.userProjects,
+      agentHostApi.workspace.selectDirectory,
+      selectProjectDirectory
+    ]
   );
 
   return (

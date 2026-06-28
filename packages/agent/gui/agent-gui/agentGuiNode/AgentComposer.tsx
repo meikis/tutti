@@ -186,7 +186,6 @@ export interface AgentComposerProps {
   promptImagesSupported?: boolean;
   composerFocusRequestSequence?: number | null;
   layoutMode?: "dock" | "hero";
-  showProjectSelector?: boolean;
   labels: {
     send: string;
     modelLabel: string;
@@ -361,6 +360,7 @@ export interface AgentComposerProps {
         entity?: AgentContextMentionItem | null
       ) => Promise<WorkspaceReferencePickResult>)
     | null;
+  selectProjectDirectory?: () => Promise<{ path: string } | null>;
   onRequestGitBranches?: AgentComposerGitBranchLoader | null;
   contextMentionProviders?: readonly AgentContextMentionProvider[];
 }
@@ -702,7 +702,6 @@ export function AgentComposer({
   promptImagesSupported = true,
   composerFocusRequestSequence = null,
   layoutMode = "dock",
-  showProjectSelector = true,
   labels,
   workspaceUserProjectI18n,
   onDraftContentChange,
@@ -719,6 +718,7 @@ export function AgentComposer({
   onCapabilitySettingsRequest,
   onLinkAction,
   onRequestWorkspaceReferences = null,
+  selectProjectDirectory,
   onRequestGitBranches = null,
   contextMentionProviders = EMPTY_CONTEXT_MENTION_PROVIDERS
 }: AgentComposerProps): React.JSX.Element {
@@ -2149,12 +2149,10 @@ export function AgentComposer({
   const showEdgeGlow = layoutMode === "hero" && !inputDisabled;
   const showPromptTips = layoutMode === "hero" && promptTips.length > 0;
   const activePromptTip = showPromptTips ? (promptTips[0] ?? null) : null;
-  const showHeroProjectSelector = layoutMode === "hero" && showProjectSelector;
-  const showProjectRow =
-    layoutMode === "hero" && (showHeroProjectSelector || activePromptTip);
+  const showHeroProjectSelector = layoutMode === "hero";
+  const showProjectRow = layoutMode === "hero";
   const showProjectMissingProbe =
     !showProjectRow &&
-    showProjectSelector &&
     Boolean(composerSettings.projectLocked) &&
     selectedProjectPath !== "";
   const activePromptTipId = activePromptTip?.id ?? null;
@@ -2888,6 +2886,7 @@ export function AgentComposer({
                   projectLocked: labels.projectLocked,
                   projectMissingDescription: labels.projectMissingDescription
                 }}
+                selectProjectDirectory={selectProjectDirectory}
                 onProjectMissingChange={setIsSelectedProjectMissing}
                 onProjectPathChange={onProjectPathChange}
               />

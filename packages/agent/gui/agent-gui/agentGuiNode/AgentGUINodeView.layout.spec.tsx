@@ -603,31 +603,6 @@ describe("AgentGUINodeView layout persistence", () => {
     );
   });
 
-  it("hides the project rail header when the project selector is disabled", () => {
-    const { container } = renderAgentGUINodeView({
-      showProjectSelector: false,
-      viewModel: {
-        ...createViewModel(),
-        conversations: [
-          {
-            ...createConversationSummary("session-1"),
-            cwd: "/workspace/app",
-            project: {
-              id: "project-app",
-              path: "/workspace/app",
-              label: "App"
-            }
-          }
-        ]
-      }
-    });
-
-    expect(
-      container.querySelector(".agent-gui-node__project-rail-header")
-    ).toBeNull();
-    expect(screen.getByText("App")).toBeInTheDocument();
-  });
-
   it("shows empty project sections when projects have no conversations", () => {
     renderAgentGUINodeView({
       viewModel: {
@@ -1536,7 +1511,6 @@ interface RenderAgentGUINodeViewOptions {
   labels?: AgentGUIViewLabels;
   onOpenConversationWindow?: AgentGUINodeViewProps["onOpenConversationWindow"];
   slashStatusLimits?: AgentGUINodeViewProps["slashStatusLimits"];
-  showProjectSelector?: boolean;
 }
 
 function buildAgentGUINodeViewElement({
@@ -1550,8 +1524,7 @@ function buildAgentGUINodeViewElement({
   actions = createActions(),
   labels = createLabels(),
   onOpenConversationWindow,
-  slashStatusLimits = [],
-  showProjectSelector = true
+  slashStatusLimits = []
 }: RenderAgentGUINodeViewOptions = {}) {
   return (
     <AgentGUINodeView
@@ -1568,7 +1541,6 @@ function buildAgentGUINodeViewElement({
       conversationRailMaxWidthPx={420}
       detailMinWidthPx={220}
       uiLanguage="en"
-      showProjectSelector={showProjectSelector}
       onOpenConversationWindow={onOpenConversationWindow}
       onConversationRailWidthChanged={onConversationRailWidthChanged}
       labels={labels}

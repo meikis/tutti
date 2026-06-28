@@ -831,7 +831,6 @@ const (
 	IssueManagerStatusCanceled          IssueManagerStatus = "canceled"
 	IssueManagerStatusCompleted         IssueManagerStatus = "completed"
 	IssueManagerStatusFailed            IssueManagerStatus = "failed"
-	IssueManagerStatusInProgress        IssueManagerStatus = "in_progress"
 	IssueManagerStatusNotStarted        IssueManagerStatus = "not_started"
 	IssueManagerStatusPendingAcceptance IssueManagerStatus = "pending_acceptance"
 	IssueManagerStatusRunning           IssueManagerStatus = "running"
@@ -845,8 +844,6 @@ func (e IssueManagerStatus) Valid() bool {
 	case IssueManagerStatusCompleted:
 		return true
 	case IssueManagerStatusFailed:
-		return true
-	case IssueManagerStatusInProgress:
 		return true
 	case IssueManagerStatusNotStarted:
 		return true
@@ -865,7 +862,6 @@ const (
 	IssueManagerStatusFilterCanceled          IssueManagerStatusFilter = "canceled"
 	IssueManagerStatusFilterCompleted         IssueManagerStatusFilter = "completed"
 	IssueManagerStatusFilterFailed            IssueManagerStatusFilter = "failed"
-	IssueManagerStatusFilterInProgress        IssueManagerStatusFilter = "in_progress"
 	IssueManagerStatusFilterNotStarted        IssueManagerStatusFilter = "not_started"
 	IssueManagerStatusFilterPendingAcceptance IssueManagerStatusFilter = "pending_acceptance"
 	IssueManagerStatusFilterRunning           IssueManagerStatusFilter = "running"
@@ -881,8 +877,6 @@ func (e IssueManagerStatusFilter) Valid() bool {
 	case IssueManagerStatusFilterCompleted:
 		return true
 	case IssueManagerStatusFilterFailed:
-		return true
-	case IssueManagerStatusFilterInProgress:
 		return true
 	case IssueManagerStatusFilterNotStarted:
 		return true
@@ -2606,7 +2600,6 @@ type IssueManagerStatusCounts struct {
 	Canceled          int `json:"canceled"`
 	Completed         int `json:"completed"`
 	Failed            int `json:"failed"`
-	InProgress        int `json:"inProgress"`
 	NotStarted        int `json:"notStarted"`
 	PendingAcceptance int `json:"pendingAcceptance"`
 	Running           int `json:"running"`

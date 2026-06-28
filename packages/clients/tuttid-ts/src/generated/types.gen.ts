@@ -1576,7 +1576,6 @@ export type UpdateWorkspaceRequest = {
 export type IssueManagerStatus =
   | "not_started"
   | "running"
-  | "in_progress"
   | "pending_acceptance"
   | "completed"
   | "failed"
@@ -1586,7 +1585,6 @@ export type IssueManagerStatusFilter =
   | "all"
   | "not_started"
   | "running"
-  | "in_progress"
   | "pending_acceptance"
   | "completed"
   | "failed"
@@ -1603,7 +1601,6 @@ export type IssueManagerStatusCounts = {
   all: number;
   notStarted: number;
   running: number;
-  inProgress: number;
   pendingAcceptance: number;
   completed: number;
   failed: number;
