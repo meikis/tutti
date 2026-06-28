@@ -37,6 +37,24 @@ function endpointHost(endpoint: string | null | undefined): string | null {
   return endpoint.replace(/^https?:\/\//, "").replace(/\/.*$/, "") || null;
 }
 
+// A proxy URL may carry credentials (http://user:pass@host:port). Strip the
+// userinfo before it reaches the renderer/UI so proxy passwords are never
+// surfaced; the scheme + host:port are kept for display.
+function scrubProxyUrl(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+  try {
+    const parsed = new URL(url);
+    parsed.username = "";
+    parsed.password = "";
+    return `${parsed.protocol}//${parsed.host}` || null;
+  } catch {
+    // Not a parseable URL — still strip a leading userinfo segment defensively.
+    return url.replace(/\/\/[^/@]*@/, "//") || null;
+  }
+}
+
 function textToken(text: string | null): StageDetailToken | null {
   return text ? { kind: "text", text } : null;
 }
@@ -155,7 +173,7 @@ export function buildAgentEnvWizardViewModel(
                 reachable:
                   !status.network.proxy.configured ||
                   status.network.proxy.reachable,
-                host: status.network.proxy.url ?? null,
+                host: scrubProxyUrl(status.network.proxy.url),
                 configured: status.network.proxy.configured
               }
             ]

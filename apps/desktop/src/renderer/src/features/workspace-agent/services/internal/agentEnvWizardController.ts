@@ -19,6 +19,18 @@ import {
   REVEAL_STEP_MS
 } from "./agentEnvWizardStore.ts";
 
+// The auto-start runAction and the anomaly reportEnvIssue are fired detached;
+// both reject on failure (and the service already surfaces a user-facing
+// notification). Log for diagnostics so the rejection does not escape as an
+// unhandled promise rejection in the renderer.
+function logDetachedActionError(
+  action: string,
+  provider: string,
+  err: unknown
+): void {
+  console.warn(`[agent-env] ${action} failed`, provider, err);
+}
+
 // Reveal/auto-start/anomaly are status-driven, not label-driven; the orchestrator
 // only needs stage *status*, so it feeds the view-model placeholder labels.
 const ORCHESTRATION_LABELS: AgentSetupStageLabels = {
@@ -129,7 +141,11 @@ export function attachAgentEnvWizard(
       });
       if (action) {
         markWizardAutoStarted(params.requestSequence);
-        void params.service.runAction(params.provider, action, params.context);
+        void params.service
+          .runAction(params.provider, action, params.context)
+          .catch((err) =>
+            logDetachedActionError(`auto-start ${action}`, params.provider, err)
+          );
       }
     }
 
@@ -138,7 +154,11 @@ export function attachAgentEnvWizard(
     // buildAgentEnvWizardViewModel, so revealIndex does not affect it.
     if (wizard.reportState === "idle" && rawVm.hasAnomaly) {
       if (params.service.getDiagnosticsConsent()) {
-        void params.service.reportEnvIssue(params.provider);
+        void params.service
+          .reportEnvIssue(params.provider)
+          .catch((err) =>
+            logDetachedActionError("reportEnvIssue", params.provider, err)
+          );
         setWizardReportState("reported");
       } else {
         setWizardReportState("confirming");

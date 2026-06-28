@@ -146,6 +146,26 @@ describe("buildAgentEnvWizardViewModel", () => {
     ]);
   });
 
+  it("strips credentials from a configured proxy URL", () => {
+    const vm = buildAgentEnvWizardViewModel(
+      input({
+        status: status({
+          network: {
+            registry: { reachable: true, endpoint: "https://registry.npmjs.org" },
+            proxy: {
+              configured: true,
+              reachable: true,
+              url: "http://user:s3cr3t@proxy.corp:8080"
+            }
+          }
+        })
+      })
+    );
+    const proxy = vm.networkChecks.find((c) => c.kind === "proxy");
+    expect(proxy?.host).toBe("http://proxy.corp:8080");
+    expect(proxy?.host).not.toContain("s3cr3t");
+  });
+
   it("surfaces the first non-ok stage as blocking once revealed", () => {
     const vm = buildAgentEnvWizardViewModel(
       input({

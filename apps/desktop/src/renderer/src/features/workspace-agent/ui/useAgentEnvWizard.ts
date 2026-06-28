@@ -32,19 +32,39 @@ function useStatusSnapshot(service: IAgentProviderStatusService) {
   );
 }
 
+// Fire-and-forget service calls (runAction, reportEnvIssue) reject on failure;
+// the service already surfaces a user-facing notification, so here we only log
+// for diagnostics to avoid an unhandled promise rejection in the renderer.
+function logDetachedActionError(
+  action: string,
+  provider: string,
+  err: unknown
+): void {
+  console.warn(`[agent-env] ${action} failed`, provider, err);
+}
+
 function resolveActiveProvider(
   requested: string | null,
   defaultProvider: WorkspaceAgentProvider | null
-): WorkspaceAgentProvider {
-  if (requested && isDesktopManagedAgentProvider(requested)) {
-    return requested;
+): { provider: WorkspaceAgentProvider; isSupported: boolean } {
+  // An explicit request is honored as-is — even when it names an unmanaged
+  // provider — so the panel can tell the user it is unsupported rather than
+  // silently switching them to a different agent (and running detect/install/
+  // login against the wrong provider). Only fall back to a managed default when
+  // no provider was requested at all (a casual "智能体环境" open).
+  if (requested) {
+    return {
+      provider: requested as WorkspaceAgentProvider,
+      isSupported: isDesktopManagedAgentProvider(requested)
+    };
   }
   if (defaultProvider && isDesktopManagedAgentProvider(defaultProvider)) {
-    return defaultProvider;
+    return { provider: defaultProvider, isSupported: true };
   }
-  return desktopManagedAgentProviders.includes("codex")
+  const fallback = desktopManagedAgentProviders.includes("codex")
     ? "codex"
     : desktopManagedAgentProviders[0];
+  return { provider: fallback, isSupported: true };
 }
 
 export interface AgentEnvWizardActions {
@@ -76,7 +96,7 @@ export function useAgentEnvWizard(input: {
   const snapshot = useStatusSnapshot(service);
   const wizard = useAgentEnvWizardState();
 
-  const provider = useMemo(
+  const { provider, isSupported } = useMemo(
     () => resolveActiveProvider(request.provider, snapshot.defaultProvider),
     [request.provider, snapshot.defaultProvider]
   );
@@ -105,12 +125,14 @@ export function useAgentEnvWizard(input: {
   );
 
   // Single lifecycle effect: synchronize the orchestrator with the open panel.
+  // An unsupported (unmanaged) provider never attaches — no detection, no
+  // auto-start — so the panel just shows the unsupported message.
   useEffect(() => {
-    if (!request.open) {
+    if (!request.open || !isSupported) {
       return;
     }
     return attachAgentEnvWizard(attachParams);
-  }, [request.open, attachParams]);
+  }, [request.open, isSupported, attachParams]);
 
   const stageLabels = useMemo(
     () => ({
@@ -157,16 +179,22 @@ export function useAgentEnvWizard(input: {
         restartAgentEnvWizardDetection(attachParams);
         return;
       }
-      void service.runAction(provider, actionId, {
-        workbenchHost,
-        workspaceId
-      });
+      void service
+        .runAction(provider, actionId, {
+          workbenchHost,
+          workspaceId
+        })
+        .catch((err) =>
+          logDetachedActionError(`runAction(${actionId})`, provider, err)
+        );
     },
     [attachParams, service, provider, workbenchHost, workspaceId]
   );
   const confirmReport = useCallback(() => {
     service.setDiagnosticsConsent(true);
-    void service.reportEnvIssue(provider);
+    void service
+      .reportEnvIssue(provider)
+      .catch((err) => logDetachedActionError("reportEnvIssue", provider, err));
     setWizardReportState("reported");
   }, [service, provider]);
   const dismissReport = useCallback(
@@ -190,7 +218,7 @@ export function useAgentEnvWizard(input: {
   return {
     open: request.open,
     provider,
-    isSupported: isDesktopManagedAgentProvider(provider),
+    isSupported,
     viewModel,
     reportState: wizard.reportState,
     copied: wizard.copied,
