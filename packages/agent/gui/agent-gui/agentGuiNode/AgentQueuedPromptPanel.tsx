@@ -44,7 +44,6 @@ interface AgentQueuedPromptPanelProps {
   queuedPrompts: readonly AgentGUIQueuedPromptVM[];
   drainingQueuedPromptId: string | null;
   labels: {
-    queuedLabel: string;
     sendQueuedPromptNext: string;
     editQueuedPrompt: string;
     deleteQueuedPrompt: string;
@@ -218,27 +217,10 @@ export function AgentQueuedPromptPanel({
       onKeyDown={handleKeyDown}
     >
       <div
-        aria-label={`${labels.queuedLabel} ${queuedPrompts.length}`}
-        className={styles.composerQueuedPromptHeader}
-      >
-        <span className={styles.composerQueuedPromptCount}>
-          {queuedPrompts.length}
-        </span>
-        {canExpand ? (
-          <ChevronRight
-            aria-hidden="true"
-            className={styles.composerQueuedPromptExpandCue}
-            data-testid="agent-gui-composer-queued-prompt-expand-cue"
-            size={16}
-            strokeWidth={2}
-          />
-        ) : null}
-      </div>
-      <div
         ref={queuedPromptListRef}
         className={styles.composerQueuedPromptList}
       >
-        {queuedPrompts.map((queuedPrompt) => {
+        {queuedPrompts.map((queuedPrompt, index) => {
           const isDraining = queuedPrompt.id === drainingQueuedPromptId;
           const images = queuedPromptImages(queuedPrompt);
           const displayText = agentPromptContentDisplayText(
@@ -254,6 +236,15 @@ export function AgentQueuedPromptPanel({
             >
               <div className={styles.composerQueuedPromptMain}>
                 <div className={styles.composerQueuedPromptBody} title={title}>
+                  {canExpand && index === 0 ? (
+                    <ChevronRight
+                      aria-hidden="true"
+                      className={styles.composerQueuedPromptExpandCue}
+                      data-testid="agent-gui-composer-queued-prompt-expand-cue"
+                      size={16}
+                      strokeWidth={2}
+                    />
+                  ) : null}
                   {displayText ? (
                     <div
                       ref={

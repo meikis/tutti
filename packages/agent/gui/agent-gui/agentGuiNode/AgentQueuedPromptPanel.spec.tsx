@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentQueuedPromptPanel } from "./AgentQueuedPromptPanel";
 
 const labels = {
-  queuedLabel: "Queued",
   sendQueuedPromptNext: "Send next",
   editQueuedPrompt: "Edit",
   deleteQueuedPrompt: "Delete",
@@ -20,7 +19,7 @@ function textQueuedPrompt(id: string, text: string, createdAtUnixMs = 1) {
 }
 
 describe("AgentQueuedPromptPanel", () => {
-  it("omits the visible queued label while keeping the count", () => {
+  it("omits the standalone queued header and count", () => {
     render(
       <AgentQueuedPromptPanel
         queuedPrompts={[
@@ -36,11 +35,10 @@ describe("AgentQueuedPromptPanel", () => {
     );
 
     expect(screen.queryByText("Queued")).toBeNull();
-    expect(screen.getByLabelText("Queued 2")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.queryByText("2")).toBeNull();
   });
 
-  it("shows an expand cue only when queued content can expand", () => {
+  it("shows an expand cue in the first queued row only when queued content can expand", () => {
     const { rerender } = render(
       <AgentQueuedPromptPanel
         queuedPrompts={[textQueuedPrompt("queued-1", "short prompt")]}
@@ -76,6 +74,11 @@ describe("AgentQueuedPromptPanel", () => {
     expect(
       screen.getByTestId("agent-gui-composer-queued-prompt-expand-cue")
     ).toHaveClass("lucide-chevron-right");
+    expect(
+      screen
+        .getByTestId("agent-gui-composer-queued-prompt-expand-cue")
+        .closest('[data-testid="agent-gui-composer-queued-prompt-queued-1"]')
+    ).toBeInTheDocument();
   });
 
   it("shows an expand cue for a single queued prompt only when rendered text overflows", () => {

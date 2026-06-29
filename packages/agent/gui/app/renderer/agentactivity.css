@@ -6197,18 +6197,10 @@ html[data-theme="light"] [data-message-center-item-id].agent-gui-edge-glow {
   overflow-y: auto;
 }
 
-.agent-gui-node__composer-queued-prompt-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
-  min-height: 20px;
-}
-
 .agent-gui-node__composer-queued-prompt-expand-cue {
   flex: 0 0 auto;
   color: var(--agent-gui-accent-strong);
-  opacity: 0;
+  opacity: 0.78;
   transition:
     opacity 120ms ease,
     transform 120ms ease;
@@ -6275,14 +6267,6 @@ html[data-theme="light"] [data-message-center-item-id].agent-gui-edge-glow {
   border-radius: 4px;
   object-fit: cover;
   background: var(--agent-gui-surface-muted);
-}
-
-.agent-gui-node__composer-queued-prompt-count {
-  color: var(--agent-gui-accent-strong);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 20px;
-  font-variant-numeric: tabular-nums;
 }
 
 .agent-gui-node__composer-queued-prompt-text {
