@@ -172,6 +172,10 @@ Local overlays are allowed only to bridge UI latency:
 - optimistic pin or working status while a command is in flight
 
 Every overlay must have a reconciliation path back to the runtime snapshot.
+Optimistic prompt messages must stay overlay-owned even when they are used to
+scope the selected detail window. Do not promote them into durable/detail
+message bases: their local timestamp-derived versions can outrank lower
+authoritative daemon versions and suppress the durable user prompt during merge.
 
 ## User-Facing Data Flows
 
@@ -199,6 +203,11 @@ The session list is not owned by AgentGuiNode. AgentGuiNode may keep query,
 selection, pending create/delete/submit overlays, and read-state UI metadata.
 The session rows themselves come from the runtime snapshot and are refreshed
 through `load`, event reconciliation, or explicit session fetches.
+Conversation-list read-state metadata is notification-style UI state. Historical
+imports that carry `runtimeContext.imported === true` should remain visible in
+the rail, but they must not seed unread completion lamps as though they just
+finished locally. Preserve the imported marker through conversation summaries
+and summary-stabilization equality before deriving unread completion state.
 If the conversation-list query cannot be constructed because workspace,
 current-user, or provider identity is missing, clear the active conversation
 selection and persisted active hint. Do not treat that state as a runtime
@@ -294,6 +303,15 @@ The local working patch is a latency bridge only. If the runtime returns a
 ready-looking session while the turn is still being processed, the desktop
 service can preserve optimistic `working` until a later authoritative event
 settles the session.
+
+When an existing conversation is busy, normal composer submits may be captured
+as local queued prompts so the next turn can run after the current one settles.
+Composer guidance is different: `Cmd+Enter` on macOS, or `Ctrl+Enter` on other
+platforms, sends the draft as active-turn guidance and bypasses the local queue.
+For Codex app-server sessions this reaches `RuntimeController.Exec` while an
+active provider turn is registered, so the adapter sends `turn/steer` and emits
+a user message with `steered: true`. `Shift+Enter` remains the multiline
+composer shortcut and must not submit either a normal prompt or guidance.
 
 The submit target is not just a render detail. A detail-page composer must not
 fall back to `startConversation` because a UI-local active conversation ref is
@@ -934,6 +952,11 @@ Quick checks:
   do not use their local timestamp-derived versions as durable message-window
   bounds; live runtime messages can have lower authoritative sequence versions
   and must still enter the transcript before a refresh.
+- If user prompts appear below assistant replies until the conversation is
+  reopened, inspect whether optimistic prompt messages were merged into
+  `detailMessages` or another durable/base set. Reconciliation should split
+  durable messages from optimistic overlays, then drop overlays that match a
+  durable `messageId`, `clientSubmitId`, or prompt signature.
 - When a live message or lifecycle patch reveals the real turn ID for a
   first-prompt create, retarget the optimistic prompt from its pending
   client-submit turn ID only after the event is known to belong to the current

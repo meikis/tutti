@@ -262,13 +262,19 @@ describe("AgentGUINodeView layout persistence", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
     expect(css).toMatch(
-      /\.agent-gui-node__rail-panel\s*\{[^}]*border-right:\s*1px\s+solid\s+var\(--agent-gui-border-subtle,\s*var\(--line-2\)\);/s
+      /\.agent-gui-node__rail-panel\s*\{[^}]*border-right:\s*0;/s
     );
     expect(css).toMatch(
       /\.room-issue-node__search-field\s*{[^}]*position:\s*relative[^}]*min-width:\s*0/s
     );
     expect(css).toMatch(
       /\.agent-gui-node__rail-toolbar\s*\{[^}]*--agent-gui-rail-control-radius:\s*6px;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__rail-toolbar\s*\{[^}]*padding:\s*0\s+16px\s+16px;/s
+    );
+    expect(css).toMatch(
+      /\.workbench-window:has\(\s*\[data-agent-gui-workbench-header="true"\]\[data-agent-gui-workbench-header-collapsed="false"\]\s*\)\s*\.agent-gui-node__rail-toolbar\s*{[^}]*padding-top:\s*var\(--agent-gui-workbench-header-height\);/s
     );
     expect(css).toMatch(
       /\.room-issue-node__search-input\s*{[^}]*width:\s*100%[^}]*height:\s*32px\s*!important;[^}]*min-height:\s*32px;[^}]*max-height:\s*32px;[^}]*border:\s*0\s*!important;[^}]*border-radius:\s*var\(--agent-gui-rail-control-radius\)\s*!important;[^}]*font-size:\s*13px\s*!important;[^}]*line-height:\s*18px;[^}]*appearance:\s*none;/s
@@ -1145,7 +1151,7 @@ describe("AgentGUINodeView layout persistence", () => {
     });
   });
 
-  it("does not reserve bottom dock height inside the timeline scroll area", () => {
+  it("initializes the bottom dock safe area on the timeline scroll area", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
@@ -1158,8 +1164,8 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(
       screen
         .getByTestId("agent-gui-timeline")
-        .style.getPropertyValue("--agent-gui-bottom-dock-height")
-    ).toBe("");
+        .style.getPropertyValue("--agent-gui-bottom-dock-safe-area")
+    ).toBe("0px");
   });
 
   it("uses shared vertical scrollbars for the conversation list and timeline", () => {
@@ -1570,6 +1576,7 @@ function createActions(): AgentGUINodeViewProps["actions"] {
     createConversation: vi.fn(),
     selectConversation: vi.fn(),
     submitPrompt: vi.fn(),
+    submitGuidancePrompt: vi.fn(),
     loadOlderConversationMessages: vi.fn(),
     showPromptImagesUnsupported: vi.fn(),
     submitApprovalOption: vi.fn(),
