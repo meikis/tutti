@@ -53,7 +53,6 @@ export function createDesktopIssueManagerAgentRunner(input: {
         workspaceRoot: "."
       });
       return openIssueManagerAgentDraft({
-        agentSessionId: request.agentSessionId,
         draftPrompt: prompt,
         launchAgentGui: input.launchAgentGui,
         provider: request.provider,
@@ -65,7 +64,6 @@ export function createDesktopIssueManagerAgentRunner(input: {
 }
 
 function openIssueManagerAgentDraft(input: {
-  agentSessionId?: string | null;
   draftPrompt: string;
   launchAgentGui?: (
     input: DesktopIssueManagerAgentGuiLaunchInput
@@ -89,9 +87,6 @@ function openIssueManagerAgentDraft(input: {
   return Promise.resolve()
     .then(() =>
       launchAgentGui({
-        ...(input.agentSessionId?.trim()
-          ? { agentSessionId: input.agentSessionId.trim() }
-          : {}),
         draftPrompt: input.draftPrompt,
         provider: input.provider,
         userProjectPath: input.userProjectPath,

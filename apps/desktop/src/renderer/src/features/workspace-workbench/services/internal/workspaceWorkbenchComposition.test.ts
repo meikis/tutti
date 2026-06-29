@@ -157,10 +157,9 @@ test("workspace agent GUI session launches target exact session instances", () =
   });
 });
 
-test("workspace agent GUI draft launches can carry the next session id", () => {
+test("workspace agent GUI draft launches prefill prompts without binding sessions", () => {
   const descriptor = createWorkspaceAgentGuiLaunchDescriptor(
     createWorkspaceAgentGuiDraftLaunchRequest({
-      agentSessionId: "agent-session-1",
       draftPrompt: "Review this issue",
       provider: "codex",
       userProjectPath: "/workspace/app/"
@@ -173,7 +172,6 @@ test("workspace agent GUI draft launches can carry the next session id", () => {
   assert.equal(descriptor.reuseDockEntryNode, true);
   assert.deepEqual(descriptor.activation, {
     payload: {
-      agentSessionId: "agent-session-1",
       draftPrompt: "Review this issue",
       userProjectPath: "/workspace/app"
     },

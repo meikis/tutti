@@ -3221,7 +3221,6 @@ export interface AgentGUIOpenSessionRequest {
 }
 
 export interface AgentGUIPrefillPromptRequest {
-  agentSessionId?: string | null;
   autoSubmit?: boolean;
   draftPrompt: string;
   sequence: number;
@@ -3743,7 +3742,6 @@ export function useAgentGUINodeController({
   const onShowMessageRef = useRef(onShowMessage);
   const handledPrefillPromptSequenceRef = useRef<number | null>(null);
   const pendingAutoSubmitPromptRef = useRef<string | null>(null);
-  const pendingPrefillAgentSessionIdRef = useRef<string | null>(null);
   const [transientConversation, setTransientConversationState] =
     useState<AgentGUIConversationSummary | null>(null);
   const transientConversationRef = useRef<AgentGUIConversationSummary | null>(
@@ -6454,12 +6452,8 @@ export function useAgentGUINodeController({
           !failedNewConversationIdsRef.current.has(snapshotDraftAgentSessionId)
             ? snapshotDraftAgentSessionId
             : null;
-        const prefillAgentSessionId =
-          pendingPrefillAgentSessionIdRef.current?.trim() || null;
         const agentSessionId =
-          prefillAgentSessionId ??
-          draftAgentSessionId ??
-          createAgentGUIConversationId();
+          draftAgentSessionId ?? createAgentGUIConversationId();
         pendingCreateAgentSessionId = agentSessionId;
         const createdAtUnixMs = Date.now();
         const submitTrace = createAgentSubmitTraceState({
@@ -6573,11 +6567,6 @@ export function useAgentGUINodeController({
       })()
         .then((result) => {
           const agentSessionId = result.session.agentSessionId;
-          if (
-            pendingPrefillAgentSessionIdRef.current?.trim() === agentSessionId
-          ) {
-            pendingPrefillAgentSessionIdRef.current = null;
-          }
           const submitTrace = submitTraceBySessionIdRef.current[agentSessionId];
           if (submitTrace) {
             reportAgentSubmitTraceDiagnostic({
@@ -6909,8 +6898,6 @@ export function useAgentGUINodeController({
     const projectPath = normalizeProjectDraftPath(
       prefillPromptRequest.userProjectPath
     );
-    pendingPrefillAgentSessionIdRef.current =
-      prefillPromptRequest.agentSessionId?.trim() || null;
     selectedProjectPathRef.current = projectPath;
     setSelectedProjectPath(projectPath);
 

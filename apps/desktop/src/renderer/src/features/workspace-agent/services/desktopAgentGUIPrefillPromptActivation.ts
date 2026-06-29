@@ -5,7 +5,6 @@ import {
 } from "../desktopAgentGUINodeState.ts";
 
 export interface DesktopAgentGUIPrefillPromptRequest {
-  agentSessionId?: string;
   autoSubmit?: boolean;
   draftPrompt: string;
   sequence: number;
@@ -56,9 +55,6 @@ export function resolveDesktopAgentGUIPrefillPromptActivation(
   return {
     draftPrompt,
     sequence: activation.sequence,
-    ...(activation.payload.agentSessionId?.trim()
-      ? { agentSessionId: activation.payload.agentSessionId.trim() }
-      : {}),
     ...(activation.payload.autoSubmit ? { autoSubmit: true } : {}),
     ...(activation.payload.userProjectPath?.trim()
       ? { userProjectPath: activation.payload.userProjectPath.trim() }

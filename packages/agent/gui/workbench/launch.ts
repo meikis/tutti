@@ -110,14 +110,12 @@ export function createAgentGuiWorkbenchSessionLaunchRequest(input: {
 }
 
 export function createAgentGuiWorkbenchDraftLaunchRequest(input: {
-  agentSessionId?: string | null;
   autoSubmit?: boolean;
   draftPrompt: string;
   provider: unknown;
   userProjectPath?: string | null;
 }) {
   const provider = normalizeAgentGuiWorkbenchProvider(input.provider);
-  const agentSessionId = input.agentSessionId?.trim();
   const userProjectPath = normalizeAgentGuiWorkbenchUserProjectPath(
     input.userProjectPath
   );
@@ -126,7 +124,6 @@ export function createAgentGuiWorkbenchDraftLaunchRequest(input: {
     payload: {
       draftPrompt: input.draftPrompt,
       provider,
-      ...(agentSessionId ? { agentSessionId } : {}),
       ...(input.autoSubmit ? { autoSubmit: true } : {}),
       ...(userProjectPath ? { userProjectPath } : {})
     },
@@ -213,7 +210,6 @@ function prefillPromptFromLaunchPayload(
     return null;
   }
   const autoSubmit = (payload as { autoSubmit?: unknown }).autoSubmit === true;
-  const agentSessionId = agentSessionIdFromLaunchPayload(payload);
   const userProjectPath = (payload as { userProjectPath?: unknown })
     .userProjectPath;
   const normalizedUserProjectPath =
@@ -222,7 +218,6 @@ function prefillPromptFromLaunchPayload(
       : null;
   return {
     draftPrompt,
-    ...(agentSessionId ? { agentSessionId } : {}),
     ...(autoSubmit ? { autoSubmit: true } : {}),
     ...(normalizedUserProjectPath
       ? { userProjectPath: normalizedUserProjectPath }
