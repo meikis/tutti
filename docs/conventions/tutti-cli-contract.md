@@ -214,6 +214,14 @@ created from `--prompt`. Keep this compatibility conversion in the CLI provider
 layer; downstream agent session services should receive structured prompt
 content, not raw CLI image flags.
 
+When an agent delegates work through `codex start` or `claude start`, local file
+references in the handoff prompt should use `[@filename](/absolute/path)`
+instead of bare paths. Images have two valid representations, and the delegating
+agent should choose one per image: pass `--image <localPath>` for structured
+visual input, or use `[@filename](/absolute/path)` in the prompt when preserving
+the file reference's prompt/turn ordering is more important. Do not duplicate the
+same image through both representations unless the user explicitly asks.
+
 Input structs should use tags for CLI field names, validation, and recovery
 hints. Required inputs must include a recovery hint when a user can reasonably
 discover the value with another Tutti command.
