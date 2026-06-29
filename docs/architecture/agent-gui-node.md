@@ -241,6 +241,17 @@ is reloaded or a different oldest durable version is reached. Do not let scroll
 position and `isLoadingOlderMessages=false` form an immediate retry loop against
 the same failing backend page.
 
+The selected detail window is a UI-local page cache, not proof that the full
+durable transcript has loaded. If live updates or snapshot reconciliation seed a
+detail window before the selected session's initial message page resolves, do
+not treat that window as a complete cache just because it has renderable rows.
+Either force the initial `listSessionMessages(order="desc")` page load, or mark
+the window as having older history so top-of-transcript prefetch can request the
+missing page. This is especially important when the oldest loaded durable
+version is greater than the first persisted version: otherwise the visible top
+row can be a later assistant/tool message even while the scroll container is
+already at the top.
+
 ### First Prompt In A New Conversation
 
 ```text

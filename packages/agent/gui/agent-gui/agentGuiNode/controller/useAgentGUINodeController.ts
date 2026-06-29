@@ -1436,6 +1436,7 @@ function shouldPreserveExistingConversationTitle(
 
 function sessionHasRenderableMessages(input: {
   agentSessionId: string;
+  hasLoadedInitialMessages?: boolean;
   sessionViewRef: (agentSessionId: string | null) => AgentSessionViewRef;
   snapshotMessagesById: Record<string, WorkspaceAgentActivityMessage[]>;
 }): boolean {
@@ -1446,9 +1447,51 @@ function sessionHasRenderableMessages(input: {
   const sessionView = getAgentSessionView(
     input.sessionViewRef(normalizedAgentSessionId)
   );
+  if (
+    sessionViewHasUnhydratedOlderDetailMessages({
+      agentSessionId: normalizedAgentSessionId,
+      detailMessages: sessionView?.detailMessages ?? [],
+      hasLoadedInitialMessages: input.hasLoadedInitialMessages === true,
+      hasOlderMessages: sessionView?.hasOlderMessages ?? false,
+      oldestLoadedVersion: sessionView?.oldestLoadedVersion ?? null,
+      snapshotMessagesById: input.snapshotMessagesById
+    })
+  ) {
+    return false;
+  }
   return (
     (sessionView?.detailMessages?.length ?? 0) > 0 ||
     (sessionView?.overlayMessages?.length ?? 0) > 0
+  );
+}
+
+function sessionViewHasUnhydratedOlderDetailMessages(input: {
+  agentSessionId: string;
+  detailMessages: readonly WorkspaceAgentActivityMessage[];
+  hasLoadedInitialMessages: boolean;
+  hasOlderMessages: boolean;
+  oldestLoadedVersion: number | null;
+  snapshotMessagesById: Record<string, WorkspaceAgentActivityMessage[]>;
+}): boolean {
+  if (
+    input.hasLoadedInitialMessages ||
+    input.hasOlderMessages ||
+    input.detailMessages.length === 0
+  ) {
+    return false;
+  }
+  const oldestLoadedVersion =
+    input.oldestLoadedVersion ?? minFiniteMessageVersion(input.detailMessages);
+  if (oldestLoadedVersion === null) {
+    return false;
+  }
+  const snapshotOldestVersion = minFiniteMessageVersion(
+    input.snapshotMessagesById[input.agentSessionId] ?? []
+  );
+  return (
+    oldestLoadedVersion > 1 ||
+    (snapshotOldestVersion !== null &&
+      snapshotOldestVersion < oldestLoadedVersion)
   );
 }
 
@@ -4383,6 +4426,10 @@ export function useAgentGUINodeController({
       if (previous !== normalized) {
         const hasCachedMessages = sessionHasRenderableMessages({
           agentSessionId: normalized,
+          hasLoadedInitialMessages:
+            selectedConversationInitialMessagesLoadedIdsRef.current.has(
+              normalized
+            ),
           sessionViewRef,
           snapshotMessagesById:
             agentActivitySnapshotRef.current.sessionMessagesById
@@ -5555,6 +5602,10 @@ export function useAgentGUINodeController({
           );
         const hasRenderableMessages = sessionHasRenderableMessages({
           agentSessionId: normalizedAgentSessionId,
+          hasLoadedInitialMessages:
+            selectedConversationInitialMessagesLoadedIdsRef.current.has(
+              normalizedAgentSessionId
+            ),
           sessionViewRef,
           snapshotMessagesById:
             agentActivitySnapshotRef.current.sessionMessagesById
@@ -5851,12 +5902,9 @@ export function useAgentGUINodeController({
       if (nextMessages.length === 0) {
         return;
       }
-      const currentMessages =
-        getAgentSessionView(sessionViewRef(agentSessionId))?.overlayMessages ??
-        [];
-      const currentDetailMessages =
-        getAgentSessionView(sessionViewRef(agentSessionId))?.detailMessages ??
-        [];
+      const currentView = getAgentSessionView(sessionViewRef(agentSessionId));
+      const currentMessages = currentView?.overlayMessages ?? [];
+      const currentDetailMessages = currentView?.detailMessages ?? [];
       const currentDurableDetailMessages = currentDetailMessages.filter(
         (message) => !isWorkspaceAgentActivityOptimisticMessage(message)
       );
@@ -5887,7 +5935,23 @@ export function useAgentGUINodeController({
       if (durableDetailWindowMessages.length > 0) {
         mergeAgentSessionViewDetailMessages(
           sessionViewRef(agentSessionId),
-          durableDetailWindowMessages
+          durableDetailWindowMessages,
+          {
+            hasOlderMessages:
+              currentView?.hasOlderMessages === true ||
+              sessionViewHasUnhydratedOlderDetailMessages({
+                agentSessionId,
+                detailMessages: nextDetailMessages,
+                hasLoadedInitialMessages:
+                  selectedConversationInitialMessagesLoadedIdsRef.current.has(
+                    agentSessionId
+                  ),
+                hasOlderMessages: currentView?.hasOlderMessages ?? false,
+                oldestLoadedVersion:
+                  minFiniteMessageVersion(nextDetailMessages),
+                snapshotMessagesById: agentActivitySnapshot.sessionMessagesById
+              })
+          }
         );
       }
       const durableMessages =

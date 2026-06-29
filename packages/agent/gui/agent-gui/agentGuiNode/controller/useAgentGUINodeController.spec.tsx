@@ -30,7 +30,8 @@ import { setAgentGuiI18nTestLocale } from "../../../i18n/testUtils";
 import { useAccountStore } from "../../../host/agentHostAccountStore";
 import {
   getAgentSessionView,
-  resetAgentSessionViewStoreForTests
+  resetAgentSessionViewStoreForTests,
+  setAgentSessionViewDetailMessages
 } from "../../../contexts/workspace/presentation/renderer/agentSessions/agentSessionViewStore";
 import {
   getAgentGUIConversationListStoreSnapshot,
@@ -2065,6 +2066,126 @@ describe("useAgentGUINodeController", () => {
     });
   });
 
+  it("reloads selected messages when the cached detail window is only a live tail", async () => {
+    setAgentSessionViewDetailMessages(
+      {
+        workspaceId: "room-1",
+        agentSessionId: "session-2"
+      },
+      [
+        timelineItemToMessage(
+          timelineMessage({
+            agentSessionId: "session-2",
+            id: 66,
+            eventId: "assistant-tail",
+            role: "assistant",
+            content: "tail answer",
+            turnId: "turn-2"
+          })
+        )
+      ],
+      { hasOlderMessages: false }
+    );
+    const timelineRequests: Array<{
+      beforeVersion?: number;
+      cache?: boolean;
+      limit?: number;
+      order?: string;
+    }> = [];
+    const listSessionTimeline = vi.fn(
+      async ({
+        beforeVersion,
+        cache,
+        agentSessionId,
+        limit,
+        order
+      }: {
+        beforeVersion?: number;
+        cache?: boolean;
+        agentSessionId: string;
+        limit?: number;
+        order?: string;
+      }) => {
+        if (agentSessionId !== "session-2") {
+          return { timelineItems: [], hasMore: false };
+        }
+        timelineRequests.push({ beforeVersion, cache, limit, order });
+        if (order === "desc" && beforeVersion === undefined) {
+          return {
+            timelineItems: [
+              timelineMessage({
+                agentSessionId: "session-2",
+                id: 82,
+                eventId: "assistant-latest",
+                role: "assistant",
+                content: "latest answer",
+                turnId: "turn-2"
+              }),
+              timelineMessage({
+                agentSessionId: "session-2",
+                id: 1,
+                eventId: "user-initial",
+                role: "user",
+                content: "initial ask",
+                turnId: "turn-1"
+              })
+            ],
+            latestVersion: 82,
+            hasMore: false
+          };
+        }
+        return { timelineItems: [], latestVersion: 82, hasMore: false };
+      }
+    );
+    installAgentHostApi({
+      list: vi.fn(async () => ({
+        presences: [],
+        sessions: [
+          workspaceAgentSession("session-1"),
+          workspaceAgentSession("session-2")
+        ]
+      })),
+      listSessionTimeline,
+      subscribeEvents: vi.fn(() => vi.fn())
+    });
+
+    const { result } = renderHook(() =>
+      useAgentGUINodeController({
+        workspaceId: "room-1",
+        currentUserId: "user-1",
+        workspacePath: "/workspace",
+        avoidGroupingEdits: false,
+        data: agentGuiData("session-1"),
+        onDataChange: vi.fn()
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.viewModel.activeConversationId).toBe("session-1");
+    });
+    act(() => {
+      result.current.actions.selectConversation("session-2");
+    });
+
+    await waitFor(() => {
+      expect(timelineRequests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            beforeVersion: undefined,
+            cache: false,
+            limit: 100,
+            order: "desc"
+          })
+        ])
+      );
+      const bodies = conversationBodies(result.current.viewModel);
+      expect(bodies).toContain("initial ask");
+      expect(bodies).toContain("latest answer");
+      expect(bodies).not.toContain("tail answer");
+      expect(result.current.viewModel.hasOlderMessages).toBe(false);
+    });
+  });
+
   it("backfills older selected conversation messages when the latest page has no user prompt", async () => {
     const timelineRequests: Array<{
       beforeVersion?: number;
@@ -2300,6 +2421,91 @@ describe("useAgentGUINodeController", () => {
           ])
           .filter(Boolean)
       ).toEqual(["latest ask", "latest answer", "streamed while loading"]);
+    });
+  });
+
+  it("marks streamed live tails as older-loadable before the initial page resolves", async () => {
+    let activityListener:
+      | ((event: AgentHostAgentActivityStreamEvent) => void)
+      | undefined;
+    const resolveSession2Timelines: Array<
+      (value: { timelineItems: unknown[]; hasMore: boolean }) => void
+    > = [];
+    const listSessionTimeline = vi.fn(
+      async ({ agentSessionId }: { agentSessionId: string }) => {
+        if (agentSessionId !== "session-2") {
+          return { timelineItems: [], hasMore: false };
+        }
+        return new Promise<{ timelineItems: unknown[]; hasMore: boolean }>(
+          (resolve) => {
+            resolveSession2Timelines.push(resolve);
+          }
+        );
+      }
+    );
+    installAgentHostApi({
+      list: vi.fn(async () => ({
+        presences: [],
+        sessions: [workspaceAgentSession("session-2")]
+      })),
+      listSessionTimeline,
+      subscribeEvents: vi.fn((_payload, listener) => {
+        activityListener = listener;
+        return vi.fn();
+      })
+    });
+
+    const { result } = renderHook(() =>
+      useAgentGUINodeController({
+        workspaceId: "room-1",
+        currentUserId: "user-1",
+        workspacePath: "/workspace",
+        avoidGroupingEdits: false,
+        data: agentGuiData("session-2"),
+        onDataChange: vi.fn()
+      })
+    );
+
+    await waitFor(() => {
+      expect(resolveSession2Timelines.length).toBeGreaterThan(0);
+      expect(activityListener).toBeDefined();
+    });
+
+    act(() => {
+      activityListener?.(
+        streamMessage({
+          agentSessionId: "session-2",
+          id: 66,
+          eventId: "assistant-tail",
+          role: "assistant",
+          content: "tail while loading",
+          turnId: "turn-2"
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.viewModel.hasOlderMessages).toBe(true);
+      expect(
+        getAgentSessionView({
+          workspaceId: "room-1",
+          agentSessionId: "session-2"
+        })?.hasOlderMessages
+      ).toBe(true);
+      expect(conversationBodies(result.current.viewModel)).toContain(
+        "tail while loading"
+      );
+    });
+
+    await act(async () => {
+      for (const resolveSession2Timeline of resolveSession2Timelines.splice(
+        0
+      )) {
+        resolveSession2Timeline({
+          timelineItems: [],
+          hasMore: false
+        });
+      }
     });
   });
 
