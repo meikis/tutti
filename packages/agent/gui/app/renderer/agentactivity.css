@@ -3257,15 +3257,38 @@ aside.workspace-agents-status-panel
 }
 
 .agent-gui-conversation__message-group:has(
-  > .agent-gui-conversation__message-copy-button
+  > .agent-gui-conversation__message-footer
 ) {
   margin-bottom: 26px;
 }
 
-.agent-gui-conversation__message-copy-button {
+.agent-gui-conversation__message-footer {
   position: absolute;
   top: calc(100% + 4px);
   z-index: 1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.agent-gui-conversation__message-timestamp {
+  font-size: 11px;
+  line-height: 22px;
+  color: var(
+    --text-secondary,
+    color-mix(in srgb, var(--text-primary) 60%, transparent)
+  );
+  white-space: nowrap;
+}
+
+.agent-gui-conversation__message-copy-button {
+  position: static;
   width: 22px;
   min-width: 22px;
   height: 22px;
@@ -3280,18 +3303,29 @@ aside.workspace-agents-status-panel
 }
 
 .agent-gui-conversation__message-group[data-agent-message-speaker="user"]
-  > .agent-gui-conversation__message-copy-button {
+  > .agent-gui-conversation__message-footer {
   right: 0;
 }
 
 .agent-gui-conversation__message-group[data-agent-message-speaker="assistant"]
-  > .agent-gui-conversation__message-copy-button {
+  > .agent-gui-conversation__message-footer {
   left: 0;
 }
 
 .agent-gui-conversation__message-group:hover
+  > .agent-gui-conversation__message-footer,
+.agent-gui-conversation__message-group:focus-within
+  > .agent-gui-conversation__message-footer {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.agent-gui-conversation__message-group:hover
+  > .agent-gui-conversation__message-footer
   > .agent-gui-conversation__message-copy-button,
 .agent-gui-conversation__message-group:focus-within
+  > .agent-gui-conversation__message-footer
   > .agent-gui-conversation__message-copy-button {
   opacity: 1;
   pointer-events: auto;
