@@ -20,6 +20,7 @@ export {
   desktopAgentGUIOpenSessionActivationType,
   desktopAgentGUIProviderFromInstanceId,
   normalizeDesktopAgentGUINodeState,
+  normalizeDesktopAgentGUIProvider,
   normalizeDesktopAgentGUIWorkbenchState
 } from "./desktopAgentGUINodeState";
 export type {

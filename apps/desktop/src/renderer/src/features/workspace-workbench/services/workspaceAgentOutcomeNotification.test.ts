@@ -1,170 +1,183 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { WorkspaceAgentMessageCenterItem } from "@tutti-os/agent-gui/agent-message-center";
+import type { NotificationMessage } from "@tutti-os/ui-notifications";
 import {
-  buildWorkspaceAgentOutcomeNotification,
-  workspaceAgentOutcomeNotificationKey,
-  type WorkspaceAgentOutcomeNotificationLabels
+  buildWorkspaceAgentOutcomeNotificationFromSessionEvent,
+  createWorkspaceAgentOutcomeNotificationController
 } from "./workspaceAgentOutcomeNotification.ts";
 
-const labels: WorkspaceAgentOutcomeNotificationLabels = {
-  completedBody: "The agent finished this run.",
-  failedBody: "The agent run failed.",
-  fallbackAgentName: "Agent"
-};
-
-test("outcome notification builder reports completed turns as success", () => {
+test("outcome notification builder reports completed turn state patches as success", () => {
   assert.deepEqual(
-    buildWorkspaceAgentOutcomeNotification(
-      item({ status: "completed" }),
-      labels
+    buildWorkspaceAgentOutcomeNotificationFromSessionEvent(
+      statePatchEvent({ outcome: "success" })
     ),
     {
-      agentName: "Codex",
       agentSessionId: "session-1",
-      body: "The agent finished this run.",
       conversationTitle: "Build feature",
-      level: "success"
-    }
-  );
-});
-
-test("outcome notification builder reports latest completed turn outcomes while the session is idle", () => {
-  const completedTurn = item({
-    status: "idle",
-    latestTurnOutcome: {
-      notificationKey: "session-1:turn:turn-2:completed",
+      level: "success",
+      provider: "codex",
       status: "completed",
-      turnId: "turn-2"
-    }
-  });
-
-  assert.equal(
-    workspaceAgentOutcomeNotificationKey(completedTurn),
-    "session-1:turn:turn-2:completed"
-  );
-  assert.deepEqual(
-    buildWorkspaceAgentOutcomeNotification(completedTurn, labels),
-    {
-      agentName: "Codex",
-      agentSessionId: "session-1",
-      body: "The agent finished this run.",
-      conversationTitle: "Build feature",
-      level: "success"
+      workspaceId: "ws-1"
     }
   );
 });
 
-test("outcome notification builder reports terminal session status instead of stale turn outcomes", () => {
-  const failedSession = item({
-    status: "failed",
-    latestTurnOutcome: {
-      notificationKey: "session-1:turn:turn-1:completed",
-      status: "completed",
-      turnId: "turn-1"
-    }
-  });
-
-  assert.equal(
-    workspaceAgentOutcomeNotificationKey(failedSession),
-    "session-1:session:failed"
-  );
+test("outcome notification builder reports failed turn state patches as error", () => {
   assert.deepEqual(
-    buildWorkspaceAgentOutcomeNotification(failedSession, labels),
-    {
-      agentName: "Codex",
-      agentSessionId: "session-1",
-      body: "The agent run failed.",
-      conversationTitle: "Build feature",
-      level: "error"
-    }
-  );
-});
-
-test("outcome notification builder reports failed turns as error", () => {
-  assert.deepEqual(
-    buildWorkspaceAgentOutcomeNotification(item({ status: "failed" }), labels),
-    {
-      agentName: "Codex",
-      agentSessionId: "session-1",
-      body: "The agent run failed.",
-      conversationTitle: "Build feature",
-      level: "error"
-    }
-  );
-});
-
-test("outcome notification builder stays silent for canceled turns", () => {
-  assert.equal(
-    buildWorkspaceAgentOutcomeNotification(
-      item({ status: "canceled" }),
-      labels
+    buildWorkspaceAgentOutcomeNotificationFromSessionEvent(
+      statePatchEvent({ outcome: "failed" })
     ),
+    {
+      agentSessionId: "session-1",
+      conversationTitle: "Build feature",
+      level: "error",
+      provider: "codex",
+      status: "failed",
+      workspaceId: "ws-1"
+    }
+  );
+});
+
+test("outcome notification builder ignores message updates", () => {
+  assert.equal(
+    buildWorkspaceAgentOutcomeNotificationFromSessionEvent({
+      eventType: "message_update",
+      data: {
+        workspaceId: "ws-1",
+        agentSessionId: "session-1",
+        messages: [
+          {
+            role: "assistant",
+            status: "completed",
+            turnId: "turn-1"
+          }
+        ]
+      }
+    }),
     null
   );
 });
 
-test("outcome notification builder stays silent for non-terminal items", () => {
-  for (const status of ["idle", "waiting", "working"] as const) {
-    assert.equal(
-      buildWorkspaceAgentOutcomeNotification(item({ status }), labels),
-      null
-    );
-  }
-});
-
-test("outcome notification builder formats multi-part provider names", () => {
-  const notification = buildWorkspaceAgentOutcomeNotification(
-    item({ provider: "claude-code", status: "completed" }),
-    labels
+test("outcome notification builder ignores state patches without stable turn outcome", () => {
+  assert.equal(
+    buildWorkspaceAgentOutcomeNotificationFromSessionEvent(
+      statePatchEvent({ outcome: "canceled" })
+    ),
+    null
   );
-
-  assert.equal(notification?.agentName, "Claude Code");
-});
-
-test("outcome notification builder falls back to the agent label", () => {
-  const notification = buildWorkspaceAgentOutcomeNotification(
-    item({ provider: "  ", status: "failed" }),
-    labels
+  assert.equal(
+    buildWorkspaceAgentOutcomeNotificationFromSessionEvent(
+      statePatchEvent({ outcome: "success", turnId: "" })
+    ),
+    null
   );
-
-  assert.equal(notification?.agentName, "Agent");
-});
-
-test("outcome notification builder trims the conversation title", () => {
-  const notification = buildWorkspaceAgentOutcomeNotification(
-    item({ status: "completed", title: "  Build feature  " }),
-    labels
+  assert.equal(
+    buildWorkspaceAgentOutcomeNotificationFromSessionEvent({
+      eventType: "state_patch",
+      data: {
+        workspaceId: "ws-1",
+        agentSessionId: "session-1",
+        lifecycleStatus: "failed",
+        provider: "codex",
+        title: "Build feature"
+      }
+    }),
+    null
   );
-
-  assert.equal(notification?.conversationTitle, "Build feature");
 });
 
-function item(
-  overrides: Partial<WorkspaceAgentMessageCenterItem>
-): WorkspaceAgentMessageCenterItem {
-  return {
-    agentSessionId: "session-1",
-    userId: null,
-    cwd: "/workspace",
-    id: "message-center-session-1",
-    identity: null,
-    digest: {
-      primary: {
-        kind: "progress",
-        summary: "Summarized progress",
-        occurredAtUnixMs: 100
+test("outcome notification controller notifies from live session events", () => {
+  const events: Array<(event: unknown) => void> = [];
+  const foregroundNotifications: unknown[] = [];
+  const notifications: NotificationMessage[] = [];
+  const controller = createWorkspaceAgentOutcomeNotificationController({
+    foreground: {
+      show(notification) {
+        foregroundNotifications.push(notification);
       }
     },
-    lastAgentMessageAtUnixMs: 100,
-    lastAgentMessageSummary: "Summarized progress",
-    needsAttentionKind: null,
-    needsAttentionSummary: null,
-    pendingPrompt: null,
-    provider: "codex",
-    sortTimeUnixMs: 100,
-    status: "working",
-    title: "Build feature",
-    ...overrides
+    notifications: {
+      notify(message) {
+        notifications.push(message);
+      }
+    },
+    translate(key, params) {
+      if (key.endsWith("CompletedBody")) {
+        return "The agent finished this run.";
+      }
+      if (key.endsWith("CompletedTitle")) {
+        return `${params?.title} completed`;
+      }
+      if (key.endsWith("CompletedStatus")) {
+        return "Completed";
+      }
+      if (key === "workspace.agentGui.fallbackAgentLabel") {
+        return "Agent";
+      }
+      if (key === "common.close") {
+        return "Close";
+      }
+      return key;
+    },
+    workspaceAgentActivityService: {
+      onSessionEvent(workspaceId, listener) {
+        assert.equal(workspaceId, "ws-1");
+        events.push(listener);
+        return () => {
+          const index = events.indexOf(listener);
+          if (index >= 0) {
+            events.splice(index, 1);
+          }
+        };
+      }
+    },
+    workspaceId: "ws-1"
+  });
+
+  events[0]?.(statePatchEvent({ outcome: "success" }));
+
+  assert.deepEqual(foregroundNotifications, [
+    {
+      agentName: "Codex",
+      agentSessionId: "session-1",
+      body: "The agent finished this run.",
+      closeLabel: "Close",
+      conversationTitle: "Build feature",
+      level: "success",
+      provider: "codex",
+      statusLabel: "Completed",
+      workspaceId: "ws-1"
+    }
+  ]);
+  assert.equal(notifications.length, 1);
+  assert.deepEqual(notifications[0], {
+    description: "The agent finished this run.",
+    level: "success",
+    navigation: {
+      agentSessionId: "session-1",
+      provider: "codex",
+      workspaceId: "ws-1"
+    },
+    presentation: "background-only",
+    title: "Build feature completed"
+  });
+
+  controller.dispose();
+  assert.equal(events.length, 0);
+});
+
+function statePatchEvent(input: { outcome: string; turnId?: string }): unknown {
+  return {
+    eventType: "state_patch",
+    data: {
+      workspaceId: "ws-1",
+      agentSessionId: "session-1",
+      provider: "codex",
+      title: "Build feature",
+      turn: {
+        turnId: input.turnId ?? "turn-1",
+        outcome: input.outcome
+      }
+    }
   };
 }

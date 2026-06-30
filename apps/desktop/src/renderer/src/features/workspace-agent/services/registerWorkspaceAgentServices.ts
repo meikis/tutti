@@ -35,6 +35,7 @@ export interface WorkspaceAgentServiceRegistrationInput {
 
 export interface WorkspaceAgentServiceRegistrationResult {
   agentProviderStatusService: IAgentProviderStatusService;
+  workspaceAgentActivityService: IWorkspaceAgentActivityService;
 }
 
 export function registerWorkspaceAgentServices(
@@ -71,5 +72,5 @@ export function registerWorkspaceAgentServices(
       workspaceUserProjectService: input.workspaceUserProjectService
     })
   );
-  return { agentProviderStatusService };
+  return { agentProviderStatusService, workspaceAgentActivityService };
 }
