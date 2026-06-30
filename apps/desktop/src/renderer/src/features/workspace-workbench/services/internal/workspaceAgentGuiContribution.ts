@@ -62,7 +62,7 @@ export function createWorkspaceAgentGuiContribution(input: {
   tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
-    "homeDirectory" | "os" | "resolveDroppedPaths"
+    "homeDirectory" | "os" | "resolveDroppedEntries" | "resolveDroppedPaths"
   >;
   reporterService?: Pick<IReporterService, "trackEvents">;
   richTextAtService: IDesktopRichTextAtService;

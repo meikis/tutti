@@ -143,6 +143,7 @@ import {
   USAGE_WARN_PERCENT
 } from "./model/agentUsageThresholds";
 import { useOptionalAgentActivityRuntime } from "../../agentActivityRuntime";
+import { useOptionalAgentHostApi } from "../../agentActivityHost";
 
 export { formatSlashStatusTokenCount };
 
@@ -813,6 +814,8 @@ export function AgentComposer({
   const draftImages = draftContent.images;
   const draftFiles = draftContent.files ?? [];
   const agentActivityRuntime = useOptionalAgentActivityRuntime();
+  const agentHostApi = useOptionalAgentHostApi();
+  const getReferenceForFile = agentHostApi?.workspace.getReferenceForFile;
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
   const [isReviewPickerOpen, setIsReviewPickerOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -2923,6 +2926,7 @@ export function AgentComposer({
                     promptImagesSupported={promptImagesSupported}
                     onPromptImagesUnsupported={onPromptImagesUnsupported}
                     onPasteImages={handlePastedImages}
+                    getReferenceForFile={getReferenceForFile}
                   />
                   {!isHeroLayout ? composerActionButton : null}
                 </div>

@@ -282,7 +282,7 @@ interface DesktopAgentHostApiUnderTest {
       root?: string;
       supported: boolean;
     }>;
-    getPathForFile(file: File): string;
+    getReferenceForFile(file: File): { kind: "file" | "folder"; path: string };
     readFile(input: {
       path: string;
     }): Promise<{ content: string; path: string }>;
@@ -2640,8 +2640,11 @@ test("desktop agent host api reuses desktop host file operations", async () => {
     platformApi: {
       homeDirectory: "/Users/local",
       os: "darwin",
-      resolveDroppedPaths(files) {
-        return files.map((file) => `/resolved/${file.name}`);
+      resolveDroppedEntries(files) {
+        return files.map((file) => ({
+          path: `/resolved/${file.name}`,
+          kind: file.name === "assets" ? "folder" : "file"
+        }));
       }
     }
   });
@@ -2677,10 +2680,14 @@ test("desktop agent host api reuses desktop host file operations", async () => {
     content: "hello",
     path: "/workspace/file.txt"
   });
-  assert.equal(
-    api.workspace.getPathForFile(new File([], "drop.txt")),
-    "/resolved/drop.txt"
-  );
+  assert.deepEqual(api.workspace.getReferenceForFile(new File([], "drop")), {
+    path: "/resolved/drop",
+    kind: "file"
+  });
+  assert.deepEqual(api.workspace.getReferenceForFile(new File([], "assets")), {
+    path: "/resolved/assets",
+    kind: "folder"
+  });
   assert.deepEqual(
     await api.filesystem.readFileText({ uri: "file:///tmp/prompt.md" }),
     {
@@ -2942,13 +2949,13 @@ function createHostFilesApi(
 
 function createPlatformApi(
   overrides: Partial<
-    Pick<DesktopPlatformApi, "homeDirectory" | "os" | "resolveDroppedPaths">
+    Pick<DesktopPlatformApi, "homeDirectory" | "os" | "resolveDroppedEntries">
   > = {}
-): Pick<DesktopPlatformApi, "homeDirectory" | "os" | "resolveDroppedPaths"> {
+): Pick<DesktopPlatformApi, "homeDirectory" | "os" | "resolveDroppedEntries"> {
   return {
     homeDirectory: "/Users/local",
     os: "darwin",
-    resolveDroppedPaths() {
+    resolveDroppedEntries() {
       return [];
     },
     ...overrides

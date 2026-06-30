@@ -1186,11 +1186,14 @@ function createTuttidClient(): TuttidClient {
 
 function createPlatformApi(): Pick<
   DesktopPlatformApi,
-  "homeDirectory" | "os" | "resolveDroppedPaths"
+  "homeDirectory" | "os" | "resolveDroppedEntries" | "resolveDroppedPaths"
 > {
   return {
     homeDirectory: "/Users/local",
     os: "darwin",
+    resolveDroppedEntries() {
+      return [];
+    },
     resolveDroppedPaths() {
       return [];
     }

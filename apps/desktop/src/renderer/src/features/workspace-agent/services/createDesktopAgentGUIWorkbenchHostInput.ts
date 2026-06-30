@@ -75,7 +75,7 @@ export interface CreateDesktopAgentGUIWorkbenchHostInputInput {
   tuttidClient: TuttidClient;
   platformApi: Pick<
     DesktopPlatformApi,
-    "homeDirectory" | "os" | "resolveDroppedPaths"
+    "homeDirectory" | "os" | "resolveDroppedEntries" | "resolveDroppedPaths"
   >;
   reporterNow?: () => number;
   reporterService?: Pick<IReporterService, "trackEvents">;
