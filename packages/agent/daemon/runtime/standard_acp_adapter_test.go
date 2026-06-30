@@ -2558,6 +2558,100 @@ func TestClaudeCodeAdapterApplySessionSettingsSendsAdvertisedLiveSpeedConfig(t *
 	}
 }
 
+func TestClaudeCodeAdapterApplySessionSettingsEmitsConfigOptionsUpdateOnModelSwitch(t *testing.T) {
+	t.Parallel()
+
+	transport := newStandardACPTransport("Claude Agent", "claude-session-model-switch-emit")
+	adapter := NewClaudeCodeAdapter(transport)
+
+	var updates []AgentSessionConfigOptionsUpdate
+	var updatesMu sync.Mutex
+	adapter.SetConfigOptionsUpdateSink(func(update AgentSessionConfigOptionsUpdate) {
+		updatesMu.Lock()
+		updates = append(updates, update)
+		updatesMu.Unlock()
+	})
+
+	session := standardTestSession(ProviderClaudeCode)
+	if _, err := adapter.Start(context.Background(), session); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Pre-switch live state: an Opus-like model that advertises effort.
+	adapter.applyACPUpdate(session.AgentSessionID, json.RawMessage(`{
+		"update": {
+			"sessionUpdate": "config_option_update",
+			"key": "model",
+			"value": "default",
+			"configOptions": [
+				{
+					"id": "model",
+					"currentValue": "default",
+					"options": [
+						{"value": "default", "name": "Default"},
+						{"value": "haiku", "name": "Haiku"}
+					]
+				},
+				{
+					"id": "effort",
+					"currentValue": "high",
+					"options": [
+						{"value": "low", "name": "Low"},
+						{"value": "high", "name": "High"}
+					]
+				}
+			]
+		}
+	}`))
+
+	// The agent's set_config_option response re-advertises Haiku's options,
+	// which no longer include effort.
+	transport.conn.mu.Lock()
+	transport.conn.setConfigOptionResult = map[string]any{
+		"configOptions": []any{
+			map[string]any{
+				"id":           "model",
+				"currentValue": "haiku",
+				"options": []any{
+					map[string]any{"value": "default", "name": "Default"},
+					map[string]any{"value": "haiku", "name": "Haiku"},
+				},
+			},
+		},
+	}
+	transport.conn.mu.Unlock()
+
+	if err := adapter.ApplySessionSettings(context.Background(), session, SessionSettingsPatch{
+		Model: stringPtr("haiku"),
+	}); err != nil {
+		t.Fatalf("ApplySessionSettings: %v", err)
+	}
+
+	// The GUI must be notified immediately (without a prompt turn) so the stale
+	// effort descriptor is dropped from the composer.
+	updatesMu.Lock()
+	gotUpdates := append([]AgentSessionConfigOptionsUpdate(nil), updates...)
+	updatesMu.Unlock()
+	sawModelUpdate := false
+	for _, update := range gotUpdates {
+		if update.AgentSessionID == session.AgentSessionID && update.ConfigOptionKey == "model" {
+			sawModelUpdate = true
+		}
+	}
+	if !sawModelUpdate {
+		t.Fatalf("config options updates = %#v, want a model update emitted on switch", gotUpdates)
+	}
+
+	// And the live snapshot the GUI reads must no longer advertise effort.
+	snapshot := adapter.SessionState(session)
+	configOptions, _ := snapshot.RuntimeContext["configOptions"].([]map[string]any)
+	for _, descriptor := range configOptions {
+		if asString(descriptor["id"]) == "effort" {
+			t.Fatalf("runtime configOptions = %#v, want effort dropped after Haiku switch", configOptions)
+		}
+	}
+}
+
 func TestClaudeCodeAdapterStartSkipsCustomModelConfigOption(t *testing.T) {
 	t.Parallel()
 
@@ -3419,6 +3513,7 @@ type standardACPConnection struct {
 	lastLoadSessionParams         map[string]any
 	lastPromptParamsSnapshot      map[string]any
 	setConfigOptionSnapshots      []map[string]any
+	setConfigOptionResult         map[string]any
 }
 
 func (c *standardACPConnection) Send(data []byte) error {
@@ -3565,6 +3660,10 @@ func (c *standardACPConnection) Send(data []byte) error {
 				c.setConfigOptionSnapshots = append(c.setConfigOptionSnapshots, maps.Clone(request.Params))
 			}
 			rejectModelValue := c.rejectModelValue
+			var configOptionResult map[string]any
+			if c.setConfigOptionResult != nil {
+				configOptionResult = maps.Clone(c.setConfigOptionResult)
+			}
 			c.mu.Unlock()
 			if rejectModelValue != "" && request.Params != nil {
 				configID, _ := request.Params["configId"].(string)
@@ -3582,10 +3681,14 @@ func (c *standardACPConnection) Send(data []byte) error {
 					return nil
 				}
 			}
+			result := map[string]any{}
+			if configOptionResult != nil {
+				result = configOptionResult
+			}
 			c.sendJSON(map[string]any{
 				"jsonrpc": "2.0",
 				"id":      message.ID,
-				"result":  map[string]any{},
+				"result":  result,
 			})
 		case acpMethodPrompt:
 			var request struct {
