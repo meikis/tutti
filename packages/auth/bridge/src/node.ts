@@ -640,6 +640,9 @@ function isAllowedLoopbackHost(req: IncomingMessage, port: number): boolean {
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.writeHead(status, {
     "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Private-Network": "true",
     "Content-Type": "application/json; charset=utf-8"
   });
   res.end(JSON.stringify(payload));

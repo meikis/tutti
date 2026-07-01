@@ -58,7 +58,12 @@ test("node login completes bridge, redeems transfer code, writes auth json", asy
         const healthUrl = new URL("/oauth/health", decoded.localServerOrigin);
         healthUrl.searchParams.set("attempt_id", decoded.attemptId);
         healthUrl.searchParams.set("token", decoded.bridgeToken);
-        assert.equal((await fetch(healthUrl)).ok, true);
+        const healthResponse = await fetch(healthUrl);
+        assert.equal(healthResponse.ok, true);
+        assert.equal(
+          healthResponse.headers.get("Access-Control-Allow-Private-Network"),
+          "true"
+        );
         const completeResponse = await fetch(
           new URL("/oauth/complete", decoded.localServerOrigin),
           {
