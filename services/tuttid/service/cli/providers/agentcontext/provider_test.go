@@ -824,7 +824,7 @@ func TestComposerOptionsCommandUsesComposerDefaultsFromPreferences(t *testing.T)
 	if sessions.composerInput.Settings.Model != "gpt-5" ||
 		sessions.composerInput.Settings.PermissionModeID != "full-access" ||
 		sessions.composerInput.Settings.ReasoningEffort != "high" ||
-		sessions.composerInput.Settings.ConversationDetailMode != preferencesbiz.DesktopAgentConversationDetailModeGeneral {
+		sessions.composerInput.Settings.ConversationDetailMode != "" {
 		t.Fatalf("composer input = %#v", sessions.composerInput)
 	}
 }

@@ -1680,37 +1680,25 @@ func TestServiceGetsComposerOptionsWithoutStartingRuntime(t *testing.T) {
 	}
 }
 
-func TestServiceGetComposerOptionsPreservesRequestedConversationDetailMode(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		mode string
-		want string
-	}{
-		{name: "general", mode: " general ", want: "general"},
-		{name: "empty", mode: "", want: "coding"},
-		{name: "invalid", mode: "daily", want: "coding"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			runtime := newFakeRuntime()
-			service := NewService(runtime)
+func TestServiceGetComposerOptionsDoesNotCarryConversationDetailMode(t *testing.T) {
+	runtime := newFakeRuntime()
+	service := NewService(runtime)
 
-			options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
-				Provider: "codex",
-				Settings: ComposerSettings{
-					ConversationDetailMode: tc.mode,
-				},
-			})
-			if err != nil {
-				t.Fatalf("GetComposerOptions returned error: %v", err)
-			}
-			if got := options.EffectiveSettings.ConversationDetailMode; got != tc.want {
-				t.Fatalf("effectiveSettings.conversationDetailMode = %q, want %q", got, tc.want)
-			}
-			payload := ComposerSettingsToMap(options.EffectiveSettings)
-			if got := payload["conversationDetailMode"]; got != tc.want {
-				t.Fatalf("effectiveSettings payload conversationDetailMode = %q, want %q", got, tc.want)
-			}
-		})
+	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
+		Provider: "codex",
+		Settings: ComposerSettings{
+			ConversationDetailMode: "general",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetComposerOptions returned error: %v", err)
+	}
+	if got := options.EffectiveSettings.ConversationDetailMode; got != "" {
+		t.Fatalf("effectiveSettings.conversationDetailMode = %q, want empty", got)
+	}
+	payload := ComposerSettingsToMap(options.EffectiveSettings)
+	if _, ok := payload["conversationDetailMode"]; ok {
+		t.Fatalf("effectiveSettings payload includes conversationDetailMode: %#v", payload)
 	}
 }
 

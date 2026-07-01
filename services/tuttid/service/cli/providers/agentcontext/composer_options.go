@@ -70,10 +70,9 @@ func (p Provider) runComposerOptions(ctx context.Context, invoke framework.Invok
 		WorkspaceID:              invoke.WorkspaceID,
 		IncludeCapabilityCatalog: input.IncludeCapabilityCatalog,
 		Settings: agentservice.ComposerSettings{
-			Model:                  model,
-			PermissionModeID:       permissionModeID,
-			ReasoningEffort:        reasoningEffort,
-			ConversationDetailMode: defaults.ConversationDetailMode,
+			Model:            model,
+			PermissionModeID: permissionModeID,
+			ReasoningEffort:  reasoningEffort,
 		},
 	})
 }

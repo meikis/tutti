@@ -114,14 +114,13 @@ func (s *Service) GetComposerOptions(ctx context.Context, input ComposerOptionsI
 		return ComposerOptions{}, ErrInvalidArgument
 	}
 	settings := normalizeComposerSettingsForProvider(provider, ComposerSettings{
-		Model:                  strings.TrimSpace(input.Settings.Model),
-		PermissionModeID:       strings.TrimSpace(input.Settings.PermissionModeID),
-		PlanMode:               input.Settings.PlanMode,
-		BrowserUse:             input.Settings.BrowserUse,
-		ComputerUse:            input.Settings.ComputerUse,
-		ReasoningEffort:        strings.TrimSpace(input.Settings.ReasoningEffort),
-		Speed:                  strings.TrimSpace(input.Settings.Speed),
-		ConversationDetailMode: strings.TrimSpace(input.Settings.ConversationDetailMode),
+		Model:            strings.TrimSpace(input.Settings.Model),
+		PermissionModeID: strings.TrimSpace(input.Settings.PermissionModeID),
+		PlanMode:         input.Settings.PlanMode,
+		BrowserUse:       input.Settings.BrowserUse,
+		ComputerUse:      input.Settings.ComputerUse,
+		ReasoningEffort:  strings.TrimSpace(input.Settings.ReasoningEffort),
+		Speed:            strings.TrimSpace(input.Settings.Speed),
 	})
 	effectiveSettings := resolveComposerEffectiveSettings(
 		ctx,
@@ -226,11 +225,10 @@ func resolveComposerEffectiveSettings(
 	catalog AgentModelCatalog,
 ) ComposerSettings {
 	effective := ComposerSettings{
-		Model:                  composerDefaultModel(ctx, provider, catalog),
-		PermissionModeID:       defaultPermissionModeIDForProvider(provider),
-		ReasoningEffort:        composerDefaultReasoningEffort(provider),
-		Speed:                  composerDefaultSpeed(provider),
-		ConversationDetailMode: requested.ConversationDetailMode,
+		Model:            composerDefaultModel(ctx, provider, catalog),
+		PermissionModeID: defaultPermissionModeIDForProvider(provider),
+		ReasoningEffort:  composerDefaultReasoningEffort(provider),
+		Speed:            composerDefaultSpeed(provider),
 	}
 	if requested.Model != "" {
 		effective.Model = requested.Model
@@ -364,11 +362,18 @@ func normalizeComposerSettingsForProvider(provider string, settings ComposerSett
 	settings.PermissionModeID = normalizePermissionModeIDForProvider(provider, settings.PermissionModeID)
 	settings.ReasoningEffort = normalizeReasoningEffortForProvider(provider, settings.ReasoningEffort)
 	settings.Speed = normalizeSpeedForProvider(provider, settings.Speed)
-	settings.ConversationDetailMode = preferencesbiz.NormalizeDesktopAgentConversationDetailMode(settings.ConversationDetailMode)
+	settings.ConversationDetailMode = normalizeComposerConversationDetailMode(settings.ConversationDetailMode)
 	settings.Model = clampComposerModelForProvider(provider, settings.Model)
 	settings.Model = normalizeComposerModelForProvider(provider, settings.Model)
 	settings.PlanMode = clampComposerPlanModeForProvider(provider, settings.PlanMode)
 	return settings
+}
+
+func normalizeComposerConversationDetailMode(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return preferencesbiz.NormalizeDesktopAgentConversationDetailMode(value)
 }
 
 func normalizeComposerModelForProvider(provider string, model string) string {
