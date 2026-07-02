@@ -97,7 +97,6 @@ import type {
   WorkspaceAgentSessionAttachmentResponse,
   WorkspaceAgentGeneratedFileListResponse,
   WorkspaceAgentSessionGitBranchesResponse,
-  WorkspaceAgentSessionGroupsResponse,
   WorkspaceGitPatchSupportResponse,
   WorkspaceAgentSessionMessagesResponse,
   WorkspaceAgentSessionListResponse,
@@ -479,20 +478,11 @@ export interface TuttidClient {
   listWorkspaceAgentSessions(
     workspaceID: string,
     request?: {
-      cwd?: string;
-      cursor?: string;
       limit?: number;
       searchQuery?: string;
       visibleOnly?: boolean;
     }
   ): Promise<WorkspaceAgentSessionListResponse>;
-  listWorkspaceAgentSessionGroups(
-    workspaceID: string,
-    request?: {
-      sessionLimit?: number;
-      visibleOnly?: boolean;
-    }
-  ): Promise<WorkspaceAgentSessionGroupsResponse>;
   listWorkspaceAgentGeneratedFiles(
     workspaceID: string,
     request?: {

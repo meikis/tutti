@@ -315,12 +315,9 @@ AgentGUI / AgentGuiNode mount
   -> AgentActivityController.load
   -> desktopAgentActivityAdapter.listSessions
   -> tuttid ListWorkspaceAgentSessions
-  -> agent.Service.ListPage
+  -> agent.Service.ListFiltered
   -> live RuntimeController sessions + persisted ActivityProjection sessions
   -> AgentActivityController snapshot
-  -> AgentActivityRuntime.listSessionGroups
-  -> tuttid ListWorkspaceAgentSessionGroups
-  -> agent.Service.ListGroups
   -> conversation-list projection/store
   -> rail and active-session fallback selection
 ```
@@ -329,14 +326,11 @@ The session list is not owned by AgentGuiNode. AgentGuiNode may keep query,
 selection, pending create/delete/submit overlays, and read-state UI metadata.
 The session rows themselves come from the runtime snapshot and are refreshed
 through `load`, event reconciliation, or explicit session fetches.
-The default rail uses grouped session summaries, not a global recent-session
-slice as the source of project truth. `ListWorkspaceAgentSessionGroups` scans
-the durable summary set once, returns project/group counts, latest session
-times, and the first bounded page of sessions per group. Per-project "load
-more" calls `ListWorkspaceAgentSessions` with `cwd`, `cursor`, and `limit`.
-Search is a separate full-summary query path with its own cursor. Keep heavy
-detail data, especially messages and timeline pages, out of list and group
-loads.
+The desktop adapter should keep broad session-list loads bounded before they
+enter `AgentActivityRuntime`; large workspaces can accumulate hundreds or
+thousands of historical agent sessions, and pushing all of them through the
+runtime snapshot forces AgentGuiNode to repeatedly project and reconcile data
+the user is unlikely to inspect in the rail.
 Conversation-list read-state metadata is notification-style UI state. Historical
 imports that carry `runtimeContext.imported === true` should remain visible in
 the rail, but they must not seed unread completion lamps as though they just
@@ -608,7 +602,7 @@ state should map to one owner and one clearing condition.
 ### Rail And Conversation List
 
 ```text
-runtime snapshot sessions + grouped session pages
+runtime snapshot sessions
   -> conversation list query/search/project filters
   -> local pending create/submit/delete overlays
   -> activeConversationId highlight
@@ -637,13 +631,6 @@ User-visible rules:
   Apply them only for multi-provider conversation scopes. Single-provider
   panels should let the node provider constrain the query and collapse target
   filter actions back to All in the controller.
-- The default rail view should render bounded session pages per group, not a
-  global top-N session window. Empty project sections are derived from group
-  counts plus user projects, so a project outside the first visible session page
-  must not be shown as empty.
-- When a search result is opened and search is later cleared, the selected
-  session must remain visible through an active-session overlay until its group
-  page contains the authoritative row.
 - A pending create row can appear before the daemon-created session is
   authoritative. It must be replaced by the authoritative session or removed on
   create failure.

@@ -25,7 +25,6 @@ test("desktop agent activity adapter maps tuttid sessions and messages", async (
           method: "listSessions"
         });
         return {
-          hasMore: false,
           sessions: [
             createSession({
               cwd: "/repo",
@@ -84,7 +83,7 @@ test("desktop agent activity adapter maps tuttid sessions and messages", async (
 
   assert.deepEqual(calls, [
     {
-      args: [workspaceId, { limit: 100, visibleOnly: true }],
+      args: [workspaceId, { limit: 100 }],
       method: "listSessions"
     },
     {
@@ -1339,7 +1338,7 @@ function createTuttidClient(
       };
     },
     async listWorkspaceAgentSessions() {
-      return { hasMore: false, sessions: [createSession()], workspaceId };
+      return { sessions: [createSession()], workspaceId };
     },
     async getAgentProviderComposerOptions() {
       return {

@@ -25,9 +25,7 @@ import type {
   ExternalAgentImportScanRequest,
   ExternalAgentImportScanResponse,
   ImportExternalAgentSessionsRequest,
-  WorkspaceAgentGeneratedFileListResponse,
-  WorkspaceAgentSessionGroupsResponse,
-  WorkspaceAgentSessionListResponse
+  WorkspaceAgentGeneratedFileListResponse
 } from "@tutti-os/client-tuttid-ts";
 
 export interface WorkspaceAgentActivityListMessagesInput {
@@ -46,23 +44,6 @@ export interface WorkspaceAgentActivityListGeneratedFilesInput {
   query?: string;
   sessionCwd?: string;
   signal?: AbortSignal;
-  workspaceId: string;
-}
-
-export interface WorkspaceAgentActivitySearchSessionsInput {
-  cursor?: string;
-  limit?: number;
-  query: string;
-  signal?: AbortSignal;
-  workspaceId: string;
-}
-
-export interface WorkspaceAgentActivityListSessionsPageInput {
-  cursor?: string;
-  cwd?: string;
-  limit?: number;
-  signal?: AbortSignal;
-  visibleOnly?: boolean;
   workspaceId: string;
 }
 
@@ -125,21 +106,6 @@ export interface IWorkspaceAgentActivityService {
   listAgentGeneratedFiles(
     input: WorkspaceAgentActivityListGeneratedFilesInput
   ): Promise<WorkspaceAgentGeneratedFileListResponse>;
-  listSessionGroups(input: {
-    sessionLimit?: number;
-    signal?: AbortSignal;
-    visibleOnly?: boolean;
-    workspaceId: string;
-  }): Promise<WorkspaceAgentSessionGroupsResponse>;
-  listSessionsPage(
-    input: WorkspaceAgentActivityListSessionsPageInput
-  ): Promise<WorkspaceAgentSessionListResponse>;
-  searchSessions(input: WorkspaceAgentActivitySearchSessionsInput): Promise<{
-    hasMore: boolean;
-    nextCursor?: string;
-    sessions: AgentActivitySession[];
-    workspaceId: string;
-  }>;
   scanExternalSessionImports(
     workspaceId: string,
     request?: ExternalAgentImportScanRequest

@@ -853,7 +853,6 @@ function createDependenciesStub(): {
       listWorkspaceAgentGeneratedFiles: fail,
       scanWorkspaceExternalAgentSessionImports: fail,
       importWorkspaceExternalAgentSessions: fail,
-      listWorkspaceAgentSessionGroups: fail,
       listUserProjects: fail,
       deleteUserProject: fail,
       checkUserProjectPath: fail,

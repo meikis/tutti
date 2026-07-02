@@ -161,7 +161,6 @@ function createFakeTuttidClient(input: {
     },
     async listWorkspaceAgentSessions(workspaceID) {
       return {
-        hasMore: false,
         workspaceId: workspaceID,
         sessions: Object.entries(input.sessions)
           .filter(([key]) => key.startsWith(`${workspaceID}:`))

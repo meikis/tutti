@@ -1667,7 +1667,6 @@ test("desktop agent host api reconciles event hub dirty signals into full sessio
     },
     async listWorkspaceAgentSessions() {
       return {
-        hasMore: false,
         sessions: [createSession({ id: "agent-session-1" })],
         workspaceId
       };
@@ -1795,7 +1794,6 @@ test("desktop agent host api batches inline streaming message updates", async ()
     },
     async listWorkspaceAgentSessions() {
       return {
-        hasMore: false,
         sessions: [createSession({ id: "agent-session-1" })],
         workspaceId
       };
@@ -1947,7 +1945,6 @@ test("desktop agent host api preserves working state for user-only reconciled tu
     },
     async listWorkspaceAgentSessions() {
       return {
-        hasMore: false,
         sessions: [createSession({ id: "agent-session-1" })],
         workspaceId
       };
@@ -2074,7 +2071,6 @@ test("desktop agent host api ignores stale reconcile after session deletion", as
     },
     async listWorkspaceAgentSessions() {
       return {
-        hasMore: false,
         sessions: [createSession({ id: "agent-session-1" })],
         workspaceId
       };
@@ -2236,7 +2232,6 @@ test("desktop agent host api preserves frontend session UUIDs as canonical ids",
       },
       async listWorkspaceAgentSessions() {
         return {
-          hasMore: false,
           sessions: [
             createSession({
               id: "55555555-5555-4555-8555-555555555555",
@@ -2456,7 +2451,6 @@ test("desktop agent host api keeps canonical sessions across adapter recreation"
       },
       async listWorkspaceAgentSessions() {
         return {
-          hasMore: false,
           sessions: [
             createSession({ id: "66666666-6666-4666-8666-666666666666" })
           ],
@@ -2516,7 +2510,6 @@ test("desktop agent host api excludes invisible persisted sessions from workspac
     tuttidClient: createTuttidClient({
       async listWorkspaceAgentSessions() {
         return {
-          hasMore: false,
           sessions: [
             createSession({
               id: "visible-session",
@@ -3114,7 +3107,7 @@ function createTuttidClient(
       };
     },
     async listWorkspaceAgentSessions() {
-      return { hasMore: false, sessions: [createSession()] };
+      return { sessions: [createSession()] };
     },
     async listWorkspaceAgentSessionMessages() {
       throw new Error("listWorkspaceAgentSessionMessages not mocked");
