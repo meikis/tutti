@@ -5726,8 +5726,10 @@ button.agent-gui-node__conversation-section-toggle:hover
 }
 
 .agent-gui-message-locator__dot {
+  box-sizing: border-box;
   width: var(--agent-message-locator-dot-size);
   height: var(--agent-message-locator-dot-size);
+  border: 0 solid transparent;
   border-radius: 999px;
   background: color-mix(
     in srgb,
@@ -5736,6 +5738,7 @@ button.agent-gui-node__conversation-section-toggle:hover
   );
   transition:
     background 140ms ease,
+    border-color 140ms ease,
     transform 140ms ease;
 }
 
@@ -5748,12 +5751,16 @@ button.agent-gui-node__conversation-section-toggle:hover
 
 .agent-gui-message-locator__tick[data-selected="true"]
   .agent-gui-message-locator__dot {
-  background: var(--text-secondary, var(--tutti-text-secondary));
+  border-width: 2px;
+  border-color: var(--text-secondary, var(--tutti-text-secondary));
+  background: transparent;
 }
 
 .agent-gui-message-locator__tick:hover .agent-gui-message-locator__dot,
 .agent-gui-message-locator__tick:focus-visible .agent-gui-message-locator__dot {
-  background: var(--text-primary, var(--tutti-text-primary));
+  border-width: 2px;
+  border-color: var(--text-primary, var(--tutti-text-primary));
+  background: transparent;
 }
 
 .agent-gui-message-locator__panel {
