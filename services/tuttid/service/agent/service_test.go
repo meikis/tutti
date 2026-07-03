@@ -4772,7 +4772,7 @@ func (f *fakeRuntime) Cancel(_ context.Context, input RuntimeCancelInput) (Runti
 	return RuntimeCancelResult{AgentSessionID: input.AgentSessionID, Canceled: true}, nil
 }
 
-func (f *fakeRuntime) GoalControl(_ context.Context, input RuntimeGoalControlInput) (RuntimeGoalControlResult, error) {
+func (*fakeRuntime) GoalControl(_ context.Context, input RuntimeGoalControlInput) (RuntimeGoalControlResult, error) {
 	return RuntimeGoalControlResult{AgentSessionID: input.AgentSessionID}, nil
 }
 

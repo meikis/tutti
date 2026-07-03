@@ -318,43 +318,6 @@ func (api DaemonAPI) CancelWorkspaceAgentSession(ctx context.Context, request tu
 	}, nil
 }
 
-func (api DaemonAPI) GoalControlWorkspaceAgentSession(ctx context.Context, request tuttigenerated.GoalControlWorkspaceAgentSessionRequestObject) (tuttigenerated.GoalControlWorkspaceAgentSessionResponseObject, error) {
-	if api.AgentSessionService == nil {
-		return tuttigenerated.GoalControlWorkspaceAgentSession503JSONResponse{
-			ServiceUnavailableErrorJSONResponse: agentSessionServiceUnavailableError(),
-		}, nil
-	}
-	if request.Body == nil {
-		return writeGoalControlWorkspaceAgentSessionError(
-			apierrors.EmptyBody(
-				apierrors.WithDeveloperMessage("goal control request body is required"),
-			),
-		), nil
-	}
-	objective := ""
-	if request.Body.Objective != nil {
-		objective = *request.Body.Objective
-	}
-	result, err := api.AgentSessionService.GoalControl(
-		ctx,
-		string(request.WorkspaceID),
-		string(request.AgentSessionID),
-		string(request.Body.Action),
-		objective,
-	)
-	if err != nil {
-		return writeGoalControlWorkspaceAgentSessionError(err), nil
-	}
-	response := tuttigenerated.GoalControlWorkspaceAgentSession200JSONResponse{
-		Session: generatedAgentSession(result.Session),
-	}
-	if len(result.Goal) > 0 {
-		goal := map[string]interface{}(result.Goal)
-		response.Goal = &goal
-	}
-	return response, nil
-}
-
 func (api DaemonAPI) ReadWorkspaceAgentSessionAttachment(ctx context.Context, request tuttigenerated.ReadWorkspaceAgentSessionAttachmentRequestObject) (tuttigenerated.ReadWorkspaceAgentSessionAttachmentResponseObject, error) {
 	if api.AgentSessionService == nil {
 		return tuttigenerated.ReadWorkspaceAgentSessionAttachment503JSONResponse{
