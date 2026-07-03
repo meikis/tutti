@@ -286,6 +286,18 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(css).not.toMatch(
       /\.agent-gui-node__provider-rail-tile\s*\{[^}]*grid-template-rows:\s*32px 28px;/s
     );
+    expect(css).toMatch(
+      /\.agent-gui-node__provider-rail-tile:disabled\s*\{[^}]*opacity:\s*0\.3;/s
+    );
+    expect(css).not.toMatch(
+      /\.agent-gui-node__provider-rail-tile\[data-disabled="true"\][^{]*\{[^}]*opacity:/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__empty-hero-launchpad-icon\s+\.agent-gui-node__provider-rail-launchpad-item\[data-provider-active="false"\]\s*\{[^}]*opacity:\s*0\.3;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__empty-provider-gate-action:disabled\s*\{[^}]*background:\s*var\(--fill-tertiary\);[^}]*color:\s*var\(--text-disabled\);[^}]*opacity:\s*0\.65;/s
+    );
   });
 
   it("sets the controlled rail width on the grid layout", () => {
@@ -449,7 +461,7 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(actions.selectProvider).not.toHaveBeenCalled();
   });
 
-  it("renders disabled provider rail placeholders without selecting them", () => {
+  it("keeps unavailable provider rail targets selectable without greying them", () => {
     const actions = createActions();
     const tuttiTarget = {
       ...createLocalAgentGUIProviderTarget("nexight"),
@@ -476,13 +488,23 @@ describe("AgentGUINodeView layout persistence", () => {
     const tuttiTile = screen.getByRole("tab", { name: "Tutti Agent" });
     const hermesTile = screen.getByRole("tab", { name: "Hermes" });
 
-    expect(tuttiTile).toBeDisabled();
-    expect(hermesTile).toBeDisabled();
+    expect(tuttiTile).toHaveAttribute("data-disabled", "true");
+    expect(hermesTile).toHaveAttribute("data-disabled", "true");
+    expect(tuttiTile).not.toBeDisabled();
+    expect(hermesTile).not.toBeDisabled();
 
     fireEvent.click(tuttiTile);
     fireEvent.click(hermesTile);
 
-    expect(actions.selectConversationFilterTarget).not.toHaveBeenCalled();
+    expect(actions.selectConversationFilterTarget).toHaveBeenCalledTimes(2);
+    expect(actions.selectConversationFilterTarget).toHaveBeenNthCalledWith(1, {
+      provider: tuttiTarget.provider,
+      providerTargetId: tuttiTarget.targetId
+    });
+    expect(actions.selectConversationFilterTarget).toHaveBeenNthCalledWith(2, {
+      provider: hermesTarget.provider,
+      providerTargetId: hermesTarget.targetId
+    });
     expect(actions.updateConversationFilter).not.toHaveBeenCalled();
     expect(actions.selectProvider).not.toHaveBeenCalled();
   });
@@ -814,10 +836,10 @@ describe("AgentGUINodeView layout persistence", () => {
     const hermesOption = screen.getByRole("option", { name: "Hermes" });
 
     expect(tuttiOption).toHaveAttribute("data-disabled");
-    expect(tuttiOption).toHaveClass("opacity-45");
+    expect(tuttiOption).toHaveClass("opacity-30");
     expect(tuttiOption.querySelector("img")).toHaveClass("grayscale");
     expect(hermesOption).toHaveAttribute("data-disabled");
-    expect(hermesOption).toHaveClass("opacity-45");
+    expect(hermesOption).toHaveClass("opacity-30");
 
     fireEvent.click(tuttiOption);
 
@@ -3251,9 +3273,13 @@ describe("AgentGUINodeView provider readiness gate", () => {
       screen.getByTestId("agent-gui-provider-readiness-gate")
     ).toHaveTextContent("providerGateLoginTitle");
 
-    fireEvent.click(
-      screen.getByTestId("agent-gui-provider-readiness-gate-action")
+    const action = screen.getByTestId(
+      "agent-gui-provider-readiness-gate-action"
     );
+    expect(action).toHaveTextContent("providerGateLoginAction");
+    expect(action.querySelector("svg")).toBeNull();
+
+    fireEvent.click(action);
 
     expect(onAction).toHaveBeenCalledWith("codex", "login");
   });
@@ -3850,6 +3876,9 @@ function createLabels(): AgentGUIViewLabels {
     providerGateLoginTitle: "providerGateLoginTitle",
     providerGateLoginDescription: "providerGateLoginDescription",
     providerGateLoginAction: "providerGateLoginAction",
+    providerGateComingSoonTitle: "providerGateComingSoonTitle",
+    providerGateComingSoonDescription: "providerGateComingSoonDescription",
+    providerGateComingSoonAction: "providerGateComingSoonAction",
     providerGateUnavailableTitle: "providerGateUnavailableTitle",
     providerGateUnavailableDescription: "providerGateUnavailableDescription",
     providerGateRetryAction: "providerGateRetryAction",

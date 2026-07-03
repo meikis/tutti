@@ -347,10 +347,14 @@ export const zhCN = {
       providerGateInstallDescription:
         "需要先安装 {{provider}}，才能在这里开始新的对话。",
       providerGateInstallAction: "安装",
-      providerGateLoginTitle: "登录 {{provider}}",
+      providerGateLoginTitle: "连接 {{provider}}",
       providerGateLoginDescription:
-        "{{provider}} 已安装。先完成一次登录，然后就可以开始对话。",
-      providerGateLoginAction: "登录",
+        "{{provider}} 已准备好连接。完成连接后回到这里即可开始对话。",
+      providerGateLoginAction: "连接",
+      providerGateComingSoonTitle: "{{provider}} 即将上线",
+      providerGateComingSoonDescription:
+        "{{provider}} 暂未开放。准备好后即可在这里使用这个 Agent。",
+      providerGateComingSoonAction: "即将上线",
       providerGateUnavailableTitle: "{{provider}} 暂时还不可用",
       providerGateUnavailableDescription:
         "我们还不能确认 {{provider}} 已准备好，可以再检测一次。",

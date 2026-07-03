@@ -1172,7 +1172,7 @@ const noopDesktopPreferencesStore: DesktopPreferencesReadableStoreState = {
   agentComposerDefaultsByProvider: {},
   agentGuiConversationRailCollapsedByProvider: {},
   agentConversationDetailMode: "coding",
-  agentDockLayout: "legacySplit",
+  agentDockLayout: "unified",
   appCatalogChannel: "production",
   browserUseConnectionMode: "isolated",
   changingAgentConversationDetailMode: null,

@@ -1157,7 +1157,7 @@ function createPreferencesState(
     agentComposerDefaultsByProvider: {},
     agentGuiConversationRailCollapsedByProvider: {},
     agentConversationDetailMode: "coding",
-    agentDockLayout: "legacySplit",
+    agentDockLayout: "unified",
     appCatalogChannel: "production",
     browserUseConnectionMode: "isolated",
     changingAppCatalogChannel: null,

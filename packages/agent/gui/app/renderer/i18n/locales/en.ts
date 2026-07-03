@@ -375,10 +375,14 @@ export const en = {
       providerGateInstallDescription:
         "{{provider}} needs to be installed before you can start a new chat here.",
       providerGateInstallAction: "Install",
-      providerGateLoginTitle: "Sign in to {{provider}}",
+      providerGateLoginTitle: "Connect to {{provider}}",
       providerGateLoginDescription:
-        "{{provider}} is installed. Sign in once, then come back and start chatting.",
-      providerGateLoginAction: "Sign in",
+        "{{provider}} is ready to connect. Complete the connection, then come back and start chatting.",
+      providerGateLoginAction: "Connect",
+      providerGateComingSoonTitle: "{{provider}} is coming soon",
+      providerGateComingSoonDescription:
+        "{{provider}} is not available yet. We will enable this agent when it is ready.",
+      providerGateComingSoonAction: "Coming soon",
       providerGateUnavailableTitle: "{{provider}} is not ready yet",
       providerGateUnavailableDescription:
         "We could not confirm that {{provider}} is ready. Try checking again.",

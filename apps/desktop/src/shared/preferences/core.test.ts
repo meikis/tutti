@@ -16,8 +16,8 @@ test("desktop agent conversation detail mode defaults to coding", () => {
   assert.deepEqual(desktopAgentConversationDetailModes, ["coding", "general"]);
 });
 
-test("desktop agent dock layout defaults to legacy split", () => {
-  assert.equal(defaultDesktopAgentDockLayout, "legacySplit");
+test("desktop agent dock layout defaults to unified", () => {
+  assert.equal(defaultDesktopAgentDockLayout, "unified");
   assert.deepEqual(desktopAgentDockLayouts, ["legacySplit", "unified"]);
 });
 
@@ -28,10 +28,10 @@ test("desktop agent dock layout normalization preserves known values", () => {
   assert.equal(isDesktopAgentDockLayout("unified"), true);
 });
 
-test("desktop agent dock layout normalization falls back to legacy split", () => {
-  assert.equal(normalizeDesktopAgentDockLayout(""), "legacySplit");
-  assert.equal(normalizeDesktopAgentDockLayout("stacked"), "legacySplit");
-  assert.equal(normalizeDesktopAgentDockLayout(undefined), "legacySplit");
+test("desktop agent dock layout normalization falls back to unified", () => {
+  assert.equal(normalizeDesktopAgentDockLayout(""), "unified");
+  assert.equal(normalizeDesktopAgentDockLayout("stacked"), "unified");
+  assert.equal(normalizeDesktopAgentDockLayout(undefined), "unified");
   assert.equal(isDesktopAgentDockLayout("stacked"), false);
 });
 

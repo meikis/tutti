@@ -946,6 +946,17 @@ export const AgentGUINode = memo(function AgentGUINode({
         { provider: displayProviderLabel }
       ),
       providerGateLoginAction: t("agentHost.agentGui.providerGateLoginAction"),
+      providerGateComingSoonTitle: t(
+        "agentHost.agentGui.providerGateComingSoonTitle",
+        { provider: displayProviderLabel }
+      ),
+      providerGateComingSoonDescription: t(
+        "agentHost.agentGui.providerGateComingSoonDescription",
+        { provider: displayProviderLabel }
+      ),
+      providerGateComingSoonAction: t(
+        "agentHost.agentGui.providerGateComingSoonAction"
+      ),
       providerGateUnavailableTitle: t(
         "agentHost.agentGui.providerGateUnavailableTitle",
         { provider: displayProviderLabel }

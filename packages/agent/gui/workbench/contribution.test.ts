@@ -1431,14 +1431,50 @@ describe("agent GUI workbench contribution copy", () => {
     );
   });
 
-  it("owns the launchpad-style tiled dock icon styles", () => {
+  it("owns the clover-style tiled dock icon styles", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
     expect(css).toMatch(
-      /\.agent-gui-workbench-dock-icon\s*{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);[^}]*gap:\s*2px;[^}]*border-radius:\s*8px;/s
+      /\.agent-gui-workbench-dock-icon\s*{[^}]*--agent-gui-workbench-dock-icon-tile-size:\s*18px;[^}]*position:\s*relative;[^}]*width:\s*44px;[^}]*height:\s*44px;/s
+    );
+    expect(css).not.toMatch(
+      /\.agent-gui-workbench-dock-icon\s*{[^}]*\b(?:border|background|border-radius)\s*:/s
     );
     expect(css).toMatch(
-      /\.agent-gui-workbench-dock-icon__tile\s*>\s*img\s*{[^}]*object-fit:\s*contain;[^}]*object-position:\s*center;/s
+      /\.agent-gui-workbench-dock-icon__tile\s*{[^}]*position:\s*absolute;[^}]*overflow:\s*hidden;[^}]*width:\s*var\(--agent-gui-workbench-dock-icon-tile-size\);[^}]*height:\s*var\(--agent-gui-workbench-dock-icon-tile-size\);[^}]*border-radius:\s*50%;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-workbench-dock-icon__tile:nth-child\(1\)\s*{[^}]*z-index:\s*4;[^}]*top:\s*var\(--agent-gui-workbench-dock-icon-tile-offset\);[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\);/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-workbench-dock-icon__tile:nth-child\(2\)\s*{[^}]*z-index:\s*3;[^}]*top:\s*50%;[^}]*right:\s*var\(--agent-gui-workbench-dock-icon-tile-offset\);[^}]*transform:\s*translateY\(-50%\);/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-workbench-dock-icon__tile:nth-child\(3\)\s*{[^}]*z-index:\s*2;[^}]*bottom:\s*var\(--agent-gui-workbench-dock-icon-tile-offset\);[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\);/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-workbench-dock-icon__tile:nth-child\(4\)\s*{[^}]*z-index:\s*1;[^}]*top:\s*50%;[^}]*left:\s*var\(--agent-gui-workbench-dock-icon-tile-offset\);[^}]*transform:\s*translateY\(-50%\);/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-workbench-dock-icon__tile\s*>\s*img\s*{[^}]*border-radius:\s*inherit;[^}]*object-fit:\s*contain;[^}]*object-position:\s*center;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__provider-rail-launchpad-icon\s*{[^}]*display:\s*block;[^}]*position:\s*relative;[^}]*width:\s*var\(--agent-gui-node-launchpad-icon-size\);[^}]*height:\s*var\(--agent-gui-node-launchpad-icon-size\);/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__provider-rail-launchpad-icon\s*{[^}]*--agent-gui-node-launchpad-icon-size:\s*28px;[^}]*--agent-gui-node-launchpad-item-size:\s*12px;[^}]*--agent-gui-node-launchpad-item-offset:\s*2px;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__provider-rail-launchpad-item\s*{[^}]*position:\s*absolute;[^}]*overflow:\s*hidden;[^}]*width:\s*var\(--agent-gui-node-launchpad-item-size\);[^}]*height:\s*var\(--agent-gui-node-launchpad-item-size\);[^}]*border-radius:\s*50%;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__empty-hero-launchpad-icon\s*{[^}]*width:\s*72px;[^}]*height:\s*72px;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__empty-hero-launchpad-icon\s+\.agent-gui-node__provider-rail-launchpad-icon\s*{[^}]*--agent-gui-node-launchpad-icon-size:\s*72px;[^}]*--agent-gui-node-launchpad-item-size:\s*30px;[^}]*--agent-gui-node-launchpad-item-offset:\s*6px;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-node__provider-rail-tile\[data-selected="true"\]\s+\.agent-gui-node__provider-rail-avatar:has\(\s*>\s*\.agent-gui-node__provider-rail-launchpad-icon\s*\),\s*\.agent-gui-node__provider-rail-tile\[data-selected="true"\]:hover:not\(:disabled\)\s+\.agent-gui-node__provider-rail-avatar:has\(\s*>\s*\.agent-gui-node__provider-rail-launchpad-icon\s*\)\s*{[^}]*border-color:\s*var\(--tutti-purple\);[^}]*background:\s*var\(--transparency-block\);/s
     );
   });
 

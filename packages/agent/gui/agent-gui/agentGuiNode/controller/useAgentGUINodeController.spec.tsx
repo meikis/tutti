@@ -483,6 +483,80 @@ describe("useAgentGUINodeController", () => {
     expect(nextData?.providerTargetRef ?? null).toBeNull();
   });
 
+  it("keeps the All rail target selected when switching the empty composer provider from All", async () => {
+    installAgentHostApi({
+      list: vi.fn(async () => ({
+        presences: [],
+        sessions: [
+          workspaceAgentSession("codex-session", {
+            provider: "codex",
+            title: "Codex session",
+            updatedAtUnixMs: 3
+          }),
+          workspaceAgentSession("claude-session", {
+            provider: "claude-code",
+            title: "Claude session",
+            updatedAtUnixMs: 2
+          })
+        ]
+      })),
+      listSessionTimeline: vi.fn(async () => ({ timelineItems: [] })),
+      subscribeEvents: vi.fn(() => vi.fn())
+    });
+
+    const { result } = renderHook(() =>
+      useAgentGUINodeController({
+        workspaceId: "room-1",
+        currentUserId: "user-1",
+        workspacePath: "/workspace",
+        avoidGroupingEdits: false,
+        data: agentGuiData(null, "codex", {
+          agentTargetId: "local:codex"
+        }),
+        conversationScope: "multi-provider",
+        providerTargets: [
+          {
+            targetId: "local:codex",
+            agentTargetId: "local:codex",
+            provider: "codex",
+            ref: { kind: "local-provider", provider: "codex" },
+            label: "Codex"
+          },
+          {
+            targetId: "local:claude-code",
+            agentTargetId: "local:claude-code",
+            provider: "claude-code",
+            ref: { kind: "local-provider", provider: "claude-code" },
+            label: "Claude Code"
+          }
+        ],
+        onDataChange: vi.fn()
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.viewModel.conversationFilter).toEqual({
+        kind: "all"
+      });
+    });
+
+    act(() => {
+      result.current.actions.selectProvider({
+        provider: "claude-code",
+        providerTargetId: "local:claude-code"
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.viewModel.conversationFilter).toEqual({
+        kind: "all"
+      });
+    });
+    expect(result.current.viewModel.selectedProviderTarget.provider).toBe(
+      "claude-code"
+    );
+  });
+
   it("resolves provider readiness gates from the selected provider target before legacy node provider", () => {
     installAgentHostApi({
       list: vi.fn(async () => ({ presences: [], sessions: [] })),

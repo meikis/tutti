@@ -279,6 +279,9 @@ export interface AgentGUIViewLabels {
   providerGateLoginTitle: string;
   providerGateLoginDescription: string;
   providerGateLoginAction: string;
+  providerGateComingSoonTitle: string;
+  providerGateComingSoonDescription: string;
+  providerGateComingSoonAction: string;
   providerGateUnavailableTitle: string;
   providerGateUnavailableDescription: string;
   providerGateRetryAction: string;
@@ -1492,6 +1495,7 @@ export function AgentGUINodeView({
               conversationFilter={viewModel.conversationFilter}
               labels={labels}
               previewMode={previewMode}
+              selectedProviderTarget={viewModel.selectedProviderTarget}
               providerTargets={viewModel.providerTargets}
               providerTargetsLoading={viewModel.providerTargetsLoading}
               onSelectConversationFilterTarget={
@@ -1755,8 +1759,12 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     avoidGroupingEdits: viewModel.avoidGroupingEdits
   });
   const hasActiveConversation = viewModel.activeConversationId !== null;
+  const selectedProviderTargetComingSoon =
+    viewModel.selectedProviderTarget?.disabled === true;
   const emptyProviderReadinessGate = !hasActiveConversation
-    ? viewModel.providerReadinessGate
+    ? selectedProviderTargetComingSoon
+      ? ({ status: "coming_soon" } satisfies AgentGUIProviderReadinessGate)
+      : viewModel.providerReadinessGate
     : null;
   const activePrompt =
     viewModel.pendingInteractivePrompt ?? viewModel.pendingApproval;
@@ -3259,6 +3267,9 @@ interface AgentGUIProviderReadinessGatePaneProps {
     | "providerGateLoginTitle"
     | "providerGateLoginDescription"
     | "providerGateLoginAction"
+    | "providerGateComingSoonTitle"
+    | "providerGateComingSoonDescription"
+    | "providerGateComingSoonAction"
     | "providerGateUnavailableTitle"
     | "providerGateUnavailableDescription"
     | "providerGateRetryAction"
@@ -3349,8 +3360,20 @@ const AgentGUIProviderReadinessGatePane = memo(
                 gate.onAction?.(provider, action);
               }}
             >
-              <Wrench size={16} strokeWidth={2} aria-hidden="true" />
               {isPending && pendingLabel ? pendingLabel : content.actionLabel}
+            </Button>
+          ) : content.actionLabel ? (
+            <Button
+              type="button"
+              className={cn(
+                styles.emptyProviderGateAction,
+                "nodrag tsh-desktop-no-drag [-webkit-app-region:no-drag]"
+              )}
+              data-testid="agent-gui-provider-readiness-gate-action"
+              disabled
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              {content.actionLabel}
             </Button>
           ) : null}
         </div>
@@ -3385,6 +3408,12 @@ function providerGateContent(
         description: labels.providerGateLoginDescription,
         actionLabel: labels.providerGateLoginAction
       };
+    case "coming_soon":
+      return {
+        title: labels.providerGateComingSoonTitle,
+        description: labels.providerGateComingSoonDescription,
+        actionLabel: labels.providerGateComingSoonAction
+      };
     case "unavailable":
       return {
         title: labels.providerGateUnavailableTitle,
@@ -3404,6 +3433,7 @@ function providerGateAction(
       return "login";
     case "unavailable":
       return "refresh";
+    case "coming_soon":
     case "checking":
       return null;
   }
@@ -3551,9 +3581,9 @@ function EmptyHeroTitle({
                 value={target.targetId}
                 className={cn(
                   styles.composerMenuItem,
-                  "gap-2 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-45 data-[disabled]:text-[var(--text-disabled,var(--text-tertiary))]",
+                  "gap-2 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-30 data-[disabled]:text-[var(--text-disabled,var(--text-tertiary))]",
                   target.disabled === true
-                    ? "cursor-not-allowed opacity-45"
+                    ? "cursor-not-allowed opacity-30"
                     : null
                 )}
                 disabled={target.disabled === true}
@@ -3564,7 +3594,7 @@ function EmptyHeroTitle({
                     aria-hidden="true"
                     className={cn(
                       "size-4 shrink-0 rounded-[4px]",
-                      target.disabled === true ? "grayscale opacity-45" : null
+                      target.disabled === true ? "grayscale opacity-30" : null
                     )}
                     src={
                       agentGUIProviderIconPresentation(
@@ -4313,6 +4343,7 @@ interface AgentGUIProviderRailProps {
   conversationFilter: AgentGUINodeViewModel["conversationFilter"];
   labels: AgentGUIViewLabels;
   previewMode: boolean;
+  selectedProviderTarget: AgentGUINodeViewModel["selectedProviderTarget"];
   providerTargets: AgentGUINodeViewModel["providerTargets"];
   providerTargetsLoading: AgentGUINodeViewModel["providerTargetsLoading"];
   onSelectConversationFilterTarget: AgentGUINodeViewProps["actions"]["selectConversationFilterTarget"];
@@ -4325,6 +4356,7 @@ const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
   conversationFilter,
   labels,
   previewMode,
+  selectedProviderTarget,
   providerTargets,
   providerTargetsLoading,
   onSelectConversationFilterTarget,
@@ -4360,15 +4392,30 @@ const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
     () => agentGUILaunchpadIconPresentations(),
     []
   );
-  const allTileSelected = conversationFilter.kind === "all";
+  const selectedProviderTargetIsPlaceholder =
+    selectedProviderTarget?.disabled === true;
+  const allTileSelected =
+    conversationFilter.kind === "all" && !selectedProviderTargetIsPlaceholder;
   const selectAllProviders = useCallback(() => {
     onUpdateConversationFilter({ kind: "all" });
-  }, [onUpdateConversationFilter]);
+    if (selectedProviderTargetIsPlaceholder) {
+      const fallbackTarget =
+        providerTargets.find((target) => target.disabled !== true) ?? null;
+      if (fallbackTarget) {
+        onSelectConversationFilterTarget({
+          provider: fallbackTarget.provider,
+          providerTargetId: fallbackTarget.targetId
+        });
+      }
+    }
+  }, [
+    onSelectConversationFilterTarget,
+    onUpdateConversationFilter,
+    providerTargets,
+    selectedProviderTargetIsPlaceholder
+  ]);
   const selectProviderTile = useCallback(
     (target: AgentGUINodeViewModel["providerTargets"][number]) => {
-      if (target.disabled === true) {
-        return;
-      }
       onSelectConversationFilterTarget({
         provider: target.provider,
         providerTargetId: target.targetId
@@ -4421,11 +4468,13 @@ const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
         : null}
       {providerTiles.map((target) => {
         const providerSelected =
-          target.disabled !== true &&
-          agentGUIProviderTargetMatchesConversationFilter(
-            target,
-            conversationFilter
-          );
+          target.disabled === true
+            ? selectedProviderTarget?.provider === target.provider &&
+              selectedProviderTarget?.targetId === target.targetId
+            : agentGUIProviderTargetMatchesConversationFilter(
+                target,
+                conversationFilter
+              );
         return (
           <button
             key={`${target.provider}:${target.targetId}`}
@@ -4435,7 +4484,7 @@ const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
             className={styles.providerRailTile}
             data-disabled={target.disabled === true ? "true" : undefined}
             data-selected={providerSelected ? "true" : "false"}
-            disabled={previewMode || target.disabled === true}
+            disabled={previewMode}
             onClick={() => selectProviderTile(target)}
           >
             <span className={styles.providerRailAvatar}>

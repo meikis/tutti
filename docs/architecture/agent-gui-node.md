@@ -138,12 +138,17 @@ Workbench dock or external launch
 ```
 
 `agentDockLayout` is a daemon-owned desktop preference that changes only the
-dock presentation. `legacySplit` keeps provider-specific Codex and Claude Code
-dock entries. `unified` exposes one Agent dock entry that matches Codex and
-Claude Code AgentGUI nodes, but launches still create provider-specific
-multi-instance AgentGUI nodes. The unified entry may choose a default target or
-provider for its launch payload; that selection must not synthesize a provider
-or replace the provider identity recorded on the node/session.
+dock presentation. The default is `unified`, which exposes one Agent dock entry
+that matches Codex and Claude Code AgentGUI nodes, but launches still create
+provider-specific multi-instance AgentGUI nodes. `legacySplit` remains available
+for provider-specific Codex and Claude Code dock entries. The unified entry may
+choose a default target or provider for its launch payload; that selection must
+not synthesize a provider or replace the provider identity recorded on the
+node/session.
+Workspace Launchpad is a broad launcher surface, not a mirror of the dock
+entry list; it should show one generic Agent tile that resolves to the default
+or first ready provider instead of duplicating provider-specific Agent dock
+entries.
 Unified workbench chrome should keep the generic Agent title and use generic
 Agent artwork instead of provider-branded icons even when the underlying
 launch/session provider is Codex or Claude Code.
@@ -160,6 +165,12 @@ and must not switch the running session. Do not encode provider switching only
 as a conversation-list filter; filters can scope the visible Codex/Claude
 session list, while provider selection changes which provider a new empty
 composer will launch.
+When provider selection happens from the empty-home composer or title control
+while the rail is already scoped to a provider target in multi-provider scope,
+it must update the rail conversation filter to the matching agent target so the
+left rail selection follows the active empty composer target. When the rail is
+in `All`, provider selection changes only the empty composer target and keeps
+the aggregate rail selection intact.
 The empty composer chrome and settings defaults must follow the selected
 provider target immediately, including the empty-state artwork, model options,
 and permission modes. Generic home composer overrides are single-target draft
@@ -191,6 +202,10 @@ only when no target can be resolved. A non-ready provider replaces only the
 empty-home composer with a friendly gate; active/history conversations,
 existing-session composer behavior, and the legacySplit dock hover
 install/login chain remain outside this gate.
+Auth-required local providers should remain selectable; product surfaces may
+label the setup affordance as `Connect`, but the host action should still
+dispatch the provider's `login` operation when that is the daemon-reported
+action.
 
 This means an AgentGUI bug can start at several different interfaces. Do not
 assume that a visible UI symptom starts in the visible UI component.

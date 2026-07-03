@@ -73,8 +73,7 @@ export const desktopAgentDockLayouts = ["legacySplit", "unified"] as const;
 
 export type DesktopAgentDockLayout = (typeof desktopAgentDockLayouts)[number];
 
-export const defaultDesktopAgentDockLayout: DesktopAgentDockLayout =
-  "legacySplit";
+export const defaultDesktopAgentDockLayout: DesktopAgentDockLayout = "unified";
 
 export function readInitialDockPlacementFromLocation(
   locationSearch?: string

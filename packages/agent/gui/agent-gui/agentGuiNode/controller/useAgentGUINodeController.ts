@@ -10696,9 +10696,6 @@ export function useAgentGUINodeController({
       if (!nextTarget) {
         return;
       }
-      if (nextTarget.disabled === true) {
-        return;
-      }
       const nextTargetIsExplicit = normalizedExplicitProviderTargets.some(
         (target) =>
           target.provider === nextTarget.provider &&
@@ -10710,6 +10707,16 @@ export function useAgentGUINodeController({
         isExplicit: nextTargetIsExplicit,
         target: nextTarget
       });
+      if (canUseConversationTargetFilter && conversationFilter.kind !== "all") {
+        const agentTargetId = nextTarget.agentTargetId?.trim() ?? "";
+        setConversationFilter(
+          agentTargetId
+            ? { kind: "agentTarget", agentTargetId }
+            : { kind: "all" }
+        );
+      } else if (!canUseConversationTargetFilter) {
+        setConversationFilter({ kind: "all" });
+      }
       setHomeComposerTargetOverride(nextTarget);
       const previous = activeConversationIdRef.current;
       if (previous) {
@@ -10751,12 +10758,16 @@ export function useAgentGUINodeController({
         dataRef.current = nextData;
         return nextData;
       });
-      loadComposerOptionsForTarget(nextTargetData, { force: true });
+      if (nextTarget.disabled !== true) {
+        loadComposerOptionsForTarget(nextTargetData, { force: true });
+      }
     },
     [
       activation,
       defaultProviderTargetId,
       loadComposerOptionsForTarget,
+      canUseConversationTargetFilter,
+      conversationFilter.kind,
       normalizedExplicitProviderTargets,
       normalizedProviderTargets,
       persistActiveConversation,
