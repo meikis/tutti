@@ -3512,6 +3512,106 @@ describe("AgentComposer", () => {
     expect(draftContent.prompt).not.toMatch(/^@/);
   });
 
+  it("keeps the active @ trigger after canceling references from a mention row", async () => {
+    let draftContent = createDraft("@");
+    const onDraftContentChange = vi.fn((nextDraft: AgentComposerDraft) => {
+      draftContent = nextDraft;
+    });
+    const onRequestWorkspaceReferences = vi.fn(async () => ({
+      files: [],
+      mentionItems: []
+    }));
+
+    render(
+      <AgentComposer
+        workspaceId="workspace-1"
+        currentUserId="user-1"
+        provider="codex"
+        draftContent={draftContent}
+        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
+        disabled={false}
+        submitDisabled={false}
+        placeholder="placeholder"
+        composerSettings={createComposerSettings()}
+        queuedPrompts={[]}
+        drainingQueuedPromptId={null}
+        canQueueWhileBusy={false}
+        showStopButton={false}
+        activePrompt={null}
+        isInterrupting={false}
+        isSendingTurn={false}
+        isSubmittingPrompt={false}
+        labels={createLabels()}
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
+        onDraftContentChange={onDraftContentChange}
+        onSettingsChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onSendQueuedPromptNext={vi.fn()}
+        onRemoveQueuedPrompt={vi.fn()}
+        onEditQueuedPrompt={vi.fn()}
+        onInterruptCurrentTurn={vi.fn()}
+        onSubmitInteractivePrompt={vi.fn()}
+        onRequestWorkspaceReferences={onRequestWorkspaceReferences}
+      />
+    );
+
+    fireEvent.click(await screen.findByTestId("mock-open-references"));
+
+    await waitFor(() =>
+      expect(onRequestWorkspaceReferences).toHaveBeenCalled()
+    );
+    expect(draftContent.prompt).toBe("@");
+    expect(screen.getByTestId("mock-open-references")).toBeInTheDocument();
+  });
+
+  it("lets the reference picker own Escape while the mention palette stays open", async () => {
+    let draftContent = createDraft("@");
+    const onDraftContentChange = vi.fn((nextDraft: AgentComposerDraft) => {
+      draftContent = nextDraft;
+    });
+
+    render(
+      <AgentComposer
+        workspaceId="workspace-1"
+        currentUserId="user-1"
+        provider="codex"
+        draftContent={draftContent}
+        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
+        disabled={false}
+        submitDisabled={false}
+        placeholder="placeholder"
+        composerSettings={createComposerSettings()}
+        queuedPrompts={[]}
+        drainingQueuedPromptId={null}
+        canQueueWhileBusy={false}
+        showStopButton={false}
+        activePrompt={null}
+        isInterrupting={false}
+        isSendingTurn={false}
+        isSubmittingPrompt={false}
+        labels={createLabels()}
+        workspaceReferencePickerOpen
+        workspaceUserProjectI18n={workspaceUserProjectI18n}
+        onDraftContentChange={onDraftContentChange}
+        onSettingsChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onSendQueuedPromptNext={vi.fn()}
+        onRemoveQueuedPrompt={vi.fn()}
+        onEditQueuedPrompt={vi.fn()}
+        onInterruptCurrentTurn={vi.fn()}
+        onSubmitInteractivePrompt={vi.fn()}
+        onRequestWorkspaceReferences={vi.fn()}
+      />
+    );
+
+    fireEvent.keyDown(screen.getByPlaceholderText("placeholder"), {
+      key: "Escape"
+    });
+
+    expect(draftContent.prompt).toBe("@");
+    expect(onDraftContentChange).not.toHaveBeenCalled();
+  });
+
   it("opens the mention palette from the @ footer button", async () => {
     let draftContent = createDraft("");
     const onDraftContentChange = vi.fn((nextDraft: AgentComposerDraft) => {

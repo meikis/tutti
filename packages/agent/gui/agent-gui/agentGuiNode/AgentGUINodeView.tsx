@@ -1471,6 +1471,7 @@ export function AgentGUINodeView({
             uiLanguage={uiLanguage}
             hideDetailHeader={conversationRailCollapsed}
             isActive={isActive}
+            workspaceReferencePickerOpen={workspaceReferencePickerOpen}
             composerFocusRequestSequence={detailComposerFocusRequestSequence}
             isAgentProviderReady={isAgentProviderReady}
             slashStatusLimits={slashStatusLimits}
@@ -1535,6 +1536,7 @@ interface AgentGUIDetailPaneProps {
   hideDetailHeader: boolean;
   isActive: boolean;
   previewMode: boolean;
+  workspaceReferencePickerOpen: boolean;
   composerFocusRequestSequence: number | null;
   isAgentProviderReady: boolean;
   slashStatusLimits: readonly AgentComposerSlashStatusLimit[];
@@ -1630,6 +1632,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   hideDetailHeader,
   isActive,
   previewMode,
+  workspaceReferencePickerOpen,
   composerFocusRequestSequence,
   isAgentProviderReady,
   slashStatusLimits,
@@ -2314,6 +2317,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
         : labels.initialPlaceholder,
       showStopButton,
       previewMode,
+      workspaceReferencePickerOpen,
       // Plan decisions replace the composer via bottomDockReplacementPrompt;
       // approval / ask-user embed here (composerActivePrompt encodes that).
       activePrompt: composerActivePrompt,
@@ -2369,6 +2373,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       labels.initialPlaceholder,
       labels.promptTips,
       previewMode,
+      workspaceReferencePickerOpen,
       composerActivePrompt,
       editQueuedPrompt,
       onCapabilitySettingsRequest,

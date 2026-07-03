@@ -9,7 +9,7 @@ import {
   type FocusEvent as ReactFocusEvent,
   type FormEvent
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import type { AgentSessionCommand } from "../../shared/agentSessionTypes";
 import type { UiLanguage } from "../../contexts/settings/domain/agentSettings";
 import type {
@@ -222,6 +222,7 @@ export interface AgentComposerProps {
   uiLanguage?: UiLanguage;
   isActive?: boolean;
   previewMode?: boolean;
+  workspaceReferencePickerOpen?: boolean;
   promptImagesSupported?: boolean;
   composerFocusRequestSequence?: number | null;
   layoutMode?: "dock" | "hero";
@@ -853,6 +854,7 @@ export function AgentComposer({
   uiLanguage = "en",
   isActive = true,
   previewMode = false,
+  workspaceReferencePickerOpen = false,
   promptImagesSupported = true,
   composerFocusRequestSequence = null,
   layoutMode = "dock",
@@ -1831,7 +1833,7 @@ export function AgentComposer({
   );
 
   useEffect(() => {
-    if (!showPalette) {
+    if (!showPalette || workspaceReferencePickerOpen) {
       return;
     }
     const handleDocumentKeyDown = (event: KeyboardEvent): void => {
@@ -1862,7 +1864,7 @@ export function AgentComposer({
         capture: true
       });
     };
-  }, [handlePaletteKeyDown, showPalette]);
+  }, [handlePaletteKeyDown, showPalette, workspaceReferencePickerOpen]);
 
   const handleFileMentionSuggestionChange = useCallback(
     (state: AgentFileMentionSuggestionState | null): void => {
@@ -2227,22 +2229,22 @@ export function AgentComposer({
     ]
   );
 
-  // @ 面板里点任务/应用行的「查看产物」入口:关掉面板,打开引用 picker 并定位到该实体;
+  // @ 面板里点任务/应用行的「查看产物」入口:保留面板,打开引用 picker 并定位到该实体;
   // 选中的文件仍按常规插入,但不会把该任务/应用本身作为 mention 插入。
   const handleOpenReferencesForEntity = useCallback(
     (entity: AgentContextMentionItem): void => {
-      clearActiveFileMentionTrigger();
-      closeFileMentionPalette();
       if (!onRequestWorkspaceReferences) {
         return;
       }
-      void onRequestWorkspaceReferences(entity).then((result) =>
-        applyReferencePickResult(result)
-      );
+      void onRequestWorkspaceReferences(entity).then((result) => {
+        if (result.files.length > 0 || result.mentionItems.length > 0) {
+          flushSync(clearActiveFileMentionTrigger);
+        }
+        return applyReferencePickResult(result);
+      });
     },
     [
       clearActiveFileMentionTrigger,
-      closeFileMentionPalette,
       applyReferencePickResult,
       onRequestWorkspaceReferences
     ]
