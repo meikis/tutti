@@ -1665,12 +1665,30 @@ func claudeSDKContextWindowTokens(payload map[string]any) int64 {
 	); ok {
 		return total
 	}
-	modelUsage, _ := payload["modelUsage"].([]any)
-	for _, item := range modelUsage {
-		if candidate, ok := item.(map[string]any); ok {
-			if total := claudeSDKContextWindowTokens(candidate); total > 0 {
-				return total
+	switch modelUsage := payload["modelUsage"].(type) {
+	case []any:
+		for _, item := range modelUsage {
+			if candidate, ok := item.(map[string]any); ok {
+				if total := claudeSDKContextWindowTokens(candidate); total > 0 {
+					return total
+				}
 			}
+		}
+	case map[string]any:
+		// The Claude Agent SDK reports modelUsage as a record keyed by model
+		// name. Pick the largest window so the session's main model wins over
+		// smaller subagent models; map iteration order is random, so a
+		// first-match scan would be non-deterministic.
+		var best int64
+		for _, item := range modelUsage {
+			if candidate, ok := item.(map[string]any); ok {
+				if total := claudeSDKContextWindowTokens(candidate); total > best {
+					best = total
+				}
+			}
+		}
+		if best > 0 {
+			return best
 		}
 	}
 	return 0

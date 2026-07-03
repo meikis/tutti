@@ -332,9 +332,9 @@ export class SessionRuntime {
     });
     await this.ensureQuery({ initialize: true });
     await this.applyPendingFlagSettings();
-    if (this.restore) {
-      await this.emitContextUsageSnapshot("");
-    }
+    // Snapshot for new sessions too, so the daemon knows the real context
+    // window before the first turn's result instead of assuming a default.
+    await this.emitContextUsageSnapshot("");
     emit({
       type: "session_started",
       payload: {
@@ -3361,7 +3361,20 @@ function contextWindowTokensFromModelUsage(value: unknown): number {
       return tokens;
     }
   }
-  return 0;
+  // The SDK reports modelUsage as Record<modelName, ModelUsage>; the window
+  // lives one level down. Take the largest so the session's main model wins
+  // over smaller subagent models.
+  let best = 0;
+  for (const item of Object.values(record)) {
+    if (typeof item !== "object" || item === null) {
+      continue;
+    }
+    const tokens = contextWindowTokensFromModelUsage(item);
+    if (tokens > best) {
+      best = tokens;
+    }
+  }
+  return best;
 }
 
 function isCompactCommandPrompt(value: string): boolean {

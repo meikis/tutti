@@ -1754,6 +1754,51 @@ func TestClaudeCodeSDKAdapterMapsUsageUpdatedIntoRuntimeContext(t *testing.T) {
 	}
 }
 
+func TestClaudeCodeSDKAdapterUsageUpdatedReadsModelUsageContextWindow(t *testing.T) {
+	adapter := NewClaudeCodeSDKAdapter(nil)
+	session := standardTestSession(ProviderClaudeCode)
+	adapterSession := &claudeSDKAdapterSession{liveState: newClaudeSDKLiveState()}
+	adapter.storeSession(session.AgentSessionID, adapterSession)
+
+	events, terminal, err := adapter.sidecarTurnEvents(adapterSession, session, "turn-1", claudeSDKSidecarEvent{
+		Type: "usage_updated",
+		Payload: map[string]any{
+			"turnId": "turn-1",
+			"usage": map[string]any{
+				"input_tokens":                100,
+				"output_tokens":               20,
+				"cache_read_input_tokens":     7,
+				"cache_creation_input_tokens": 3,
+			},
+			// The Claude Agent SDK reports modelUsage as a record keyed by
+			// model name; contextWindow inside each entry is the model's
+			// real context window.
+			"modelUsage": map[string]any{
+				"claude-opus-4-6[1m]": map[string]any{
+					"inputTokens":   100,
+					"outputTokens":  20,
+					"contextWindow": 1_000_000,
+				},
+			},
+		},
+	})
+	if err != nil || terminal {
+		t.Fatalf("usage_updated terminal=%v err=%v", terminal, err)
+	}
+	if len(events) != 1 || events[0].Type != activityshared.EventSessionUpdated {
+		t.Fatalf("usage events = %#v, want session.updated", events)
+	}
+	state := adapter.SessionState(session)
+	usage, _ := state.RuntimeContext["usage"].(map[string]any)
+	contextWindow, _ := usage["contextWindow"].(map[string]any)
+	if got, ok := acpInt64Value(contextWindow["usedTokens"]); !ok || got != 130 {
+		t.Fatalf("usedTokens = %#v, want 130", contextWindow["usedTokens"])
+	}
+	if got, ok := acpInt64Value(contextWindow["totalTokens"]); !ok || got != 1_000_000 {
+		t.Fatalf("totalTokens = %#v, want modelUsage contextWindow", contextWindow["totalTokens"])
+	}
+}
+
 func TestClaudeCodeSDKAdapterMapsContextUsageUpdatedIntoRuntimeContext(t *testing.T) {
 	adapter := NewClaudeCodeSDKAdapter(nil)
 	session := standardTestSession(ProviderClaudeCode)

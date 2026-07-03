@@ -2430,6 +2430,163 @@ function userTaskNotification(taskId: string, toolUseId: string): SDKMessage {
   } as unknown as SDKMessage;
 }
 
+test("result modelUsage record supplies context window denominator", async () => {
+  const events: Array<{ type: string; payload?: Record<string, unknown> }> = [];
+  const restoreSink = withSidecarEventSinkForTest((event) =>
+    events.push(event)
+  );
+  try {
+    const session = new SessionRuntime(
+      "provider-session-1",
+      "/repo",
+      {},
+      false,
+      false,
+      {
+        model: "",
+        permissionModeId: "default",
+        planMode: false,
+        effort: "",
+        speed: ""
+      },
+      sidecarClaudeOptionsFromPayload({}),
+      undefined,
+      ({ prompt }) =>
+        fakeContextUsageQuery(prompt, {
+          contextUsage: { totalTokens: 12_345, maxTokens: 200_000 },
+          resultExtras: {
+            usage: { input_tokens: 100, output_tokens: 20 },
+            modelUsage: {
+              "claude-opus-4-6[1m]": {
+                inputTokens: 100,
+                outputTokens: 20,
+                cacheReadInputTokens: 0,
+                cacheCreationInputTokens: 0,
+                webSearchRequests: 0,
+                costUSD: 0.5,
+                contextWindow: 1_000_000,
+                maxOutputTokens: 32_000
+              }
+            }
+          }
+        })
+    );
+
+    await session.start();
+    session.exec("turn-1", "hello");
+    await waitForEvent(events, "turn_completed");
+
+    const snapshots = events
+      .map((event) =>
+        event.type === "usage_updated"
+          ? (event.payload?.contextWindow as
+              | Record<string, unknown>
+              | undefined)
+          : undefined
+      )
+      .filter(
+        (contextWindow): contextWindow is Record<string, unknown> =>
+          contextWindow !== undefined
+      );
+    const totals = snapshots.map((contextWindow) => contextWindow.totalTokens);
+    assert.ok(totals.length > 0, "expected context window snapshots");
+    assert.equal(
+      totals[totals.length - 1],
+      1_000_000,
+      `context window totals ${JSON.stringify(totals)} should end with the modelUsage contextWindow, not getContextUsage maxTokens`
+    );
+  } finally {
+    restoreSink();
+  }
+});
+
+test("session start emits context usage snapshot for new sessions", async () => {
+  const events: Array<{ type: string; payload?: Record<string, unknown> }> = [];
+  const restoreSink = withSidecarEventSinkForTest((event) =>
+    events.push(event)
+  );
+  try {
+    const session = new SessionRuntime(
+      "provider-session-1",
+      "/repo",
+      {},
+      false,
+      false,
+      {
+        model: "",
+        permissionModeId: "default",
+        planMode: false,
+        effort: "",
+        speed: ""
+      },
+      sidecarClaudeOptionsFromPayload({}),
+      undefined,
+      ({ prompt }) =>
+        fakeContextUsageQuery(prompt, {
+          contextUsage: { totalTokens: 4_200, maxTokens: 1_000_000 }
+        })
+    );
+
+    await session.start();
+
+    const usage = events.find((event) => event.type === "usage_updated");
+    const contextWindow = usage?.payload?.contextWindow as
+      | Record<string, unknown>
+      | undefined;
+    assert.equal(contextWindow?.usedTokens, 4_200);
+    assert.equal(contextWindow?.totalTokens, 1_000_000);
+    const startedIndex = events.findIndex(
+      (event) => event.type === "session_started"
+    );
+    const usageIndex = events.findIndex(
+      (event) => event.type === "usage_updated"
+    );
+    assert.ok(
+      usageIndex !== -1 && usageIndex < startedIndex,
+      "usage snapshot should precede session_started"
+    );
+  } finally {
+    restoreSink();
+  }
+});
+
+function fakeContextUsageQuery(
+  prompt: AsyncIterable<SDKUserMessage>,
+  options: {
+    contextUsage: Record<string, unknown>;
+    resultExtras?: Record<string, unknown>;
+  }
+): AsyncIterable<SDKMessage> & {
+  getContextUsage: () => Promise<unknown>;
+  close: () => void;
+} {
+  return {
+    async *[Symbol.asyncIterator]() {
+      const firstPrompt = await prompt[Symbol.asyncIterator]().next();
+      if (firstPrompt.done) {
+        return;
+      }
+      const promptMessage = firstPrompt.value as SDKUserMessage & {
+        uuid?: string;
+      };
+      yield {
+        ...promptMessage,
+        uuid: promptMessage.uuid,
+        type: "user",
+        parent_tool_use_id: null,
+        session_id: "provider-session-1"
+      } as SDKMessage;
+      yield {
+        type: "result",
+        subtype: "success",
+        ...(options.resultExtras ?? {})
+      } as unknown as SDKMessage;
+    },
+    getContextUsage: async () => options.contextUsage,
+    close() {}
+  };
+}
+
 async function waitForEvent(
   events: Array<{ type: string }>,
   type: string
