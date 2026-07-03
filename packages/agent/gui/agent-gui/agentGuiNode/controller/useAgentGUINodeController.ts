@@ -454,6 +454,17 @@ function sanitizeComposerSettingsForOptions(
   };
 }
 
+function sanitizeComposerSettingsForTarget(input: {
+  settings: AgentSessionComposerSettings;
+  target: AgentGUIComposerTargetData;
+  options: AgentActivityComposerOptions | null;
+}): AgentSessionComposerSettings {
+  if (!input.target.agentTargetId) {
+    return input.settings;
+  }
+  return sanitizeComposerSettingsForOptions(input.settings, input.options);
+}
+
 function agentGUIProviderTargetsEqual(
   left: AgentGUIProviderTarget,
   right: AgentGUIProviderTarget
@@ -6982,20 +6993,17 @@ export function useAgentGUINodeController({
           defaultReasoningEffort,
           drafts: draftSettingsBySessionIdRef.current
         });
-        const snapshotComposerOptions =
-          (agentTargetId
-            ? agentActivityRuntime.getSnapshot(workspaceId)
-                .composerOptionsByAgentTargetId?.[agentTargetId]
-            : null) ??
-          agentActivityRuntime.getSnapshot(workspaceId)
-            .composerOptionsByProvider?.[provider] ??
-          null;
-        const targetSafeInitialNodeSettings = agentTargetId
-          ? sanitizeComposerSettingsForOptions(
-              initialNodeSettings,
-              snapshotComposerOptions
-            )
-          : initialNodeSettings;
+        const snapshotComposerOptions = composerOptionsForTarget({
+          snapshot: agentActivityRuntime.getSnapshot(workspaceId),
+          target: targetData
+        });
+        const targetSafeInitialNodeSettings = sanitizeComposerSettingsForTarget(
+          {
+            settings: initialNodeSettings,
+            target: targetData,
+            options: snapshotComposerOptions
+          }
+        );
         const initialSettings = resolveEffectiveComposerSettings({
           settings: targetSafeInitialNodeSettings
         });
@@ -7025,12 +7033,12 @@ export function useAgentGUINodeController({
           inheritedModel === null
             ? initialSettings
             : { ...initialSettings, model: inheritedModel };
-        const targetSafeEffectiveInitialSettings = agentTargetId
-          ? sanitizeComposerSettingsForOptions(
-              effectiveInitialSettings,
-              snapshotComposerOptions
-            )
-          : effectiveInitialSettings;
+        const targetSafeEffectiveInitialSettings =
+          sanitizeComposerSettingsForTarget({
+            settings: effectiveInitialSettings,
+            target: targetData,
+            options: snapshotComposerOptions
+          });
         const snapshotDraftAgentSessionId =
           normalizedInitialContent.length > 0 && provider === "claude-code"
             ? draftAgentSessionIdFromComposerOptions(snapshotComposerOptions)
@@ -8651,9 +8659,11 @@ export function useAgentGUINodeController({
           snapshot: agentActivityRuntime.getSnapshot(workspaceId),
           target: targetData
         });
-        const targetSafeMerged = targetData.agentTargetId
-          ? sanitizeComposerSettingsForOptions(merged, snapshotComposerOptions)
-          : merged;
+        const targetSafeMerged = sanitizeComposerSettingsForTarget({
+          settings: merged,
+          target: targetData,
+          options: snapshotComposerOptions
+        });
         draftSettingsBySessionIdRef.current = {
           ...draftSettingsBySessionIdRef.current,
           [defaultDraftKey]: targetSafeMerged
@@ -9922,11 +9932,12 @@ export function useAgentGUINodeController({
     })
   );
   const targetSafeNodeDefaultSettings = useStableComposerSettings(
-    activeConversationId === null && selectedComposerTargetData.agentTargetId
-      ? sanitizeComposerSettingsForOptions(
-          storedNodeDefaultSettings,
-          providerComposerOptions
-        )
+    activeConversationId === null
+      ? sanitizeComposerSettingsForTarget({
+          settings: storedNodeDefaultSettings,
+          target: selectedComposerTargetData,
+          options: providerComposerOptions
+        })
       : storedNodeDefaultSettings
   );
   const homeComposerSettings = useStableComposerSettings(
