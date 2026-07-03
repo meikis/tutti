@@ -1286,6 +1286,20 @@ describe("agent GUI workbench contribution copy", () => {
     );
   });
 
+  it("includes the transcript message locator styles in the package stylesheet", () => {
+    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
+
+    expect(css).toMatch(
+      /\.agent-gui-message-locator\s*{[^}]*position:\s*sticky;[^}]*pointer-events:\s*none;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-message-locator__tick\s*{[^}]*position:\s*absolute;[^}]*pointer-events:\s*auto;/s
+    );
+    expect(css).toMatch(
+      /\.agent-gui-message-locator__panel\s*{[^}]*box-shadow:\s*var\(--shadow-panel\);/s
+    );
+  });
+
   it("keeps zoom image modal zoom controls aligned with action buttons", () => {
     const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
 
