@@ -8134,6 +8134,28 @@ export function useAgentGUINodeController({
     [previewMode, submitExistingPrompt]
   );
 
+  // Edit drops "/goal <objective>" into the composer draft so the user can
+  // adjust the objective and resubmit; it does not touch the running goal.
+  const editGoalCommand = useCallback(
+    (objective: string) => {
+      if (previewMode) {
+        return;
+      }
+      const agentSessionId = activeConversationIdRef.current;
+      if (!agentSessionId) {
+        return;
+      }
+      setDraftBySessionId((current) => ({
+        ...current,
+        [agentSessionId]: {
+          ...emptyAgentComposerDraft(),
+          prompt: `/goal ${objective.trim()}`.trimEnd()
+        }
+      }));
+    },
+    [previewMode]
+  );
+
   const submitPrompt = useCallback(
     (content: AgentPromptContentBlock[], displayPrompt?: string) => {
       if (previewMode) {
@@ -10577,6 +10599,8 @@ export function useAgentGUINodeController({
   const stableSubmitPrompt = useStableControllerEventCallback(submitPrompt);
   const stableSubmitGoalCommand =
     useStableControllerEventCallback(submitGoalCommand);
+  const stableEditGoalCommand =
+    useStableControllerEventCallback(editGoalCommand);
   const stableSubmitGuidancePrompt =
     useStableControllerEventCallback(submitGuidancePrompt);
   const stableShowPromptImagesUnsupported = useStableControllerEventCallback(
@@ -10650,6 +10674,7 @@ export function useAgentGUINodeController({
       selectConversation: stableSelectConversation,
       submitPrompt: stableSubmitPrompt,
       submitGoalCommand: stableSubmitGoalCommand,
+      editGoalCommand: stableEditGoalCommand,
       submitGuidancePrompt: stableSubmitGuidancePrompt,
       loadOlderConversationMessages: stableLoadOlderConversationMessages,
       showPromptImagesUnsupported: stableShowPromptImagesUnsupported,
@@ -10704,6 +10729,7 @@ export function useAgentGUINodeController({
       stableSubmitInteractivePrompt,
       stableSubmitPrompt,
       stableSubmitGoalCommand,
+      stableEditGoalCommand,
       stableToggleConversationPinned,
       stableUpdateConversationFilter,
       stableUpdateComposerSettings,
