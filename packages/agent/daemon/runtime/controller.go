@@ -1584,13 +1584,12 @@ func (c *Controller) Cancel(ctx context.Context, input CancelInput) (CancelResul
 			return CancelResult{}, err
 		}
 		if len(events) > 0 {
-			session = applySessionEvents(session, events)
-			if shouldAdvanceSessionUpdatedAtFromEvents(events) {
-				session.UpdatedAtUnixMS = unixMS(now())
-			}
-			c.store(session)
-			c.publish(session, events)
-			c.enqueueSessionReport(ctx, session, events)
+			// Apply to the CURRENT stored session (atomic read-apply-store):
+			// the turn may have settled and stored a newer session while
+			// adapter.Cancel blocked; applying to this call's pre-cancel
+			// snapshot would resurrect the working/running state and wedge
+			// the GUI in a permanent spinner.
+			c.applySessionEventsByAgentSessionID(session.AgentSessionID, events)
 			slog.Info("agent session cancel reconciled runtime work without a turn record",
 				"event", "agent_session.cancel.reconciled",
 				"room_id", session.RoomID,
@@ -1628,13 +1627,11 @@ func (c *Controller) Cancel(ctx context.Context, input CancelInput) (CancelResul
 		return CancelResult{}, err
 	}
 	if len(events) > 0 {
-		session = applySessionEvents(session, events)
-		if shouldAdvanceSessionUpdatedAtFromEvents(events) {
-			session.UpdatedAtUnixMS = unixMS(now())
-		}
-		c.store(session)
-		c.publish(session, events)
-		c.enqueueSessionReport(ctx, session, events)
+		// interruptActiveTurn returns only after the turn actually settled,
+		// so the turn's terminal store always lands during adapter.Cancel;
+		// apply these events to the CURRENT stored session instead of this
+		// call's pre-cancel snapshot (which would resurrect working state).
+		c.applySessionEventsByAgentSessionID(session.AgentSessionID, events)
 	}
 	slog.Info("agent session cancel accepted",
 		"event", "agent_session.cancel.accepted",

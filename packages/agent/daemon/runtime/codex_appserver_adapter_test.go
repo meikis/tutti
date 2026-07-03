@@ -2764,6 +2764,69 @@ func TestControllerExecGoalControlWhileTurnActive(t *testing.T) {
 	transport.conn.completePendingTurn()
 }
 
+// Stop during a goal run: adapter.Cancel returns goal-pause events AFTER the
+// interrupted turn already settled and stored the canceled session. Those
+// events must apply to the CURRENT stored session — applying them to the
+// pre-cancel snapshot would resurrect the working state and wedge the GUI in
+// a permanent spinner (stop button dead, prompts queued forever).
+func TestControllerCancelDuringGoalKeepsSettledState(t *testing.T) {
+	t.Parallel()
+
+	transport := newScriptedAppServerTransport()
+	transport.conn.holdTurn = true
+	adapter := NewCodexAppServerAdapter(transport)
+	controller := NewController([]Adapter{adapter}, nil)
+	started, err := controller.Start(context.Background(), StartInput{
+		RoomID:   "room-1",
+		Provider: ProviderCodex,
+		CWD:      "/workspace",
+		Title:    "Codex",
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	agentSessionID := started.Session.AgentSessionID
+	adapter.applyGoalUpdate(agentSessionID, map[string]any{
+		"objective": "ship it",
+		"status":    "active",
+	})
+
+	if _, err := controller.Exec(context.Background(), ExecInput{
+		RoomID:         "room-1",
+		AgentSessionID: agentSessionID,
+		Content:        textPrompt("long task"),
+	}); err != nil {
+		t.Fatalf("Exec long task: %v", err)
+	}
+	waitForCondition(t, func() bool {
+		return adapter.sessionActiveTurnID(agentSessionID) == "turn-1"
+	})
+
+	if _, err := controller.Cancel(context.Background(), CancelInput{
+		RoomID:         "room-1",
+		AgentSessionID: agentSessionID,
+		Reason:         "user requested",
+	}); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	if status := asString(adapter.sessionGoal(agentSessionID)["status"]); status != "paused" {
+		t.Fatalf("goal status after stop = %q, want paused", status)
+	}
+	waitForCondition(t, func() bool {
+		session, ok := controller.get("room-1", agentSessionID)
+		return ok &&
+			session.Status != SessionStatusWorking &&
+			session.TurnLifecycle != nil &&
+			session.TurnLifecycle.Phase == "settled"
+	})
+	// The settled state must STAY settled: the cancel's trailing goal events
+	// must not resurrect the pre-cancel working snapshot.
+	session, ok := controller.get("room-1", agentSessionID)
+	if !ok || session.Status == SessionStatusWorking {
+		t.Fatalf("session resurrected to working after cancel: %#v", session.Status)
+	}
+}
+
 // Direct goal control (banner buttons) is a session-level operation: no
 // prompt, no turn, works whether or not a turn is running.
 func TestControllerGoalControl(t *testing.T) {
