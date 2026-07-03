@@ -239,6 +239,29 @@ describe("AgentGUINodeView layout persistence", () => {
     ).toBe("0px");
   });
 
+  it("does not reserve a provider rail grid column in single-provider scope", () => {
+    const { container } = renderAgentGUINodeView({
+      viewModel: createViewModel({
+        conversationScope: "single-provider",
+        providerTargets: [createLocalAgentGUIProviderTarget("codex")]
+      })
+    });
+
+    const layout = container.querySelector<HTMLElement>(
+      ".agent-gui-node__layout"
+    );
+
+    expect(
+      container.querySelector(".agent-gui-node__provider-rail-panel")
+    ).toBeNull();
+    expect(
+      layout?.style.getPropertyValue("--agent-gui-provider-rail-width")
+    ).toBe("0px");
+    expect(layout?.style.gridTemplateColumns).toBe(
+      "var(--agent-gui-conversation-rail-width) minmax(var(--agent-gui-detail-min-width), 1fr)"
+    );
+  });
+
   it("ignores rail pointer moves that do not come from the resize handle drag", () => {
     const onConversationRailWidthChanged = vi.fn();
 

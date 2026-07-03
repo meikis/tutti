@@ -1336,7 +1336,9 @@ export function AgentGUINodeView({
     "--agent-gui-provider-rail-width": renderProviderRail ? "52px" : "0px",
     gridTemplateColumns: conversationRailCollapsed
       ? "minmax(var(--agent-gui-detail-min-width), 1fr)"
-      : "var(--agent-gui-provider-rail-width) var(--agent-gui-conversation-rail-width) minmax(var(--agent-gui-detail-min-width), 1fr)"
+      : renderProviderRail
+        ? "var(--agent-gui-provider-rail-width) var(--agent-gui-conversation-rail-width) minmax(var(--agent-gui-detail-min-width), 1fr)"
+        : "var(--agent-gui-conversation-rail-width) minmax(var(--agent-gui-detail-min-width), 1fr)"
   } as CSSProperties;
   const effectiveRailConfigProvider =
     railConfigProvider === undefined
