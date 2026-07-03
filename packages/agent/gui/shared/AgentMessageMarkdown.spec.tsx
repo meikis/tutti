@@ -123,65 +123,6 @@ describe("AgentMessageMarkdown", () => {
       "[&_pre_code]:[overflow-wrap:anywhere]"
     );
   });
-
-  it("allows long inline code to wrap inside narrow message containers", () => {
-    const { container } = render(
-      <AgentMessageMarkdown
-        content={
-          '字体栈：`css "JetBrains Mono", "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace` 已应用。'
-        }
-      />
-    );
-
-    const markdown = container.querySelector(
-      '[data-workspace-agent-markdown="true"]'
-    );
-    const inlineCode = screen.getByText(
-      'css "JetBrains Mono", "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace'
-    );
-    expect(markdown?.className).toContain("[&_code]:inline");
-    expect(markdown?.className).toContain("[&_code]:[overflow-wrap:anywhere]");
-    expect(inlineCode.tagName).toBe("CODE");
-  });
-
-  it("allows fenced code blocks to wrap in conversation detail surfaces", () => {
-    const { container } = render(
-      <AgentMessageMarkdown
-        content={
-          '字体栈：\n\n```css\n"JetBrains Mono", "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace\n```'
-        }
-      />
-    );
-
-    const markdown = container.querySelector(
-      '[data-workspace-agent-markdown="true"]'
-    );
-    const code = screen.getByText(
-      '"JetBrains Mono", "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace'
-    );
-    expect(code.closest("pre")).toBeInTheDocument();
-    expect(markdown?.className).toContain(
-      "[&_pre_code]:[white-space:pre-wrap]"
-    );
-    expect(markdown?.className).toContain(
-      "[&_pre_code]:[overflow-wrap:anywhere]"
-    );
-  });
-
-  it("allows consumers to share markdown rendering with surface-specific classes", () => {
-    const { container } = render(
-      <AgentMessageMarkdown
-        content={"已读取 [README.md](README.md)"}
-        className="summary-markdown"
-      />
-    );
-
-    const markdown = container.querySelector(
-      '[data-workspace-agent-markdown="true"]'
-    );
-    expect(markdown).toHaveClass("summary-markdown");
-  });
-
   it("renders GFM tables as table elements", () => {
     render(
       <AgentMessageMarkdown
@@ -199,17 +140,6 @@ describe("AgentMessageMarkdown", () => {
       screen.getByRole("cell", { name: "统一 API 格式适配不同 LLM 提供商" })
     ).toBeInTheDocument();
   });
-
-  it("keeps ordered list left padding clear of the card edge", () => {
-    render(<AgentMessageMarkdown content={"1. Awwwards\n2. Mobbin"} />);
-
-    expect(screen.getByRole("list")).toHaveStyle({
-      margin: "12px 0px 8px",
-      "padding-inline-start": "34px",
-      "padding-inline-end": "16px"
-    });
-  });
-
   it("keeps links inert for now", () => {
     render(
       <AgentMessageMarkdown

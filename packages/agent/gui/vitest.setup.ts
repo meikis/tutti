@@ -44,6 +44,8 @@ if (!document.elementFromPoint) {
   document.elementFromPoint = () => document.body;
 }
 
+globalThis.Event = window.Event;
+globalThis.CustomEvent = window.CustomEvent;
 HTMLCanvasElement.prototype.getContext = () => null;
 Element.prototype.scrollIntoView = () => undefined;
 Element.prototype.scrollTo = () => undefined;

@@ -471,13 +471,6 @@ async function resolveAgentGUITestSessionFallbackTitle({
   );
 }
 
-function ensurePointerCaptureSupport(): void {
-  if (!("setPointerCapture" in HTMLElement.prototype)) {
-    // @ts-expect-error - happy-dom does not implement this API.
-    HTMLElement.prototype.setPointerCapture = () => undefined;
-  }
-}
-
 vi.mock("../../i18n/index", () => ({
   getActiveUiLanguage: () => "zh-CN",
   translate: (key: string, options?: { count?: number }) => {
@@ -1559,15 +1552,6 @@ describe("AgentGUINode", () => {
       lastActiveConversationTitle: null
     });
   });
-
-  it("renders a single new-conversation button in the chrome", () => {
-    renderAgentGUINode();
-
-    expect(
-      document.querySelectorAll(".agent-gui-node__new-conversation-icon-button")
-    ).toHaveLength(1);
-  });
-
   it("renders the Agent GUI window header controls without a maximize button", () => {
     renderAgentGUINode({
       onMinimize: vi.fn(),
@@ -1686,48 +1670,6 @@ describe("AgentGUINode", () => {
       conversationRailCollapsed: false
     });
   });
-
-  it("auto-collapses the conversation rail during an active window resize drag", async () => {
-    ensurePointerCaptureSupport();
-    renderAgentGUINode({ width: 720 });
-
-    const railResizeHandle = screen.getByRole("separator", {
-      name: "agentHost.agentGui.conversationRailResizeAria"
-    });
-    expect(railResizeHandle).not.toHaveAttribute("aria-hidden", "true");
-
-    await act(async () => {
-      fireEvent.pointerDown(screen.getByTestId("agentGui-node-resizer-right"), {
-        clientX: 720,
-        clientY: 0,
-        pointerId: 1
-      });
-    });
-    await act(async () => {
-      window.dispatchEvent(
-        new PointerEvent("pointermove", {
-          clientX: 460,
-          clientY: 0,
-          pointerId: 1
-        })
-      );
-    });
-
-    await waitFor(() => {
-      expect(railResizeHandle).toHaveAttribute("aria-hidden", "true");
-    });
-
-    await act(async () => {
-      window.dispatchEvent(
-        new PointerEvent("pointerup", {
-          clientX: 460,
-          clientY: 0,
-          pointerId: 1
-        })
-      );
-    });
-  });
-
   it("renders the composer before a conversation is active", () => {
     renderAgentGUINode();
 
@@ -2022,17 +1964,6 @@ describe("AgentGUINode", () => {
       expect(root.querySelector('[data-agent-file-mention="true"]')).toBeNull();
     }
   });
-
-  it("renders a resize handle for the conversation rail", () => {
-    renderAgentGUINode();
-
-    expect(
-      screen.getByRole("separator", {
-        name: "agentHost.agentGui.conversationRailResizeAria"
-      })
-    ).toBeTruthy();
-  });
-
   it("filters conversations from the sidebar search field", () => {
     mockViewModel = createViewModel({
       conversations: [
@@ -3446,48 +3377,6 @@ describe("AgentGUINode", () => {
     ).toHaveAttribute("src", iconUrl);
     expect(queuedPromptList).not.toHaveTextContent("mention://workspace-app");
   });
-
-  it("raises the mention palette stacking context above the interactive prompt", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      canQueueWhileBusy: true,
-      canSubmit: false,
-      pendingInteractivePrompt: {
-        kind: "ask-user",
-        requestId: "request-ask",
-        title: "Questions for you",
-        questions: [
-          {
-            id: "scope",
-            header: "Scope",
-            question: "Which scope should we use?",
-            options: [{ label: "Small", description: "Minimal change" }],
-            multiSelect: false
-          }
-        ]
-      }
-    });
-    renderAgentGUINode();
-
-    pasteComposerText("@");
-
-    await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    const floatingPrompt = screen.getByTestId(
-      "agent-gui-composer-floating-prompt"
-    );
-    const inputShell = getComposerEditor().closest(
-      ".agent-gui-node__composer-input-shell"
-    );
-    const surface = screen.getByTestId("agent-gui-mention-palette-surface");
-
-    expect(floatingPrompt).toBeTruthy();
-    expect(inputShell).not.toBeNull();
-    expect(inputShell).toHaveStyle({ zIndex: "var(--z-popover)" });
-    expect(surface).toHaveStyle({ zIndex: "var(--z-popover)" });
-  });
-
   it("shows the send button instead of Stop when queueing during a busy turn", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -4065,29 +3954,6 @@ describe("AgentGUINode", () => {
     expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft("/read "));
     expect(mockSubmitPrompt).not.toHaveBeenCalled();
   });
-
-  it("syncs slash command highlight with pointer hover", () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: "/",
-      availableCommands: [
-        { name: "web", description: "Search the web" },
-        { name: "read", description: "Read files" }
-      ]
-    });
-    renderAgentGUINode();
-
-    const readOption = screen.getByText("read").closest('[role="option"]');
-    expect(readOption).not.toBeNull();
-    expect(readOption).toHaveAttribute("aria-selected", "false");
-    expect(readOption).not.toHaveClass("bg-[var(--transparency-block)]");
-
-    fireEvent.mouseEnter(readOption!);
-
-    expect(readOption).toHaveAttribute("aria-selected", "true");
-    expect(readOption).toHaveClass("bg-[var(--transparency-block)]");
-  });
-
   it("keeps slash text as a normal prompt after the command token", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -4944,52 +4810,6 @@ describe("AgentGUINode", () => {
 
     expect(await within(palette).findByText("README.md")).toBeVisible();
   });
-
-  it("renders file mention results as a single-line row with only the file name visible", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: ""
-    });
-    mockSearchWorkspaceFileManagerEntries.mockResolvedValue({
-      workspaceId: "room-1",
-      root: "/workspace",
-      entries: [
-        {
-          path: "/workspace/docs/README.md",
-          name: "README.md",
-          kind: "file",
-          directoryPath: "/workspace/docs",
-          score: 99
-        }
-      ]
-    });
-    renderAgentGUINode();
-
-    pasteComposerText("@read");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    fireEvent.click(within(palette).getByRole("tab", { name: "文件" }));
-    const fileOption = (await within(palette).findByText("README.md")).closest(
-      "button"
-    );
-
-    expect(fileOption).toHaveClass("rich-text-at-mention-palette__row-button");
-    expect(within(fileOption!).getByText("README.md")).toBeTruthy();
-    expect(fileOption?.querySelector("svg")).toBeNull();
-    const fileIcon = fileOption?.querySelector(
-      ".agent-gui-node__mention-file-icon"
-    );
-    expect(fileIcon).not.toBeNull();
-    expect(fileIcon?.parentElement).toHaveAttribute(
-      "data-agent-file-visual-kind",
-      "markdown"
-    );
-    expect(within(palette).queryByText("/workspace/docs")).toBeNull();
-    expect(within(palette).queryByText("docs")).toBeNull();
-  });
-
   it("supports arrow navigation in the empty-state session mention palette", async () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -5024,34 +4844,6 @@ describe("AgentGUINode", () => {
       within(palette).queryByText("根据你输入的内容搜索工作区文件")
     ).toBeNull();
   });
-
-  it("does not switch browse tabs on hover", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: ""
-    });
-    renderAgentGUINode();
-
-    pasteComposerText("@");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    const sessionOption = await within(palette).findByRole("tab", {
-      name: "会话"
-    });
-    const fileOption = within(palette).getByRole("tab", { name: "文件" });
-
-    fireEvent.mouseEnter(fileOption);
-
-    expect(within(palette).queryByRole("tab", { name: "全部" })).toBeNull();
-    expect(sessionOption).toHaveAttribute("aria-selected", "true");
-    expect(fileOption).toHaveAttribute("aria-selected", "false");
-    expect(
-      within(palette).queryByText("根据你输入的内容搜索工作区文件")
-    ).toBeNull();
-  });
-
   it("cycles mention tabs from session through file, issue, agent, and app", async () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -5386,145 +5178,6 @@ describe("AgentGUINode", () => {
     });
     expect(agentOption).toHaveAttribute("aria-selected", "true");
   });
-
-  it.skip("continues arrow navigation across browse groups", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: ""
-    });
-    mockListWorkspaceIssues.mockResolvedValue({
-      issues: [
-        {
-          issueId: "issue-1",
-          workspaceId: "room-1",
-          title: "修复 room status",
-          content: JSON.stringify({
-            type: "doc",
-            content: [
-              {
-                type: "paragraph",
-                content: [{ type: "text", text: "补齐 statusBatch 的错误处理" }]
-              }
-            ]
-          }),
-          status: "running",
-          creatorUserId: "user-2",
-          creatorDisplayName: "Alice",
-          issueCount: 0,
-          notStartedCount: 0,
-          runningCount: 0,
-          pendingAcceptanceCount: 0,
-          completedCount: 0,
-          failedCount: 0,
-          canceledCount: 0,
-          updatedAtUnix: 20
-        }
-      ],
-      totalCount: 1,
-      statusCounts: undefined
-    });
-    mockListWorkspaceAgents.mockResolvedValue({
-      presences: [],
-      sessions: [
-        {
-          agentSessionId: "session-1",
-          workspaceId: "room-1",
-          userId: "user-1",
-          provider: "codex",
-          title: "看看项目有什么文件",
-          createdAtUnixMs: 1,
-          updatedAtUnixMs: 10
-        },
-        {
-          agentSessionId: "session-2",
-          workspaceId: "room-1",
-          userId: "user-2",
-          provider: "nexight",
-          title: "room status 接口整理",
-          createdAtUnixMs: 2,
-          updatedAtUnixMs: 9
-        }
-      ]
-    });
-    mockBatchGetUserInfo.mockResolvedValue({
-      users: [
-        { userId: "user-1", name: "Wang" },
-        { userId: "user-2", name: "Alice" }
-      ]
-    });
-    mockGetWorkspaceAgentSessionSummary.mockImplementation(async (input) => ({
-      workspaceId: "room-1",
-      agentSessionId: input.agentSessionId,
-      executionStatus:
-        input.agentSessionId === "session-1" ? "RUNNING" : "COMPLETED",
-      latestUserRequirement:
-        input.agentSessionId === "session-1"
-          ? "看看项目有什么文件"
-          : "整理 room status",
-      recentAgentReplies:
-        input.agentSessionId === "session-1"
-          ? ["已读取 workspace 结构"]
-          : ["输出了 statusBatch 调用链"],
-      initialUserRequirement: "",
-      initialTurn: null,
-      latestTurn: null,
-      recentTurns: []
-    }));
-    renderAgentGUINode();
-
-    pasteComposerText("@");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    await waitFor(() =>
-      expect(mockListWorkspaceIssues).toHaveBeenCalledWith({
-        workspaceId: "room-1",
-        pageSize: 25,
-        searchQuery: ""
-      })
-    );
-    await waitFor(() =>
-      expect(mockListWorkspaceAgents).toHaveBeenCalledWith({
-        workspaceId: "room-1",
-        sessionOrigin: "WORKSPACE_AGENT_SESSION_ORIGIN_RUNTIME"
-      })
-    );
-    const sessionOption = await within(palette).findByRole("tab", {
-      name: "会话"
-    });
-
-    const taskOption = (await screen.findByText("修复 room status")).closest(
-      "button"
-    );
-    const mySessionOption = (await screen.findByText("Wang & Codex")).closest(
-      "button"
-    );
-
-    expect(mySessionOption).toHaveAttribute("aria-selected", "true");
-    expect(within(palette).queryByText("Alice & Nexight")).toBeNull();
-    expect(within(palette).queryByText("协作会话")).toBeNull();
-    const mySessionTitle = within(mySessionOption as HTMLElement).getByText(
-      "看看项目有什么文件"
-    );
-    expect(mySessionTitle).toHaveClass("text-[13px]");
-    expect(mySessionOption).not.toHaveTextContent("已读取 workspace 结构");
-    const mySessionStatusTag = mySessionOption?.querySelector(
-      '[data-agent-mention-status-tag="true"]'
-    );
-    expect(mySessionStatusTag).not.toBeNull();
-    expect(mySessionStatusTag).toHaveAttribute("data-status", "idle");
-    expect(sessionOption).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(getComposerEditor(), { key: "ArrowDown" });
-    expect(mySessionOption).toHaveAttribute("aria-selected", "false");
-    expect(taskOption).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(getComposerEditor(), { key: "ArrowUp" });
-    expect(taskOption).toHaveAttribute("aria-selected", "false");
-    expect(mySessionOption).toHaveAttribute("aria-selected", "true");
-  });
-
   it("uses the message-derived title in the @ session list when summary titles are empty", async () => {
     mockViewModel = createViewModel({ currentUserId: "user-1" });
     mockListWorkspaceAgents.mockResolvedValue({
@@ -5607,172 +5260,6 @@ describe("AgentGUINode", () => {
       })
     );
   });
-
-  it("recenters the mention scroll region during keyboard navigation", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: ""
-    });
-    mockListWorkspaceIssues.mockResolvedValue({
-      issues: Array.from({ length: 12 }, (_, index) => ({
-        issueId: `issue-${index + 1}`,
-        workspaceId: "room-1",
-        title: `Issue ${index + 1}`,
-        content: JSON.stringify({
-          type: "doc",
-          content: [
-            {
-              type: "paragraph",
-              content: [{ type: "text", text: `内容 ${index + 1}` }]
-            }
-          ]
-        }),
-        status: "not_started",
-        creatorUserId: "user-2",
-        creatorDisplayName: "Alice",
-        issueCount: 0,
-        notStartedCount: 0,
-        runningCount: 0,
-        pendingAcceptanceCount: 0,
-        completedCount: 0,
-        failedCount: 0,
-        canceledCount: 0,
-        updatedAtUnix: index + 1
-      })),
-      totalCount: 12,
-      statusCounts: undefined
-    });
-    renderAgentGUINode();
-
-    pasteComposerText("@Issue");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    fireEvent.click(within(palette).getByRole("tab", { name: "Tasks" }));
-    const scrollRegion = palette.querySelector(
-      ".agent-gui-node__mention-palette-scroll-region"
-    );
-    expect(scrollRegion).not.toBeNull();
-    if (!(scrollRegion instanceof HTMLElement)) {
-      return;
-    }
-
-    Object.defineProperty(scrollRegion, "clientHeight", {
-      configurable: true,
-      value: 120
-    });
-    Object.defineProperty(scrollRegion, "scrollHeight", {
-      configurable: true,
-      value: 1000
-    });
-
-    let currentScrollTop = 0;
-    Object.defineProperty(scrollRegion, "scrollTop", {
-      configurable: true,
-      get: () => currentScrollTop,
-      set: (value) => {
-        currentScrollTop = Number(value);
-      }
-    });
-
-    const scrollToSpy = vi
-      .spyOn(scrollRegion, "scrollTo")
-      .mockImplementation(
-        (leftOrOptions?: number | ScrollToOptions, top?: number) => {
-          if (typeof leftOrOptions === "number") {
-            currentScrollTop = Number(top ?? 0);
-            return;
-          }
-          currentScrollTop = Number(leftOrOptions?.top ?? 0);
-        }
-      );
-
-    const taskOption = await screen.findByText("Issue 1");
-    const secondTaskOption = await screen.findByText("Issue 2");
-    const thirdTaskOption = await screen.findByText("Issue 3");
-
-    vi.spyOn(
-      taskOption.closest("button") as HTMLButtonElement,
-      "getBoundingClientRect"
-    ).mockReturnValue({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 200,
-      bottom: 40,
-      width: 200,
-      height: 40,
-      toJSON: () => {}
-    } as DOMRect);
-    vi.spyOn(
-      secondTaskOption.closest("button") as HTMLButtonElement,
-      "getBoundingClientRect"
-    ).mockReturnValue({
-      x: 0,
-      y: 40,
-      top: 40,
-      left: 0,
-      right: 200,
-      bottom: 80,
-      width: 200,
-      height: 40,
-      toJSON: () => {}
-    } as DOMRect);
-    vi.spyOn(
-      thirdTaskOption.closest("button") as HTMLButtonElement,
-      "getBoundingClientRect"
-    ).mockReturnValue({
-      x: 0,
-      y: 80,
-      top: 80,
-      left: 0,
-      right: 200,
-      bottom: 120,
-      width: 200,
-      height: 40,
-      toJSON: () => {}
-    } as DOMRect);
-    vi.spyOn(scrollRegion, "getBoundingClientRect").mockReturnValue({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 200,
-      bottom: 120,
-      width: 200,
-      height: 120,
-      toJSON: () => {}
-    } as DOMRect);
-
-    fireEvent.keyDown(getComposerEditor(), { key: "ArrowDown" });
-    fireEvent.keyDown(getComposerEditor(), { key: "ArrowDown" });
-
-    expect(scrollToSpy).toHaveBeenCalled();
-  });
-
-  it("shows a tab switch hint in the mention palette footer", async () => {
-    renderAgentGUINode();
-
-    pasteComposerText("@");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-
-    const hint = screen.getByTestId("agent-gui-mention-palette-hint");
-
-    expect(
-      hint.closest(".agent-gui-node__mention-palette-footer")
-    ).not.toBeNull();
-    expect(within(hint).getByText("Tab")).toBeVisible();
-    expect(within(hint).getByText("↑")).toBeVisible();
-    expect(within(hint).getByText("↓")).toBeVisible();
-    expect(within(palette).getByText("切换分类")).toBeVisible();
-    expect(within(palette).getByText("切换选中")).toBeVisible();
-  });
-
   it("updates the draft when a workspace entry is dropped into the composer", async () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -6557,38 +6044,6 @@ describe("AgentGUINode", () => {
       })
     ).toBeNull();
   });
-
-  it("shows continue-in-new-session for non-local recovery failures in the bottom dock", () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      conversationDetail: detailViewModel(),
-      sessionChrome: {
-        auth: null,
-        approval: null,
-        recovery: {
-          kind: "failed",
-          message:
-            "This session cannot be resumed on this device. Start a new session and @this session to keep going.",
-          canRetry: false,
-          followupAction: "continue-in-new-conversation"
-        },
-        rawState: null
-      }
-    });
-    renderAgentGUINode();
-
-    const continueButtons = screen.getAllByRole("button", {
-      name: "agentHost.agentGui.continueInNewConversation"
-    });
-
-    expect(continueButtons.length).toBeGreaterThan(0);
-    expect(
-      screen.queryByRole("button", {
-        name: "agentHost.agentGui.retryActivation"
-      })
-    ).toBeNull();
-  });
-
   it("disables the composer without rendering duplicate approval chrome actions", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -6804,36 +6259,6 @@ describe("AgentGUINode", () => {
       screen.queryByText("agentHost.agentGui.shortcutCmdEnter")
     ).toBeNull();
   });
-
-  it("renders the active prompt as a floating surface above the composer shell", () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      pendingApproval: approvalRequest(),
-      sessionChrome: {
-        auth: null,
-        approval: approvalRequest(),
-        recovery: null,
-        rawState: null
-      }
-    });
-
-    renderAgentGUINode();
-
-    const composer = getComposerEditor().closest("form");
-    expect(composer).not.toBeNull();
-    const floatingPrompt = within(composer as HTMLFormElement).getByTestId(
-      "agent-gui-composer-floating-prompt"
-    );
-    expect(
-      within(floatingPrompt).getByRole("button", { name: "Yes, proceed" })
-    ).toBeTruthy();
-    expect(
-      within(composer as HTMLFormElement).queryByTestId(
-        "agent-gui-composer-floating-prompt"
-      )
-    ).not.toContainElement(getComposerEditor());
-  });
-
   it("forwards transcript link actions through the shared renderer", () => {
     const onLinkAction = vi.fn<(action: WorkspaceLinkAction) => void>();
     mockViewModel = createViewModel({

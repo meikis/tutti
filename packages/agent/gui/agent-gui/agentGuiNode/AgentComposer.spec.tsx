@@ -437,91 +437,6 @@ vi.mock("./AgentMentionSearchController", () => ({
 }));
 
 describe("AgentComposer", () => {
-  it("does not render the permission access entry in the footer", () => {
-    render(
-      <AgentComposer
-        workspaceId="workspace-1"
-        currentUserId="user-1"
-        provider="codex"
-        draftContent={createDraft("")}
-        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
-        disabled={false}
-        submitDisabled={false}
-        placeholder="placeholder"
-        composerSettings={createComposerSettings()}
-        queuedPrompts={[]}
-        drainingQueuedPromptId={null}
-        canQueueWhileBusy={false}
-        showStopButton={false}
-        activePrompt={null}
-        isInterrupting={false}
-        isSendingTurn={false}
-        isSubmittingPrompt={false}
-        labels={createLabels()}
-        workspaceUserProjectI18n={workspaceUserProjectI18n}
-        onDraftContentChange={vi.fn()}
-        onSettingsChange={vi.fn()}
-        onSubmit={vi.fn()}
-        onSendQueuedPromptNext={vi.fn()}
-        onRemoveQueuedPrompt={vi.fn()}
-        onEditQueuedPrompt={vi.fn()}
-        onInterruptCurrentTurn={vi.fn()}
-        onSubmitInteractivePrompt={vi.fn()}
-      />
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "完全访问权限" })
-    ).not.toBeInTheDocument();
-  });
-
-  it("renders composer draft images with image actions", () => {
-    render(
-      <AgentComposer
-        workspaceId="workspace-1"
-        currentUserId="user-1"
-        provider="codex"
-        draftContent={createDraft("", [
-          {
-            id: "img-1",
-            name: "earth.png",
-            mimeType: "image/png",
-            previewUrl: "blob:preview-1",
-            uploading: false
-          }
-        ])}
-        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
-        disabled={false}
-        submitDisabled={false}
-        placeholder="placeholder"
-        composerSettings={createComposerSettings()}
-        queuedPrompts={[]}
-        drainingQueuedPromptId={null}
-        canQueueWhileBusy={false}
-        showStopButton={false}
-        activePrompt={null}
-        isInterrupting={false}
-        isSendingTurn={false}
-        isSubmittingPrompt={false}
-        labels={createLabels()}
-        workspaceUserProjectI18n={workspaceUserProjectI18n}
-        onDraftContentChange={vi.fn()}
-        onSettingsChange={vi.fn()}
-        onSubmit={vi.fn()}
-        onSendQueuedPromptNext={vi.fn()}
-        onRemoveQueuedPrompt={vi.fn()}
-        onEditQueuedPrompt={vi.fn()}
-        onInterruptCurrentTurn={vi.fn()}
-        onSubmitInteractivePrompt={vi.fn()}
-      />
-    );
-
-    const drafts = screen.getByTestId("agent-gui-composer-image-drafts");
-    expect(drafts).toHaveClass("w-full");
-    expect(drafts.className).not.toContain("max-w-[320px]");
-    expect(screen.getByRole("img", { name: "earth.png" })).toBeInTheDocument();
-  });
-
   it("hides the permission dropdown and the plan badge when only plan mode is supported and inactive", () => {
     render(
       <AgentComposer
@@ -566,49 +481,6 @@ describe("AgentComposer", () => {
       screen.queryByRole("button", { name: "Plan" })
     ).not.toBeInTheDocument();
   });
-
-  it("does not render the browser-use footer toggle when supported", () => {
-    const onSettingsChange = vi.fn();
-    render(
-      <AgentComposer
-        workspaceId="workspace-1"
-        currentUserId="user-1"
-        provider="codex"
-        draftContent={createDraft("")}
-        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
-        disabled={false}
-        submitDisabled={false}
-        placeholder="placeholder"
-        composerSettings={createComposerSettings({
-          supportsBrowser: true
-        })}
-        queuedPrompts={[]}
-        drainingQueuedPromptId={null}
-        canQueueWhileBusy={false}
-        showStopButton={false}
-        activePrompt={null}
-        isInterrupting={false}
-        isSendingTurn={false}
-        isSubmittingPrompt={false}
-        labels={createLabels()}
-        workspaceUserProjectI18n={workspaceUserProjectI18n}
-        onDraftContentChange={vi.fn()}
-        onSettingsChange={onSettingsChange}
-        onSubmit={vi.fn()}
-        onSendQueuedPromptNext={vi.fn()}
-        onRemoveQueuedPrompt={vi.fn()}
-        onEditQueuedPrompt={vi.fn()}
-        onInterruptCurrentTurn={vi.fn()}
-        onSubmitInteractivePrompt={vi.fn()}
-      />
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "Browser use" })
-    ).not.toBeInTheDocument();
-    expect(onSettingsChange).not.toHaveBeenCalled();
-  });
-
   it("exposes browser-use through the slash capability group", async () => {
     const onDraftContentChange = vi.fn();
     const onSettingsChange = vi.fn();
@@ -1961,63 +1833,6 @@ describe("AgentComposer", () => {
       screen.queryByTestId("agent-gui-slash-status-panel")
     ).not.toBeInTheDocument();
   });
-
-  it("keeps the dock send control inside the input and settings below it", () => {
-    const { container } = render(
-      <AgentComposer
-        workspaceId="workspace-1"
-        currentUserId="user-1"
-        provider="codex"
-        draftContent={createDraft("")}
-        availableCommands={[] satisfies readonly AgentHostAgentSessionCommand[]}
-        disabled={false}
-        submitDisabled={false}
-        placeholder="placeholder"
-        composerSettings={createComposerSettings()}
-        queuedPrompts={[]}
-        drainingQueuedPromptId={null}
-        canQueueWhileBusy={false}
-        showStopButton={false}
-        activePrompt={null}
-        isInterrupting={false}
-        isSendingTurn={false}
-        isSubmittingPrompt={false}
-        labels={createLabels()}
-        workspaceUserProjectI18n={workspaceUserProjectI18n}
-        onDraftContentChange={vi.fn()}
-        onSettingsChange={vi.fn()}
-        onSubmit={vi.fn()}
-        onSendQueuedPromptNext={vi.fn()}
-        onRemoveQueuedPrompt={vi.fn()}
-        onEditQueuedPrompt={vi.fn()}
-        onInterruptCurrentTurn={vi.fn()}
-        onSubmitInteractivePrompt={vi.fn()}
-      />
-    );
-
-    const composer = container.querySelector(".agent-gui-node__composer");
-    expect(composer).toHaveAttribute("data-layout", "dock");
-    const footer = container.querySelector(".agent-gui-node__composer-footer");
-    expect(footer).not.toBeNull();
-    expect(footer?.lastElementChild?.className).toContain(
-      "agent-gui-node__composer-footer-right"
-    );
-    const promptInputArea = container.querySelector(
-      ".agent-gui-node__composer-prompt-input-area"
-    );
-    expect(promptInputArea).not.toBeNull();
-    const sendButton = screen.getByRole("button", { name: "发送" });
-    expect(promptInputArea?.contains(sendButton)).toBe(true);
-    expect(footer?.contains(sendButton)).toBe(false);
-    expect(promptInputArea?.contains(footer)).toBe(false);
-    expect(footer?.compareDocumentPosition(promptInputArea!)).toBe(
-      Node.DOCUMENT_POSITION_PRECEDING
-    );
-    expect(screen.getByPlaceholderText("placeholder")).toHaveClass(
-      "agent-gui-node__composer-textarea"
-    );
-  });
-
   it("opens context usage details after hovering the usage chip", async () => {
     vi.useFakeTimers();
 

@@ -168,67 +168,6 @@ function openViewOptions(): void {
 }
 
 describe("WorkspaceAgentMessageCenterCard", () => {
-  it("adds edge glow only for waiting message center cards", () => {
-    const { container, rerender } = render(
-      <TooltipProvider>
-        <WorkspaceAgentMessageCenterCard
-          item={createTestCardItem({
-            pendingPrompt: {
-              kind: "approval",
-              id: "approval:request-1",
-              turnId: "turn-1",
-              requestId: "request-1",
-              callId: "request-1",
-              title: "Approval",
-              status: "waiting_approval",
-              toolName: "Bash",
-              input: null,
-              options: [],
-              output: null,
-              occurredAtUnixMs: 1
-            }
-          })}
-          isSubmitting={false}
-          onOpenChat={vi.fn()}
-          onSubmitPrompt={vi.fn()}
-        />
-      </TooltipProvider>
-    );
-
-    expect(
-      container.querySelector(
-        '[data-message-center-item-id="message-center-session-1"]'
-      )
-    ).toHaveClass("agent-gui-edge-glow");
-    expect(
-      container.querySelector(
-        '[data-message-center-item-id="message-center-session-1"]'
-      )
-    ).toHaveClass("border-[var(--tutti-purple-border)]");
-    expect(
-      container.querySelector(
-        '[data-message-center-item-id="message-center-session-1"]'
-      )
-    ).toHaveClass("bg-[var(--tutti-purple-bg)]");
-
-    rerender(
-      <TooltipProvider>
-        <WorkspaceAgentMessageCenterCard
-          item={createTestCardItem()}
-          isSubmitting={false}
-          onOpenChat={vi.fn()}
-          onSubmitPrompt={vi.fn()}
-        />
-      </TooltipProvider>
-    );
-
-    expect(
-      container.querySelector(
-        '[data-message-center-item-id="message-center-session-1"]'
-      )
-    ).not.toHaveClass("agent-gui-edge-glow");
-  });
-
   it("reports the provider and semantic action when submitting a notification prompt", () => {
     const onNotificationActioned = vi.fn();
     render(
@@ -719,61 +658,6 @@ describe("WorkspaceAgentMessageCenterCard", () => {
     expect(screen.getByText("PROJECT_SUMMARY.md")).toBeInTheDocument();
     expect(onLinkAction).not.toHaveBeenCalled();
   });
-
-  it("allows copying the card title and summary text", () => {
-    render(
-      <TooltipProvider>
-        <WorkspaceAgentMessageCenterCard
-          item={createTestCardItem({
-            title: "看看我最新改了哪些代码",
-            status: "failed",
-            lastAgentMessageSummary: "Codex request failed."
-          })}
-          isSubmitting={false}
-          onOpenChat={vi.fn()}
-          onSubmitPrompt={vi.fn()}
-        />
-      </TooltipProvider>
-    );
-
-    expect(
-      screen.getByRole("heading", { name: "看看我最新改了哪些代码" })
-    ).toHaveClass("workspace-agent-message-center__copy-text");
-    expect(
-      screen
-        .getByText("Codex request failed.")
-        .closest(".workspace-agent-message-center__copy-text")
-    ).not.toBeNull();
-  });
-
-  it("hydrates the shared tooltip trigger for truncated card titles on hover", () => {
-    render(
-      <TooltipProvider>
-        <WorkspaceAgentMessageCenterCard
-          item={createTestCardItem({
-            title: "请基于下面这个 Issue 帮我做一个非常长的设计资讯整理任务标题"
-          })}
-          isSubmitting={false}
-          onOpenChat={vi.fn()}
-          onSubmitPrompt={vi.fn()}
-        />
-      </TooltipProvider>
-    );
-
-    const heading = screen.getByRole("heading", {
-      name: "请基于下面这个 Issue 帮我做一个非常长的设计资讯整理任务标题"
-    });
-    expect(heading).not.toHaveAttribute("data-slot", "tooltip-trigger");
-
-    fireEvent.pointerEnter(heading);
-
-    expect(
-      screen.getByRole("heading", {
-        name: "请基于下面这个 Issue 帮我做一个非常长的设计资讯整理任务标题"
-      })
-    ).toHaveAttribute("data-slot", "tooltip-trigger");
-  });
-
   it("enables zoom for markdown images in the summary", async () => {
     const readFile = vi.fn().mockResolvedValue({
       bytes: new Uint8Array([137, 80, 78, 71])

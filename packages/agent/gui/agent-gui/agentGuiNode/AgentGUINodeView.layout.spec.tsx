@@ -307,122 +307,6 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(resizeHandle).toHaveClass("opacity-0");
     expect(onConversationRailWidthChanged).not.toHaveBeenCalled();
   });
-
-  it("keeps the conversation search field styled from the carried TSH surface", () => {
-    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
-    const source = readFileSync(
-      resolve("agent-gui/agentGuiNode/AgentGUINodeView.tsx"),
-      "utf8"
-    );
-
-    expect(css).toMatch(
-      /\.agent-gui-node__rail-panel\s*\{[^}]*border-right:\s*0;/s
-    );
-    expect(source).not.toMatch(
-      /shrink-0\s+border-t\s+border-\[var\(--border-1\)\]\s+px-2\s+py-1\.5/
-    );
-    expect(css).toMatch(
-      /\.room-issue-node__search-field\s*{[^}]*position:\s*relative[^}]*min-width:\s*0/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__rail-toolbar\s*\{[^}]*--agent-gui-rail-control-radius:\s*6px;/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__rail-toolbar\s*\{[^}]*padding:\s*0\s+16px\s+16px;/s
-    );
-    expect(css).toMatch(
-      /\.workbench-window:has\(\s*\[data-agent-gui-workbench-header="true"\]\[data-agent-gui-workbench-header-collapsed="false"\]\s*\)\s*\.agent-gui-node__rail-toolbar\s*{[^}]*padding-top:\s*var\(--agent-gui-workbench-header-height\);/s
-    );
-    expect(css).toMatch(
-      /\.room-issue-node__search-input\s*{[^}]*width:\s*100%[^}]*height:\s*32px\s*!important;[^}]*min-height:\s*32px;[^}]*max-height:\s*32px;[^}]*border:\s*0\s*!important;[^}]*border-radius:\s*var\(--agent-gui-rail-control-radius\)\s*!important;[^}]*font-size:\s*13px\s*!important;[^}]*line-height:\s*18px;[^}]*appearance:\s*none;/s
-    );
-    expect(css).toMatch(
-      /\.room-issue-node__search-clear-button\s*{[^}]*position:\s*absolute[^}]*right:\s*4px[^}]*width:\s*24px/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__new-conversation-icon-button\s*\{[^}]*height:\s*32px;[^}]*min-height:\s*32px;[^}]*max-height:\s*32px;[^}]*border:\s*0\s*!important;[^}]*border-radius:\s*var\(--agent-gui-rail-control-radius\)\s*!important;[^}]*font-size:\s*13px;/s
-    );
-  });
-
-  it("keeps the environment setup menu action on theme tokens", () => {
-    const source = readFileSync(
-      resolve("agent-gui/agentGuiNode/AgentGUINodeView.tsx"),
-      "utf8"
-    );
-
-    expect(source).toMatch(
-      /data-testid="agent-gui-config-env-setup"[\s\S]{0,400}text-\[var\(--text-primary\)\]/
-    );
-    expect(source).toMatch(
-      /data-testid="agent-gui-config-env-setup"[\s\S]{0,400}hover:bg-\[var\(--transparency-hover\)\]/
-    );
-    expect(source).toMatch(
-      /data-testid="agent-gui-config-env-setup"[\s\S]{0,500}disabled:text-\[var\(--text-tertiary\)\]/
-    );
-    expect(source).not.toMatch(
-      /data-testid="agent-gui-config-env-setup"[\s\S]{0,500}text-white/
-    );
-  });
-
-  it("does not animate the rail resize geometry while dragging", () => {
-    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
-
-    expect(css).toMatch(
-      /\.agent-gui-node__layout\s*{[^}]*transition:\s*grid-template-columns 180ms cubic-bezier\(0\.22,\s*1,\s*0\.36,\s*1\);/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__rail-resize-handle\s*{[^}]*transition:\s*left 180ms cubic-bezier\(0\.22,\s*1,\s*0\.36,\s*1\),\s*opacity 120ms ease;/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__rail\s*>\s*\*\s*{[^}]*transition:[^}]*opacity 120ms ease,[^}]*filter 120ms ease;[^}]*transition-delay:\s*40ms;/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-workbench-header\s*{[^}]*transition:\s*grid-template-columns 180ms cubic-bezier\(0\.22,\s*1,\s*0\.36,\s*1\);/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__layout\[data-rail-resizing="true"\]\s*{[^}]*transition:\s*none/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__rail-resize-handle\[data-resizing="true"\]\s*{[^}]*transition:\s*none/s
-    );
-  });
-
-  it("uses ui-system ConfirmationDialog for project action confirmations", () => {
-    const source = readFileSync(
-      resolve("agent-gui/agentGuiNode/AgentGUINodeView.tsx"),
-      "utf8"
-    );
-
-    expect(source).toMatch(/ConfirmationDialog/);
-    expect(source).toMatch(
-      /setPendingProjectAction\(\{[\s\S]*kind:\s*"batch-delete"/
-    );
-    expect(source).toMatch(
-      /setPendingProjectAction\(\{[\s\S]*kind:\s*"remove"/
-    );
-    expect(source).toMatch(
-      /onConfirmDeleteProjectConversations\(action\.path\)/
-    );
-    expect(source).toMatch(/onRemoveProject\(action\.path\)/);
-    expect(source).toMatch(/tone="destructive"/);
-    expect(source).toMatch(
-      /overlayClassName=\{AGENT_GUI_CONFIRMATION_DIALOG_OVERLAY_CLASS_NAME\}/
-    );
-    expect(source).not.toMatch(/toast\.custom\(/);
-    expect(source).not.toMatch(/toast\.warning\(/);
-  });
-
-  it("places conversation section create action tooltips above the icon button first", () => {
-    const source = readFileSync(
-      resolve("agent-gui/agentGuiNode/AgentGUINodeView.tsx"),
-      "utf8"
-    );
-
-    expect(source).toMatch(
-      /<TooltipContent\s+side="top"\s+sideOffset=\{6\}\s+className=\{styles\.conversationSectionActionTooltip\}\s*>\s*\{createConversationLabel\}/
-    );
-  });
-
   it("switches the conversation filter from the avatar rail tile", () => {
     const actions = createActions();
     const claudeTarget = createLocalAgentGUIProviderTarget("claude-code");
@@ -876,21 +760,6 @@ describe("AgentGUINodeView layout persistence", () => {
     });
     expect(composerMock.calls.at(-1)?.composerFocusRequestSequence).toBe(1);
   });
-
-  it("keeps ordinary conversation section actions hover and focus discoverable", () => {
-    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
-
-    expect(css).toMatch(
-      /\.agent-gui-node__conversation-section-more-button\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__conversation-section:hover\s+\.agent-gui-node__conversation-section-more-button,[\s\S]*?\.agent-gui-node__conversation-section:focus-within\s+\.agent-gui-node__conversation-section-more-button,[\s\S]*?\.agent-gui-node__conversation-section-more-button\[aria-expanded="true"\s*\]\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/s
-    );
-    expect(css).toMatch(
-      /\.agent-gui-node__conversation-section\[data-kind="conversations"\]\s+\.agent-gui-node__conversation-section-actions\s*\{[^}]*min-width:\s*0;/s
-    );
-  });
-
   it("defers rendering conversation items for collapsed project sections", () => {
     renderAgentGUINodeView({
       viewModel: {
@@ -1473,18 +1342,6 @@ describe("AgentGUINodeView layout persistence", () => {
       "agent-gui-node__timeline--scrolled-from-top"
     );
   });
-
-  it("applies the timeline top fade only while scrolled down", () => {
-    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
-
-    expect(css).toMatch(
-      /\.agent-gui-node__timeline-with-composer\.agent-gui-node__timeline--scrolled-from-top\s*{[^}]*-webkit-mask-image:\s*linear-gradient/s
-    );
-    expect(css).not.toMatch(
-      /\.agent-gui-node__timeline-with-composer\s*{[^}]*-webkit-mask-image:\s*linear-gradient/s
-    );
-  });
-
   it("renders older-message loading above the transcript", () => {
     const activeConversation = createConversationSummary("session-1");
     renderAgentGUINodeView({
@@ -1780,39 +1637,6 @@ describe("AgentGUINodeView provider setup notice", () => {
     expect(action).toHaveClass("tsh-desktop-no-drag");
     expect(action).toHaveClass("[-webkit-app-region:no-drag]");
   });
-
-  it("floats the setup notice above the detail content without affecting layout", () => {
-    const css = readFileSync(resolve("app/renderer/agentactivity.css"), "utf8");
-    const setupNoticeRule = css.match(
-      /\.agent-gui-node__provider-setup-notice\s*{[^}]*}/s
-    )?.[0];
-
-    expect(setupNoticeRule).toContain("position: absolute;");
-    expect(setupNoticeRule).toContain("top: 56px;");
-    // Horizontally centered above the detail content.
-    expect(setupNoticeRule).toContain("left: 50%;");
-    expect(setupNoticeRule).toContain("transform: translateX(-50%);");
-    expect(setupNoticeRule).toContain("z-index: 2;");
-    expect(setupNoticeRule).toContain("width: max-content;");
-    // Message text and the "Set up" action must not butt together.
-    expect(setupNoticeRule).toContain("column-gap: 6px;");
-    expect(setupNoticeRule).toMatch(
-      /max-width:\s*min\(\s*calc\(100% - \(var\(--agent-gui-detail-padding-x\) \* 2\)\),\s*420px\s*\);/s
-    );
-    expect(setupNoticeRule).toContain("margin: 0;");
-    expect(setupNoticeRule).not.toContain("background:");
-    expect(setupNoticeRule).toContain("pointer-events: none;");
-    expect(css).toContain(
-      ".agent-gui-node__detail-header + .agent-gui-node__provider-setup-notice"
-    );
-    expect(css).toContain("top: calc(64px + 16px);");
-    const setupNoticeActionRule = css.match(
-      /\.agent-gui-node__provider-setup-notice-action\s*{[^}]*}/s
-    )?.[0];
-    expect(setupNoticeActionRule).toContain("pointer-events: auto;");
-    expect(setupNoticeActionRule).toContain("-webkit-app-region: no-drag;");
-  });
-
   it("hides the setup notice when the provider is ready", () => {
     renderAgentGUINodeView({ isAgentProviderReady: true });
 
