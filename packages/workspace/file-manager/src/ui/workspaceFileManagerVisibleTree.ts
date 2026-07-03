@@ -46,6 +46,82 @@ export function collectWorkspaceFileManagerVisibleTreeEntries(
   return rows.flatMap((row) => (row.kind === "entry" ? [row.entry] : []));
 }
 
+/**
+ * Finds the nearest visible entry row before/after `fromPath` in tree order,
+ * skipping feedback rows (loading/empty/error placeholders are not
+ * selectable). Powers ArrowUp/ArrowDown keyboard navigation.
+ */
+export function findWorkspaceFileManagerAdjacentEntryPath(
+  rows: readonly WorkspaceFileManagerVisibleTreeRow[],
+  fromPath: string,
+  direction: 1 | -1
+): string | null {
+  const fromIndex = rows.findIndex(
+    (row) => row.kind === "entry" && row.entry.path === fromPath
+  );
+  if (fromIndex === -1) {
+    return null;
+  }
+  for (
+    let index = fromIndex + direction;
+    index >= 0 && index < rows.length;
+    index += direction
+  ) {
+    const row = rows[index];
+    if (row && row.kind === "entry") {
+      return row.entry.path;
+    }
+  }
+  return null;
+}
+
+/**
+ * Finds the first visible row immediately below an expanded directory row
+ * (its first child entry, or a loading/empty/error feedback row). Powers
+ * ArrowRight moving focus into an already-expanded directory.
+ */
+export function findWorkspaceFileManagerFirstChildRow(
+  rows: readonly WorkspaceFileManagerVisibleTreeRow[],
+  parentPath: string
+): WorkspaceFileManagerVisibleTreeRow | null {
+  const parentIndex = rows.findIndex(
+    (row) => row.kind === "entry" && row.entry.path === parentPath
+  );
+  if (parentIndex === -1) {
+    return null;
+  }
+  return rows[parentIndex + 1] ?? null;
+}
+
+/**
+ * Finds the nearest ancestor entry row for `fromPath` (the row directly one
+ * depth level up). Powers ArrowLeft collapsing/exiting back to the parent
+ * directory.
+ */
+export function findWorkspaceFileManagerParentEntryPath(
+  rows: readonly WorkspaceFileManagerVisibleTreeRow[],
+  fromPath: string
+): string | null {
+  const fromIndex = rows.findIndex(
+    (row) => row.kind === "entry" && row.entry.path === fromPath
+  );
+  if (fromIndex === -1) {
+    return null;
+  }
+  const fromRow = rows[fromIndex];
+  const fromDepth = fromRow?.depth ?? 0;
+  if (fromDepth === 0) {
+    return null;
+  }
+  for (let index = fromIndex - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (row && row.kind === "entry" && row.depth === fromDepth - 1) {
+      return row.entry.path;
+    }
+  }
+  return null;
+}
+
 function appendWorkspaceFileManagerVisibleTreeRows(input: {
   arrangeMode: WorkspaceFileManagerArrangeMode;
   depth: number;

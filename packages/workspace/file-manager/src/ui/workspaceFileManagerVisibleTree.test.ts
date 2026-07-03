@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildWorkspaceFileManagerVisibleTreeRows,
-  collectWorkspaceFileManagerVisibleTreeEntries
+  collectWorkspaceFileManagerVisibleTreeEntries,
+  findWorkspaceFileManagerAdjacentEntryPath,
+  findWorkspaceFileManagerFirstChildRow,
+  findWorkspaceFileManagerParentEntryPath
 } from "./workspaceFileManagerVisibleTree.ts";
 import type {
   WorkspaceFileDirectoryExpansionState,
@@ -114,6 +117,145 @@ test("visible tree rows show child loading, empty, and error states", () => {
         status: "error"
       }
     ]
+  );
+});
+
+test("keyboard navigation finds adjacent, parent, and first-child rows across an expanded tree", () => {
+  const rows = buildWorkspaceFileManagerVisibleTreeRows({
+    arrangeMode: "name",
+    directoryExpansionByPath: {
+      "/workspace/src": directoryState([
+        entry("/workspace/src/index.ts", "file"),
+        entry("/workspace/src/components", "directory", true)
+      ]),
+      "/workspace/src/components": directoryState([
+        entry("/workspace/src/components/Button.tsx", "file")
+      ])
+    },
+    entries: [
+      entry("/workspace/README.md", "file"),
+      entry("/workspace/src", "directory", true)
+    ],
+    expandedDirectoryPaths: {
+      "/workspace/src": true,
+      "/workspace/src/components": true
+    }
+  });
+
+  // Rows in order: /workspace/src, /workspace/src/components,
+  // /workspace/src/components/Button.tsx, /workspace/src/index.ts,
+  // /workspace/README.md
+
+  assert.equal(
+    findWorkspaceFileManagerAdjacentEntryPath(rows, "/workspace/src", 1),
+    "/workspace/src/components"
+  );
+  assert.equal(
+    findWorkspaceFileManagerAdjacentEntryPath(
+      rows,
+      "/workspace/src/components/Button.tsx",
+      1
+    ),
+    "/workspace/src/index.ts"
+  );
+  assert.equal(
+    findWorkspaceFileManagerAdjacentEntryPath(rows, "/workspace/README.md", -1),
+    "/workspace/src/index.ts"
+  );
+  assert.equal(
+    findWorkspaceFileManagerAdjacentEntryPath(rows, "/workspace/src", -1),
+    null
+  );
+  assert.equal(
+    findWorkspaceFileManagerAdjacentEntryPath(rows, "/workspace/README.md", 1),
+    null
+  );
+
+  assert.equal(
+    findWorkspaceFileManagerParentEntryPath(rows, "/workspace/src/components"),
+    "/workspace/src"
+  );
+  assert.equal(
+    findWorkspaceFileManagerParentEntryPath(
+      rows,
+      "/workspace/src/components/Button.tsx"
+    ),
+    "/workspace/src/components"
+  );
+  assert.equal(
+    findWorkspaceFileManagerParentEntryPath(rows, "/workspace/src"),
+    null
+  );
+
+  const firstChildOfSrc = findWorkspaceFileManagerFirstChildRow(
+    rows,
+    "/workspace/src"
+  );
+  assert.equal(firstChildOfSrc?.kind, "entry");
+  assert.equal(
+    firstChildOfSrc?.kind === "entry" ? firstChildOfSrc.entry.path : null,
+    "/workspace/src/components"
+  );
+});
+
+test("keyboard navigation surfaces the loading/empty/error feedback row as the first child of an expanded directory", () => {
+  const rows = buildWorkspaceFileManagerVisibleTreeRows({
+    arrangeMode: "none",
+    directoryExpansionByPath: {
+      "/workspace/docs": {
+        entries: [],
+        error: null,
+        isLoading: true,
+        loaded: false
+      },
+      "/workspace/empty": directoryState([]),
+      "/workspace/failed": {
+        entries: [],
+        error: "Permission denied",
+        isLoading: false,
+        loaded: false
+      }
+    },
+    entries: [
+      entry("/workspace/docs", "directory", true),
+      entry("/workspace/empty", "directory", true),
+      entry("/workspace/failed", "directory", true)
+    ],
+    expandedDirectoryPaths: {
+      "/workspace/docs": true,
+      "/workspace/empty": true,
+      "/workspace/failed": true
+    }
+  });
+
+  const loadingRow = findWorkspaceFileManagerFirstChildRow(
+    rows,
+    "/workspace/docs"
+  );
+  assert.equal(loadingRow?.kind, "feedback");
+  assert.equal(
+    loadingRow?.kind === "feedback" ? loadingRow.status : null,
+    "loading"
+  );
+
+  const emptyRow = findWorkspaceFileManagerFirstChildRow(
+    rows,
+    "/workspace/empty"
+  );
+  assert.equal(emptyRow?.kind, "feedback");
+  assert.equal(emptyRow?.kind === "feedback" ? emptyRow.status : null, "empty");
+
+  const errorRow = findWorkspaceFileManagerFirstChildRow(
+    rows,
+    "/workspace/failed"
+  );
+  assert.equal(errorRow?.kind, "feedback");
+  assert.equal(errorRow?.kind === "feedback" ? errorRow.status : null, "error");
+
+  // A collapsed/unexpanded directory has no visible child row yet.
+  assert.equal(
+    findWorkspaceFileManagerFirstChildRow(rows, "/does/not/exist"),
+    null
   );
 });
 

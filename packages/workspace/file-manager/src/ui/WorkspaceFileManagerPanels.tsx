@@ -13,6 +13,7 @@ import type { WorkspaceFileManagerI18nRuntime } from "../i18n/workspaceFileManag
 import type {
   CSSProperties,
   DragEvent as ReactDragEvent,
+  KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
   ReactElement,
@@ -49,7 +50,12 @@ import {
   type WorkspaceFileManagerArrangeMode
 } from "./workspaceFileManagerArrangeMode.ts";
 import type { WorkspaceFileManagerLayoutMode } from "./workspaceFileManagerLayoutMode.ts";
-import type { WorkspaceFileManagerVisibleTreeRow } from "./workspaceFileManagerVisibleTree.ts";
+import {
+  findWorkspaceFileManagerAdjacentEntryPath,
+  findWorkspaceFileManagerFirstChildRow,
+  findWorkspaceFileManagerParentEntryPath,
+  type WorkspaceFileManagerVisibleTreeRow
+} from "./workspaceFileManagerVisibleTree.ts";
 
 const workspaceFileManagerTableGridClassName =
   "grid-cols-[minmax(0,_1fr)_148px_96px]";
@@ -326,6 +332,94 @@ export function WorkspaceFileManagerPanels({
       onSelect(entry.path);
     },
     [entrySelectionEnabled, onOpenEntry, onSelect, shouldSuppressEntryClick]
+  );
+  const handleEntryKeyDown = useCallback(
+    (
+      entry: WorkspaceFileEntry,
+      event: ReactKeyboardEvent<HTMLElement>
+    ): void => {
+      if (!entrySelectionEnabled) {
+        return;
+      }
+      const row = treeRows.find(
+        (candidate) =>
+          candidate.kind === "entry" && candidate.entry.path === entry.path
+      );
+      if (!row || row.kind !== "entry") {
+        return;
+      }
+
+      switch (event.key) {
+        case "ArrowDown": {
+          event.preventDefault();
+          const nextPath = findWorkspaceFileManagerAdjacentEntryPath(
+            treeRows,
+            entry.path,
+            1
+          );
+          if (nextPath) {
+            onSelect(nextPath);
+          }
+          return;
+        }
+        case "ArrowUp": {
+          event.preventDefault();
+          const previousPath = findWorkspaceFileManagerAdjacentEntryPath(
+            treeRows,
+            entry.path,
+            -1
+          );
+          if (previousPath) {
+            onSelect(previousPath);
+          }
+          return;
+        }
+        case "ArrowRight": {
+          if (entry.kind !== "directory") {
+            return;
+          }
+          event.preventDefault();
+          if (row.expandable && !row.expanded) {
+            // Lazily fetches the next-level directory listing (empty state
+            // renders once the load resolves with zero entries). The second
+            // argument mirrors DirectoryDisclosureButton's onClick: it
+            // reports the *current* (pre-toggle) expanded state, not the
+            // target state.
+            onToggleDirectoryExpanded(entry, row.expanded);
+            return;
+          }
+          if (row.expanded) {
+            const childRow = findWorkspaceFileManagerFirstChildRow(
+              treeRows,
+              entry.path
+            );
+            if (childRow?.kind === "entry") {
+              onSelect(childRow.entry.path);
+            }
+          }
+          return;
+        }
+        case "ArrowLeft": {
+          if (entry.kind === "directory" && row.expanded) {
+            event.preventDefault();
+            onToggleDirectoryExpanded(entry, row.expanded);
+            return;
+          }
+          const parentPath = findWorkspaceFileManagerParentEntryPath(
+            treeRows,
+            entry.path
+          );
+          if (parentPath) {
+            event.preventDefault();
+            onSelect(parentPath);
+          }
+          return;
+        }
+        default:
+          return;
+      }
+    },
+    [entrySelectionEnabled, onSelect, onToggleDirectoryExpanded, treeRows]
   );
   useEffect(() => {
     lastEntryClickRef.current = null;
@@ -656,6 +750,7 @@ export function WorkspaceFileManagerPanels({
                     onContextMenu={onEntryContextMenu}
                     onDragStart={onEntryDragStart}
                     onClick={handleEntryClick}
+                    onKeyDown={handleEntryKeyDown}
                     onPointerDown={handleEntryPointerDown}
                     onToggleDirectoryExpanded={onToggleDirectoryExpanded}
                   />
@@ -833,6 +928,7 @@ function EntryRow({
   onContextMenu,
   onDragStart,
   onClick,
+  onKeyDown,
   onPointerDown,
   onToggleDirectoryExpanded
 }: {
@@ -869,6 +965,10 @@ function EntryRow({
   ) => void;
   onDragStart?: (entry: WorkspaceFileEntry, dataTransfer: DataTransfer) => void;
   onClick: (entry: WorkspaceFileEntry) => void;
+  onKeyDown: (
+    entry: WorkspaceFileEntry,
+    event: ReactKeyboardEvent<HTMLElement>
+  ) => void;
   onPointerDown: (
     entry: WorkspaceFileEntry,
     event: ReactPointerEvent<HTMLElement>
@@ -891,6 +991,19 @@ function EntryRow({
       block: "nearest",
       inline: "nearest"
     });
+    // Move DOM focus along with selection only when focus is already inside
+    // this row list (i.e. the user is navigating with arrow keys). This
+    // keeps a roving tabindex-style focus in sync without stealing focus
+    // from elsewhere in the app on programmatic selection changes.
+    const activeElement = document.activeElement;
+    if (
+      buttonRowRef.current &&
+      activeElement instanceof HTMLElement &&
+      activeElement !== buttonRowRef.current &&
+      activeElement.hasAttribute("data-workspace-file-entry-path")
+    ) {
+      buttonRowRef.current.focus();
+    }
   }, [selected]);
 
   const rowClassName = cn(
@@ -995,6 +1108,9 @@ function EntryRow({
       }}
       onClick={() => {
         onClick(entry);
+      }}
+      onKeyDown={(event) => {
+        onKeyDown(entry, event);
       }}
     >
       {nameCell}
