@@ -172,6 +172,16 @@ const AGENT_GUI_TOP_MASK_SCROLL_EPSILON_PX = 1;
 const AGENT_GUI_CONVERSATION_RAIL_SECTION_PAGE_SIZE = 5;
 const AGENT_GUI_CONVERSATION_RAIL_PROJECTION_PROVIDER: AgentGUIProvider =
   "codex";
+// TODO(legacySplit-removal): remove together with the legacySplit dock layout.
+// Single-provider docks have no agent-target filter, so rail sections scope to
+// the provider's system-local target. Ids must match the daemon backfill
+// (services/tuttid/biz/agenttarget/model.go IDLocalCodex/IDLocalClaudeCode).
+const AGENT_GUI_SINGLE_PROVIDER_SECTION_AGENT_TARGET_IDS: Partial<
+  Record<AgentGUIProvider, string>
+> = {
+  "claude-code": "local:claude-code",
+  codex: "local:codex"
+};
 
 const AGENT_GUI_TIMELINE_SCROLL_AREA_CONTENT_STYLE: CSSProperties = {
   width: "100%",
@@ -1306,6 +1316,12 @@ export function AgentGUINodeView({
       : railConfigProvider;
   const effectiveRailSlashStatusLimits =
     railSlashStatusLimits ?? slashStatusLimits;
+  const sectionAgentTargetFallbackId =
+    viewModel.conversationScope === "single-provider"
+      ? (AGENT_GUI_SINGLE_PROVIDER_SECTION_AGENT_TARGET_IDS[
+          viewModel.data.provider
+        ] ?? null)
+      : null;
   const openAgentEnvSetup = useCallback(() => {
     if (!effectiveRailConfigProvider) {
       return;
@@ -1336,6 +1352,7 @@ export function AgentGUINodeView({
         providerTargetsLoading: viewModel.providerTargetsLoading,
         conversationScope: viewModel.conversationScope,
         conversationFilter: viewModel.conversationFilter,
+        sectionAgentTargetFallbackId,
         onCreateConversation: requestCreateConversation,
         onUpdateConversationFilter: actions.updateConversationFilter,
         onSelectConversationFilterTarget:
@@ -1374,6 +1391,7 @@ export function AgentGUINodeView({
         retryOpenclawGateway,
         selectConversation,
         selectProjectDirectory,
+        sectionAgentTargetFallbackId,
         effectiveRailConfigProvider,
         effectiveRailSlashStatusLimits,
         viewModel.selectedProviderTarget,
@@ -3393,6 +3411,7 @@ interface AgentGUIConversationRailPaneProps {
   providerTargetsLoading: AgentGUINodeViewModel["providerTargetsLoading"];
   conversationScope: AgentGUINodeViewModel["conversationScope"];
   conversationFilter: AgentGUINodeViewModel["conversationFilter"];
+  sectionAgentTargetFallbackId: string | null;
   onUpdateConversationFilter: (
     filter: AgentGUINodeViewModel["conversationFilter"]
   ) => void;
@@ -3495,6 +3514,8 @@ function agentGUIConversationRailStoreSnapshotsEqual(
     current.providerTargetsLoading === next.providerTargetsLoading &&
     current.conversationScope === next.conversationScope &&
     current.conversationFilter === next.conversationFilter &&
+    current.sectionAgentTargetFallbackId ===
+      next.sectionAgentTargetFallbackId &&
     current.onUpdateConversationFilter === next.onUpdateConversationFilter &&
     current.onSelectConversationFilterTarget ===
       next.onSelectConversationFilterTarget &&
@@ -4047,6 +4068,7 @@ interface AgentGUIConversationRailInput {
   conversations: AgentGUINodeViewModel["conversations"];
   labels: AgentGUIViewLabels;
   previewMode: boolean;
+  sectionAgentTargetFallbackId: string | null;
   userProjects: AgentGUINodeViewModel["userProjects"];
   workspaceId: string;
 }
@@ -4057,6 +4079,7 @@ function useAgentGUIConversationRail({
   conversations,
   labels,
   previewMode,
+  sectionAgentTargetFallbackId,
   userProjects,
   workspaceId
 }: AgentGUIConversationRailInput): {
@@ -4084,7 +4107,7 @@ function useAgentGUIConversationRail({
   const sectionAgentTargetId =
     conversationFilter.kind === "agentTarget"
       ? conversationFilter.agentTargetId.trim()
-      : "";
+      : (sectionAgentTargetFallbackId?.trim() ?? "");
   const userProjectPaths = useMemo(
     () =>
       userProjects
@@ -4359,6 +4382,7 @@ const AgentGUIConversationRailPane = memo(
     providerTargetsLoading,
     conversationScope,
     conversationFilter,
+    sectionAgentTargetFallbackId,
     onUpdateConversationFilter,
     onSelectConversationFilterTarget,
     onCreateConversation,
@@ -4409,6 +4433,7 @@ const AgentGUIConversationRailPane = memo(
       conversations,
       labels,
       previewMode,
+      sectionAgentTargetFallbackId,
       userProjects,
       workspaceId
     });
