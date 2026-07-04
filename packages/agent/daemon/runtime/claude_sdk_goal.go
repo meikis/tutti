@@ -110,7 +110,9 @@ func (a *ClaudeCodeSDKAdapter) ExecGoalControl(
 // sendGoalCommandExec forwards a /goal command to the sidecar as its own
 // exec. The sidecar queues it behind a live turn; its turn events come back
 // without a waiter and flow through the session event sink with stamped
-// lifecycle snapshots, so the session never strands mid-turn.
+// lifecycle snapshots, so the session never strands mid-turn. A set command
+// records its turn as the goal's arm turn so completion inference does not
+// fire before the goal has actually started running.
 func (a *ClaudeCodeSDKAdapter) sendGoalCommandExec(
 	ctx context.Context,
 	session Session,
@@ -120,16 +122,71 @@ func (a *ClaudeCodeSDKAdapter) sendGoalCommandExec(
 	if err := a.startClaudeSDKReader(session.AgentSessionID, adapterSession); err != nil {
 		return err
 	}
+	turnID := newID()
+	args := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(command), appServerSlashGoal))
+	a.mu.Lock()
+	if strings.EqualFold(args, "clear") {
+		adapterSession.goalArmTurnID = ""
+	} else {
+		adapterSession.goalArmTurnID = turnID
+	}
+	a.mu.Unlock()
 	return a.roundTripClaudeSDK(ctx, session.AgentSessionID, adapterSession, claudeSDKSidecarRequest{
 		ID:   newID(),
 		Type: "exec",
 		Payload: map[string]any{
 			"agentSessionId": session.AgentSessionID,
-			"turnId":         newID(),
+			"turnId":         turnID,
 			"prompt":         command,
 			"content":        promptContentForClaudeSDK(nil, command),
 		},
 	})
+}
+
+// goalEventsOnTurnSettled reconciles the goal mirror when a turn settles.
+// This Claude Code version emits no goal_status attachment on achievement
+// (verified against claude CLI stream-json output): the goal loop holds the
+// turn open through Stop-hook feedback until the condition is met, so a
+// normally completed turn IS the achievement signal, while an interrupted
+// turn keeps the goal active CLI-side (it resumes after the next user
+// message). A canceled arm turn means the /goal set never reached the CLI,
+// so the mirror clears instead of claiming a goal the CLI never received.
+func (a *ClaudeCodeSDKAdapter) goalEventsOnTurnSettled(
+	adapterSession *claudeSDKAdapterSession,
+	session Session,
+	turnID string,
+	completed bool,
+) []activityshared.Event {
+	trimmed := strings.TrimSpace(turnID)
+	a.mu.Lock()
+	goal := adapterSession.liveState.goal
+	armTurnID := adapterSession.goalArmTurnID
+	if len(goal) == 0 || asString(goal["status"]) != "active" {
+		a.mu.Unlock()
+		return nil
+	}
+	if armTurnID != "" && trimmed != armTurnID {
+		// The queued /goal set has not run yet; this settle belongs to an
+		// earlier turn and says nothing about the goal.
+		a.mu.Unlock()
+		return nil
+	}
+	if !completed {
+		if armTurnID != "" && trimmed == armTurnID {
+			adapterSession.goalArmTurnID = ""
+			adapterSession.liveState.goal = nil
+			a.mu.Unlock()
+			return a.goalMirrorEvents(session, "thread_goal_cleared")
+		}
+		a.mu.Unlock()
+		return nil
+	}
+	next := clonePayload(goal)
+	next["status"] = "complete"
+	adapterSession.liveState.goal = next
+	adapterSession.goalArmTurnID = ""
+	a.mu.Unlock()
+	return a.goalMirrorEvents(session, "thread_goal_update")
 }
 
 // localGoal returns a copy of the adapter-local goal mirror.

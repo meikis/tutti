@@ -69,6 +69,10 @@ type claudeSDKAdapterSession struct {
 	// fabricating a competing terminal transition. Guarded by the adapter
 	// mutex.
 	settledTurns map[string]string
+	// goalArmTurnID is the sidecar turn carrying a queued /goal set command
+	// that has not settled yet; until it does, other turns settling must not
+	// be read as goal completion. Guarded by the adapter mutex.
+	goalArmTurnID string
 }
 
 type claudeSDKBackgroundAgent struct {
@@ -614,19 +618,25 @@ func (a *ClaudeCodeSDKAdapter) sidecarTurnEvents(adapterSession *claudeSDKAdapte
 		events = append(events, newSessionActivityEvent(session, EventSessionUpdated, firstNonEmpty(session.Status, SessionStatusReady), claudeSDKRuntimeContext(session, adapterSession)))
 		return events, false, nil
 	case "turn_completed":
-		return []activityshared.Event{newTurnActivityEvent(session, EventTurnCompleted, turnID, SessionStatusReady, "", "", map[string]any{
+		events := []activityshared.Event{newTurnActivityEvent(session, EventTurnCompleted, turnID, SessionStatusReady, "", "", map[string]any{
 			"adapter":    claudeSDKSidecarAdapterName,
 			"stopReason": firstNonEmpty(payloadString(event.Payload, "stopReason"), "end_turn"),
-		})}, true, nil
+		})}
+		events = append(events, a.goalEventsOnTurnSettled(adapterSession, session, turnID, true)...)
+		return events, true, nil
 	case "turn_canceled":
-		return []activityshared.Event{newTurnActivityEvent(session, EventTurnCanceled, turnID, SessionStatusCanceled, "", "", map[string]any{
+		events := []activityshared.Event{newTurnActivityEvent(session, EventTurnCanceled, turnID, SessionStatusCanceled, "", "", map[string]any{
 			"adapter": claudeSDKSidecarAdapterName,
-		})}, true, nil
+		})}
+		events = append(events, a.goalEventsOnTurnSettled(adapterSession, session, turnID, false)...)
+		return events, true, nil
 	case "turn_failed":
-		return []activityshared.Event{newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", map[string]any{
+		events := []activityshared.Event{newTurnActivityEvent(session, EventTurnFailed, turnID, SessionStatusFailed, "", "", map[string]any{
 			"adapter": claudeSDKSidecarAdapterName,
 			"error":   payloadString(event.Payload, "error"),
-		})}, true, nil
+		})}
+		events = append(events, a.goalEventsOnTurnSettled(adapterSession, session, turnID, false)...)
+		return events, true, nil
 	default:
 		return nil, false, nil
 	}
