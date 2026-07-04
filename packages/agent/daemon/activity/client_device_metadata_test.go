@@ -90,6 +90,80 @@ func TestReportSessionStateOmitsMetadataKeysWhenUnset(t *testing.T) {
 	}
 }
 
+func TestReportSessionStateDerivesTopLevelMetadataFromSourceAndState(t *testing.T) {
+	var got map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write([]byte(`{"accepted":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL, HTTPClient: server.Client()})
+	// The adapter path carries metadata only inside Source/State; the
+	// explicit input fields stay empty. Top-level request metadata must still
+	// be populated so controlplanes keying off it get scoped activity.
+	_, err := client.ReportSessionState(context.Background(), ReportSessionStateInput{
+		WorkspaceID:    "ws-1",
+		AgentSessionID: "session-1",
+		SessionOrigin:  WorkspaceAgentSessionOriginRuntime,
+		Source: EventSource{
+			Provider:      "codex",
+			AgentTargetID: "target-1",
+			DeviceID:      "device-1",
+			SessionOrigin: WorkspaceAgentSessionOriginRuntime,
+		},
+		State: WorkspaceAgentSessionStateUpdate{LifecycleStatus: "active"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["agentTargetId"] != "target-1" || got["deviceId"] != "device-1" {
+		t.Fatalf("request metadata = %#v, want top-level metadata derived from source", got)
+	}
+	state, ok := got["state"].(map[string]any)
+	if !ok || state["agentTargetId"] != "target-1" || state["deviceId"] != "device-1" {
+		t.Fatalf("state = %#v, want metadata filled from source", got["state"])
+	}
+}
+
+func TestReportSessionMessagesDerivesTopLevelMetadataFromSource(t *testing.T) {
+	var got map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write([]byte(`{"acceptedCount":1}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{BaseURL: server.URL, HTTPClient: server.Client()})
+	_, err := client.ReportSessionMessages(context.Background(), ReportSessionMessagesInput{
+		WorkspaceID:    "ws-1",
+		AgentSessionID: "session-1",
+		SessionOrigin:  WorkspaceAgentSessionOriginRuntime,
+		Source: EventSource{
+			Provider:      "codex",
+			AgentTargetID: "target-1",
+			DeviceID:      "device-1",
+			SessionOrigin: WorkspaceAgentSessionOriginRuntime,
+		},
+		Updates: []WorkspaceAgentSessionMessageUpdate{{
+			MessageID: "message-1",
+			TurnID:    "turn-1",
+			Role:      "assistant",
+			Kind:      "text",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["agentTargetId"] != "target-1" || got["deviceId"] != "device-1" {
+		t.Fatalf("request metadata = %#v, want top-level metadata derived from source", got)
+	}
+}
+
 func TestReportSessionStateRequestBodyIsByteIdenticalWhenMetadataUnset(t *testing.T) {
 	var raw []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

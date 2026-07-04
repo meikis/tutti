@@ -54,8 +54,12 @@ func (c *Client) ReportSessionState(ctx context.Context, input ReportSessionStat
 		url.PathEscape(workspaceID),
 		url.PathEscape(agentSessionID),
 	)
-	agentTargetID := strings.TrimSpace(input.AgentTargetID)
-	deviceID := strings.TrimSpace(input.DeviceID)
+	// Metadata resolution: explicit input fields win, then the source, then
+	// (for the state document) the state itself. Existing non-empty values
+	// are left byte-identical in place; resolution only fills empty slots, so
+	// callers that carry no metadata anywhere produce an unchanged request.
+	agentTargetID := firstNonEmptyString(input.AgentTargetID, input.Source.AgentTargetID, input.State.AgentTargetID)
+	deviceID := firstNonEmptyString(input.DeviceID, input.Source.DeviceID, input.State.DeviceID)
 	source := input.Source
 	if agentTargetID != "" && strings.TrimSpace(source.AgentTargetID) == "" {
 		source.AgentTargetID = agentTargetID
@@ -107,8 +111,10 @@ func (c *Client) ReportSessionMessages(ctx context.Context, input ReportSessionM
 		url.PathEscape(workspaceID),
 		url.PathEscape(agentSessionID),
 	)
-	agentTargetID := strings.TrimSpace(input.AgentTargetID)
-	deviceID := strings.TrimSpace(input.DeviceID)
+	// Metadata resolution mirrors ReportSessionState: explicit input fields
+	// win, then the source; only empty slots are filled.
+	agentTargetID := firstNonEmptyString(input.AgentTargetID, input.Source.AgentTargetID)
+	deviceID := firstNonEmptyString(input.DeviceID, input.Source.DeviceID)
 	source := input.Source
 	if agentTargetID != "" && strings.TrimSpace(source.AgentTargetID) == "" {
 		source.AgentTargetID = agentTargetID

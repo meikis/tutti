@@ -2,6 +2,8 @@ package agentsessionstore
 
 import (
 	"context"
+	"errors"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -79,6 +81,28 @@ func TestSyncBackoffIgnoresNonRetryableErrors(t *testing.T) {
 	syncer.syncRoom(context.Background(), "room-1")
 	if got := client.messageCallCount(); got != 2 {
 		t.Fatalf("message calls with non-retryable error = %d, want 2", got)
+	}
+}
+
+func TestSyncBackoffAppliesToTransportErrors(t *testing.T) {
+	_, syncer, client, _ := newBackoffTestFixture(t, WithSyncBackoff(DefaultSyncBackoffConfig()))
+	client.setMessageError(&net.OpError{Op: "dial", Err: errors.New("connection refused")})
+
+	syncer.syncRoom(context.Background(), "room-1")
+	syncer.syncRoom(context.Background(), "room-1")
+	if got := client.messageCallCount(); got != 1 {
+		t.Fatalf("message calls with transport error = %d, want 1 (backed off)", got)
+	}
+}
+
+func TestSyncBackoffIgnoresContextCancellation(t *testing.T) {
+	_, syncer, client, _ := newBackoffTestFixture(t, WithSyncBackoff(DefaultSyncBackoffConfig()))
+	client.setMessageError(context.Canceled)
+
+	syncer.syncRoom(context.Background(), "room-1")
+	syncer.syncRoom(context.Background(), "room-1")
+	if got := client.messageCallCount(); got != 2 {
+		t.Fatalf("message calls with canceled context = %d, want 2 (no backoff)", got)
 	}
 }
 

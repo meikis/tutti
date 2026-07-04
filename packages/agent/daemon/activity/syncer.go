@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -381,7 +382,17 @@ func isRetryableMessageSyncError(err error) bool {
 	if errors.As(err, &httpErr) {
 		return httpErr.StatusCode == 429 || httpErr.StatusCode >= 500
 	}
-	return false
+	// Transport-level failures (connection refused, DNS errors, timeouts) are
+	// the most common outage mode and exactly what backoff is meant to
+	// absorb. Deliberate cancellation is not retryable.
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr)
 }
 
 func messageSyncKey(roomID, agentSessionID string) string {
