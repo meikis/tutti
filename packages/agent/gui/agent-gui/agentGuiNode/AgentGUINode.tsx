@@ -835,31 +835,12 @@ export const AgentGUINode = memo(function AgentGUINode({
     },
     [actions, onUpdateNode, previewMode]
   );
-  const handleRenameConversation = useCallback(
-    async (...args: Parameters<typeof actions.renameConversation>) => {
-      await actions.renameConversation(...args);
-      const input = args[0];
-      const agentSessionId = input.agentSessionId.trim();
-      const conversationTitle = input.title.trim();
-      if (!agentSessionId || !conversationTitle || previewMode) {
-        return;
-      }
-      onUpdateNode((current) =>
-        current.lastActiveAgentSessionId === agentSessionId &&
-        current.lastActiveConversationTitle !== conversationTitle
-          ? { ...current, lastActiveConversationTitle: conversationTitle }
-          : current
-      );
-    },
-    [actions, onUpdateNode, previewMode]
-  );
   const viewActions = useMemo(
     () => ({
       ...actions,
-      createConversation: handleCreateConversation,
-      renameConversation: handleRenameConversation
+      createConversation: handleCreateConversation
     }),
-    [actions, handleCreateConversation, handleRenameConversation]
+    [actions, handleCreateConversation]
   );
 
   const fallbackAgentTitle = t("sidebar.fallbackAgentLabel");

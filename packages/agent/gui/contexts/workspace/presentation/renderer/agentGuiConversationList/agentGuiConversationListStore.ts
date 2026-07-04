@@ -39,6 +39,13 @@ import {
   resetAgentGUIConversationPendingStateForTests
 } from "./agentGuiConversationListPendingState";
 import { workspaceAgentSnapshotForConversations } from "./agentGuiConversationListSnapshot";
+import {
+  applyAgentGUIConversationServerTitles,
+  pruneAgentGUIConversationServerTitles,
+  removeAgentGUIConversationServerTitles,
+  resetAgentGUIConversationServerTitlesForTests,
+  subscribeAgentGUIConversationServerTitles
+} from "./agentGuiConversationTitleRegistry";
 
 const REFRESH_DEBOUNCE_MS = 200;
 const UPDATE_STORM_DIAGNOSTIC_WINDOW_MS = 1000;
@@ -1413,7 +1420,7 @@ async function refreshAgentGUIConversationListQuery(
       }
     }
 
-    const nextConversations = sortConversationsByRecency(
+    const refreshedConversations = sortConversationsByRecency(
       mergeLoadedConversations(
         currentConversations,
         baseConversations,
@@ -1444,6 +1451,17 @@ async function refreshAgentGUIConversationListQuery(
         readState
       });
     });
+    // Durable data reconciles the server-title registry: confirmed/outrun
+    // entries drop, still-pending entries overlay the (possibly stale)
+    // snapshot titles so a refresh can never revert a fresher title.
+    pruneAgentGUIConversationServerTitles(
+      state.query.workspaceId,
+      refreshedConversations
+    );
+    const nextConversations = applyAgentGUIConversationServerTitles(
+      state.query.workspaceId,
+      refreshedConversations
+    );
 
     updateQueryState(query, (current) => {
       const conversations = areConversationListsEqual(
@@ -1684,6 +1702,21 @@ function updateAgentGUIConversationListConversations(
     };
   });
 }
+
+// The title registry is the single reconciliation point for server-reported
+// conversation titles. Whenever it changes (rename ack, fresher rail section
+// data), re-project titles into every mounted query state so rail rows and
+// detail headers update from the same source in the same commit.
+subscribeAgentGUIConversationServerTitles(() => {
+  for (const state of Object.values(snapshot.statesByQueryKey)) {
+    updateAgentGUIConversationListConversations(
+      state.query,
+      (current) =>
+        applyAgentGUIConversationServerTitles(state.query.workspaceId, current),
+      "external-update"
+    );
+  }
+});
 
 type AgentGUIConversationSummaryPatch =
   | Partial<Omit<AgentGUIConversationSummary, "project">>
@@ -1942,28 +1975,6 @@ export function patchAgentGUIConversationSummary(input: {
   });
 }
 
-export function patchAgentGUIConversationSummaryInWorkspace(input: {
-  workspaceId: string;
-  conversationId: string;
-  patch: AgentGUIConversationSummaryPatch;
-}): void {
-  const workspaceId = input.workspaceId.trim();
-  const conversationId = input.conversationId.trim();
-  if (!workspaceId || !conversationId) {
-    return;
-  }
-  for (const state of Object.values(snapshot.statesByQueryKey)) {
-    if (state.query.workspaceId !== workspaceId) {
-      continue;
-    }
-    patchAgentGUIConversationSummary({
-      query: state.query,
-      conversationId,
-      patch: input.patch
-    });
-  }
-}
-
 /** Remove conversations by id (optimistic local delete, no reappear-guard). */
 export function removeAgentGUIConversationSummaries(input: {
   query: AgentGUIConversationListQuery;
@@ -1983,6 +1994,7 @@ export function removeAgentGUIConversationSummaries(input: {
     },
     "local-delete"
   );
+  removeAgentGUIConversationServerTitles(input.query.workspaceId, [...ids]);
 }
 
 /**
@@ -2160,6 +2172,7 @@ export function resetAgentGUIConversationListStoreForTests(): void {
   readStateByQueryKey.clear();
   readStateLoadByQueryKey.clear();
   resetAgentGUIConversationPendingStateForTests();
+  resetAgentGUIConversationServerTitlesForTests();
   deletedConversationIdsByQueryKey.clear();
   activeConversationIdsByQueryKey.clear();
   updateStormDiagnosticsByQueryKey.clear();

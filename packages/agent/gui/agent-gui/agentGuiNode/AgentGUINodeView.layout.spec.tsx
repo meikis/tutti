@@ -15,7 +15,10 @@ import type { WorkspaceAgentSessionDetailViewModel } from "../../shared/workspac
 import type { AgentPromptContentBlock } from "../../shared/contracts/dto";
 import type { AgentGUINodeViewModel } from "./model/agentGuiNodeTypes";
 import { AgentGUINodeView, type AgentGUIViewLabels } from "./AgentGUINodeView";
-import { publishAgentGUIConversationTitleOverride } from "./agentGuiConversationTitleOverrides";
+import {
+  reportAgentGUIConversationServerTitles,
+  resetAgentGUIConversationServerTitlesForTests
+} from "../../contexts/workspace/presentation/renderer/agentGuiConversationList/agentGuiConversationTitleRegistry";
 import { createLocalAgentGUIProviderTarget } from "../../providerTargets";
 import {
   AgentActivityRuntimeProvider,
@@ -152,6 +155,7 @@ describe("AgentGUINodeView layout persistence", () => {
     conversationMetaMock.calls = [];
     composerMock.calls = [];
     statusDotMock.calls = [];
+    resetAgentGUIConversationServerTitlesForTests();
   });
 
   it("does not persist the initial layout callback on mount", () => {
@@ -1060,12 +1064,13 @@ describe("AgentGUINodeView layout persistence", () => {
   it("updates a runtime section rail title after renaming a conversation", async () => {
     const actions = createActions();
     vi.mocked(actions.renameConversation).mockImplementation(async (input) => {
-      publishAgentGUIConversationTitleOverride({
-        workspaceId: "room-1",
-        id: input.agentSessionId,
-        title: input.title,
-        updatedAtUnixMs: 20
-      });
+      reportAgentGUIConversationServerTitles("room-1", [
+        {
+          conversationId: input.agentSessionId,
+          title: input.title,
+          updatedAtUnixMs: 20
+        }
+      ]);
     });
     const project = {
       id: "project-app",
@@ -1147,7 +1152,9 @@ describe("AgentGUINodeView layout persistence", () => {
       label: "App"
     };
     const runtimeSession = {
-      ...createRuntimeSession("room-1", "session-1", project.path),
+      ...createRuntimeSession("room-1", "session-1", project.path, {
+        provider: "claude-code"
+      }),
       title: "Claude Code",
       updatedAtUnixMs: 30
     };
@@ -1209,7 +1216,9 @@ describe("AgentGUINodeView layout persistence", () => {
       label: "App"
     };
     const runtimeSession = {
-      ...createRuntimeSession("room-1", "session-1", project.path),
+      ...createRuntimeSession("room-1", "session-1", project.path, {
+        provider: "claude-code"
+      }),
       title: "Claude Code",
       updatedAtUnixMs: 30
     };
@@ -1253,7 +1262,7 @@ describe("AgentGUINodeView layout persistence", () => {
       viewModel
     });
 
-    await screen.findByRole("button", { name: /Claude Code/u });
+    await screen.findByTestId("agent-gui-conversation-item-session-1");
 
     activeConversation.title = "帮我新增一个 hello_world.md 文件吧";
     activeConversation.updatedAtUnixMs = 20;
@@ -1271,7 +1280,7 @@ describe("AgentGUINodeView layout persistence", () => {
     ).toBeInTheDocument();
   });
 
-  it("syncs a runtime section rail title from a published rename override", async () => {
+  it("syncs a runtime section rail title from a reported server title", async () => {
     const project = {
       id: "project-app",
       path: "/workspace/app",
@@ -1323,12 +1332,13 @@ describe("AgentGUINodeView layout persistence", () => {
     await screen.findByRole("button", { name: /Old published title/u });
 
     act(() => {
-      publishAgentGUIConversationTitleOverride({
-        workspaceId: "room-1",
-        id: "session-1",
-        title: "New published title",
-        updatedAtUnixMs: 20
-      });
+      reportAgentGUIConversationServerTitles("room-1", [
+        {
+          conversationId: "session-1",
+          title: "New published title",
+          updatedAtUnixMs: 20
+        }
+      ]);
     });
 
     expect(
@@ -1336,12 +1346,13 @@ describe("AgentGUINodeView layout persistence", () => {
     ).toBeInTheDocument();
 
     act(() => {
-      publishAgentGUIConversationTitleOverride({
-        workspaceId: "room-1",
-        id: "session-1",
-        title: "Stale published title",
-        updatedAtUnixMs: 15
-      });
+      reportAgentGUIConversationServerTitles("room-1", [
+        {
+          conversationId: "session-1",
+          title: "Stale published title",
+          updatedAtUnixMs: 15
+        }
+      ]);
     });
 
     expect(
@@ -1352,38 +1363,9 @@ describe("AgentGUINodeView layout persistence", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("syncs the active detail title from a published rename override", async () => {
-    const conversation = {
-      ...createConversationSummary("session-1"),
-      title: "Old detail title",
-      updatedAtUnixMs: 10
-    };
-
-    renderAgentGUINodeView({
-      viewModel: {
-        ...createViewModel(),
-        activeConversation: conversation,
-        activeConversationId: conversation.id,
-        conversations: [conversation]
-      }
-    });
-
-    expect(screen.getAllByText("Old detail title").length).toBeGreaterThan(0);
-
-    act(() => {
-      publishAgentGUIConversationTitleOverride({
-        workspaceId: "room-1",
-        id: "session-1",
-        title: "New detail title",
-        updatedAtUnixMs: 20
-      });
-    });
-
-    await waitFor(() => {
-      expect(screen.getAllByText("New detail title").length).toBeGreaterThan(0);
-    });
-    expect(screen.queryByText("Old detail title")).not.toBeInTheDocument();
-  });
+  // The detail header renders the store-projected active conversation; title
+  // reports flow into it through the conversation list store subscription,
+  // covered by agentGuiConversationTitleRegistry/list-store specs.
 
   it("opens the rename dialog when a rail conversation is double-clicked", () => {
     const conversation = createConversationSummary("session-1");

@@ -9,7 +9,8 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useSyncExternalStore
 } from "react";
 import type { AgentActivityGoalControlAction } from "@tutti-os/agent-activity-core";
 import { useSnapshot } from "valtio";
@@ -158,9 +159,12 @@ import {
 } from "./agentGuiNodeViewConversation";
 import { buildAgentGUIConversationSummaries } from "./model/agentGuiConversationModel";
 import {
-  subscribeAgentGUIConversationTitleOverrides,
-  type AgentGUIConversationTitleOverride
-} from "./agentGuiConversationTitleOverrides";
+  getAgentGUIConversationServerTitles,
+  reportAgentGUIConversationServerTitles,
+  subscribeAgentGUIConversationServerTitles,
+  type AgentGUIConversationServerTitle,
+  type AgentGUIConversationTitleReport
+} from "../../contexts/workspace/presentation/renderer/agentGuiConversationList/agentGuiConversationTitleRegistry";
 import styles from "./AgentGUINode.styles";
 import type { AgentContextMentionProvider } from "./agentContextMentionProvider";
 import type {
@@ -978,33 +982,34 @@ export function AgentGUINodeView({
     null
   );
   const [isRenamingSession, setIsRenamingSession] = useState(false);
-  const [conversationTitleOverrides, setConversationTitleOverrides] = useState<
-    ReadonlyMap<string, AgentGUIConversationTitleOverride>
-  >(() => new Map());
-  useEffect(
-    () =>
-      subscribeAgentGUIConversationTitleOverrides((override) => {
-        if (override.workspaceId !== viewModel.workspaceId) {
-          return;
-        }
-        setConversationTitleOverrides((current) => {
-          const existing = current.get(override.id);
-          if (existing && existing.updatedAtUnixMs > override.updatedAtUnixMs) {
-            return current;
-          }
-          if (
-            existing?.title === override.title &&
-            existing.updatedAtUnixMs === override.updatedAtUnixMs
-          ) {
-            return current;
-          }
-          const next = new Map(current);
-          next.set(override.id, override);
-          return next;
-        });
-      }),
-    [viewModel.workspaceId]
-  );
+  // The active conversation is the freshest projection of its own title
+  // (runtime snapshots patch it directly). Report it into the shared title
+  // registry so rail section rows — including provider-placeholder rows that
+  // only exist in paged section state — reconcile against the same source.
+  const activeConversationForTitle = viewModel.activeConversation;
+  const activeConversationExplicitTitle = activeConversationForTitle
+    ? resolveAgentGUIExplicitConversationTitle(activeConversationForTitle)
+    : null;
+  const activeConversationUpdatedAtUnixMs =
+    activeConversationForTitle?.updatedAtUnixMs ?? 0;
+  const activeConversationTitleId = activeConversationForTitle?.id ?? "";
+  useEffect(() => {
+    if (!activeConversationTitleId || !activeConversationExplicitTitle) {
+      return;
+    }
+    reportAgentGUIConversationServerTitles(viewModel.workspaceId, [
+      {
+        conversationId: activeConversationTitleId,
+        title: activeConversationExplicitTitle,
+        updatedAtUnixMs: activeConversationUpdatedAtUnixMs
+      }
+    ]);
+  }, [
+    activeConversationExplicitTitle,
+    activeConversationTitleId,
+    activeConversationUpdatedAtUnixMs,
+    viewModel.workspaceId
+  ]);
   // 打开引用 picker 时的定位目标(点任务/应用行的产物图标时设置;「+」按钮则为 null)。
   const [workspaceReferencePickerTarget, setWorkspaceReferencePickerTarget] =
     useState<ReferenceLocateTarget | null>(null);
@@ -1077,18 +1082,6 @@ export function AgentGUINodeView({
     setWorkspaceReferencePickerTarget(null);
   }, [emptyReferencePickResult]);
   useEffect(() => {
-    setConversationTitleOverrides((current) =>
-      pruneResolvedConversationTitleOverrides(current, [
-        ...viewModel.conversations,
-        ...(viewModel.activeConversation ? [viewModel.activeConversation] : [])
-      ])
-    );
-  }, [
-    conversationTitleRenderKey(viewModel.activeConversation),
-    viewModel.activeConversation,
-    viewModel.conversations
-  ]);
-  useEffect(() => {
     if (!renameSessionDialog) {
       return;
     }
@@ -1146,16 +1139,6 @@ export function AgentGUINodeView({
         agentSessionId: renameSessionDialog.agentSessionId,
         title
       });
-      setConversationTitleOverrides((current) => {
-        const next = new Map(current);
-        next.set(renameSessionDialog.agentSessionId, {
-          workspaceId: viewModel.workspaceId,
-          id: renameSessionDialog.agentSessionId,
-          title,
-          updatedAtUnixMs: Date.now()
-        });
-        return next;
-      });
       setRenameSessionDialog(null);
       setRenameSessionDraft("");
     } catch {
@@ -1163,13 +1146,7 @@ export function AgentGUINodeView({
     } finally {
       setIsRenamingSession(false);
     }
-  }, [
-    labels,
-    renameConversation,
-    renameSessionDialog,
-    renameSessionDraft,
-    viewModel.workspaceId
-  ]);
+  }, [labels, renameConversation, renameSessionDialog, renameSessionDraft]);
   const settleReferencePicker = useCallback(
     (
       result: WorkspaceReferencePickResult,
@@ -1616,37 +1593,6 @@ export function AgentGUINodeView({
     !trimmedRenameSessionDraft ||
     renameSessionDraftTooLong ||
     trimmedRenameSessionDraft === (renameSessionDialog?.title.trim() ?? "");
-  const activeConversationRenderKey = conversationTitleRenderKey(
-    viewModel.activeConversation
-  );
-  const displayActiveConversation = useMemo(() => {
-    if (!viewModel.activeConversation) {
-      return viewModel.activeConversation;
-    }
-    return (
-      applyConversationTitleOverridesToConversations(
-        [viewModel.activeConversation],
-        conversationTitleOverrides
-      )[0] ?? viewModel.activeConversation
-    );
-  }, [
-    activeConversationRenderKey,
-    conversationTitleOverrides,
-    viewModel.activeConversation
-  ]);
-  const displayActiveConversationRenderKey = conversationTitleRenderKey(
-    displayActiveConversation
-  );
-  const displayViewModel = useMemo(
-    () =>
-      displayActiveConversation === viewModel.activeConversation
-        ? viewModel
-        : {
-            ...viewModel,
-            activeConversation: displayActiveConversation
-          },
-    [displayActiveConversation, viewModel]
-  );
 
   const content = (
     <AgentTargetPresentationProvider agentTargets={agentTargetPresentations}>
@@ -1667,10 +1613,7 @@ export function AgentGUINodeView({
           inert={conversationRailCollapsed ? true : undefined}
         >
           <AgentGUIConversationRailStorePane
-            activeConversation={displayActiveConversation}
-            activeConversationTitleKey={displayActiveConversationRenderKey}
             conversations={viewModel.conversations}
-            conversationTitleOverrides={conversationTitleOverrides}
             store={conversationRailStore}
             storeState={conversationRailStoreState}
             userProjects={viewModel.userProjects}
@@ -1709,7 +1652,7 @@ export function AgentGUINodeView({
 
         <section id="agent-gui-detail" className={styles.detailPanel}>
           <AgentGUIDetailPane
-            viewModel={displayViewModel}
+            viewModel={viewModel}
             actions={actions}
             labels={labels}
             uiLanguage={uiLanguage}
@@ -3783,13 +3726,7 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
 });
 
 interface AgentGUIConversationRailPaneProps {
-  activeConversation: AgentGUINodeViewModel["activeConversation"];
-  activeConversationTitleKey: string;
   conversations: AgentGUINodeViewModel["conversations"];
-  conversationTitleOverrides: ReadonlyMap<
-    string,
-    AgentGUIConversationTitleOverride
-  >;
   workspaceId: string;
   userProjects: AgentGUINodeViewModel["userProjects"];
   activeConversationId: string | null;
@@ -3876,12 +3813,7 @@ type OpenclawGatewayViewModel =
 
 type AgentGUIConversationRailDataProps = Pick<
   AgentGUIConversationRailPaneProps,
-  | "activeConversation"
-  | "activeConversationTitleKey"
-  | "conversations"
-  | "conversationTitleOverrides"
-  | "userProjects"
-  | "workspaceId"
+  "conversations" | "userProjects" | "workspaceId"
 >;
 
 type AgentGUIConversationRailStoreSnapshot = Omit<
@@ -3956,13 +3888,7 @@ function agentGUIConversationRailStoreSnapshotsEqual(
 }
 
 interface AgentGUIConversationRailStorePaneProps {
-  activeConversation: AgentGUINodeViewModel["activeConversation"];
-  activeConversationTitleKey: string;
   conversations: AgentGUINodeViewModel["conversations"];
-  conversationTitleOverrides: ReadonlyMap<
-    string,
-    AgentGUIConversationTitleOverride
-  >;
   store: AgentGUIConversationRailStore;
   storeState: AgentGUIConversationRailStoreSnapshot;
   userProjects: AgentGUINodeViewModel["userProjects"];
@@ -3971,10 +3897,7 @@ interface AgentGUIConversationRailStorePaneProps {
 
 const AgentGUIConversationRailStorePane = memo(
   function AgentGUIConversationRailStorePane({
-    activeConversation,
-    activeConversationTitleKey: _activeConversationTitleKey,
     conversations,
-    conversationTitleOverrides,
     store,
     storeState: _storeState,
     userProjects,
@@ -3985,36 +3908,13 @@ const AgentGUIConversationRailStorePane = memo(
     return (
       <AgentGUIConversationRailPane
         {...state}
-        activeConversation={activeConversation}
-        activeConversationTitleKey={_activeConversationTitleKey}
         conversations={conversations}
-        conversationTitleOverrides={conversationTitleOverrides}
         userProjects={userProjects}
         workspaceId={workspaceId}
       />
     );
   }
 );
-
-function conversationTitleRenderKey(
-  conversation:
-    | Pick<
-        NonNullable<AgentGUINodeViewModel["activeConversation"]>,
-        "id" | "title" | "titleFallback" | "updatedAtUnixMs"
-      >
-    | null
-    | undefined
-): string {
-  if (!conversation) {
-    return "";
-  }
-  return [
-    conversation.id,
-    conversation.title,
-    conversation.titleFallback ?? "",
-    String(conversation.updatedAtUnixMs)
-  ].join("\u0000");
-}
 
 function normalizeConversationRailProjectPath(
   path: string | null | undefined
@@ -4195,117 +4095,65 @@ function updateConversationSectionsFromSummaries(
   return changed ? nextSections : (previous as ConversationSection[]);
 }
 
-type AgentGUIConversationTitleOverrideSource = Pick<
-  AgentGUINodeViewModel["conversations"][number],
-  "id" | "title" | "titleFallback" | "updatedAtUnixMs"
->;
-
-function shouldApplyConversationTitleOverride(
-  source: AgentGUIConversationTitleOverrideSource,
-  override: AgentGUIConversationTitleOverride
-): boolean {
-  return source.title !== override.title || source.titleFallback !== null;
-}
-
-function pruneResolvedConversationTitleOverrides(
-  overrides: ReadonlyMap<string, AgentGUIConversationTitleOverride>,
-  sources: readonly AgentGUIConversationTitleOverrideSource[]
-): ReadonlyMap<string, AgentGUIConversationTitleOverride> {
-  if (overrides.size === 0 || sources.length === 0) {
-    return overrides;
-  }
-  let next: Map<string, AgentGUIConversationTitleOverride> | null = null;
-  for (const source of sources) {
-    const override = overrides.get(source.id);
-    if (!override) {
+/**
+ * Feed server-reported titles from freshly fetched rail rows into the shared
+ * title registry so every other projection (list store summaries, detail
+ * header) reconciles against the same latest-known titles.
+ */
+function reportSectionConversationTitles(
+  workspaceId: string,
+  items: readonly AgentGUINodeViewModel["conversations"][number][]
+): void {
+  const reports: AgentGUIConversationTitleReport[] = [];
+  for (const item of items) {
+    // Provider-label placeholders and generic fallbacks are not titles.
+    const title = resolveAgentGUIExplicitConversationTitle(item);
+    if (!title) {
       continue;
     }
-    const sourceResolvedOverride =
-      source.title === override.title && source.titleFallback === null;
-    if (!sourceResolvedOverride) {
-      continue;
-    }
-    next ??= new Map(overrides);
-    next.delete(source.id);
+    reports.push({
+      conversationId: item.id,
+      title,
+      updatedAtUnixMs: item.updatedAtUnixMs
+    });
   }
-  return next ?? overrides;
+  reportAgentGUIConversationServerTitles(workspaceId, reports);
 }
 
-function applyConversationTitleOverridesToConversations(
-  conversations: readonly AgentGUINodeViewModel["conversations"][number][],
-  overrides: ReadonlyMap<string, AgentGUIConversationTitleOverride>
-): AgentGUINodeViewModel["conversations"] {
-  if (overrides.size === 0) {
-    return conversations as AgentGUINodeViewModel["conversations"];
-  }
-  let changed = false;
-  const next = conversations.map((conversation) => {
-    const override = overrides.get(conversation.id);
-    if (!override) {
-      return conversation;
-    }
-    if (!shouldApplyConversationTitleOverride(conversation, override)) {
-      return conversation;
-    }
-    const updatedAtUnixMs = Math.max(
-      conversation.updatedAtUnixMs,
-      override.updatedAtUnixMs
-    );
-    if (
-      conversation.title === override.title &&
-      conversation.titleFallback === null &&
-      conversation.updatedAtUnixMs === updatedAtUnixMs
-    ) {
-      return conversation;
-    }
-    changed = true;
-    return {
-      ...conversation,
-      title: override.title,
-      titleFallback: null,
-      updatedAtUnixMs
-    };
-  });
-  return changed
-    ? next
-    : (conversations as AgentGUINodeViewModel["conversations"]);
-}
-
-function applyConversationTitleOverridesToSections(
+/**
+ * Overlay registry titles onto rail section rows. Pure and identity-stable;
+ * same freshness rule as the registry apply: placeholder rows always take an
+ * explicit registry title, explicit rows only yield to entries at least as
+ * new as the row.
+ */
+function applyServerTitlesToSections(
   previous: ConversationSection[] | null,
-  overrides: ReadonlyMap<string, AgentGUIConversationTitleOverride>
+  titles: ReadonlyMap<string, AgentGUIConversationServerTitle>
 ): ConversationSection[] | null {
-  if (!previous || overrides.size === 0) {
+  if (!previous || titles.size === 0) {
     return previous;
   }
   let changed = false;
   const nextSections = previous.map((section) => {
     let sectionChanged = false;
     const items = section.items.map((item) => {
-      const override = overrides.get(item.id);
-      if (!override) {
+      const entry = titles.get(item.id);
+      if (!entry) {
         return item;
       }
-      if (!shouldApplyConversationTitleOverride(item, override)) {
+      const explicitTitle = resolveAgentGUIExplicitConversationTitle(item);
+      if (explicitTitle === entry.title) {
         return item;
       }
-      const updatedAtUnixMs = Math.max(
-        item.updatedAtUnixMs,
-        override.updatedAtUnixMs
-      );
-      if (
-        item.title === override.title &&
-        item.titleFallback === null &&
-        item.updatedAtUnixMs === updatedAtUnixMs
-      ) {
+      if (explicitTitle && item.updatedAtUnixMs > entry.updatedAtUnixMs) {
         return item;
       }
       sectionChanged = true;
       return {
         ...item,
-        title: override.title,
+        title: entry.title,
         titleFallback: null,
-        updatedAtUnixMs
+        updatedAtUnixMs: Math.max(item.updatedAtUnixMs, entry.updatedAtUnixMs)
       };
     });
     if (!sectionChanged) {
@@ -4642,10 +4490,6 @@ interface AgentGUIConversationRailInput {
   conversationFilter: AgentGUINodeViewModel["conversationFilter"];
   conversationQuery: string;
   conversations: AgentGUINodeViewModel["conversations"];
-  conversationTitleOverrides: ReadonlyMap<
-    string,
-    AgentGUIConversationTitleOverride
-  >;
   labels: AgentGUIViewLabels;
   previewMode: boolean;
   sectionAgentTargetFallbackId: string | null;
@@ -4657,7 +4501,6 @@ function useAgentGUIConversationRail({
   conversationFilter,
   conversationQuery,
   conversations,
-  conversationTitleOverrides,
   labels,
   previewMode,
   sectionAgentTargetFallbackId,
@@ -4678,13 +4521,13 @@ function useAgentGUIConversationRail({
   >(() => new Map());
   const pagingRequestSequenceRef = useRef(0);
   const pagingAbortControllersRef = useRef(new Map<string, AbortController>());
-  const conversationTitleOverridesRef = useRef(conversationTitleOverrides);
   const runtimeListSessionSections = agentActivityRuntime.listSessionSections;
   const runtimeListSessionSectionPage =
     agentActivityRuntime.listSessionSectionPage;
-  useEffect(() => {
-    conversationTitleOverridesRef.current = conversationTitleOverrides;
-  }, [conversationTitleOverrides]);
+  const serverTitles = useSyncExternalStore(
+    subscribeAgentGUIConversationServerTitles,
+    () => getAgentGUIConversationServerTitles(workspaceId)
+  );
   const runtimeSectionsEnabled =
     !previewMode &&
     Boolean(runtimeListSessionSections) &&
@@ -4765,14 +4608,12 @@ function useAgentGUIConversationRail({
           sections: page.sections,
           workspaceId: page.workspaceId
         });
+        reportSectionConversationTitles(
+          workspaceId,
+          sections.flatMap((section) => section.items)
+        );
         setRuntimeRailSections((current) =>
-          stabilizeConversationSections(
-            current,
-            applyConversationTitleOverridesToSections(
-              sections,
-              conversationTitleOverridesRef.current
-            ) ?? sections
-          )
+          stabilizeConversationSections(current, sections)
         );
         setSectionPageStates(() => {
           const next = new Map<string, ConversationRailSectionPageState>();
@@ -4814,12 +4655,9 @@ function useAgentGUIConversationRail({
       return;
     }
     setRuntimeRailSections((current) =>
-      applyConversationTitleOverridesToSections(
-        updateConversationSectionsFromSummaries(current, conversations),
-        conversationTitleOverrides
-      )
+      updateConversationSectionsFromSummaries(current, conversations)
     );
-  }, [conversationTitleOverrides, conversations, runtimeSectionsEnabled]);
+  }, [conversations, runtimeSectionsEnabled]);
 
   const loadMoreSectionConversations = useCallback(
     (section: ConversationSection) => {
@@ -4866,25 +4704,22 @@ function useAgentGUIConversationRail({
           ) {
             return;
           }
-          const pageConversations =
-            applyConversationTitleOverridesToConversations(
-              buildAgentGUIConversationSummaries({
-                conversationFilter,
-                provider: AGENT_GUI_CONVERSATION_RAIL_PROJECTION_PROVIDER,
-                snapshot: {
-                  composerOptionsByProvider: {},
-                  presences: [],
-                  sessionMessagesById: {},
-                  sessions: pageSection.sessions,
-                  workspaceId
-                },
-                userProjects: []
-              }).map((conversation) => ({
-                ...conversation,
-                project: section.kind === "project" ? section.project : null
-              })),
-              conversationTitleOverridesRef.current
-            );
+          const pageConversations = buildAgentGUIConversationSummaries({
+            conversationFilter,
+            provider: AGENT_GUI_CONVERSATION_RAIL_PROJECTION_PROVIDER,
+            snapshot: {
+              composerOptionsByProvider: {},
+              presences: [],
+              sessionMessagesById: {},
+              sessions: pageSection.sessions,
+              workspaceId
+            },
+            userProjects: []
+          }).map((conversation) => ({
+            ...conversation,
+            project: section.kind === "project" ? section.project : null
+          }));
+          reportSectionConversationTitles(workspaceId, pageConversations);
           setRuntimeRailSections((current) => {
             if (!current) {
               return current;
@@ -4949,20 +4784,25 @@ function useAgentGUIConversationRail({
     ]
   );
 
+  // Rail rows render through the shared title registry so rows that only
+  // exist in paged section state (not in the list store) still pick up
+  // rename acks and fresher server titles immediately.
+  const displayRailSections = useMemo(
+    () => applyServerTitlesToSections(runtimeRailSections, serverTitles),
+    [runtimeRailSections, serverTitles]
+  );
+
   return {
     loadMoreSectionConversations,
     runtimeSectionsEnabled,
-    runtimeRailSections,
+    runtimeRailSections: displayRailSections,
     sectionPageStates
   };
 }
 
 const AgentGUIConversationRailPane = memo(
   function AgentGUIConversationRailPane({
-    activeConversation,
-    activeConversationTitleKey,
     conversations,
-    conversationTitleOverrides,
     workspaceId,
     userProjects,
     activeConversationId,
@@ -5021,33 +4861,6 @@ const AgentGUIConversationRailPane = memo(
     const conversationItemElementsRef = useRef(
       new Map<string, HTMLDivElement>()
     );
-    const effectiveConversationTitleOverrides = useMemo(() => {
-      const title = activeConversation
-        ? resolveAgentGUIExplicitConversationTitle(activeConversation)
-        : null;
-      if (!activeConversation?.id || !title) {
-        return conversationTitleOverrides;
-      }
-      const existing = conversationTitleOverrides.get(activeConversation.id);
-      if (existing?.title === title) {
-        return conversationTitleOverrides;
-      }
-      const next = new Map(conversationTitleOverrides);
-      next.set(activeConversation.id, {
-        workspaceId,
-        id: activeConversation.id,
-        title,
-        updatedAtUnixMs: Math.max(
-          activeConversation.updatedAtUnixMs,
-          existing?.updatedAtUnixMs ?? 0
-        )
-      });
-      return next;
-    }, [
-      activeConversation,
-      activeConversationTitleKey,
-      conversationTitleOverrides
-    ]);
     const activeConversationScrollCompletedRef = useRef<string | null>(null);
     const previousActiveConversationIdRef = useRef<string | null>(null);
     const groupedConversationsRef = useRef<ConversationSection[] | null>(null);
@@ -5060,21 +4873,12 @@ const AgentGUIConversationRailPane = memo(
       conversationFilter,
       conversationQuery,
       conversations,
-      conversationTitleOverrides: effectiveConversationTitleOverrides,
       labels,
       previewMode,
       sectionAgentTargetFallbackId,
       userProjects,
       workspaceId
     });
-    const displaySourceConversations = useMemo(
-      () =>
-        applyConversationTitleOverridesToConversations(
-          conversations,
-          effectiveConversationTitleOverrides
-        ),
-      [conversations, effectiveConversationTitleOverrides]
-    );
 
     useEffect(() => {
       const timer = window.setInterval(() => {
@@ -5091,8 +4895,8 @@ const AgentGUIConversationRailPane = memo(
           ? (runtimeRailSections?.flatMap((section) => section.items) ?? [])
           : runtimeRailSections
             ? runtimeRailSections.flatMap((section) => section.items)
-            : displaySourceConversations,
-      [displaySourceConversations, runtimeRailSections, runtimeSectionsEnabled]
+            : conversations,
+      [conversations, runtimeRailSections, runtimeSectionsEnabled]
     );
 
     const filteredConversationResult = useMemo(() => {

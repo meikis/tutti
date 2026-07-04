@@ -157,7 +157,6 @@ import {
   markAgentGUIConversationCreatePending,
   markAgentGUIConversationSubmitPending,
   markLocalDeletedAgentGUIConversation,
-  patchAgentGUIConversationSummaryInWorkspace,
   patchAgentGUIConversationSummary,
   removeAgentGUIConversationSummaries,
   scheduleAgentGUIConversationListProjection,
@@ -172,7 +171,7 @@ import { useAgentGuiConversationList } from "../../../contexts/workspace/present
 import { createOptimisticPromptMessage } from "./agentGuiController.promptHelpers";
 import { useAgentGUIActivation } from "./useAgentGUIActivation";
 import { pendingInterruptActionForDisplayStatus } from "./pendingInterrupt";
-import { publishAgentGUIConversationTitleOverride } from "../agentGuiConversationTitleOverrides";
+import { reportAgentGUIConversationServerTitles } from "../../../contexts/workspace/presentation/renderer/agentGuiConversationList/agentGuiConversationTitleRegistry";
 import {
   formatAgentMentionMarkdown,
   normalizeAgentSessionMentionTitle
@@ -9686,35 +9685,20 @@ export function useAgentGUINodeController({
           title
         });
         const nextTitle = session.title.trim() ? session.title : title;
-        const patch = {
-          title: nextTitle,
-          ...(typeof session.updatedAtUnixMs === "number"
-            ? { updatedAtUnixMs: session.updatedAtUnixMs }
-            : {})
-        };
-        patchAgentGUIConversationSummaryInWorkspace({
-          workspaceId,
-          conversationId: normalizedAgentSessionId,
-          patch
-        });
-        publishAgentGUIConversationTitleOverride({
-          workspaceId,
-          id: normalizedAgentSessionId,
-          title: nextTitle,
-          updatedAtUnixMs:
-            typeof session.updatedAtUnixMs === "number"
-              ? session.updatedAtUnixMs
-              : Date.now()
-        });
+        const updatedAtUnixMs =
+          typeof session.updatedAtUnixMs === "number"
+            ? session.updatedAtUnixMs
+            : Date.now();
+        reportAgentGUIConversationServerTitles(workspaceId, [
+          {
+            conversationId: normalizedAgentSessionId,
+            title: nextTitle,
+            updatedAtUnixMs
+          }
+        ]);
         setTransientConversation((current) =>
           current?.id === normalizedAgentSessionId
-            ? {
-                ...current,
-                title: nextTitle,
-                ...(typeof session.updatedAtUnixMs === "number"
-                  ? { updatedAtUnixMs: session.updatedAtUnixMs }
-                  : {})
-              }
+            ? { ...current, title: nextTitle, updatedAtUnixMs }
             : current
         );
       } catch (error) {

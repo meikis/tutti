@@ -238,6 +238,21 @@ authoritative user state: once a persisted session has a user title, later
 runtime state reports must not overwrite it with provider-derived automatic
 titles.
 
+Conversation titles have exactly one client-side reconciliation point: the
+workspace-scoped title registry (`agentGuiConversationTitleRegistry`) beside
+`agentGuiConversationListStore`. Every server response that carries a session
+title — rename acknowledgements, rail section pages, the active conversation's
+projection — reports into the registry, and every title projection (list-store
+summaries, rail section rows, and through them the detail header) renders
+through it. Entries are versioned by server-reported session `updatedAtUnixMs`
+(newest report wins); a placeholder row (provider label / untitled-task /
+generic fallback) always accepts an explicit registry title because session
+`updatedAt` moves with activity, not with titles. The list store prunes an
+entry once a durable refresh returns the same title with an equal-or-newer
+timestamp, so registry entries only bridge stale durable snapshots. Do not add
+per-view title caches, pub/sub title channels, or view-model title patches
+outside this registry.
+
 Local overlays are allowed only to bridge UI latency:
 
 - pending create/submit/delete state in `agentGuiConversationListStore`
@@ -828,11 +843,13 @@ User-visible rules:
 - AgentGUI conversation titles must use the shared title projection before they
   reach desktop-owned chrome, dock previews, message center cards, or toast
   notifications. Do not display raw `session.title.trim()` in those surfaces.
-- Manual rename overlays must update every mounted AgentGUI projection for the
-  same workspace/session, including rail rows, detail headers, and workbench
-  node chrome. Clear a rename overlay only after the durable source returns the
-  same display title; do not treat generic session `updatedAt` or activity
-  timestamps as title-version ordering.
+- A rename must update every mounted AgentGUI projection for the same
+  workspace/session — rail rows, detail headers, workbench node chrome — by
+  reporting the acknowledged title into the shared title registry, never by
+  patching individual views. The registry clears an entry only after the
+  durable source returns the same display title; explicit-vs-placeholder
+  status, not generic session `updatedAt`, decides whether a row yields to a
+  registry title.
 - Live runtime snapshot data is the source for workbench and dock titles. Do
   not persist or restore `lastActiveConversationTitle` from workbench node
   state.
