@@ -94,7 +94,8 @@ test("desktop agent GUI workbench host input reuses an injected agent host api",
         "file",
         "workspace-issue",
         "agent-session",
-        "workspace-app"
+        "workspace-app",
+        "agent-target"
       ],
       surface: "composer",
       target: "agent-gui",
@@ -592,6 +593,14 @@ test("desktop agent GUI queued prompt drainer interrupts active turn for send-ne
         reason: "active_turn_canceled",
         session: activitySession(input.agentSessionId, {
           status: "canceled",
+          updatedAtUnixMs: 2
+        })
+      };
+    },
+    async goalControl(input) {
+      return {
+        goal: null,
+        session: activitySession(input.agentSessionId, {
           updatedAtUnixMs: 2
         })
       };
@@ -1519,6 +1528,7 @@ test("desktop agent GUI workbench host input wires runtime composer options thro
   assert.deepEqual(
     await hostInput.agentActivityRuntime.getComposerOptions({
       workspaceId,
+      agentTargetId: "local:codex",
       provider: "codex",
       settings: { model: "gpt-5" }
     }),
@@ -1527,7 +1537,7 @@ test("desktop agent GUI workbench host input wires runtime composer options thro
       effectiveSettings: { model: "gpt-5" }
     }
   );
-  assert.deepEqual(calls, ["getComposerOptions:workspace-1:codex"]);
+  assert.deepEqual(calls, ["getComposerOptions:workspace-1:codex:local:codex"]);
 });
 
 test("desktop agent GUI workbench host input wires runtime activation through the workspace activity service", async () => {
@@ -2038,6 +2048,15 @@ function createWorkspaceAgentActivityService(
         }
       };
     },
+    async goalControl(input) {
+      return {
+        goal: null,
+        session: {
+          ...emptySession(),
+          agentSessionId: input.agentSessionId
+        }
+      };
+    },
     async createSession(input) {
       return {
         ...emptySession(),
@@ -2050,7 +2069,7 @@ function createWorkspaceAgentActivityService(
     },
     async getComposerOptions(input) {
       calls.push(
-        `getComposerOptions:${input.workspaceId}:${input.provider ?? ""}`
+        `getComposerOptions:${input.workspaceId}:${input.provider ?? ""}:${input.agentTargetId ?? ""}`
       );
       return {
         effectiveSettings: input.settings ?? {},
@@ -2094,14 +2113,19 @@ function createWorkspaceAgentActivityService(
     async listAgentGeneratedFiles() {
       return { entries: [], workspaceId };
     },
-    async listSessionGroups() {
-      return { groups: [], workspaceId };
+    async listSessionsPage(input) {
+      return { hasMore: false, sessions: [], workspaceId: input.workspaceId };
     },
-    async listSessionsPage() {
-      return { hasMore: false, sessions: [], workspaceId };
+    async listSessionSections(input) {
+      return { sections: [], workspaceId: input.workspaceId };
     },
-    async searchSessions() {
-      return { hasMore: false, sessions: [], workspaceId };
+    async listSessionSectionPage(input) {
+      return {
+        kind: "conversations",
+        sectionKey: input.sectionKey,
+        sessions: [],
+        hasMore: false
+      };
     },
     async scanExternalSessionImports() {
       throw new Error("not implemented");

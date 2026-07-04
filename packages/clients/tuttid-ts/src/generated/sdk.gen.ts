@@ -175,6 +175,9 @@ import type {
   GetWorkspaceWorkbenchData,
   GetWorkspaceWorkbenchErrors,
   GetWorkspaceWorkbenchResponses,
+  GoalControlWorkspaceAgentSessionData,
+  GoalControlWorkspaceAgentSessionErrors,
+  GoalControlWorkspaceAgentSessionResponses,
   ImportWorkspaceAppData,
   ImportWorkspaceAppErrors,
   ImportWorkspaceAppResponses,
@@ -190,6 +193,9 @@ import type {
   LaunchWorkspaceAppData,
   LaunchWorkspaceAppErrors,
   LaunchWorkspaceAppResponses,
+  ListAgentTargetsData,
+  ListAgentTargetsErrors,
+  ListAgentTargetsResponses,
   ListCliCapabilitiesData,
   ListCliCapabilitiesErrors,
   ListCliCapabilitiesResponses,
@@ -202,13 +208,16 @@ import type {
   ListWorkspaceAgentSessionGitBranchesData,
   ListWorkspaceAgentSessionGitBranchesErrors,
   ListWorkspaceAgentSessionGitBranchesResponses,
-  ListWorkspaceAgentSessionGroupsData,
-  ListWorkspaceAgentSessionGroupsErrors,
-  ListWorkspaceAgentSessionGroupsResponses,
   ListWorkspaceAgentSessionMessagesData,
   ListWorkspaceAgentSessionMessagesErrors,
   ListWorkspaceAgentSessionMessagesResponses,
   ListWorkspaceAgentSessionsData,
+  ListWorkspaceAgentSessionSectionPageData,
+  ListWorkspaceAgentSessionSectionPageErrors,
+  ListWorkspaceAgentSessionSectionPageResponses,
+  ListWorkspaceAgentSessionSectionsData,
+  ListWorkspaceAgentSessionSectionsErrors,
+  ListWorkspaceAgentSessionSectionsResponses,
   ListWorkspaceAgentSessionsErrors,
   ListWorkspaceAgentSessionsResponses,
   ListWorkspaceAppFactoryJobsData,
@@ -705,6 +714,24 @@ export const attachEventStream = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/v1/events/ws",
+    ...options
+  });
+
+/**
+ * List daemon-owned Agent Targets
+ *
+ * Returns durable Agent Target records. The launch ref is a controlled union and not a free-form configuration blob.
+ */
+export const listAgentTargets = <ThrowOnError extends boolean = false>(
+  options?: Options<ListAgentTargetsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListAgentTargetsResponses,
+    ListAgentTargetsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/agent-targets",
     ...options
   });
 
@@ -1504,20 +1531,38 @@ export const createWorkspaceAgentSession = <
   });
 
 /**
- * List grouped agent session summaries for one workspace
+ * List agent session rail sections for one workspace
  */
-export const listWorkspaceAgentSessionGroups = <
+export const listWorkspaceAgentSessionSections = <
   ThrowOnError extends boolean = false
 >(
-  options: Options<ListWorkspaceAgentSessionGroupsData, ThrowOnError>
+  options: Options<ListWorkspaceAgentSessionSectionsData, ThrowOnError>
 ) =>
   (options.client ?? client).get<
-    ListWorkspaceAgentSessionGroupsResponses,
-    ListWorkspaceAgentSessionGroupsErrors,
+    ListWorkspaceAgentSessionSectionsResponses,
+    ListWorkspaceAgentSessionSectionsErrors,
     ThrowOnError
   >({
     security: [{ scheme: "bearer", type: "http" }],
-    url: "/v1/workspaces/{workspaceID}/agent-sessions/groups",
+    url: "/v1/workspaces/{workspaceID}/agent-session-sections",
+    ...options
+  });
+
+/**
+ * List one agent session rail section page for one workspace
+ */
+export const listWorkspaceAgentSessionSectionPage = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<ListWorkspaceAgentSessionSectionPageData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkspaceAgentSessionSectionPageResponses,
+    ListWorkspaceAgentSessionSectionPageErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/agent-session-sections/page",
     ...options
   });
 
@@ -1811,6 +1856,28 @@ export const cancelWorkspaceAgentSession = <
     security: [{ scheme: "bearer", type: "http" }],
     url: "/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/cancel",
     ...options
+  });
+
+/**
+ * Perform a goal control action on one workspace agent session
+ */
+export const goalControlWorkspaceAgentSession = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<GoalControlWorkspaceAgentSessionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    GoalControlWorkspaceAgentSessionResponses,
+    GoalControlWorkspaceAgentSessionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/goal",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
   });
 
 /**

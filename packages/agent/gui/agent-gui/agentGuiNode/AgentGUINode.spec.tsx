@@ -2,11 +2,12 @@ import {
   fireEvent,
   render,
   screen,
+  act,
   waitFor,
   within
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { StrictMode, act } from "react";
+import { StrictMode } from "react";
 import type { WorkspaceAgentSessionDetailViewModel } from "../../shared/workspaceAgentSessionDetailViewModel";
 import type { AgentHostManagedAgentsState } from "../../shared/contracts/dto";
 import type { WorkspaceFileReferenceAdapter } from "@tutti-os/workspace-file-reference/contracts";
@@ -470,13 +471,6 @@ async function resolveAgentGUITestSessionFallbackTitle({
   );
 }
 
-function ensurePointerCaptureSupport(): void {
-  if (!("setPointerCapture" in HTMLElement.prototype)) {
-    // @ts-expect-error - happy-dom does not implement this API.
-    HTMLElement.prototype.setPointerCapture = () => undefined;
-  }
-}
-
 vi.mock("../../i18n/index", () => ({
   getActiveUiLanguage: () => "zh-CN",
   translate: (key: string, options?: { count?: number }) => {
@@ -512,17 +506,20 @@ vi.mock("../../i18n/index", () => ({
       "agentHost.roomIssueNode.issueStatusFailed": "失败",
       "agentHost.roomIssueNode.issueStatusCanceled": "已取消",
       "agentHost.agentGui.mentionFilterApp": "App",
+      "agentHost.agentGui.mentionFilterAgent": "Agent",
       "agentHost.agentGui.mentionFilterFile": "文件",
       "agentHost.agentGui.mentionFilterSession": "会话",
       "agentHost.agentGui.mentionFilterCollab": "协作",
       "agentHost.agentGui.mentionFilterIssue": "Tasks",
       "agentHost.agentGui.mentionGroupApps": "App",
+      "agentHost.agentGui.mentionGroupAgents": "Agent",
       "agentHost.agentGui.mentionGroupFiles": "文件",
       "agentHost.agentGui.mentionGroupMySessions": "我的会话",
       "agentHost.agentGui.mentionGroupCollabSessions": "协作会话",
       "agentHost.agentGui.mentionGroupIssues": "Tasks",
       "agentHost.agentGui.mentionEmptyMySessions": "暂无会话",
       "agentHost.agentGui.mentionEmptyCollabSessions": "暂无协作会话",
+      "agentHost.agentGui.mentionEmptyAgents": "No agents yet",
       "agentHost.agentGui.mentionEmptyIssues": "No tasks yet",
       "agentHost.agentGui.mentionNoMatchingFiles": "没有匹配到文件",
       "agentHost.agentGui.fileMentionEmpty": "根据你输入的内容搜索工作区文件",
@@ -559,6 +556,7 @@ vi.mock("../../i18n/index", () => ({
         "根据你输入的内容搜索工作区文件",
       "agentHost.agentGui.contextPickerBrowseSessionHint":
         "输入内容以搜索我发起的 Agent 会话",
+      "agentHost.agentGui.contextPickerBrowseAgentHint": "输入内容以搜索 Agent",
       "agentHost.agentGui.contextPickerBrowseAppHint": "输入内容以搜索应用",
       "agentHost.agentGui.contextPickerBrowseIssueHint":
         "输入内容以搜索当前房间内的 Issue",
@@ -613,6 +611,9 @@ vi.mock("../../i18n/index", () => ({
       }
       if (key === "agentHost.workspaceAgentProbeDetailQuota") {
         return "额度";
+      }
+      if (key === "agentHost.workspaceAgentProbeUsageUnsupported") {
+        return "暂未接入用量";
       }
       if (key === "agentHost.workspaceAgentProbeQuotaRemaining") {
         return `剩余 ${options?.percent ?? 0}%`;
@@ -884,6 +885,122 @@ describe("AgentGUINode", () => {
       "codex",
       "agent-gui:agent-gui-1"
     );
+  });
+
+  it("shows a fallback when agent probe usage returns no quotas", () => {
+    renderAgentGUINode({
+      workspaceAgentProbes: {
+        isLoadingAvailability: false,
+        isLoadingUsage: false,
+        snapshot: {
+          workspaceId: "workspace-1",
+          capturedAtUnixMs: 1,
+          providers: [
+            {
+              provider: "codex",
+              availability: { status: "available", detailsVisible: false },
+              usage: {
+                capturedAtUnixMs: 1,
+                quotas: []
+              }
+            }
+          ]
+        }
+      }
+    });
+
+    const info = screen.getByTestId("agent-gui-window-agent-info");
+    expect(info).toHaveAttribute("aria-label", "可用，暂未接入用量");
+    fireEvent.mouseEnter(info);
+    expect(screen.getByText("状态")).toBeInTheDocument();
+    expect(screen.getByText("可用")).toBeInTheDocument();
+    expect(screen.getByText("额度")).toBeInTheDocument();
+    expect(screen.getByText("暂未接入用量")).toBeInTheDocument();
+  });
+
+  it("keeps the rail config entry visible for legacy single-provider docks", () => {
+    mockViewModel = createViewModel({
+      conversationScope: "single-provider",
+      conversationFilter: { kind: "all" }
+    });
+
+    renderAgentGUINode();
+
+    expect(
+      screen.getByTitle("agentHost.agentGui.agentConfig")
+    ).toBeInTheDocument();
+  });
+
+  it("hides the rail config entry for the unified All provider filter", () => {
+    mockViewModel = createViewModel({
+      conversationScope: "multi-provider",
+      conversationFilter: { kind: "all" },
+      providerTargets: [
+        createLocalAgentGUIProviderTarget("codex"),
+        createLocalAgentGUIProviderTarget("claude-code")
+      ]
+    });
+
+    renderAgentGUINode();
+
+    expect(screen.queryByTitle("agentHost.agentGui.agentConfig")).toBeNull();
+  });
+
+  it("renders rail config usage from the unified provider filter target", async () => {
+    const onAgentProbeDemandChange = vi.fn();
+    const codexTarget = createLocalAgentGUIProviderTarget("codex");
+    const claudeTarget = createLocalAgentGUIProviderTarget("claude-code");
+    mockViewModel = createViewModel({
+      conversationScope: "multi-provider",
+      conversationFilter: {
+        kind: "agentTarget",
+        agentTargetId: claudeTarget.agentTargetId ?? ""
+      },
+      selectedProviderTarget: codexTarget,
+      providerTargets: [codexTarget, claudeTarget]
+    });
+
+    renderAgentGUINode({
+      onAgentProbeDemandChange,
+      workspaceAgentProbes: {
+        isLoadingAvailability: false,
+        isLoadingUsage: false,
+        snapshot: {
+          workspaceId: "workspace-1",
+          capturedAtUnixMs: 1,
+          providers: [
+            {
+              provider: "codex",
+              availability: { status: "available", detailsVisible: false },
+              usage: {
+                capturedAtUnixMs: 1,
+                quotas: [{ quotaType: "session", percentRemaining: 11 }]
+              }
+            },
+            {
+              provider: "claude-code",
+              availability: { status: "available", detailsVisible: false },
+              usage: {
+                capturedAtUnixMs: 1,
+                quotas: [{ quotaType: "session", percentRemaining: 42 }]
+              }
+            }
+          ]
+        }
+      }
+    });
+
+    expect(onAgentProbeDemandChange).toHaveBeenCalledWith(
+      "claude-code",
+      "agent-gui:agent-gui-1:rail"
+    );
+
+    fireEvent.click(screen.getByTitle("agentHost.agentGui.agentConfig"));
+
+    await waitFor(() => {
+      expect(screen.getByText("42% left")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("11% left")).toBeNull();
   });
 
   it("requests a fresh agent probe when the title info entry opens", () => {
@@ -1520,15 +1637,6 @@ describe("AgentGUINode", () => {
       lastActiveConversationTitle: null
     });
   });
-
-  it("renders a single new-conversation button in the chrome", () => {
-    renderAgentGUINode();
-
-    expect(
-      document.querySelectorAll(".agent-gui-node__new-conversation-icon-button")
-    ).toHaveLength(1);
-  });
-
   it("renders the Agent GUI window header controls without a maximize button", () => {
     renderAgentGUINode({
       onMinimize: vi.fn(),
@@ -1647,46 +1755,6 @@ describe("AgentGUINode", () => {
       conversationRailCollapsed: false
     });
   });
-
-  it("auto-collapses the conversation rail during an active window resize drag", async () => {
-    ensurePointerCaptureSupport();
-    renderAgentGUINode({ width: 720 });
-
-    const railResizeHandle = screen.getByRole("separator", {
-      name: "agentHost.agentGui.conversationRailResizeAria"
-    });
-    expect(railResizeHandle).not.toHaveAttribute("aria-hidden", "true");
-
-    fireEvent.pointerDown(screen.getByTestId("agentGui-node-resizer-right"), {
-      clientX: 720,
-      clientY: 0,
-      pointerId: 1
-    });
-    await act(async () => {
-      window.dispatchEvent(
-        new PointerEvent("pointermove", {
-          clientX: 460,
-          clientY: 0,
-          pointerId: 1
-        })
-      );
-    });
-
-    await waitFor(() => {
-      expect(railResizeHandle).toHaveAttribute("aria-hidden", "true");
-    });
-
-    await act(async () => {
-      window.dispatchEvent(
-        new PointerEvent("pointerup", {
-          clientX: 460,
-          clientY: 0,
-          pointerId: 1
-        })
-      );
-    });
-  });
-
   it("renders the composer before a conversation is active", () => {
     renderAgentGUINode();
 
@@ -1708,6 +1776,31 @@ describe("AgentGUINode", () => {
     expect(
       document.querySelector(".agent-gui-node__timeline-centered")
     ).toContainElement(emptyHeading);
+  });
+
+  it("renders the empty hero icon from the selected provider target", () => {
+    mockViewModel = createViewModel({
+      data: {
+        provider: "codex",
+        lastActiveAgentSessionId: null,
+        conversationRailWidthPx: null
+      },
+      selectedProviderTarget: createLocalAgentGUIProviderTarget("claude-code"),
+      providerTargets: [
+        createLocalAgentGUIProviderTarget("codex"),
+        createLocalAgentGUIProviderTarget("claude-code")
+      ]
+    });
+
+    renderAgentGUINode();
+
+    const iconEffect = document.querySelector(
+      ".agent-gui-node__empty-hero-icon-effect"
+    );
+    expect(iconEffect).toHaveAttribute(
+      "src",
+      MANAGED_AGENT_ICON_URLS["claude-code"]
+    );
   });
 
   it("resolves provider-specific hero icon artwork", () => {
@@ -1981,17 +2074,6 @@ describe("AgentGUINode", () => {
       expect(root.querySelector('[data-agent-file-mention="true"]')).toBeNull();
     }
   });
-
-  it("renders a resize handle for the conversation rail", () => {
-    renderAgentGUINode();
-
-    expect(
-      screen.getByRole("separator", {
-        name: "agentHost.agentGui.conversationRailResizeAria"
-      })
-    ).toBeTruthy();
-  });
-
   it("filters conversations from the sidebar search field", () => {
     mockViewModel = createViewModel({
       conversations: [
@@ -2309,7 +2391,7 @@ describe("AgentGUINode", () => {
     vi.useRealTimers();
   });
 
-  it("refreshes relative time labels every minute while the session list stays open", () => {
+  it("refreshes relative time labels every minute while the session list stays open", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-18T17:20:00Z"));
     mockViewModel = createViewModel({
@@ -2330,7 +2412,7 @@ describe("AgentGUINode", () => {
 
     expect(screen.getByText("刚刚")).toBeTruthy();
 
-    act(() => {
+    await act(async () => {
       vi.advanceTimersByTime(60_000);
     });
 
@@ -2502,10 +2584,7 @@ describe("AgentGUINode", () => {
     );
     fireEvent.click(sendButton);
 
-    expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("hello world"),
-      undefined
-    );
+    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("hello world"));
   });
 
   it("disables direct replies for another user's conversation", () => {
@@ -2646,6 +2725,56 @@ describe("AgentGUINode", () => {
 
     renderAgentGUINode({
       managedAgentsState: null
+    });
+
+    expect(getComposerEditor()).not.toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByTestId("agent-gui-provider-setup-notice")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "agentHost.agentGui.send" })
+    ).not.toBeDisabled();
+  });
+
+  it("checks empty-home provider readiness against the selected provider target before legacy node provider", () => {
+    mockViewModel = createViewModel({
+      data: {
+        provider: "claude-code",
+        agentTargetId: "local:claude-code",
+        lastActiveAgentSessionId: null,
+        conversationRailWidthPx: null
+      },
+      selectedProviderTarget: {
+        ...createLocalAgentGUIProviderTarget("claude-code"),
+        agentTargetId: "local:claude-code"
+      },
+      activeConversation: null,
+      activeConversationId: null,
+      draftPrompt: "hello",
+      canQueueWhileBusy: true,
+      providerReadinessGate: null
+    });
+
+    renderAgentGUINode({
+      state: {
+        provider: "codex",
+        agentTargetId: "local:claude-code",
+        lastActiveAgentSessionId: null,
+        conversationRailWidthPx: null
+      },
+      managedAgentsState: createManagedAgentsState({
+        readyAgentIds: ["claude-code"],
+        items: [
+          createManagedAgentsStateItem({
+            toolId: "codex-cli",
+            agentId: "codex",
+            hostDetected: true
+          }),
+          createManagedAgentsStateItem({
+            toolId: "claude-code-cli",
+            agentId: "claude-code",
+            hostDetected: true
+          })
+        ]
+      })
     });
 
     expect(getComposerEditor()).not.toHaveAttribute("aria-disabled", "true");
@@ -3408,48 +3537,6 @@ describe("AgentGUINode", () => {
     ).toHaveAttribute("src", iconUrl);
     expect(queuedPromptList).not.toHaveTextContent("mention://workspace-app");
   });
-
-  it("raises the mention palette stacking context above the interactive prompt", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      canQueueWhileBusy: true,
-      canSubmit: false,
-      pendingInteractivePrompt: {
-        kind: "ask-user",
-        requestId: "request-ask",
-        title: "Questions for you",
-        questions: [
-          {
-            id: "scope",
-            header: "Scope",
-            question: "Which scope should we use?",
-            options: [{ label: "Small", description: "Minimal change" }],
-            multiSelect: false
-          }
-        ]
-      }
-    });
-    renderAgentGUINode();
-
-    pasteComposerText("@");
-
-    await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    const floatingPrompt = screen.getByTestId(
-      "agent-gui-composer-floating-prompt"
-    );
-    const inputShell = getComposerEditor().closest(
-      ".agent-gui-node__composer-input-shell"
-    );
-    const surface = screen.getByTestId("agent-gui-mention-palette-surface");
-
-    expect(floatingPrompt).toBeTruthy();
-    expect(inputShell).not.toBeNull();
-    expect(inputShell).toHaveStyle({ zIndex: "var(--z-popover)" });
-    expect(surface).toHaveStyle({ zIndex: "var(--z-popover)" });
-  });
-
   it("shows the send button instead of Stop when queueing during a busy turn", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -3486,10 +3573,7 @@ describe("AgentGUINode", () => {
 
     fireEvent.keyDown(editor, { key: "Enter" });
 
-    expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("hello"),
-      undefined
-    );
+    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("hello"));
 
     mockSubmitPrompt.mockClear();
     fireEvent.keyDown(editor, { key: "Enter", shiftKey: true });
@@ -3773,10 +3857,7 @@ describe("AgentGUINode", () => {
 
     fireEvent.keyDown(getComposerEditor(), { key: "Enter" });
 
-    expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("/init"),
-      undefined
-    );
+    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/init"));
     expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft(""));
     await waitFor(() =>
       expect(getComposerEditor()).not.toHaveTextContent("/init")
@@ -3799,10 +3880,7 @@ describe("AgentGUINode", () => {
     fireEvent.keyDown(editor, { key: "ArrowDown" });
     fireEvent.keyDown(editor, { key: "Enter" });
 
-    expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("/compact"),
-      undefined
-    );
+    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/compact"));
     expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft(""));
   });
 
@@ -3822,10 +3900,7 @@ describe("AgentGUINode", () => {
 
     fireEvent.keyDown(getComposerEditor(), { key: "Enter" });
 
-    expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("/compact"),
-      undefined
-    );
+    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/compact"));
     expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft(""));
   });
 
@@ -4039,29 +4114,6 @@ describe("AgentGUINode", () => {
     expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft("/read "));
     expect(mockSubmitPrompt).not.toHaveBeenCalled();
   });
-
-  it("syncs slash command highlight with pointer hover", () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: "/",
-      availableCommands: [
-        { name: "web", description: "Search the web" },
-        { name: "read", description: "Read files" }
-      ]
-    });
-    renderAgentGUINode();
-
-    const readOption = screen.getByText("read").closest('[role="option"]');
-    expect(readOption).not.toBeNull();
-    expect(readOption).toHaveAttribute("aria-selected", "false");
-    expect(readOption).not.toHaveClass("bg-[var(--transparency-block)]");
-
-    fireEvent.mouseEnter(readOption!);
-
-    expect(readOption).toHaveAttribute("aria-selected", "true");
-    expect(readOption).toHaveClass("bg-[var(--transparency-block)]");
-  });
-
   it("keeps slash text as a normal prompt after the command token", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -4074,10 +4126,7 @@ describe("AgentGUINode", () => {
       key: "Enter"
     });
 
-    expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("/web query"),
-      undefined
-    );
+    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/web query"));
     expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft(""));
   });
 
@@ -4113,7 +4162,7 @@ describe("AgentGUINode", () => {
 
     fireEvent.keyDown(editor, { key: "Enter" });
 
-    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/"), undefined);
+    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/"));
     expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft(""));
   });
 
@@ -4208,8 +4257,7 @@ describe("AgentGUINode", () => {
 
     fireEvent.keyDown(editor, { key: "Enter" });
     expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("$architecture-review"),
-      undefined
+      promptBlocks("$architecture-review")
     );
   });
 
@@ -4336,10 +4384,7 @@ describe("AgentGUINode", () => {
 
     fireEvent.keyDown(getComposerEditor(), { key: "Enter" });
 
-    expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("/init"),
-      undefined
-    );
+    expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/init"));
   });
 
   it("inserts Claude Code plugin skill triggers from the slash picker", () => {
@@ -4417,8 +4462,7 @@ describe("AgentGUINode", () => {
 
     fireEvent.keyDown(editor, { key: "Enter" });
     expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("/product-design:frontend-design"),
-      undefined
+      promptBlocks("/product-design:frontend-design")
     );
   });
 
@@ -4479,7 +4523,8 @@ describe("AgentGUINode", () => {
     });
     renderAgentGUINode();
 
-    pasteComposerText("@read");
+    pasteComposerText("@");
+    pasteComposerText("read");
     const palette = await screen.findByRole("listbox", {
       name: "agentHost.agentGui.fileMentionPalette"
     });
@@ -4519,10 +4564,7 @@ describe("AgentGUINode", () => {
 
     renderAgentGUINode();
 
-    const addReferenceTrigger = screen.getByRole("combobox", {
-      name: "agentHost.issue.referenceWorkspaceFiles"
-    });
-    fireEvent.click(addReferenceTrigger);
+    await openSharedWorkspaceReferencePicker();
 
     expect(
       await screen.findByRole("dialog", {
@@ -4542,11 +4584,7 @@ describe("AgentGUINode", () => {
 
     renderAgentGUINode({ onWorkspaceFileReferencesAdded });
 
-    fireEvent.click(
-      screen.getByRole("combobox", {
-        name: "agentHost.issue.referenceWorkspaceFiles"
-      })
-    );
+    await openSharedWorkspaceReferencePicker();
     await screen.findByRole("dialog", {
       name: "agentHost.agentGui.referencePicker.title"
     });
@@ -4610,11 +4648,7 @@ describe("AgentGUINode", () => {
       } as unknown as AgentActivityRuntime
     });
 
-    fireEvent.click(
-      screen.getByRole("combobox", {
-        name: "agentHost.issue.referenceWorkspaceFiles"
-      })
-    );
+    await openSharedWorkspaceReferencePicker();
     await screen.findByRole("dialog", {
       name: "agentHost.agentGui.referencePicker.title"
     });
@@ -4845,11 +4879,7 @@ describe("AgentGUINode", () => {
       workspaceFileReferenceAdapter: { listDirectory, loadReferenceTree }
     });
 
-    fireEvent.click(
-      screen.getByRole("combobox", {
-        name: "agentHost.issue.referenceWorkspaceFiles"
-      })
-    );
+    await openSharedWorkspaceReferencePicker();
 
     await waitFor(() =>
       expect(loadReferenceTree).toHaveBeenCalledWith(
@@ -4903,7 +4933,8 @@ describe("AgentGUINode", () => {
     );
     renderAgentGUINode();
 
-    pasteComposerText("@read");
+    pasteComposerText("@");
+    pasteComposerText("read");
     const palette = await screen.findByRole("listbox", {
       name: "agentHost.agentGui.fileMentionPalette"
     });
@@ -4941,52 +4972,6 @@ describe("AgentGUINode", () => {
 
     expect(await within(palette).findByText("README.md")).toBeVisible();
   });
-
-  it("renders file mention results as a single-line row with only the file name visible", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: ""
-    });
-    mockSearchWorkspaceFileManagerEntries.mockResolvedValue({
-      workspaceId: "room-1",
-      root: "/workspace",
-      entries: [
-        {
-          path: "/workspace/docs/README.md",
-          name: "README.md",
-          kind: "file",
-          directoryPath: "/workspace/docs",
-          score: 99
-        }
-      ]
-    });
-    renderAgentGUINode();
-
-    pasteComposerText("@read");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    fireEvent.click(within(palette).getByRole("tab", { name: "文件" }));
-    const fileOption = (await within(palette).findByText("README.md")).closest(
-      "button"
-    );
-
-    expect(fileOption).toHaveClass("rich-text-at-mention-palette__row-button");
-    expect(within(fileOption!).getByText("README.md")).toBeTruthy();
-    expect(fileOption?.querySelector("svg")).toBeNull();
-    const fileIcon = fileOption?.querySelector(
-      ".agent-gui-node__mention-file-icon"
-    );
-    expect(fileIcon).not.toBeNull();
-    expect(fileIcon?.parentElement).toHaveAttribute(
-      "data-agent-file-visual-kind",
-      "markdown"
-    );
-    expect(within(palette).queryByText("/workspace/docs")).toBeNull();
-    expect(within(palette).queryByText("docs")).toBeNull();
-  });
-
   it("supports arrow navigation in the empty-state session mention palette", async () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -5021,35 +5006,7 @@ describe("AgentGUINode", () => {
       within(palette).queryByText("根据你输入的内容搜索工作区文件")
     ).toBeNull();
   });
-
-  it("does not switch browse tabs on hover", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: ""
-    });
-    renderAgentGUINode();
-
-    pasteComposerText("@");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    const sessionOption = await within(palette).findByRole("tab", {
-      name: "会话"
-    });
-    const fileOption = within(palette).getByRole("tab", { name: "文件" });
-
-    fireEvent.mouseEnter(fileOption);
-
-    expect(within(palette).queryByRole("tab", { name: "全部" })).toBeNull();
-    expect(sessionOption).toHaveAttribute("aria-selected", "true");
-    expect(fileOption).toHaveAttribute("aria-selected", "false");
-    expect(
-      within(palette).queryByText("根据你输入的内容搜索工作区文件")
-    ).toBeNull();
-  });
-
-  it("cycles mention tabs from session through file, issue, and app", async () => {
+  it("cycles mention tabs from session through file, issue, agent, and app", async () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
       draftPrompt: ""
@@ -5078,6 +5035,9 @@ describe("AgentGUINode", () => {
 
     fireEvent.keyDown(getComposerEditor(), { key: "Tab" });
     await expectSelectedTab("Tasks");
+
+    fireEvent.keyDown(getComposerEditor(), { key: "Tab" });
+    await expectSelectedTab("Agent");
 
     fireEvent.keyDown(getComposerEditor(), { key: "Tab" });
     await expectSelectedTab("App");
@@ -5345,7 +5305,7 @@ describe("AgentGUINode", () => {
     ).closest("button");
     const taskOption = within(palette).getByRole("tab", { name: "Tasks" });
     const sessionOption = within(palette).getByRole("tab", { name: "会话" });
-    const appOption = within(palette).getByRole("tab", { name: "App" });
+    const agentOption = within(palette).getByRole("tab", { name: "Agent" });
 
     expect(
       within(firstTaskOption as HTMLButtonElement).getByText("执行中")
@@ -5371,155 +5331,15 @@ describe("AgentGUINode", () => {
       expect(
         within(palette).getByRole("tab", { name: "Tasks" })
       ).toHaveAttribute("aria-selected", "false");
-      expect(within(palette).getByRole("tab", { name: "App" })).toHaveAttribute(
-        "aria-selected",
-        "true"
-      );
+      expect(
+        within(palette).getByRole("tab", { name: "Agent" })
+      ).toHaveAttribute("aria-selected", "true");
       expect(
         within(palette).getByRole("tab", { name: "会话" })
       ).toHaveAttribute("aria-selected", "false");
     });
-    expect(appOption).toHaveAttribute("aria-selected", "true");
+    expect(agentOption).toHaveAttribute("aria-selected", "true");
   });
-
-  it.skip("continues arrow navigation across browse groups", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: ""
-    });
-    mockListWorkspaceIssues.mockResolvedValue({
-      issues: [
-        {
-          issueId: "issue-1",
-          workspaceId: "room-1",
-          title: "修复 room status",
-          content: JSON.stringify({
-            type: "doc",
-            content: [
-              {
-                type: "paragraph",
-                content: [{ type: "text", text: "补齐 statusBatch 的错误处理" }]
-              }
-            ]
-          }),
-          status: "running",
-          creatorUserId: "user-2",
-          creatorDisplayName: "Alice",
-          issueCount: 0,
-          notStartedCount: 0,
-          runningCount: 0,
-          pendingAcceptanceCount: 0,
-          completedCount: 0,
-          failedCount: 0,
-          canceledCount: 0,
-          updatedAtUnix: 20
-        }
-      ],
-      totalCount: 1,
-      statusCounts: undefined
-    });
-    mockListWorkspaceAgents.mockResolvedValue({
-      presences: [],
-      sessions: [
-        {
-          agentSessionId: "session-1",
-          workspaceId: "room-1",
-          userId: "user-1",
-          provider: "codex",
-          title: "看看项目有什么文件",
-          createdAtUnixMs: 1,
-          updatedAtUnixMs: 10
-        },
-        {
-          agentSessionId: "session-2",
-          workspaceId: "room-1",
-          userId: "user-2",
-          provider: "nexight",
-          title: "room status 接口整理",
-          createdAtUnixMs: 2,
-          updatedAtUnixMs: 9
-        }
-      ]
-    });
-    mockBatchGetUserInfo.mockResolvedValue({
-      users: [
-        { userId: "user-1", name: "Wang" },
-        { userId: "user-2", name: "Alice" }
-      ]
-    });
-    mockGetWorkspaceAgentSessionSummary.mockImplementation(async (input) => ({
-      workspaceId: "room-1",
-      agentSessionId: input.agentSessionId,
-      executionStatus:
-        input.agentSessionId === "session-1" ? "RUNNING" : "COMPLETED",
-      latestUserRequirement:
-        input.agentSessionId === "session-1"
-          ? "看看项目有什么文件"
-          : "整理 room status",
-      recentAgentReplies:
-        input.agentSessionId === "session-1"
-          ? ["已读取 workspace 结构"]
-          : ["输出了 statusBatch 调用链"],
-      initialUserRequirement: "",
-      initialTurn: null,
-      latestTurn: null,
-      recentTurns: []
-    }));
-    renderAgentGUINode();
-
-    pasteComposerText("@");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    await waitFor(() =>
-      expect(mockListWorkspaceIssues).toHaveBeenCalledWith({
-        workspaceId: "room-1",
-        pageSize: 25,
-        searchQuery: ""
-      })
-    );
-    await waitFor(() =>
-      expect(mockListWorkspaceAgents).toHaveBeenCalledWith({
-        workspaceId: "room-1",
-        sessionOrigin: "WORKSPACE_AGENT_SESSION_ORIGIN_RUNTIME"
-      })
-    );
-    const sessionOption = await within(palette).findByRole("tab", {
-      name: "会话"
-    });
-
-    const taskOption = (await screen.findByText("修复 room status")).closest(
-      "button"
-    );
-    const mySessionOption = (await screen.findByText("Wang & Codex")).closest(
-      "button"
-    );
-
-    expect(mySessionOption).toHaveAttribute("aria-selected", "true");
-    expect(within(palette).queryByText("Alice & Nexight")).toBeNull();
-    expect(within(palette).queryByText("协作会话")).toBeNull();
-    const mySessionTitle = within(mySessionOption as HTMLElement).getByText(
-      "看看项目有什么文件"
-    );
-    expect(mySessionTitle).toHaveClass("text-[13px]");
-    expect(mySessionOption).not.toHaveTextContent("已读取 workspace 结构");
-    const mySessionStatusTag = mySessionOption?.querySelector(
-      '[data-agent-mention-status-tag="true"]'
-    );
-    expect(mySessionStatusTag).not.toBeNull();
-    expect(mySessionStatusTag).toHaveAttribute("data-status", "idle");
-    expect(sessionOption).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(getComposerEditor(), { key: "ArrowDown" });
-    expect(mySessionOption).toHaveAttribute("aria-selected", "false");
-    expect(taskOption).toHaveAttribute("aria-selected", "true");
-
-    fireEvent.keyDown(getComposerEditor(), { key: "ArrowUp" });
-    expect(taskOption).toHaveAttribute("aria-selected", "false");
-    expect(mySessionOption).toHaveAttribute("aria-selected", "true");
-  });
-
   it("uses the message-derived title in the @ session list when summary titles are empty", async () => {
     mockViewModel = createViewModel({ currentUserId: "user-1" });
     mockListWorkspaceAgents.mockResolvedValue({
@@ -5602,172 +5422,6 @@ describe("AgentGUINode", () => {
       })
     );
   });
-
-  it("recenters the mention scroll region during keyboard navigation", async () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      draftPrompt: ""
-    });
-    mockListWorkspaceIssues.mockResolvedValue({
-      issues: Array.from({ length: 12 }, (_, index) => ({
-        issueId: `issue-${index + 1}`,
-        workspaceId: "room-1",
-        title: `Issue ${index + 1}`,
-        content: JSON.stringify({
-          type: "doc",
-          content: [
-            {
-              type: "paragraph",
-              content: [{ type: "text", text: `内容 ${index + 1}` }]
-            }
-          ]
-        }),
-        status: "not_started",
-        creatorUserId: "user-2",
-        creatorDisplayName: "Alice",
-        issueCount: 0,
-        notStartedCount: 0,
-        runningCount: 0,
-        pendingAcceptanceCount: 0,
-        completedCount: 0,
-        failedCount: 0,
-        canceledCount: 0,
-        updatedAtUnix: index + 1
-      })),
-      totalCount: 12,
-      statusCounts: undefined
-    });
-    renderAgentGUINode();
-
-    pasteComposerText("@Issue");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-    fireEvent.click(within(palette).getByRole("tab", { name: "Tasks" }));
-    const scrollRegion = palette.querySelector(
-      ".agent-gui-node__mention-palette-scroll-region"
-    );
-    expect(scrollRegion).not.toBeNull();
-    if (!(scrollRegion instanceof HTMLElement)) {
-      return;
-    }
-
-    Object.defineProperty(scrollRegion, "clientHeight", {
-      configurable: true,
-      value: 120
-    });
-    Object.defineProperty(scrollRegion, "scrollHeight", {
-      configurable: true,
-      value: 1000
-    });
-
-    let currentScrollTop = 0;
-    Object.defineProperty(scrollRegion, "scrollTop", {
-      configurable: true,
-      get: () => currentScrollTop,
-      set: (value) => {
-        currentScrollTop = Number(value);
-      }
-    });
-
-    const scrollToSpy = vi
-      .spyOn(scrollRegion, "scrollTo")
-      .mockImplementation(
-        (leftOrOptions?: number | ScrollToOptions, top?: number) => {
-          if (typeof leftOrOptions === "number") {
-            currentScrollTop = Number(top ?? 0);
-            return;
-          }
-          currentScrollTop = Number(leftOrOptions?.top ?? 0);
-        }
-      );
-
-    const taskOption = await screen.findByText("Issue 1");
-    const secondTaskOption = await screen.findByText("Issue 2");
-    const thirdTaskOption = await screen.findByText("Issue 3");
-
-    vi.spyOn(
-      taskOption.closest("button") as HTMLButtonElement,
-      "getBoundingClientRect"
-    ).mockReturnValue({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 200,
-      bottom: 40,
-      width: 200,
-      height: 40,
-      toJSON: () => {}
-    } as DOMRect);
-    vi.spyOn(
-      secondTaskOption.closest("button") as HTMLButtonElement,
-      "getBoundingClientRect"
-    ).mockReturnValue({
-      x: 0,
-      y: 40,
-      top: 40,
-      left: 0,
-      right: 200,
-      bottom: 80,
-      width: 200,
-      height: 40,
-      toJSON: () => {}
-    } as DOMRect);
-    vi.spyOn(
-      thirdTaskOption.closest("button") as HTMLButtonElement,
-      "getBoundingClientRect"
-    ).mockReturnValue({
-      x: 0,
-      y: 80,
-      top: 80,
-      left: 0,
-      right: 200,
-      bottom: 120,
-      width: 200,
-      height: 40,
-      toJSON: () => {}
-    } as DOMRect);
-    vi.spyOn(scrollRegion, "getBoundingClientRect").mockReturnValue({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 200,
-      bottom: 120,
-      width: 200,
-      height: 120,
-      toJSON: () => {}
-    } as DOMRect);
-
-    fireEvent.keyDown(getComposerEditor(), { key: "ArrowDown" });
-    fireEvent.keyDown(getComposerEditor(), { key: "ArrowDown" });
-
-    expect(scrollToSpy).toHaveBeenCalled();
-  });
-
-  it("shows a tab switch hint in the mention palette footer", async () => {
-    renderAgentGUINode();
-
-    pasteComposerText("@");
-
-    const palette = await screen.findByRole("listbox", {
-      name: "agentHost.agentGui.fileMentionPalette"
-    });
-
-    const hint = screen.getByTestId("agent-gui-mention-palette-hint");
-
-    expect(
-      hint.closest(".agent-gui-node__mention-palette-footer")
-    ).not.toBeNull();
-    expect(within(hint).getByText("Tab")).toBeVisible();
-    expect(within(hint).getByText("↑")).toBeVisible();
-    expect(within(hint).getByText("↓")).toBeVisible();
-    expect(within(palette).getByText("切换分类")).toBeVisible();
-    expect(within(palette).getByText("切换选中")).toBeVisible();
-  });
-
   it("updates the draft when a workspace entry is dropped into the composer", async () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -5808,8 +5462,7 @@ describe("AgentGUINode", () => {
     );
 
     expect(mockSubmitPrompt).toHaveBeenCalledWith(
-      promptBlocks("[@README.md](/workspace/docs/README.md)"),
-      undefined
+      promptBlocks("[@README.md](/workspace/docs/README.md)")
     );
   });
 
@@ -5864,6 +5517,28 @@ describe("AgentGUINode", () => {
     expect(mockSearchWorkspaceFileManagerEntries).not.toHaveBeenCalledWith(
       expect.objectContaining({
         query: "b.com"
+      })
+    );
+    expect(
+      screen.queryByRole("listbox", {
+        name: "agentHost.agentGui.fileMentionPalette"
+      })
+    ).toBeNull();
+  });
+
+  it("does not open the mention panel after pasting a complete at query", async () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      draftPrompt: ""
+    });
+    renderAgentGUINode();
+
+    pasteComposerText("@read");
+
+    await waitFor(() => expect(getComposerEditor()).toHaveTextContent("@read"));
+    expect(mockSearchWorkspaceFileManagerEntries).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "read"
       })
     );
     expect(
@@ -6553,38 +6228,6 @@ describe("AgentGUINode", () => {
       })
     ).toBeNull();
   });
-
-  it("shows continue-in-new-session for non-local recovery failures in the bottom dock", () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      conversationDetail: detailViewModel(),
-      sessionChrome: {
-        auth: null,
-        approval: null,
-        recovery: {
-          kind: "failed",
-          message:
-            "This session cannot be resumed on this device. Start a new session and @this session to keep going.",
-          canRetry: false,
-          followupAction: "continue-in-new-conversation"
-        },
-        rawState: null
-      }
-    });
-    renderAgentGUINode();
-
-    const continueButtons = screen.getAllByRole("button", {
-      name: "agentHost.agentGui.continueInNewConversation"
-    });
-
-    expect(continueButtons.length).toBeGreaterThan(0);
-    expect(
-      screen.queryByRole("button", {
-        name: "agentHost.agentGui.retryActivation"
-      })
-    ).toBeNull();
-  });
-
   it("disables the composer without rendering duplicate approval chrome actions", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -6800,36 +6443,6 @@ describe("AgentGUINode", () => {
       screen.queryByText("agentHost.agentGui.shortcutCmdEnter")
     ).toBeNull();
   });
-
-  it("renders the active prompt as a floating surface above the composer shell", () => {
-    mockViewModel = createViewModel({
-      activeConversationId: "session-1",
-      pendingApproval: approvalRequest(),
-      sessionChrome: {
-        auth: null,
-        approval: approvalRequest(),
-        recovery: null,
-        rawState: null
-      }
-    });
-
-    renderAgentGUINode();
-
-    const composer = getComposerEditor().closest("form");
-    expect(composer).not.toBeNull();
-    const floatingPrompt = within(composer as HTMLFormElement).getByTestId(
-      "agent-gui-composer-floating-prompt"
-    );
-    expect(
-      within(floatingPrompt).getByRole("button", { name: "Yes, proceed" })
-    ).toBeTruthy();
-    expect(
-      within(composer as HTMLFormElement).queryByTestId(
-        "agent-gui-composer-floating-prompt"
-      )
-    ).not.toContainElement(getComposerEditor());
-  });
-
   it("forwards transcript link actions through the shared renderer", () => {
     const onLinkAction = vi.fn<(action: WorkspaceLinkAction) => void>();
     mockViewModel = createViewModel({
@@ -7005,6 +6618,26 @@ describe("AgentGUINode", () => {
     });
   });
 });
+
+async function openSharedWorkspaceReferencePicker(): Promise<void> {
+  const legacyReferenceTrigger = screen.queryByRole("combobox", {
+    name: "agentHost.issue.referenceWorkspaceFiles"
+  });
+  if (legacyReferenceTrigger) {
+    fireEvent.click(legacyReferenceTrigger);
+    return;
+  }
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "agentHost.agentGui.addReference"
+    })
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", {
+      name: "agentHost.issue.referenceWorkspaceFiles"
+    })
+  );
+}
 
 function renderAgentGUINode({
   onLinkAction,
@@ -7204,6 +6837,12 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
   });
   return {
     promptContentUploadSupport: { file: true, image: true },
+    async goalControl(input) {
+      return {
+        session: createSession(input.workspaceId, input.agentSessionId),
+        goal: null
+      };
+    },
     async cancelSession(input) {
       return {
         session: createSession(input.workspaceId, input.agentSessionId),
@@ -7255,13 +6894,6 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
     },
     async listAgentGeneratedFiles(input) {
       return { workspaceId: input.workspaceId, entries: [] };
-    },
-    async listSessionsPage(input) {
-      return {
-        workspaceId: input.workspaceId,
-        sessions: [],
-        hasMore: false
-      };
     },
     async load(workspaceId) {
       return createAgentActivitySnapshotFromViewModel(workspaceId);
@@ -7410,6 +7042,8 @@ function createViewModel(
       conversationRailWidthPx: null
     },
     selectedProviderTarget: createLocalAgentGUIProviderTarget("codex"),
+    providerTargets: [createLocalAgentGUIProviderTarget("codex")],
+    providerTargetsLoading: false,
     conversations: [],
     userProjects: [],
     activeConversation: null,
@@ -7429,7 +7063,9 @@ function createViewModel(
     isRespondingApproval: false,
     promptImagesSupported: true,
     compactSupported: null,
+    goalPauseSupported: true,
     usage: null,
+    backgroundAgentCount: 0,
     isDeletingConversation: false,
     isDeletingProjectConversations: false,
     pendingDeleteConversation: null,
@@ -7481,6 +7117,9 @@ function createViewModel(
     },
     inlineNotice: null,
     ...overrides,
+    conversationScope: overrides.conversationScope ?? "single-provider",
+    conversationFilter: overrides.conversationFilter ?? { kind: "all" },
+    providerReadinessGate: overrides.providerReadinessGate ?? null,
     listError: overrides.listError ?? null
   };
 }

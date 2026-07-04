@@ -450,6 +450,7 @@ func (s *Store) HideAgentSession(roomID string, agentSessionID string) {
 func statePatchFromSessionState(agentSessionID string, state WorkspaceAgentSessionStateUpdate) WorkspaceAgentStatePatch {
 	patch := WorkspaceAgentStatePatch{
 		AgentSessionID:     strings.TrimSpace(agentSessionID),
+		AgentTargetID:      strings.TrimSpace(state.AgentTargetID),
 		Provider:           strings.TrimSpace(state.Provider),
 		ProviderSessionID:  strings.TrimSpace(state.ProviderSessionID),
 		Model:              strings.TrimSpace(state.Model),
@@ -457,11 +458,15 @@ func statePatchFromSessionState(agentSessionID string, state WorkspaceAgentSessi
 		RuntimeContext:     clonePayloadMap(state.RuntimeContext),
 		TurnLifecycle:      cloneTurnLifecycle(state.TurnLifecycle),
 		SubmitAvailability: cloneSubmitAvailability(state.SubmitAvailability),
+		PendingInteractive: cloneInteractivePrompt(state.PendingInteractive),
 		CWD:                strings.TrimSpace(state.CWD),
 		Title:              strings.TrimSpace(state.Title),
 		LifecycleStatus:    strings.TrimSpace(state.LifecycleStatus),
 		CurrentPhase:       strings.TrimSpace(state.CurrentPhase),
 		OccurredAtUnixMS:   state.OccurredAtUnixMS,
+	}
+	if state.PendingInteractive != nil {
+		patch.PendingInteractivePresent = true
 	}
 	if state.Turn != nil {
 		patch.Turn = &WorkspaceAgentTurnPatch{
@@ -822,6 +827,7 @@ func applyStatePatchLocked(entry *sessionEntry, source EventSource, patch Worksp
 		)
 		session := WorkspaceAgentSession{
 			AgentSessionID:     sessionID,
+			AgentTargetID:      firstNonEmptyString(patch.AgentTargetID, source.AgentTargetID),
 			UserID:             strings.TrimSpace(source.UserID),
 			Provider:           firstNonEmptyString(patch.Provider, source.Provider),
 			ProviderSessionID:  firstNonEmptyString(patch.ProviderSessionID, source.ProviderSessionID),
@@ -868,6 +874,7 @@ func applyStatePatchLocked(entry *sessionEntry, source EventSource, patch Worksp
 		return
 	}
 	session.AgentSessionID = firstNonEmptyString(session.AgentSessionID, sessionID)
+	session.AgentTargetID = firstNonEmptyString(patch.AgentTargetID, session.AgentTargetID, source.AgentTargetID)
 	session.Provider = firstNonEmptyString(patch.Provider, session.Provider, source.Provider)
 	session.ProviderSessionID = firstNonEmptyString(patch.ProviderSessionID, session.ProviderSessionID, source.ProviderSessionID)
 	session.SessionOrigin = firstNonEmptyString(strings.TrimSpace(source.SessionOrigin), session.SessionOrigin)
@@ -1334,6 +1341,7 @@ func (s *Store) interruptWorkspaceAgents(ctx context.Context, roomID string, _ s
 
 		patches = append(patches, WorkspaceAgentStatePatch{
 			AgentSessionID:    strings.TrimSpace(session.AgentSessionID),
+			AgentTargetID:     strings.TrimSpace(session.AgentTargetID),
 			Provider:          strings.TrimSpace(session.Provider),
 			ProviderSessionID: strings.TrimSpace(session.ProviderSessionID),
 			CWD:               strings.TrimSpace(session.CWD),
@@ -2146,7 +2154,6 @@ func canonicalizeSessionMessageBucketsLocked(entry *sessionEntry) bool {
 		delete(entry.sessionMessages, sessionID)
 		delete(entry.messageVersionBySession, sessionID)
 		delete(entry.remoteMessageVersionBySession, sessionID)
-		changed = true
 	}
 	return changed
 }

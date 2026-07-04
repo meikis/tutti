@@ -42,6 +42,9 @@ function createTransportClient(
   overrides: Partial<TuttidClient> = {}
 ): TuttidClient {
   return {
+    async listAgentTargets() {
+      throw new Error("not used");
+    },
     async startAccountLogin() {
       throw new Error("not used");
     },
@@ -404,10 +407,13 @@ function createTransportClient(
       return { terminals: [], workspaceId: workspaceID };
     },
     async listWorkspaceAgentSessions(workspaceID) {
-      return { hasMore: false, sessions: [], workspaceId: workspaceID };
+      return { sessions: [], workspaceId: workspaceID };
     },
-    async listWorkspaceAgentSessionGroups(workspaceID) {
-      return { groups: [], workspaceId: workspaceID };
+    async listWorkspaceAgentSessionSections(workspaceID) {
+      return { sections: [], workspaceId: workspaceID };
+    },
+    async listWorkspaceAgentSessionSectionPage() {
+      throw new Error("not used");
     },
     async scanWorkspaceExternalAgentSessionImports() {
       throw new Error("not used");
@@ -457,6 +463,9 @@ function createTransportClient(
       throw new Error("not used");
     },
     async cancelWorkspaceAgentSessionWithResult() {
+      throw new Error("not used");
+    },
+    async goalControlWorkspaceAgentSession() {
       throw new Error("not used");
     },
     async sendWorkspaceAgentSessionInput() {

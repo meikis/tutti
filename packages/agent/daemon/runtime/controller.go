@@ -145,7 +145,7 @@ func NewDefaultControllerWithOptions(
 	host := options.HostMetadata
 	return NewController(
 		[]Adapter{
-			newClaudeCodeAdapterWithHostMetadata(transport, host, options.ProviderCommandResolver),
+			newDefaultClaudeCodeAdapter(transport, host, options.ProviderCommandResolver),
 			NewCodexAppServerAdapterWithHostMetadata(transport, host),
 			NewNexightAdapterWithHostMetadata(transport, host),
 			NewGeminiAdapterWithHostMetadata(transport, host),
@@ -154,6 +154,17 @@ func NewDefaultControllerWithOptions(
 		},
 		reporter,
 	)
+}
+
+func newDefaultClaudeCodeAdapter(
+	transport ProcessTransport,
+	host HostMetadata,
+	commandResolver ProviderCommandResolver,
+) Adapter {
+	if claudeCodeSDKRuntimeEnabled() {
+		return NewClaudeCodeSDKAdapter(transport)
+	}
+	return newClaudeCodeAdapterWithHostMetadata(transport, host, commandResolver)
 }
 
 func (c *Controller) Start(ctx context.Context, input StartInput) (StartResult, error) {
@@ -181,7 +192,7 @@ func (c *Controller) Start(ctx context.Context, input StartInput) (StartResult, 
 	)
 	permissionModeID := settings.PermissionModeID
 	if agentSessionID == "" {
-		if existing, ok := c.findStartSession(roomID, provider, input.CWD, input.Title, settings, input.ProviderTargetRef); ok {
+		if existing, ok := c.findStartSession(roomID, strings.TrimSpace(input.AgentTargetID), provider, input.CWD, input.Title, settings, input.ProviderTargetRef); ok {
 			return StartResult{Session: existing}, nil
 		}
 		agentSessionID = newID()
@@ -192,6 +203,7 @@ func (c *Controller) Start(ctx context.Context, input StartInput) (StartResult, 
 	session := Session{
 		RoomID:               roomID,
 		AgentSessionID:       agentSessionID,
+		AgentTargetID:        strings.TrimSpace(input.AgentTargetID),
 		Provider:             provider,
 		ProviderSessionID:    "",
 		CWD:                  strings.TrimSpace(input.CWD),
@@ -199,6 +211,7 @@ func (c *Controller) Start(ctx context.Context, input StartInput) (StartResult, 
 		Status:               SessionStatusReady,
 		Title:                firstNonEmpty(strings.TrimSpace(input.Title), provider),
 		Visible:              sessionVisible(input.Visible),
+		RuntimeContext:       clonePayload(input.RuntimeContext),
 		ProviderTargetRef:    clonePayload(input.ProviderTargetRef),
 		OpenclawGatewayReady: input.OpenclawGatewayReady,
 		PermissionModeID:     permissionModeID,
@@ -286,6 +299,7 @@ func (c *Controller) Resume(ctx context.Context, input ResumeInput) (Session, er
 	session := Session{
 		RoomID:            roomID,
 		AgentSessionID:    agentSessionID,
+		AgentTargetID:     strings.TrimSpace(input.AgentTargetID),
 		Provider:          provider,
 		ProviderSessionID: providerSessionID,
 		CWD:               strings.TrimSpace(input.CWD),
@@ -293,6 +307,7 @@ func (c *Controller) Resume(ctx context.Context, input ResumeInput) (Session, er
 		Status:            firstNonEmpty(normalizeSessionStatus(input.Status), SessionStatusReady),
 		Title:             firstNonEmpty(strings.TrimSpace(input.Title), provider),
 		Visible:           sessionVisible(input.Visible),
+		RuntimeContext:    clonePayload(input.RuntimeContext),
 		PermissionModeID:  normalizePermissionModeIDWithFallback(provider, input.PermissionModeID, defaultPermissionModeIDForProvider(provider)),
 		Settings:          normalizeOptionalSessionSettings(input.Settings, provider, firstNonEmpty(input.PermissionModeID, defaultPermissionModeIDForProvider(provider))),
 		CreatedAtUnixMS:   createdAtUnixMS,
@@ -498,6 +513,31 @@ func cloneSessionSettings(settings SessionSettings) *SessionSettings {
 	return &cloned
 }
 
+// applySessionEventsBase folds the non-status parts of an event batch:
+// provider session id, title, runtime context, and last error. It is the
+// shared core of the legacy applySessionEvents fold and the ADR 0008
+// authority path (which derives status purely from the lifecycle instead).
+func applySessionEventsBase(session Session, events []activityshared.Event) Session {
+	for _, event := range events {
+		if strings.TrimSpace(event.ProviderSessionID) != "" {
+			session.ProviderSessionID = strings.TrimSpace(event.ProviderSessionID)
+		}
+		if title := strings.TrimSpace(event.Payload.Title); title != "" {
+			session.Title = title
+		}
+		if runtimeContext := payloadMap(event.Payload.Metadata, "runtimeContext"); len(runtimeContext) > 0 {
+			session.RuntimeContext = mergeRuntimeContextPatch(session.RuntimeContext, runtimeContext)
+		}
+		switch event.Type {
+		case activityshared.EventSessionFailed, activityshared.EventTurnFailed:
+			session.LastError = strings.TrimSpace(activityshared.BestEffortErrorMessage(event.Payload))
+		case activityshared.EventTurnStarted, activityshared.EventTurnCompleted, activityshared.EventSessionCompleted:
+			session.LastError = ""
+		}
+	}
+	return session
+}
+
 func applySessionEvents(session Session, events []activityshared.Event) Session {
 	for _, event := range events {
 		if strings.TrimSpace(event.ProviderSessionID) != "" {
@@ -505,6 +545,9 @@ func applySessionEvents(session Session, events []activityshared.Event) Session 
 		}
 		if title := strings.TrimSpace(event.Payload.Title); title != "" {
 			session.Title = title
+		}
+		if runtimeContext := payloadMap(event.Payload.Metadata, "runtimeContext"); len(runtimeContext) > 0 {
+			session.RuntimeContext = mergeRuntimeContextPatch(session.RuntimeContext, runtimeContext)
 		}
 		if next := deriveSessionStatusFromEvents([]activityshared.Event{event}, ""); next != "" {
 			session.Status = next
@@ -517,6 +560,20 @@ func applySessionEvents(session Session, events []activityshared.Event) Session 
 		}
 	}
 	return session
+}
+
+func mergeRuntimeContextPatch(current map[string]any, patch map[string]any) map[string]any {
+	if len(patch) == 0 {
+		return clonePayload(current)
+	}
+	next := clonePayload(current)
+	if next == nil {
+		next = map[string]any{}
+	}
+	for key, value := range patch {
+		next[key] = clonePayloadValue(value)
+	}
+	return next
 }
 
 func (c *Controller) Exec(ctx context.Context, input ExecInput) (ExecResult, error) {
@@ -556,11 +613,22 @@ func (c *Controller) Exec(ctx context.Context, input ExecInput) (ExecResult, err
 	if len(metadata) > 0 {
 		runCtx = context.WithValue(runCtx, execMetadataContextKey{}, metadata)
 	}
-	session, err = c.beginTurn(session, turnID, cancel)
+	// beginTurn returns the zero session on failure; keep the real session
+	// for the goal-control fallback below.
+	startedSession, err := c.beginTurn(session, turnID, cancel)
 	if err != nil {
 		cancel()
+		if errors.Is(err, ErrSessionActiveTurn) {
+			// Goal control (/goal paused|active|clear) is a thread-level
+			// operation like Cancel: it must act immediately while a turn is
+			// running, exactly when the single-turn gate would reject it.
+			if result, handled, controlErr := c.execGoalControlWithActiveTurn(ctx, session, adapter, content, displayPrompt, turnID, metadata); handled {
+				return result, controlErr
+			}
+		}
 		return ExecResult{}, err
 	}
+	session = startedSession
 	submitEvents := submittedTurnActivityEvents(session, turnID)
 	if len(submitEvents) > 0 {
 		c.publish(session, submitEvents)
@@ -579,6 +647,114 @@ func (c *Controller) Exec(ctx context.Context, input ExecInput) (ExecResult, err
 		TurnLifecycle:      *session.TurnLifecycle,
 		SubmitAvailability: *session.SubmitAvailability,
 	}, nil
+}
+
+type GoalControlInput struct {
+	RoomID         string
+	AgentSessionID string
+	Action         GoalControlAction
+	Objective      string
+}
+
+type GoalControlResult struct {
+	AgentSessionID string
+	// Goal is the fresh goal snapshot after the action (nil after clear).
+	Goal map[string]any
+}
+
+// GoalControl performs a direct goal action (banner buttons) as a
+// session-level control operation — like Cancel, it never opens a turn, so it
+// works regardless of what is currently running.
+func (c *Controller) GoalControl(ctx context.Context, input GoalControlInput) (GoalControlResult, error) {
+	session, adapter, err := c.sessionAndAdapter(input.RoomID, input.AgentSessionID)
+	if err != nil {
+		return GoalControlResult{}, err
+	}
+	goalAdapter, ok := adapter.(GoalControlAdapter)
+	if !ok {
+		return GoalControlResult{}, fmt.Errorf("agent provider does not support goals")
+	}
+	if err := c.ensureLiveAdapterSession(ctx, session, adapter); err != nil {
+		return GoalControlResult{}, err
+	}
+	events, goal, err := goalAdapter.GoalControl(ctx, session, input.Action, input.Objective)
+	if err != nil {
+		slog.Warn("agent session goal control failed",
+			"event", "agent_session.goal_control.failed",
+			"room_id", session.RoomID,
+			"agent_session_id", session.AgentSessionID,
+			"action", string(input.Action),
+			"error", err.Error(),
+		)
+		return GoalControlResult{}, err
+	}
+	c.applySessionEventsByAgentSessionID(session.AgentSessionID, events)
+	slog.Info("agent session goal control accepted",
+		"event", "agent_session.goal_control.accepted",
+		"room_id", session.RoomID,
+		"agent_session_id", session.AgentSessionID,
+		"action", string(input.Action),
+	)
+	return GoalControlResult{AgentSessionID: session.AgentSessionID, Goal: goal}, nil
+}
+
+// execGoalControlWithActiveTurn runs a /goal control command while another
+// turn holds the session's turn slot. The adapter executes it against the
+// thread without opening a turn; the resulting events (steered user message,
+// goal update, notice) are applied and published through the session-event
+// path, and the running turn keeps owning the session lifecycle.
+func (c *Controller) execGoalControlWithActiveTurn(
+	ctx context.Context,
+	session Session,
+	adapter Adapter,
+	content []PromptContentBlock,
+	displayPrompt string,
+	turnID string,
+	metadata map[string]any,
+) (ExecResult, bool, error) {
+	goalAdapter, ok := adapter.(GoalControlAdapter)
+	if !ok {
+		return ExecResult{}, false, nil
+	}
+	events, handled, err := goalAdapter.ExecGoalControl(ctx, session, content, displayPrompt, turnID)
+	slog.Info("agent session goal control with active turn",
+		"event", "agent_session.goal_control.with_active_turn",
+		"room_id", session.RoomID,
+		"agent_session_id", session.AgentSessionID,
+		"handled", handled,
+		"event_count", len(events),
+		"error", fmt.Sprintf("%v", err),
+	)
+	if !handled {
+		return ExecResult{}, false, nil
+	}
+	if err != nil {
+		logAgentSubmitTrace("runtime.exec.goal_control_failed", session, turnID, metadata, map[string]any{
+			"error": err.Error(),
+		})
+		return ExecResult{}, true, err
+	}
+	c.applySessionEventsByAgentSessionID(session.AgentSessionID, events)
+	logAgentSubmitTrace("runtime.exec.goal_control", session, turnID, metadata, map[string]any{
+		"activity_event_count": len(events),
+	})
+	if refreshed, ok := c.get(session.RoomID, session.AgentSessionID); ok {
+		session = refreshed
+	}
+	result := ExecResult{
+		AgentSessionID: session.AgentSessionID,
+		Status:         ExecStatusStarted,
+		TurnID:         turnID,
+		Accepted:       true,
+		SessionStatus:  session.Status,
+	}
+	if session.TurnLifecycle != nil {
+		result.TurnLifecycle = *session.TurnLifecycle
+	}
+	if session.SubmitAvailability != nil {
+		result.SubmitAvailability = *session.SubmitAvailability
+	}
+	return result, true, nil
 }
 
 func (c *Controller) ensureLiveAdapterSession(ctx context.Context, session Session, adapter Adapter) error {
@@ -648,7 +824,7 @@ func (c *Controller) releaseIdleLiveSession(
 	idleAfterMS int64,
 ) ReleaseIdleLiveSessionsResult {
 	var result ReleaseIdleLiveSessionsResult
-	releaseAdapter, probe, ok := liveSessionReleaseAdapter(adapter)
+	_, probe, ok := liveSessionReleaseAdapter(adapter)
 	if !ok {
 		result.SkippedUnsupported = 1
 		return result
@@ -678,7 +854,7 @@ func (c *Controller) releaseIdleLiveSession(
 		result.SkippedNotLive = 1
 		return result
 	}
-	releaseAdapter, probe, ok = liveSessionReleaseAdapter(adapter)
+	releaseAdapter, probe, ok := liveSessionReleaseAdapter(adapter)
 	if !ok {
 		result.SkippedUnsupported = 1
 		return result
@@ -824,13 +1000,11 @@ func (c *Controller) runExecTurn(ctx context.Context, session Session, adapter A
 		if len(events) == 0 {
 			return
 		}
-		previousStatus := session.Status
-		session = applySessionEvents(session, events)
-		session = applyTurnLifecycleFromEvents(session, events)
-		session = c.preserveActiveTurnStatus(session, turnID, previousStatus)
+		session = c.foldTurnSessionEvents(session, events, turnID)
 		if shouldAdvanceSessionUpdatedAtFromEvents(events) {
 			session.UpdatedAtUnixMS = unixMS(now())
 		}
+		session = c.preserveCurrentSessionSettings(session)
 		c.store(session)
 		emitted = append(emitted, events...)
 		c.publish(session, events)
@@ -868,9 +1042,13 @@ func (c *Controller) runExecTurn(ctx context.Context, session Session, adapter A
 	if len(statusEvents) == 0 {
 		statusEvents = emitted
 	}
-	session = applySessionEvents(session, statusEvents)
-	session = applyTurnLifecycleFromEvents(session, statusEvents)
-	session.Status = deriveSessionStatusFromEvents(statusEvents, SessionStatusWorking)
+	if session.LifecycleAuthority || eventsCarryAdapterLifecycleSnapshot(statusEvents) {
+		session = c.foldTurnSessionEvents(session, statusEvents, "")
+	} else {
+		session = applySessionEvents(session, statusEvents)
+		session = applyTurnLifecycleFromEvents(session, statusEvents)
+		session.Status = deriveSessionStatusFromEvents(statusEvents, SessionStatusWorking)
+	}
 	if shouldAdvanceSessionUpdatedAtFromEvents(statusEvents) {
 		session.UpdatedAtUnixMS = unixMS(now())
 	}
@@ -895,13 +1073,11 @@ func (c *Controller) runAsyncExecTurn(ctx context.Context, session Session, adap
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		previousStatus := session.Status
-		session = applySessionEvents(session, events)
-		session = applyTurnLifecycleFromEvents(session, events)
-		session = c.preserveActiveTurnStatus(session, turnID, previousStatus)
+		session = c.foldTurnSessionEvents(session, events, turnID)
 		if shouldAdvanceSessionUpdatedAtFromEvents(events) {
 			session.UpdatedAtUnixMS = unixMS(now())
 		}
+		session = c.preserveCurrentSessionSettings(session)
 		c.store(session)
 		c.publish(session, events)
 		c.enqueueSessionReport(ctx, session, events)
@@ -1081,9 +1257,188 @@ func submittedTurnActivityEvents(session Session, turnID string) []activityshare
 	if !ok {
 		return nil
 	}
-	return []activityshared.Event{
-		activityshared.NewTurnUpdated(ctx, turnID, activityshared.TurnPhaseSubmitted),
+	event := activityshared.NewTurnUpdated(ctx, turnID, activityshared.TurnPhaseSubmitted)
+	// The controller owns the submit moment; it publishes the submitted
+	// lifecycle snapshot so downstream layers copy instead of recomputing
+	// (ADR 0008).
+	activityshared.StampTurnLifecycleSnapshot(&event, activityshared.TurnLifecycleSnapshot{
+		Origin:       activityshared.TurnLifecycleOriginController,
+		ActiveTurnID: turnID,
+		Phase:        string(activityshared.TurnPhaseSubmitted),
+	})
+	return []activityshared.Event{event}
+}
+
+// eventsCarryAdapterLifecycleSnapshot reports whether the batch contains an
+// adapter-origin lifecycle snapshot — the signal that this session's provider
+// publishes authoritative snapshots (ADR 0008).
+func eventsCarryAdapterLifecycleSnapshot(events []activityshared.Event) bool {
+	for _, event := range events {
+		if snapshot, ok := activityshared.TurnLifecycleSnapshotFromEvent(event); ok &&
+			snapshot.Origin == activityshared.TurnLifecycleOriginAdapter {
+			return true
+		}
 	}
+	return false
+}
+
+// applyTurnLifecycleSnapshots copies stamped lifecycle snapshots onto the
+// session record. Consumers copy, never merge: the snapshot is the turn
+// owner's full statement of the lifecycle at that moment.
+func applyTurnLifecycleSnapshots(session Session, events []activityshared.Event) Session {
+	for _, event := range events {
+		snapshot, ok := activityshared.TurnLifecycleSnapshotFromEvent(event)
+		if !ok {
+			continue
+		}
+		session = applyTurnLifecycleSnapshot(session, snapshot, strings.TrimSpace(event.Payload.TurnID))
+	}
+	return session
+}
+
+func applyTurnLifecycleSnapshot(session Session, snapshot activityshared.TurnLifecycleSnapshot, eventTurnID string) Session {
+	switch snapshot.Origin {
+	case activityshared.TurnLifecycleOriginAdapter:
+		// Snapshots reach the record over two channels (Exec emit closure and
+		// the session event sink); drop anything older than what we applied.
+		if snapshot.Seq != 0 && snapshot.Seq <= session.LifecycleSeq {
+			return session
+		}
+		session.LifecycleSeq = snapshot.Seq
+		session.LifecycleAuthority = true
+	case activityshared.TurnLifecycleOriginController:
+		// The controller only authors the submit moment and the settle
+		// fallback; neither may clobber a different live provider turn.
+		if session.TurnLifecycle != nil && session.TurnLifecycle.ActiveTurnID != nil {
+			current := strings.TrimSpace(*session.TurnLifecycle.ActiveTurnID)
+			if runtimeTurnLifecyclePhaseIsLive(session.TurnLifecycle.Phase) &&
+				current != "" &&
+				current != strings.TrimSpace(snapshot.ActiveTurnID) &&
+				current != eventTurnID {
+				return session
+			}
+		}
+	default:
+		return session
+	}
+	lifecycle := TurnLifecycle{Phase: snapshot.Phase, Settling: snapshot.Settling}
+	if turnID := strings.TrimSpace(snapshot.ActiveTurnID); turnID != "" {
+		lifecycle.ActiveTurnID = &turnID
+	}
+	if outcome := strings.TrimSpace(snapshot.Outcome); outcome != "" {
+		lifecycle.Outcome = &outcome
+	}
+	session.TurnLifecycle = &lifecycle
+	return session
+}
+
+// sessionLevelStatusFromEvents extracts the genuinely session-scoped status
+// signals from a batch: session failure/completion and explicit effective
+// statuses. Unlike the legacy fold it never defaults an unknown or empty
+// effective status to ready — for authority sessions readiness is derived
+// from the lifecycle, not from metadata refreshes.
+func sessionLevelStatusFromEvents(events []activityshared.Event) string {
+	status := ""
+	for _, event := range events {
+		switch event.Type {
+		case activityshared.EventSessionFailed:
+			status = SessionStatusFailed
+		case activityshared.EventSessionCompleted:
+			status = SessionStatusCompleted
+		case activityshared.EventSessionUpdated:
+			switch strings.TrimSpace(event.Payload.EffectiveStatus) {
+			case string(activityshared.SessionStatusWorking):
+				status = SessionStatusWorking
+			case string(activityshared.SessionStatusWaiting):
+				status = SessionStatusWaiting
+			case string(activityshared.SessionStatusCompleted):
+				status = SessionStatusCompleted
+			case string(activityshared.SessionStatusFailed):
+				status = SessionStatusFailed
+			case string(activityshared.SessionStatusPaused):
+				status = SessionStatusCanceled
+			}
+		}
+	}
+	return status
+}
+
+// statusForAuthoritySession is THE status derivation for snapshot-authority
+// sessions: a pure function of the copied lifecycle plus session-level
+// signals. No other code path may write Status for these sessions.
+func statusForAuthoritySession(session Session, batchSessionLevel string) string {
+	if batchSessionLevel == SessionStatusFailed || batchSessionLevel == SessionStatusCompleted {
+		return batchSessionLevel
+	}
+	lifecycle := session.TurnLifecycle
+	if lifecycle != nil && runtimeTurnLifecyclePhaseIsLive(lifecycle.Phase) {
+		if activityshared.TurnLifecyclePhaseIsWaiting(lifecycle.Phase) {
+			return SessionStatusWaiting
+		}
+		return SessionStatusWorking
+	}
+	if sessionHasLiveBackgroundAgents(session) {
+		return SessionStatusWorking
+	}
+	if lifecycle != nil && lifecycle.Phase == "settled" {
+		if lifecycle.Outcome != nil {
+			switch strings.TrimSpace(*lifecycle.Outcome) {
+			case string(activityshared.TurnOutcomeFailed):
+				return SessionStatusFailed
+			case string(activityshared.TurnOutcomeInterrupted), "canceled":
+				return SessionStatusCanceled
+			}
+		}
+		return SessionStatusReady
+	}
+	if batchSessionLevel != "" {
+		return batchSessionLevel
+	}
+	if current := strings.TrimSpace(session.Status); current != "" {
+		return current
+	}
+	return SessionStatusReady
+}
+
+// submitAvailabilityForAuthoritySession derives SubmitAvailability from the
+// same copied lifecycle, replacing the hand-written variants that used to
+// live in the lifecycle fold, the reporter's codex patch path, and the
+// reconcile.
+func submitAvailabilityForAuthoritySession(session Session) *SubmitAvailability {
+	lifecycle := session.TurnLifecycle
+	if lifecycle != nil && runtimeTurnLifecyclePhaseIsLive(lifecycle.Phase) {
+		if activityshared.TurnLifecyclePhaseIsWaiting(lifecycle.Phase) {
+			return blockedSubmitAvailability("waiting")
+		}
+		return blockedSubmitAvailability("active_turn")
+	}
+	if sessionHasLiveBackgroundAgents(session) {
+		return blockedSubmitAvailability("background_agent")
+	}
+	return availableSubmitAvailability()
+}
+
+// foldTurnSessionEvents applies an emitted turn event batch to the session
+// record. Snapshot-authority sessions copy lifecycle snapshots and derive
+// Status/SubmitAvailability purely (ADR 0008); legacy sessions keep the
+// historic folding path until their provider publishes snapshots (Phase B).
+func (c *Controller) foldTurnSessionEvents(session Session, events []activityshared.Event, execTurnID string) Session {
+	previousStatus := session.Status
+	if session.LifecycleAuthority || eventsCarryAdapterLifecycleSnapshot(events) {
+		session = applySessionEventsBase(session, events)
+		session = applyTurnLifecycleSnapshots(session, events)
+		session.Status = statusForAuthoritySession(session, sessionLevelStatusFromEvents(events))
+		session.SubmitAvailability = submitAvailabilityForAuthoritySession(session)
+		return session
+	}
+	session = applySessionEvents(session, events)
+	session = applyTurnLifecycleFromEvents(session, events)
+	if turnEventsAreTerminal(events) {
+		session = reconcileFinishedTurnStatus(session)
+	} else if execTurnID != "" {
+		session = c.preserveActiveTurnStatus(session, execTurnID, previousStatus)
+	}
+	return session
 }
 
 func applyTurnLifecycleFromEvents(session Session, events []activityshared.Event) Session {
@@ -1214,6 +1569,124 @@ func (c *Controller) preserveActiveTurnStatus(session Session, turnID string, pr
 	return session
 }
 
+func (c *Controller) preserveCurrentSessionSettings(session Session) Session {
+	if c == nil {
+		return session
+	}
+	key := sessionKey(session.RoomID, session.AgentSessionID)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.preserveCurrentSessionSettingsLocked(key, session)
+}
+
+func (c *Controller) preserveCurrentSessionSettingsLocked(key string, session Session) Session {
+	if c == nil {
+		return session
+	}
+	current, ok := c.sessions[key]
+	if !ok ||
+		strings.TrimSpace(current.RoomID) != strings.TrimSpace(session.RoomID) ||
+		strings.TrimSpace(current.AgentSessionID) != strings.TrimSpace(session.AgentSessionID) ||
+		strings.TrimSpace(current.Provider) != strings.TrimSpace(session.Provider) {
+		return session
+	}
+	session.PermissionModeID = strings.TrimSpace(current.PermissionModeID)
+	if current.Settings != nil {
+		settings := normalizeSessionSettings(current.Settings, current.Provider, session.PermissionModeID)
+		session.Settings = cloneSessionSettings(settings)
+	} else {
+		session.Settings = nil
+	}
+	session.RuntimeContext = runtimeContextWithSessionSettings(session.RuntimeContext, session.SettingsValue())
+	return session
+}
+
+func runtimeContextWithSessionSettings(runtimeContext map[string]any, settings SessionSettings) map[string]any {
+	next := clonePayload(runtimeContext)
+	if next == nil {
+		next = map[string]any{}
+	}
+	next["permissionModeId"] = strings.TrimSpace(settings.PermissionModeID)
+	next["planMode"] = settings.PlanMode
+	next["model"] = strings.TrimSpace(settings.Model)
+	next["reasoningEffort"] = strings.TrimSpace(settings.ReasoningEffort)
+	next["speed"] = strings.TrimSpace(settings.Speed)
+	return next
+}
+
+func sessionHasDifferentLiveTurn(session Session, turnID string) bool {
+	if !sessionHasLiveTurnLifecycle(session) {
+		return false
+	}
+	return runtimeTurnLifecycleActiveTurnID(session.TurnLifecycle) != strings.TrimSpace(turnID)
+}
+
+func settleFinishedTurnLifecycle(session Session, turnID string) Session {
+	if session.TurnLifecycle == nil {
+		return session
+	}
+	if runtimeTurnLifecycleActiveTurnID(session.TurnLifecycle) != strings.TrimSpace(turnID) {
+		return session
+	}
+	if !runtimeTurnLifecyclePhaseIsLive(session.TurnLifecycle.Phase) {
+		return session
+	}
+	outcome := "completed"
+	if session.TurnLifecycle.Outcome != nil && strings.TrimSpace(*session.TurnLifecycle.Outcome) != "" {
+		outcome = strings.TrimSpace(*session.TurnLifecycle.Outcome)
+	}
+	session.TurnLifecycle = &TurnLifecycle{
+		Phase:            "settled",
+		Outcome:          &outcome,
+		CompletedCommand: cloneRuntimeCompletedCommand(session.TurnLifecycle.CompletedCommand),
+	}
+	session.SubmitAvailability = availableSubmitAvailability()
+	return session
+}
+
+func sessionHasLiveTurnLifecycle(session Session) bool {
+	if session.TurnLifecycle == nil {
+		return false
+	}
+	return runtimeTurnLifecycleActiveTurnID(session.TurnLifecycle) != "" &&
+		runtimeTurnLifecyclePhaseIsLive(session.TurnLifecycle.Phase)
+}
+
+func sessionHasLiveBackgroundAgents(session Session) bool {
+	backgroundAgents := payloadMap(session.RuntimeContext, "backgroundAgents")
+	if len(backgroundAgents) == 0 {
+		return false
+	}
+	if metadataInt64(backgroundAgents, "count") > 0 {
+		return true
+	}
+	items, _ := backgroundAgents["items"].([]any)
+	for _, item := range items {
+		agent := payloadMap(map[string]any{"item": item}, "item")
+		if len(agent) == 0 {
+			continue
+		}
+		status := firstNonEmptyString(payloadString(agent, "status"), string(activityshared.ActivityStatusRunning))
+		if !claudeSDKBackgroundAgentStatusIsTerminal(status) {
+			return true
+		}
+	}
+	return false
+}
+
+func runtimeTurnLifecycleActiveTurnID(value *TurnLifecycle) string {
+	if value == nil || value.ActiveTurnID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value.ActiveTurnID)
+}
+
+func runtimeTurnLifecyclePhaseIsLive(phase string) bool {
+	// Delegates to the canonical predicate; the phase vocabulary lives in
+	// exactly one place (activityshared, mirrored in activity-core for TS).
+	return activityshared.TurnLifecyclePhaseIsLive(phase)
+}
+
 func unemittedActivityEvents(events []activityshared.Event, emitted []activityshared.Event) []activityshared.Event {
 	if len(events) == 0 {
 		return nil
@@ -1258,9 +1731,49 @@ func (c *Controller) finishTurn(session Session, turnID string) {
 	if active, ok := c.turns[key]; ok && active.turnID == turnID {
 		delete(c.turns, key)
 	}
+	if current, ok := c.sessions[key]; ok && sessionHasDifferentLiveTurn(current, turnID) {
+		c.mu.Unlock()
+		return
+	}
+	session = c.preserveCurrentSessionSettingsLocked(key, session)
+	if session.LifecycleAuthority {
+		// ADR 0008: no silent record mutation. If the adapter already settled
+		// this turn via its snapshot, nothing is left to do; otherwise (steer
+		// absorption, adapter death before settle) publish a controller-origin
+		// settled snapshot so even the fallback flows through the single copy
+		// pipeline — and reaches reporter/GUI, unlike the old silent write.
+		needsFallback := session.TurnLifecycle != nil &&
+			session.TurnLifecycle.ActiveTurnID != nil &&
+			strings.TrimSpace(*session.TurnLifecycle.ActiveTurnID) == strings.TrimSpace(turnID) &&
+			runtimeTurnLifecyclePhaseIsLive(session.TurnLifecycle.Phase)
+		c.sessions[key] = session
+		c.mu.Unlock()
+		if needsFallback {
+			c.applySessionEventsByAgentSessionID(session.AgentSessionID, settledFallbackTurnEvents(session, turnID))
+		}
+		return
+	}
+	session = settleFinishedTurnLifecycle(session, turnID)
 	session = c.reconcileSessionStatusLocked(key, session)
 	c.sessions[key] = session
 	c.mu.Unlock()
+}
+
+// settledFallbackTurnEvents builds the controller-origin settled snapshot the
+// finishTurn fallback publishes when the adapter never settled the turn it
+// owns (for example a submission absorbed by steering).
+func settledFallbackTurnEvents(session Session, turnID string) []activityshared.Event {
+	ctx, ok := activityEventContext(session, "turn-settled:"+turnID, turnID)
+	if !ok {
+		return nil
+	}
+	event := activityshared.NewTurnUpdated(ctx, turnID, activityshared.TurnPhaseIdle)
+	activityshared.StampTurnLifecycleSnapshot(&event, activityshared.TurnLifecycleSnapshot{
+		Origin:  activityshared.TurnLifecycleOriginController,
+		Phase:   "settled",
+		Outcome: string(activityshared.TurnOutcomeCompleted),
+	})
+	return []activityshared.Event{event}
 }
 
 func (c *Controller) Cancel(ctx context.Context, input CancelInput) (CancelResult, error) {
@@ -1303,13 +1816,12 @@ func (c *Controller) Cancel(ctx context.Context, input CancelInput) (CancelResul
 			return CancelResult{}, err
 		}
 		if len(events) > 0 {
-			session = applySessionEvents(session, events)
-			if shouldAdvanceSessionUpdatedAtFromEvents(events) {
-				session.UpdatedAtUnixMS = unixMS(now())
-			}
-			c.store(session)
-			c.publish(session, events)
-			c.enqueueSessionReport(ctx, session, events)
+			// Apply to the CURRENT stored session (atomic read-apply-store):
+			// the turn may have settled and stored a newer session while
+			// adapter.Cancel blocked; applying to this call's pre-cancel
+			// snapshot would resurrect the working/running state and wedge
+			// the GUI in a permanent spinner.
+			c.applySessionEventsByAgentSessionID(session.AgentSessionID, events)
 			slog.Info("agent session cancel reconciled runtime work without a turn record",
 				"event", "agent_session.cancel.reconciled",
 				"room_id", session.RoomID,
@@ -1347,13 +1859,11 @@ func (c *Controller) Cancel(ctx context.Context, input CancelInput) (CancelResul
 		return CancelResult{}, err
 	}
 	if len(events) > 0 {
-		session = applySessionEvents(session, events)
-		if shouldAdvanceSessionUpdatedAtFromEvents(events) {
-			session.UpdatedAtUnixMS = unixMS(now())
-		}
-		c.store(session)
-		c.publish(session, events)
-		c.enqueueSessionReport(ctx, session, events)
+		// interruptActiveTurn returns only after the turn actually settled,
+		// so the turn's terminal store always lands during adapter.Cancel;
+		// apply these events to the CURRENT stored session instead of this
+		// call's pre-cancel snapshot (which would resurrect working state).
+		c.applySessionEventsByAgentSessionID(session.AgentSessionID, events)
 	}
 	slog.Info("agent session cancel accepted",
 		"event", "agent_session.cancel.accepted",
@@ -1397,11 +1907,35 @@ func (c *Controller) reconcileSessionStatusLocked(key string, session Session) S
 	if _, hasActiveTurn := c.turns[key]; hasActiveTurn {
 		return session
 	}
-	if session.Status != SessionStatusWorking {
+	if sessionHasLiveTurnLifecycle(session) {
 		return session
 	}
-	session.Status = SessionStatusReady
+	return reconcileFinishedTurnStatus(session)
+}
+
+func reconcileFinishedTurnStatus(session Session) Session {
+	if sessionHasLiveTurnLifecycle(session) {
+		return session
+	}
+	if sessionHasLiveBackgroundAgents(session) {
+		session.Status = SessionStatusWorking
+		session.SubmitAvailability = blockedSubmitAvailability("background_agent")
+		return session
+	}
+	if session.Status == SessionStatusWorking {
+		session.Status = SessionStatusReady
+	}
 	return session
+}
+
+func turnEventsAreTerminal(events []activityshared.Event) bool {
+	for _, event := range events {
+		switch event.Type {
+		case activityshared.EventTurnCompleted, activityshared.EventTurnFailed:
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Controller) UpdateSettings(ctx context.Context, input UpdateSettingsInput) (UpdateSettingsResult, error) {
@@ -1416,6 +1950,9 @@ func (c *Controller) UpdateSettings(ctx context.Context, input UpdateSettingsInp
 	}
 	if input.Settings.ReasoningEffort != nil {
 		settings.ReasoningEffort = strings.TrimSpace(*input.Settings.ReasoningEffort)
+	}
+	if input.Settings.Speed != nil {
+		settings.Speed = strings.TrimSpace(*input.Settings.Speed)
 	}
 	if input.Settings.PlanMode != nil {
 		settings.PlanMode = *input.Settings.PlanMode
@@ -1489,6 +2026,7 @@ func (c *Controller) State(roomID, agentSessionID string) (SessionStateSnapshot,
 	snapshot := SessionStateSnapshot{
 		RoomID:             session.RoomID,
 		AgentSessionID:     session.AgentSessionID,
+		AgentTargetID:      session.AgentTargetID,
 		Provider:           session.Provider,
 		ProviderSessionID:  session.ProviderSessionID,
 		Status:             session.Status,
@@ -1517,6 +2055,9 @@ func (c *Controller) State(roomID, agentSessionID string) (SessionStateSnapshot,
 		}
 		if override.AgentSessionID != "" {
 			snapshot.AgentSessionID = override.AgentSessionID
+		}
+		if override.AgentTargetID != "" {
+			snapshot.AgentTargetID = override.AgentTargetID
 		}
 		if override.Provider != "" {
 			snapshot.Provider = override.Provider
@@ -1578,11 +2119,16 @@ func (c *Controller) sessionStateSnapshot(session Session) SessionStateSnapshot 
 	return SessionStateSnapshot{
 		RoomID:            session.RoomID,
 		AgentSessionID:    session.AgentSessionID,
+		AgentTargetID:     session.AgentTargetID,
 		Provider:          session.Provider,
 		ProviderSessionID: session.ProviderSessionID,
 		Status:            session.Status,
-		PermissionModeID:  session.PermissionModeID,
-		Settings:          normalizeOptionalSessionSettings(session.Settings, session.Provider, session.PermissionModeID),
+		TurnLifecycle:     cloneRuntimeTurnLifecycle(session.TurnLifecycle),
+		SubmitAvailability: cloneRuntimeSubmitAvailability(
+			session.SubmitAvailability,
+		),
+		PermissionModeID: session.PermissionModeID,
+		Settings:         normalizeOptionalSessionSettings(session.Settings, session.Provider, session.PermissionModeID),
 		RuntimeContext: map[string]any{
 			"cwd":              session.CWD,
 			"title":            session.Title,
@@ -1602,7 +2148,9 @@ func (c *Controller) SubmitInteractive(ctx context.Context, input SubmitInteract
 		result, err := interactiveAdapter.SubmitInteractive(ctx, session, input)
 		if err == nil {
 			c.syncClaudeCodeModeFromSelection(session, result.OptionID)
-			c.scheduleInteractiveDenyFollowUp(input)
+			if adapterShouldReceiveInteractiveDenyFollowUp(adapter) {
+				c.scheduleInteractiveDenyFollowUp(input)
+			}
 		}
 		return result, err
 	}
@@ -1697,6 +2245,13 @@ func permissionModeStatePatch(session Session) agentsessionstore.WorkspaceAgentS
 		RuntimeContext:    runtimeContext,
 		OccurredAtUnixMS:  session.UpdatedAtUnixMS,
 	}
+}
+
+func adapterShouldReceiveInteractiveDenyFollowUp(adapter Adapter) bool {
+	if _, ok := adapter.(*ClaudeCodeSDKAdapter); ok {
+		return false
+	}
+	return true
 }
 
 func (c *Controller) scheduleInteractiveDenyFollowUp(input SubmitInteractiveInput) {
@@ -1821,13 +2376,18 @@ func sessionStateSnapshotStreamEvent(session Session) StreamEvent {
 		EventType: StreamEventStatePatch,
 		Data: agentsessionstore.WorkspaceAgentStatePatch{
 			AgentSessionID:    strings.TrimSpace(session.AgentSessionID),
+			AgentTargetID:     strings.TrimSpace(session.AgentTargetID),
 			Provider:          strings.TrimSpace(session.Provider),
 			ProviderSessionID: strings.TrimSpace(session.ProviderSessionID),
 			CWD:               strings.TrimSpace(session.CWD),
 			Title:             strings.TrimSpace(session.Title),
 			LifecycleStatus:   lifecycleStatus,
 			CurrentPhase:      currentPhase,
-			OccurredAtUnixMS:  occurredAtUnixMS,
+			TurnLifecycle:     activityTurnLifecycleFromRuntime(session.TurnLifecycle),
+			SubmitAvailability: activitySubmitAvailabilityFromRuntime(
+				session.SubmitAvailability,
+			),
+			OccurredAtUnixMS: occurredAtUnixMS,
 		},
 	}
 }
@@ -1836,17 +2396,85 @@ func statePatchFromSessionStateSnapshot(snapshot SessionStateSnapshot) agentsess
 	runtimeContext := clonePayload(snapshot.RuntimeContext)
 	return agentsessionstore.WorkspaceAgentStatePatch{
 		AgentSessionID:    strings.TrimSpace(snapshot.AgentSessionID),
+		AgentTargetID:     strings.TrimSpace(snapshot.AgentTargetID),
 		Provider:          strings.TrimSpace(snapshot.Provider),
 		ProviderSessionID: strings.TrimSpace(snapshot.ProviderSessionID),
 		Model:             strings.TrimSpace(runtimeContextString(runtimeContext, "model")),
 		PermissionModeID:  strings.TrimSpace(snapshot.PermissionModeID),
 		Settings:          sessionSettingsPayload(snapshot.Settings),
 		RuntimeContext:    runtimeContext,
-		CWD:               strings.TrimSpace(runtimeContextString(runtimeContext, "cwd")),
-		Title:             strings.TrimSpace(runtimeContextString(runtimeContext, "title")),
-		LifecycleStatus:   string(activityshared.SessionLifecycleStatusActive),
-		CurrentPhase:      snapshotStatusPhase(snapshot.Status),
-		OccurredAtUnixMS:  snapshot.UpdatedAtUnixMS,
+		TurnLifecycle:     activityTurnLifecycleFromRuntime(snapshot.TurnLifecycle),
+		SubmitAvailability: activitySubmitAvailabilityFromRuntime(
+			snapshot.SubmitAvailability,
+		),
+		CWD:             strings.TrimSpace(runtimeContextString(runtimeContext, "cwd")),
+		Title:           strings.TrimSpace(runtimeContextString(runtimeContext, "title")),
+		LifecycleStatus: string(activityshared.SessionLifecycleStatusActive),
+		CurrentPhase:    snapshotStatusPhase(snapshot.Status),
+		PendingInteractive: activityInteractivePromptFromRuntime(
+			snapshot.PendingInteractive,
+		),
+		PendingInteractivePresent: true,
+		OccurredAtUnixMS:          snapshot.UpdatedAtUnixMS,
+	}
+}
+
+func activityTurnLifecycleFromRuntime(value *TurnLifecycle) *agentsessionstore.WorkspaceAgentTurnLifecycle {
+	if value == nil {
+		return nil
+	}
+	var activeTurnID *string
+	if value.ActiveTurnID != nil {
+		active := strings.TrimSpace(*value.ActiveTurnID)
+		activeTurnID = &active
+	}
+	var outcome *string
+	if value.Outcome != nil {
+		next := strings.TrimSpace(*value.Outcome)
+		outcome = &next
+	}
+	return &agentsessionstore.WorkspaceAgentTurnLifecycle{
+		ActiveTurnID:     activeTurnID,
+		Phase:            strings.TrimSpace(value.Phase),
+		Settling:         value.Settling,
+		Outcome:          outcome,
+		CompletedCommand: activityCompletedCommandFromRuntime(value.CompletedCommand),
+	}
+}
+
+func activityCompletedCommandFromRuntime(value *CompletedCommand) *agentsessionstore.WorkspaceAgentCompletedCommand {
+	if value == nil {
+		return nil
+	}
+	return &agentsessionstore.WorkspaceAgentCompletedCommand{
+		Kind:   strings.TrimSpace(value.Kind),
+		Status: strings.TrimSpace(value.Status),
+	}
+}
+
+func activitySubmitAvailabilityFromRuntime(value *SubmitAvailability) *agentsessionstore.WorkspaceAgentSubmitAvailability {
+	if value == nil {
+		return nil
+	}
+	return &agentsessionstore.WorkspaceAgentSubmitAvailability{
+		State:  strings.TrimSpace(value.State),
+		Reason: strings.TrimSpace(value.Reason),
+	}
+}
+
+func activityInteractivePromptFromRuntime(prompt *SessionInteractivePrompt) *agentsessionstore.WorkspaceAgentInteractivePrompt {
+	if prompt == nil {
+		return nil
+	}
+	return &agentsessionstore.WorkspaceAgentInteractivePrompt{
+		Kind:      strings.TrimSpace(prompt.Kind),
+		RequestID: strings.TrimSpace(prompt.RequestID),
+		ToolName:  strings.TrimSpace(prompt.ToolName),
+		Status:    strings.TrimSpace(prompt.Status),
+		Input:     clonePayload(prompt.Input),
+		Output:    clonePayload(prompt.Output),
+		Error:     clonePayload(prompt.Error),
+		Metadata:  clonePayload(prompt.Metadata),
 	}
 }
 
@@ -1946,37 +2574,6 @@ func (c *Controller) PublishStreamEvent(roomID, agentSessionID string, event Str
 		return
 	}
 	c.hub.Publish(roomID, agentSessionID, []StreamEvent{event})
-}
-
-func (c *Controller) publishSessionStateChanged(session Session) {
-	if c == nil || c.hub == nil {
-		return
-	}
-	roomID := strings.TrimSpace(session.RoomID)
-	agentSessionID := strings.TrimSpace(session.AgentSessionID)
-	if roomID == "" || agentSessionID == "" {
-		return
-	}
-	c.hub.Publish(roomID, agentSessionID, []StreamEvent{sessionStateSnapshotStreamEvent(session)})
-}
-
-func (c *Controller) publishSessionStateSnapshotChanged(session Session) {
-	if c == nil || c.hub == nil {
-		return
-	}
-	roomID := strings.TrimSpace(session.RoomID)
-	agentSessionID := strings.TrimSpace(session.AgentSessionID)
-	if roomID == "" || agentSessionID == "" {
-		return
-	}
-	snapshot := c.sessionStateSnapshot(session)
-	if snapshot.AgentSessionID == "" {
-		return
-	}
-	c.hub.Publish(roomID, agentSessionID, []StreamEvent{{
-		EventType: StreamEventStatePatch,
-		Data:      statePatchFromSessionStateSnapshot(snapshot),
-	}})
 }
 
 func (c *Controller) publishSessionStatePatch(session Session, patch agentsessionstore.WorkspaceAgentStatePatch) {
@@ -2114,6 +2711,7 @@ func (c *Controller) acquireLifecycleLock(roomID, agentSessionID string) func() 
 
 func (c *Controller) findStartSession(
 	roomID,
+	agentTargetID,
 	provider,
 	cwd,
 	title string,
@@ -2124,6 +2722,7 @@ func (c *Controller) findStartSession(
 		return Session{}, false
 	}
 	roomID = strings.TrimSpace(roomID)
+	agentTargetID = strings.TrimSpace(agentTargetID)
 	provider = strings.TrimSpace(provider)
 	cwd = strings.TrimSpace(cwd)
 	title = strings.TrimSpace(title)
@@ -2135,6 +2734,13 @@ func (c *Controller) findStartSession(
 			continue
 		}
 		if strings.TrimSpace(session.Provider) != provider {
+			continue
+		}
+		if agentTargetID != "" {
+			if strings.TrimSpace(session.AgentTargetID) != agentTargetID {
+				continue
+			}
+		} else if strings.TrimSpace(session.AgentTargetID) != "" {
 			continue
 		}
 		if strings.TrimSpace(session.CWD) != cwd {
@@ -2336,25 +2942,52 @@ func (c *Controller) applySessionEventsByAgentSessionID(agentSessionID string, e
 	if agentSessionID == "" {
 		return
 	}
+	// Read-apply-store atomically: a non-atomic window here lets a background
+	// sink emission overwrite a session another goroutine just settled (lost
+	// update on status/title).
 	c.mu.Lock()
 	var session Session
-	found := false
-	for _, candidate := range c.sessions {
+	foundKey := ""
+	for key, candidate := range c.sessions {
 		if strings.TrimSpace(candidate.AgentSessionID) == agentSessionID {
 			session = candidate
-			found = true
+			foundKey = key
 			break
 		}
 	}
-	c.mu.Unlock()
-	if !found {
+	if foundKey == "" {
+		c.mu.Unlock()
 		return
 	}
-	session = applySessionEvents(session, events)
+	if session.LifecycleAuthority || eventsCarryAdapterLifecycleSnapshot(events) {
+		// ADR 0008: copy snapshots and derive purely — no ready-guard, no
+		// reconcile; the snapshot IS the truth.
+		session = applySessionEventsBase(session, events)
+		session = applyTurnLifecycleSnapshots(session, events)
+		session.Status = statusForAuthoritySession(session, sessionLevelStatusFromEvents(events))
+		session.SubmitAvailability = submitAvailabilityForAuthoritySession(session)
+	} else {
+		previousStatus := session.Status
+		session = applySessionEvents(session, events)
+		session = applyTurnLifecycleFromEvents(session, events)
+		session.Status = deriveSessionStatusFromEvents(events, session.Status)
+		// Metadata-only session updates (usage/goal refreshes) default to
+		// ready; while the lifecycle reports an active turn that would flap
+		// the status to idle mid-turn.
+		if session.Status == SessionStatusReady &&
+			session.TurnLifecycle != nil &&
+			session.TurnLifecycle.ActiveTurnID != nil {
+			session.Status = firstNonEmpty(previousStatus, SessionStatusWorking)
+		}
+		if session.TurnLifecycle == nil || session.TurnLifecycle.ActiveTurnID == nil {
+			session = c.reconcileSessionStatusLocked(foundKey, session)
+		}
+	}
 	if shouldAdvanceSessionUpdatedAtFromEvents(events) {
 		session.UpdatedAtUnixMS = unixMS(now())
 	}
-	c.store(session)
+	c.sessions[foundKey] = session
+	c.mu.Unlock()
 	c.publish(session, events)
 	c.enqueueSessionReport(context.Background(), session, events)
 }
@@ -2555,6 +3188,10 @@ func enrichReportStatePatches(
 	for index := range report.StatePatches {
 		report.StatePatches[index].Settings = clonePayload(patch.Settings)
 		report.StatePatches[index].RuntimeContext = clonePayload(patch.RuntimeContext)
+		report.StatePatches[index].TurnLifecycle = cloneTurnLifecycle(patch.TurnLifecycle)
+		report.StatePatches[index].SubmitAvailability = cloneSubmitAvailability(patch.SubmitAvailability)
+		report.StatePatches[index].PendingInteractive = cloneInteractivePrompt(patch.PendingInteractive)
+		report.StatePatches[index].PendingInteractivePresent = patch.PendingInteractivePresent
 		if report.StatePatches[index].Provider == "" {
 			report.StatePatches[index].Provider = patch.Provider
 		}

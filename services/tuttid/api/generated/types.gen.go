@@ -376,6 +376,57 @@ func (e AgentProviderSkillOptionSourceKind) Valid() bool {
 	}
 }
 
+// Defines values for AgentTargetLaunchRefType.
+const (
+	LocalCli AgentTargetLaunchRefType = "local_cli"
+)
+
+// Valid indicates whether the value is a known member of the AgentTargetLaunchRefType enum.
+func (e AgentTargetLaunchRefType) Valid() bool {
+	switch e {
+	case LocalCli:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentTargetProvider.
+const (
+	AgentTargetProviderClaudeCode AgentTargetProvider = "claude-code"
+	AgentTargetProviderCodex      AgentTargetProvider = "codex"
+)
+
+// Valid indicates whether the value is a known member of the AgentTargetProvider enum.
+func (e AgentTargetProvider) Valid() bool {
+	switch e {
+	case AgentTargetProviderClaudeCode:
+		return true
+	case AgentTargetProviderCodex:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentTargetSource.
+const (
+	AgentTargetSourceSystem AgentTargetSource = "system"
+	AgentTargetSourceUser   AgentTargetSource = "user"
+)
+
+// Valid indicates whether the value is a known member of the AgentTargetSource enum.
+func (e AgentTargetSource) Valid() bool {
+	switch e {
+	case AgentTargetSourceSystem:
+		return true
+	case AgentTargetSourceUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ApiErrorDetailsCode.
 const (
 	InvalidRequest                 ApiErrorDetailsCode = "invalid_request"
@@ -562,6 +613,24 @@ func (e DesktopAgentConversationDetailMode) Valid() bool {
 	}
 }
 
+// Defines values for DesktopAgentDockLayout.
+const (
+	LegacySplit DesktopAgentDockLayout = "legacySplit"
+	Unified     DesktopAgentDockLayout = "unified"
+)
+
+// Valid indicates whether the value is a known member of the DesktopAgentDockLayout enum.
+func (e DesktopAgentDockLayout) Valid() bool {
+	switch e {
+	case LegacySplit:
+		return true
+	case Unified:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DesktopAppCatalogChannel.
 const (
 	Production DesktopAppCatalogChannel = "production"
@@ -720,19 +789,19 @@ func (e DesktopSleepPreventionMode) Valid() bool {
 
 // Defines values for DesktopThemeSource.
 const (
-	Dark   DesktopThemeSource = "dark"
-	Light  DesktopThemeSource = "light"
-	System DesktopThemeSource = "system"
+	DesktopThemeSourceDark   DesktopThemeSource = "dark"
+	DesktopThemeSourceLight  DesktopThemeSource = "light"
+	DesktopThemeSourceSystem DesktopThemeSource = "system"
 )
 
 // Valid indicates whether the value is a known member of the DesktopThemeSource enum.
 func (e DesktopThemeSource) Valid() bool {
 	switch e {
-	case Dark:
+	case DesktopThemeSourceDark:
 		return true
-	case Light:
+	case DesktopThemeSourceLight:
 		return true
-	case System:
+	case DesktopThemeSourceSystem:
 		return true
 	default:
 		return false
@@ -1011,28 +1080,28 @@ func (e WorkbenchSnapshotNodeDisplayMode) Valid() bool {
 
 // Defines values for WorkspaceAgentProvider.
 const (
-	ClaudeCode WorkspaceAgentProvider = "claude-code"
-	Codex      WorkspaceAgentProvider = "codex"
-	Gemini     WorkspaceAgentProvider = "gemini"
-	Hermes     WorkspaceAgentProvider = "hermes"
-	Nexight    WorkspaceAgentProvider = "nexight"
-	Openclaw   WorkspaceAgentProvider = "openclaw"
+	WorkspaceAgentProviderClaudeCode WorkspaceAgentProvider = "claude-code"
+	WorkspaceAgentProviderCodex      WorkspaceAgentProvider = "codex"
+	WorkspaceAgentProviderGemini     WorkspaceAgentProvider = "gemini"
+	WorkspaceAgentProviderHermes     WorkspaceAgentProvider = "hermes"
+	WorkspaceAgentProviderNexight    WorkspaceAgentProvider = "nexight"
+	WorkspaceAgentProviderOpenclaw   WorkspaceAgentProvider = "openclaw"
 )
 
 // Valid indicates whether the value is a known member of the WorkspaceAgentProvider enum.
 func (e WorkspaceAgentProvider) Valid() bool {
 	switch e {
-	case ClaudeCode:
+	case WorkspaceAgentProviderClaudeCode:
 		return true
-	case Codex:
+	case WorkspaceAgentProviderCodex:
 		return true
-	case Gemini:
+	case WorkspaceAgentProviderGemini:
 		return true
-	case Hermes:
+	case WorkspaceAgentProviderHermes:
 		return true
-	case Nexight:
+	case WorkspaceAgentProviderNexight:
 		return true
-	case Openclaw:
+	case WorkspaceAgentProviderOpenclaw:
 		return true
 	default:
 		return false
@@ -1075,6 +1144,48 @@ func (e WorkspaceAgentSessionCancelResultReason) Valid() bool {
 	case NoActiveTurn:
 		return true
 	case StaleTurnReconciled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkspaceAgentSessionGoalControlRequestAction.
+const (
+	Clear  WorkspaceAgentSessionGoalControlRequestAction = "clear"
+	Pause  WorkspaceAgentSessionGoalControlRequestAction = "pause"
+	Resume WorkspaceAgentSessionGoalControlRequestAction = "resume"
+	Set    WorkspaceAgentSessionGoalControlRequestAction = "set"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceAgentSessionGoalControlRequestAction enum.
+func (e WorkspaceAgentSessionGoalControlRequestAction) Valid() bool {
+	switch e {
+	case Clear:
+		return true
+	case Pause:
+		return true
+	case Resume:
+		return true
+	case Set:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkspaceAgentSessionSectionKind.
+const (
+	Conversations WorkspaceAgentSessionSectionKind = "conversations"
+	Project       WorkspaceAgentSessionSectionKind = "project"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceAgentSessionSectionKind enum.
+func (e WorkspaceAgentSessionSectionKind) Valid() bool {
+	switch e {
+	case Conversations:
+		return true
+	case Project:
 		return true
 	default:
 		return false
@@ -1947,6 +2058,35 @@ type AgentSessionComposerSettings struct {
 	Speed            *string `json:"speed,omitempty"`
 }
 
+// AgentTarget defines model for AgentTarget.
+type AgentTarget struct {
+	CreatedAtUnixMs int64                `json:"createdAtUnixMs"`
+	Enabled         bool                 `json:"enabled"`
+	IconKey         *string              `json:"iconKey,omitempty"`
+	Id              string               `json:"id"`
+	LaunchRef       AgentTargetLaunchRef `json:"launchRef"`
+	Name            string               `json:"name"`
+	Provider        AgentTargetProvider  `json:"provider"`
+	SortOrder       int                  `json:"sortOrder"`
+	Source          AgentTargetSource    `json:"source"`
+	UpdatedAtUnixMs int64                `json:"updatedAtUnixMs"`
+}
+
+// AgentTargetLaunchRef defines model for AgentTargetLaunchRef.
+type AgentTargetLaunchRef struct {
+	Provider AgentTargetProvider      `json:"provider"`
+	Type     AgentTargetLaunchRefType `json:"type"`
+}
+
+// AgentTargetLaunchRefType defines model for AgentTargetLaunchRef.Type.
+type AgentTargetLaunchRefType string
+
+// AgentTargetProvider defines model for AgentTargetProvider.
+type AgentTargetProvider string
+
+// AgentTargetSource defines model for AgentTargetSource.
+type AgentTargetSource string
+
 // ApiErrorDetails defines model for ApiErrorDetails.
 type ApiErrorDetails struct {
 	Code             ApiErrorDetailsCode     `json:"code"`
@@ -2263,7 +2403,10 @@ type CreateIssueManagerTopicRequest struct {
 
 // CreateWorkspaceAgentSessionRequest defines model for CreateWorkspaceAgentSessionRequest.
 type CreateWorkspaceAgentSessionRequest struct {
-	AgentSessionId openapi_types.UUID        `json:"agentSessionId"`
+	AgentSessionId openapi_types.UUID `json:"agentSessionId"`
+
+	// AgentTargetId Required target-first session launch authority. The daemon derives provider and providerTargetRef from the stored agent target launchRef and rejects mismatched provider values.
+	AgentTargetId  string                    `json:"agentTargetId"`
 	BrowserUse     *bool                     `json:"browserUse,omitempty"`
 	Cwd            *string                   `json:"cwd,omitempty"`
 	InitialContent []AgentPromptContentBlock `json:"initialContent"`
@@ -2276,9 +2419,9 @@ type CreateWorkspaceAgentSessionRequest struct {
 	Model            *string                 `json:"model,omitempty"`
 	PermissionModeId *string                 `json:"permissionModeId,omitempty"`
 	PlanMode         *bool                   `json:"planMode,omitempty"`
-	Provider         WorkspaceAgentProvider  `json:"provider"`
+	Provider         *WorkspaceAgentProvider `json:"provider,omitempty"`
 
-	// ProviderTargetRef Opaque host-owned provider target reference. It is not authority; trusted launchers must re-authenticate and resolve it before invoking a provider.
+	// ProviderTargetRef Deprecated opaque host-owned provider target reference. It is not launch authority; the daemon derives the trusted provider target ref from the stored agent target identified by agentTargetId.
 	ProviderTargetRef *map[string]interface{} `json:"providerTargetRef,omitempty"`
 	ReasoningEffort   *string                 `json:"reasoningEffort,omitempty"`
 	Speed             *string                 `json:"speed,omitempty"`
@@ -2395,6 +2538,9 @@ type DesktopAgentComposerDefaultsByProvider struct {
 // DesktopAgentConversationDetailMode defines model for DesktopAgentConversationDetailMode.
 type DesktopAgentConversationDetailMode string
 
+// DesktopAgentDockLayout defines model for DesktopAgentDockLayout.
+type DesktopAgentDockLayout string
+
 // DesktopAgentGuiConversationRailCollapsedByProvider defines model for DesktopAgentGuiConversationRailCollapsedByProvider.
 type DesktopAgentGuiConversationRailCollapsedByProvider struct {
 	ClaudeCode *bool `json:"claude-code,omitempty"`
@@ -2433,6 +2579,7 @@ type DesktopMinimizeAnimation string
 type DesktopPreferences struct {
 	AgentComposerDefaultsByProvider             DesktopAgentComposerDefaultsByProvider             `json:"agentComposerDefaultsByProvider"`
 	AgentConversationDetailMode                 DesktopAgentConversationDetailMode                 `json:"agentConversationDetailMode"`
+	AgentDockLayout                             DesktopAgentDockLayout                             `json:"agentDockLayout"`
 	AgentGuiConversationRailCollapsedByProvider DesktopAgentGuiConversationRailCollapsedByProvider `json:"agentGuiConversationRailCollapsedByProvider"`
 	AppCatalogChannel                           DesktopAppCatalogChannel                           `json:"appCatalogChannel"`
 	BrowserUseConnectionMode                    *DesktopBrowserUseConnectionMode                   `json:"browserUseConnectionMode,omitempty"`
@@ -2870,6 +3017,11 @@ type IssueManagerTopicResponse struct {
 	Topic IssueManagerTopic `json:"topic"`
 }
 
+// ListAgentTargetsResponse defines model for ListAgentTargetsResponse.
+type ListAgentTargetsResponse struct {
+	Targets []AgentTarget `json:"targets"`
+}
+
 // ListWorkspacesResponse defines model for ListWorkspacesResponse.
 type ListWorkspacesResponse struct {
 	TotalCount int                `json:"totalCount"`
@@ -3089,6 +3241,7 @@ type UserProject struct {
 	Label            string `json:"label"`
 	LastUsedAtUnixMs *int64 `json:"lastUsedAtUnixMs,omitempty"`
 	Path             string `json:"path"`
+	SectionKey       string `json:"sectionKey"`
 	UpdatedAtUnixMs  int64  `json:"updatedAtUnixMs"`
 }
 
@@ -3174,6 +3327,8 @@ type WorkspaceAgentProvider string
 
 // WorkspaceAgentSession defines model for WorkspaceAgentSession.
 type WorkspaceAgentSession struct {
+	// AgentTargetId Agent target that authorized this session launch. Historical or imported provider-only sessions may omit it.
+	AgentTargetId      *string                          `json:"agentTargetId,omitempty"`
 	CreatedAt          time.Time                        `json:"createdAt"`
 	Cwd                *string                          `json:"cwd"`
 	EndedAt            *time.Time                       `json:"endedAt,omitempty"`
@@ -3223,6 +3378,7 @@ type WorkspaceAgentSessionCancelResultReason string
 // WorkspaceAgentSessionEventEnvelope defines model for WorkspaceAgentSessionEventEnvelope.
 type WorkspaceAgentSessionEventEnvelope struct {
 	AgentSessionId string                 `json:"agentSessionId"`
+	AgentTargetId  *string                `json:"agentTargetId,omitempty"`
 	OccurredAt     time.Time              `json:"occurredAt"`
 	Payload        map[string]interface{} `json:"payload"`
 	Seq            int64                  `json:"seq"`
@@ -3235,26 +3391,23 @@ type WorkspaceAgentSessionGitBranchesResponse struct {
 	CurrentBranch *string  `json:"currentBranch,omitempty"`
 }
 
-// WorkspaceAgentSessionGroup defines model for WorkspaceAgentSessionGroup.
-type WorkspaceAgentSessionGroup struct {
-	Cwd                          string                  `json:"cwd"`
-	HasMore                      bool                    `json:"hasMore"`
-	LatestSessionUpdatedAtUnixMs int64                   `json:"latestSessionUpdatedAtUnixMs"`
-	NextCursor                   *string                 `json:"nextCursor,omitempty"`
-	SessionCount                 int                     `json:"sessionCount"`
-	Sessions                     []WorkspaceAgentSession `json:"sessions"`
+// WorkspaceAgentSessionGoalControlRequest defines model for WorkspaceAgentSessionGoalControlRequest.
+type WorkspaceAgentSessionGoalControlRequest struct {
+	Action    WorkspaceAgentSessionGoalControlRequestAction `json:"action"`
+	Objective *string                                       `json:"objective,omitempty"`
 }
 
-// WorkspaceAgentSessionGroupsResponse defines model for WorkspaceAgentSessionGroupsResponse.
-type WorkspaceAgentSessionGroupsResponse struct {
-	Groups      []WorkspaceAgentSessionGroup `json:"groups"`
-	WorkspaceId string                       `json:"workspaceId"`
+// WorkspaceAgentSessionGoalControlRequestAction defines model for WorkspaceAgentSessionGoalControlRequest.Action.
+type WorkspaceAgentSessionGoalControlRequestAction string
+
+// WorkspaceAgentSessionGoalControlResponse defines model for WorkspaceAgentSessionGoalControlResponse.
+type WorkspaceAgentSessionGoalControlResponse struct {
+	Goal    *map[string]interface{} `json:"goal,omitempty"`
+	Session WorkspaceAgentSession   `json:"session"`
 }
 
 // WorkspaceAgentSessionListResponse defines model for WorkspaceAgentSessionListResponse.
 type WorkspaceAgentSessionListResponse struct {
-	HasMore     bool                    `json:"hasMore"`
-	NextCursor  *string                 `json:"nextCursor,omitempty"`
 	Sessions    []WorkspaceAgentSession `json:"sessions"`
 	WorkspaceId string                  `json:"workspaceId"`
 }
@@ -3289,6 +3442,33 @@ type WorkspaceAgentSessionMessagesResponse struct {
 // WorkspaceAgentSessionResponse defines model for WorkspaceAgentSessionResponse.
 type WorkspaceAgentSessionResponse struct {
 	Session WorkspaceAgentSession `json:"session"`
+}
+
+// WorkspaceAgentSessionSection defines model for WorkspaceAgentSessionSection.
+type WorkspaceAgentSessionSection struct {
+	HasMore bool                             `json:"hasMore"`
+	Kind    WorkspaceAgentSessionSectionKind `json:"kind"`
+
+	// NextCursor Cursor for the next older page, encoded as updatedAtUnixMs|agentSessionId.
+	NextCursor  *string                 `json:"nextCursor,omitempty"`
+	SectionKey  string                  `json:"sectionKey"`
+	Sessions    []WorkspaceAgentSession `json:"sessions"`
+	UserProject *UserProject            `json:"userProject,omitempty"`
+}
+
+// WorkspaceAgentSessionSectionKind defines model for WorkspaceAgentSessionSectionKind.
+type WorkspaceAgentSessionSectionKind string
+
+// WorkspaceAgentSessionSectionPageResponse defines model for WorkspaceAgentSessionSectionPageResponse.
+type WorkspaceAgentSessionSectionPageResponse struct {
+	Section     WorkspaceAgentSessionSection `json:"section"`
+	WorkspaceId string                       `json:"workspaceId"`
+}
+
+// WorkspaceAgentSessionSectionsResponse defines model for WorkspaceAgentSessionSectionsResponse.
+type WorkspaceAgentSessionSectionsResponse struct {
+	Sections    []WorkspaceAgentSessionSection `json:"sections"`
+	WorkspaceId string                         `json:"workspaceId"`
 }
 
 // WorkspaceAgentSessionStatus defines model for WorkspaceAgentSessionStatus.
@@ -3904,19 +4084,30 @@ type ListWorkspaceAgentGeneratedFilesParams struct {
 	Limit      *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// ListWorkspaceAgentSessionsParams defines parameters for ListWorkspaceAgentSessions.
-type ListWorkspaceAgentSessionsParams struct {
-	Cwd         *string `form:"cwd,omitempty" json:"cwd,omitempty"`
-	Cursor      *string `form:"cursor,omitempty" json:"cursor,omitempty"`
-	SearchQuery *string `form:"searchQuery,omitempty" json:"searchQuery,omitempty"`
-	Limit       *int    `form:"limit,omitempty" json:"limit,omitempty"`
-	VisibleOnly *bool   `form:"visibleOnly,omitempty" json:"visibleOnly,omitempty"`
+// ListWorkspaceAgentSessionSectionsParams defines parameters for ListWorkspaceAgentSessionSections.
+type ListWorkspaceAgentSessionSectionsParams struct {
+	LimitPerSection *int `form:"limitPerSection,omitempty" json:"limitPerSection,omitempty"`
+
+	// AgentTargetId Optional agent target filter applied before section pagination and hasMore calculation.
+	AgentTargetId *string `form:"agentTargetId,omitempty" json:"agentTargetId,omitempty"`
 }
 
-// ListWorkspaceAgentSessionGroupsParams defines parameters for ListWorkspaceAgentSessionGroups.
-type ListWorkspaceAgentSessionGroupsParams struct {
-	SessionLimit *int  `form:"sessionLimit,omitempty" json:"sessionLimit,omitempty"`
-	VisibleOnly  *bool `form:"visibleOnly,omitempty" json:"visibleOnly,omitempty"`
+// ListWorkspaceAgentSessionSectionPageParams defines parameters for ListWorkspaceAgentSessionSectionPage.
+type ListWorkspaceAgentSessionSectionPageParams struct {
+	SectionKey string `form:"sectionKey" json:"sectionKey"`
+
+	// Cursor Cursor for the next older page, encoded as updatedAtUnixMs|agentSessionId.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// AgentTargetId Optional agent target filter applied before section pagination and hasMore calculation.
+	AgentTargetId *string `form:"agentTargetId,omitempty" json:"agentTargetId,omitempty"`
+}
+
+// ListWorkspaceAgentSessionsParams defines parameters for ListWorkspaceAgentSessions.
+type ListWorkspaceAgentSessionsParams struct {
+	SearchQuery *string `form:"searchQuery,omitempty" json:"searchQuery,omitempty"`
+	Limit       *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListWorkspaceAgentSessionMessagesParams defines parameters for ListWorkspaceAgentSessionMessages.
@@ -4038,6 +4229,9 @@ type ImportWorkspaceExternalAgentSessionsJSONRequestBody = ImportExternalAgentSe
 
 // ScanWorkspaceExternalAgentSessionImportsJSONRequestBody defines body for ScanWorkspaceExternalAgentSessionImports for application/json ContentType.
 type ScanWorkspaceExternalAgentSessionImportsJSONRequestBody = ExternalAgentImportScanRequest
+
+// GoalControlWorkspaceAgentSessionJSONRequestBody defines body for GoalControlWorkspaceAgentSession for application/json ContentType.
+type GoalControlWorkspaceAgentSessionJSONRequestBody = WorkspaceAgentSessionGoalControlRequest
 
 // SendWorkspaceAgentSessionInputJSONRequestBody defines body for SendWorkspaceAgentSessionInput for application/json ContentType.
 type SendWorkspaceAgentSessionInputJSONRequestBody = SendWorkspaceAgentSessionInputRequest

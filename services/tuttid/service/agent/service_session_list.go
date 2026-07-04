@@ -24,13 +24,6 @@ func (s *Service) ListPage(ctx context.Context, workspaceID string, input ListSe
 	if err != nil {
 		return SessionListPage{}, err
 	}
-	if input.Cursor != "" {
-		cursor, err := parseSessionListCursor(input.Cursor)
-		if err != nil {
-			return SessionListPage{}, err
-		}
-		result = sessionsAfterCursor(result, cursor)
-	}
 	hasMore := false
 	if input.Limit > 0 && len(result) > input.Limit {
 		hasMore = true
@@ -45,51 +38,6 @@ func (s *Service) ListPage(ctx context.Context, workspaceID string, input ListSe
 		HasMore:    hasMore,
 		NextCursor: nextCursor,
 	}, nil
-}
-
-func (s *Service) ListGroups(ctx context.Context, workspaceID string, input ListSessionGroupsInput) ([]SessionGroup, error) {
-	sessionLimit := input.SessionLimit
-	if sessionLimit <= 0 {
-		sessionLimit = 5
-	}
-	sessions, err := s.listFilteredSortedSessions(ctx, workspaceID, ListSessionsInput{
-		VisibleOnly: input.VisibleOnly,
-	})
-	if err != nil {
-		return nil, err
-	}
-	groupByCWD := make(map[string]*SessionGroup)
-	for _, session := range sessions {
-		cwd := strings.TrimSpace(session.Cwd)
-		group := groupByCWD[cwd]
-		if group == nil {
-			group = &SessionGroup{CWD: cwd}
-			groupByCWD[cwd] = group
-		}
-		group.SessionCount++
-		if updatedAtUnixMS := sessionUpdatedAtUnixMS(session); updatedAtUnixMS > group.LatestSessionUpdatedAtUnixMS {
-			group.LatestSessionUpdatedAtUnixMS = updatedAtUnixMS
-		}
-		if len(group.Sessions) < sessionLimit {
-			group.Sessions = append(group.Sessions, cloneSession(session))
-			continue
-		}
-		if len(group.Sessions) == sessionLimit {
-			group.HasMore = true
-			group.NextCursor = sessionListCursor(group.Sessions[len(group.Sessions)-1]).String()
-		}
-	}
-	groups := make([]SessionGroup, 0, len(groupByCWD))
-	for _, group := range groupByCWD {
-		groups = append(groups, *group)
-	}
-	sort.SliceStable(groups, func(left, right int) bool {
-		if groups[left].LatestSessionUpdatedAtUnixMS == groups[right].LatestSessionUpdatedAtUnixMS {
-			return groups[left].CWD < groups[right].CWD
-		}
-		return groups[left].LatestSessionUpdatedAtUnixMS > groups[right].LatestSessionUpdatedAtUnixMS
-	})
-	return groups, nil
 }
 
 func (s *Service) listFilteredSortedSessions(ctx context.Context, workspaceID string, input ListSessionsInput) ([]Session, error) {
@@ -171,16 +119,4 @@ func parseSessionListCursor(raw string) (sessionPageCursor, error) {
 		ID:              strings.TrimSpace(parts[1]),
 		UpdatedAtUnixMS: updatedAtUnixMS,
 	}, nil
-}
-
-func sessionsAfterCursor(sessions []Session, cursor sessionPageCursor) []Session {
-	for index, session := range sessions {
-		updatedAtUnixMS := sessionUpdatedAtUnixMS(session)
-		sessionID := strings.TrimSpace(session.ID)
-		if updatedAtUnixMS < cursor.UpdatedAtUnixMS ||
-			(updatedAtUnixMS == cursor.UpdatedAtUnixMS && sessionID > cursor.ID) {
-			return sessions[index:]
-		}
-	}
-	return nil
 }

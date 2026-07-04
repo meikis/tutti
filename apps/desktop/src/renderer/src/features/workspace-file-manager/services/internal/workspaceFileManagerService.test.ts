@@ -784,6 +784,7 @@ function createDependenciesStub(): {
       copyFilesToClipboard: fail
     },
     tuttidClient: {
+      listAgentTargets: fail,
       startAccountLogin: fail,
       getAccountLoginStatus: fail,
       getAccountUserInfo: fail,
@@ -852,7 +853,6 @@ function createDependenciesStub(): {
       listWorkspaceAgentGeneratedFiles: fail,
       scanWorkspaceExternalAgentSessionImports: fail,
       importWorkspaceExternalAgentSessions: fail,
-      listWorkspaceAgentSessionGroups: fail,
       listUserProjects: fail,
       deleteUserProject: fail,
       checkUserProjectPath: fail,
@@ -862,6 +862,8 @@ function createDependenciesStub(): {
       listWorkspaceIssueRuns: fail,
       listWorkspaceIssueTasks: fail,
       listWorkspaceAgentSessions: fail,
+      listWorkspaceAgentSessionSections: fail,
+      listWorkspaceAgentSessionSectionPage: fail,
       listWorkspaceApps: fail,
       listWorkspaceAppReferences: fail,
       searchWorkspaceAppReferences: fail,
@@ -892,6 +894,7 @@ function createDependenciesStub(): {
       rollbackWorkspaceApp: fail,
       cancelWorkspaceAgentSession: fail,
       cancelWorkspaceAgentSessionWithResult: fail,
+      goalControlWorkspaceAgentSession: fail,
       sendWorkspaceAgentSessionInput: fail,
       readWorkspaceAgentSessionAttachment: fail,
       listWorkspaceAgentSessionGitBranches: fail,

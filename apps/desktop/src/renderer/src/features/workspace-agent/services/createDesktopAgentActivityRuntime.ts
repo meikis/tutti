@@ -33,7 +33,6 @@ import {
 } from "./internal/agentNodeResultAnalytics.ts";
 import type { IWorkspaceAgentActivityService } from "./workspaceAgentActivityService.interface";
 import type { IWorkspaceUserProjectService } from "../../workspace-user-project/index.ts";
-import { agentActivitySessionFromTuttidSession } from "./desktopAgentActivityAdapter.ts";
 
 type AgentComposerSettingsChange = {
   field: "model" | "permissionModeId" | "planMode" | "reasoningEffort";
@@ -268,6 +267,7 @@ export function createDesktopAgentActivityRuntime(
       }
       return result;
     },
+    goalControl: (input) => workspaceAgentActivityService.goalControl(input),
     createSession: (input) =>
       workspaceAgentActivityService.createSession(input),
     deleteSession: (input) =>
@@ -291,37 +291,12 @@ export function createDesktopAgentActivityRuntime(
     },
     listAgentGeneratedFiles: (input) =>
       workspaceAgentActivityService.listAgentGeneratedFiles(input),
-    async listSessionGroups(input) {
-      const result =
-        await workspaceAgentActivityService.listSessionGroups(input);
-      return {
-        groups: result.groups.map((group) => ({
-          cwd: group.cwd,
-          hasMore: group.hasMore,
-          latestSessionUpdatedAtUnixMs: group.latestSessionUpdatedAtUnixMs,
-          nextCursor: group.nextCursor,
-          sessionCount: group.sessionCount,
-          sessions: group.sessions.map((session) =>
-            agentActivitySessionFromTuttidSession(result.workspaceId, session)
-          )
-        })),
-        workspaceId: result.workspaceId
-      };
-    },
-    async listSessionsPage(input) {
-      const result =
-        await workspaceAgentActivityService.listSessionsPage(input);
-      return {
-        hasMore: result.hasMore,
-        nextCursor: result.nextCursor,
-        sessions: result.sessions.map((session) =>
-          agentActivitySessionFromTuttidSession(result.workspaceId, session)
-        ),
-        workspaceId: result.workspaceId
-      };
-    },
-    searchSessions: (input) =>
-      workspaceAgentActivityService.searchSessions(input),
+    listSessionsPage: (input) =>
+      workspaceAgentActivityService.listSessionsPage(input),
+    listSessionSections: (input) =>
+      workspaceAgentActivityService.listSessionSections(input),
+    listSessionSectionPage: (input) =>
+      workspaceAgentActivityService.listSessionSectionPage(input),
     async load(workspaceId, signal) {
       const snapshot = await workspaceAgentActivityService.load(
         workspaceId,

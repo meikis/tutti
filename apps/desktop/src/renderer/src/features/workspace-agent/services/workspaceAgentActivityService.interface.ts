@@ -3,6 +3,8 @@ import type { AgentActivityRuntime } from "@tutti-os/agent-gui";
 import type {
   AgentActivityCancelSessionInput,
   AgentActivityCancelSessionResult,
+  AgentActivityGoalControlInput,
+  AgentActivityGoalControlResult,
   AgentActivityCreateSessionInput,
   AgentActivityDeleteSessionInput,
   AgentActivityDeleteSessionResult,
@@ -25,9 +27,7 @@ import type {
   ExternalAgentImportScanRequest,
   ExternalAgentImportScanResponse,
   ImportExternalAgentSessionsRequest,
-  WorkspaceAgentGeneratedFileListResponse,
-  WorkspaceAgentSessionGroupsResponse,
-  WorkspaceAgentSessionListResponse
+  WorkspaceAgentGeneratedFileListResponse
 } from "@tutti-os/client-tuttid-ts";
 
 export interface WorkspaceAgentActivityListMessagesInput {
@@ -49,22 +49,35 @@ export interface WorkspaceAgentActivityListGeneratedFilesInput {
   workspaceId: string;
 }
 
-export interface WorkspaceAgentActivitySearchSessionsInput {
-  cursor?: string;
+export interface WorkspaceAgentActivityListSessionsPageInput {
   limit?: number;
-  query: string;
+  searchQuery?: string;
   signal?: AbortSignal;
   workspaceId: string;
 }
 
-export interface WorkspaceAgentActivityListSessionsPageInput {
-  cursor?: string;
-  cwd?: string;
-  limit?: number;
-  signal?: AbortSignal;
-  visibleOnly?: boolean;
+export interface WorkspaceAgentActivitySessionPageResult {
+  hasMore: boolean;
+  nextCursor?: string;
+  sessions: AgentActivitySession[];
   workspaceId: string;
 }
+
+export type WorkspaceAgentActivityListSessionSectionsInput = Parameters<
+  NonNullable<AgentActivityRuntime["listSessionSections"]>
+>[0];
+
+export type WorkspaceAgentActivitySessionSectionsResult = Awaited<
+  ReturnType<NonNullable<AgentActivityRuntime["listSessionSections"]>>
+>;
+
+export type WorkspaceAgentActivityListSessionSectionPageInput = Parameters<
+  NonNullable<AgentActivityRuntime["listSessionSectionPage"]>
+>[0];
+
+export type WorkspaceAgentActivitySessionSectionResult = Awaited<
+  ReturnType<NonNullable<AgentActivityRuntime["listSessionSectionPage"]>>
+>;
 
 export interface WorkspaceAgentActivityEnsureSessionSynchronizedInput {
   afterVersion?: number;
@@ -90,6 +103,9 @@ export interface IWorkspaceAgentActivityService {
   cancelSession(
     input: AgentActivityCancelSessionInput
   ): Promise<AgentActivityCancelSessionResult>;
+  goalControl(
+    input: AgentActivityGoalControlInput
+  ): Promise<AgentActivityGoalControlResult>;
   createSession(
     input: AgentActivityCreateSessionInput
   ): Promise<AgentActivitySession>;
@@ -101,6 +117,7 @@ export interface IWorkspaceAgentActivityService {
     agentSessionId: string
   ): Promise<AgentActivitySession>;
   getComposerOptions(input: {
+    agentTargetId?: string | null;
     cwd?: string | null;
     force?: boolean;
     provider?: string;
@@ -124,21 +141,15 @@ export interface IWorkspaceAgentActivityService {
   listAgentGeneratedFiles(
     input: WorkspaceAgentActivityListGeneratedFilesInput
   ): Promise<WorkspaceAgentGeneratedFileListResponse>;
-  listSessionGroups(input: {
-    sessionLimit?: number;
-    signal?: AbortSignal;
-    visibleOnly?: boolean;
-    workspaceId: string;
-  }): Promise<WorkspaceAgentSessionGroupsResponse>;
   listSessionsPage(
     input: WorkspaceAgentActivityListSessionsPageInput
-  ): Promise<WorkspaceAgentSessionListResponse>;
-  searchSessions(input: WorkspaceAgentActivitySearchSessionsInput): Promise<{
-    hasMore: boolean;
-    nextCursor?: string;
-    sessions: AgentActivitySession[];
-    workspaceId: string;
-  }>;
+  ): Promise<WorkspaceAgentActivitySessionPageResult>;
+  listSessionSections(
+    input: WorkspaceAgentActivityListSessionSectionsInput
+  ): Promise<WorkspaceAgentActivitySessionSectionsResult>;
+  listSessionSectionPage(
+    input: WorkspaceAgentActivityListSessionSectionPageInput
+  ): Promise<WorkspaceAgentActivitySessionSectionResult>;
   scanExternalSessionImports(
     workspaceId: string,
     request?: ExternalAgentImportScanRequest

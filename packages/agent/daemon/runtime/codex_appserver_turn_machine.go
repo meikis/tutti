@@ -11,6 +11,10 @@ type codexAppServerTurnKind string
 const (
 	codexAppServerTurnKindNormal  codexAppServerTurnKind = "normal"
 	codexAppServerTurnKindCompact codexAppServerTurnKind = "compact"
+	// codexAppServerTurnKindGoalAdopted marks a turn that codex started on its
+	// own to continue an active goal, adopted by the reducer so its output is
+	// tracked like any Exec-driven turn.
+	codexAppServerTurnKindGoalAdopted codexAppServerTurnKind = "goal-adopted"
 )
 
 type codexAppServerTurnPhase string
@@ -122,7 +126,7 @@ func (a *CodexAppServerAdapter) settleActiveTurn(
 	}
 }
 
-func (a *CodexAppServerAdapter) activeTurnMatchesProviderTurnIDLocked(
+func (*CodexAppServerAdapter) activeTurnMatchesProviderTurnIDLocked(
 	appSession *codexAppServerSession,
 	providerTurnID string,
 ) bool {

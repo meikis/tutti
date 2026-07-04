@@ -8,6 +8,8 @@ import {
 import type {
   AgentActivityCancelSessionInput,
   AgentActivityCancelSessionResult,
+  AgentActivityGoalControlInput,
+  AgentActivityGoalControlResult,
   AgentActivityCreateSessionInput,
   AgentActivityDeleteSessionInput,
   AgentActivityDeleteSessionResult,
@@ -49,27 +51,10 @@ export interface AgentActivityRuntimeListGeneratedFilesInput {
   workspaceId: string;
 }
 
-export interface AgentActivityRuntimeSearchSessionsInput {
-  cursor?: string;
-  limit?: number;
-  query: string;
-  signal?: AbortSignal;
-  workspaceId: string;
-}
-
-export interface AgentActivityRuntimeSearchSessionsResult {
-  hasMore: boolean;
-  nextCursor?: string;
-  sessions: AgentActivitySession[];
-  workspaceId: string;
-}
-
 export interface AgentActivityRuntimeListSessionsPageInput {
-  cursor?: string;
-  cwd?: string;
   limit?: number;
+  searchQuery?: string;
   signal?: AbortSignal;
-  visibleOnly?: boolean;
   workspaceId: string;
 }
 
@@ -80,17 +65,43 @@ export interface AgentActivityRuntimeSessionPageResult {
   workspaceId: string;
 }
 
-export interface AgentActivityRuntimeSessionGroup {
-  cwd: string;
-  hasMore: boolean;
-  latestSessionUpdatedAtUnixMs: number;
-  nextCursor?: string;
-  sessionCount: number;
-  sessions: AgentActivitySession[];
+export interface AgentActivityRuntimeListSessionSectionsInput {
+  agentTargetId?: string | null;
+  limitPerSection?: number;
+  signal?: AbortSignal;
+  workspaceId: string;
 }
 
-export interface AgentActivityRuntimeSessionGroupsResult {
-  groups: AgentActivityRuntimeSessionGroup[];
+export interface AgentActivityRuntimeListSessionSectionPageInput {
+  agentTargetId?: string | null;
+  cursor?: string;
+  limit?: number;
+  sectionKey: string;
+  signal?: AbortSignal;
+  workspaceId: string;
+}
+
+export interface AgentActivityRuntimeUserProject {
+  createdAtUnixMs: number;
+  id: string;
+  label: string;
+  lastUsedAtUnixMs?: number;
+  path: string;
+  sectionKey: string;
+  updatedAtUnixMs: number;
+}
+
+export interface AgentActivityRuntimeSessionSection {
+  kind: "conversations" | "project";
+  sectionKey: string;
+  userProject?: AgentActivityRuntimeUserProject;
+  sessions: AgentActivitySession[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
+export interface AgentActivityRuntimeSessionSectionsResult {
+  sections: AgentActivityRuntimeSessionSection[];
   workspaceId: string;
 }
 
@@ -133,6 +144,7 @@ export interface AgentActivityRuntimeGetSessionControlStateInput {
 }
 
 export interface AgentActivityRuntimeGetComposerOptionsInput {
+  agentTargetId?: string | null;
   cwd?: string | null;
   force?: boolean;
   provider?: string;
@@ -167,6 +179,7 @@ export interface AgentActivityRuntimeDiagnosticInput {
 
 export interface AgentActivityRuntimeActivateSessionInput {
   agentSessionId: string;
+  agentTargetId?: string | null;
   cwd?: string;
   initialContent?: AgentActivitySendInput["content"];
   /** 仅展示用首轮文本(bundle 折叠成一个 chip);initialContent 仍带展开后的文件。 */
@@ -258,6 +271,9 @@ export interface AgentActivityRuntime {
   cancelSession(
     input: AgentActivityCancelSessionInput
   ): Promise<AgentActivityCancelSessionResult>;
+  goalControl(
+    input: AgentActivityGoalControlInput
+  ): Promise<AgentActivityGoalControlResult>;
   createSession(
     input: AgentActivityCreateSessionInput
   ): Promise<AgentActivitySession>;
@@ -290,18 +306,15 @@ export interface AgentActivityRuntime {
   listAgentGeneratedFiles?(
     input: AgentActivityRuntimeListGeneratedFilesInput
   ): Promise<AgentActivityRuntimeGeneratedFileList>;
-  listSessionGroups?(input: {
-    sessionLimit?: number;
-    signal?: AbortSignal;
-    visibleOnly?: boolean;
-    workspaceId: string;
-  }): Promise<AgentActivityRuntimeSessionGroupsResult>;
   listSessionsPage?(
     input: AgentActivityRuntimeListSessionsPageInput
   ): Promise<AgentActivityRuntimeSessionPageResult>;
-  searchSessions?(
-    input: AgentActivityRuntimeSearchSessionsInput
-  ): Promise<AgentActivityRuntimeSearchSessionsResult>;
+  listSessionSections?(
+    input: AgentActivityRuntimeListSessionSectionsInput
+  ): Promise<AgentActivityRuntimeSessionSectionsResult>;
+  listSessionSectionPage?(
+    input: AgentActivityRuntimeListSessionSectionPageInput
+  ): Promise<AgentActivityRuntimeSessionSection>;
   load(
     workspaceId: string,
     signal?: AbortSignal

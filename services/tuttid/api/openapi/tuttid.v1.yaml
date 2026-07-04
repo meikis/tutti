@@ -19,6 +19,7 @@ tags:
   - name: workspace
   - name: terminal
   - name: agent-session
+  - name: agent-target
   - name: agent-context
   - name: app-center
   - name: app-factory
@@ -420,6 +421,28 @@ paths:
           $ref: "#/components/responses/InvalidRequestError"
         "405":
           $ref: "#/components/responses/MethodNotAllowedError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailableError"
+  /v1/agent-targets:
+    get:
+      operationId: listAgentTargets
+      tags:
+        - agent-target
+      summary: List daemon-owned Agent Targets
+      description: Returns durable Agent Target records. The launch ref is a controlled union and not a free-form configuration blob.
+      responses:
+        "200":
+          description: Agent Targets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAgentTargetsResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowedError"
+        "502":
+          $ref: "#/components/responses/PreferencesOperationError"
         "503":
           $ref: "#/components/responses/ServiceUnavailableError"
   /v1/workspaces:
@@ -1615,16 +1638,6 @@ paths:
         - agent-session
       summary: List agent sessions for one workspace
       parameters:
-        - name: cwd
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
         - name: searchQuery
           in: query
           required: false
@@ -1637,11 +1650,6 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
-        - name: visibleOnly
-          in: query
-          required: false
-          schema:
-            type: boolean
       responses:
         "200":
           description: Workspace agent sessions
@@ -1715,34 +1723,91 @@ paths:
           $ref: "#/components/responses/WorkspaceOperationError"
         "503":
           $ref: "#/components/responses/ServiceUnavailableError"
-  /v1/workspaces/{workspaceID}/agent-sessions/groups:
+  /v1/workspaces/{workspaceID}/agent-session-sections:
     parameters:
       - $ref: "#/components/parameters/WorkspaceID"
     get:
-      operationId: listWorkspaceAgentSessionGroups
+      operationId: listWorkspaceAgentSessionSections
       tags:
         - agent-session
-      summary: List grouped agent session summaries for one workspace
+      summary: List agent session rail sections for one workspace
       parameters:
-        - name: sessionLimit
+        - name: limitPerSection
           in: query
           required: false
           schema:
             type: integer
             minimum: 1
             maximum: 100
-        - name: visibleOnly
+        - name: agentTargetId
           in: query
           required: false
+          description: Optional agent target filter applied before section pagination and hasMore calculation.
           schema:
-            type: boolean
+            type: string
+            minLength: 1
       responses:
         "200":
-          description: Workspace agent session groups
+          description: Workspace agent session sections
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WorkspaceAgentSessionGroupsResponse"
+                $ref: "#/components/schemas/WorkspaceAgentSessionSectionsResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "400":
+          $ref: "#/components/responses/InvalidRequestError"
+        "404":
+          $ref: "#/components/responses/WorkspaceNotFoundError"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowedError"
+        "502":
+          $ref: "#/components/responses/WorkspaceOperationError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailableError"
+  /v1/workspaces/{workspaceID}/agent-session-sections/page:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+    get:
+      operationId: listWorkspaceAgentSessionSectionPage
+      tags:
+        - agent-session
+      summary: List one agent session rail section page for one workspace
+      parameters:
+        - name: sectionKey
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: cursor
+          in: query
+          required: false
+          description: Cursor for the next older page, encoded as updatedAtUnixMs|agentSessionId.
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: agentTargetId
+          in: query
+          required: false
+          description: Optional agent target filter applied before section pagination and hasMore calculation.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Workspace agent session section page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceAgentSessionSectionPageResponse"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "400":
@@ -2291,6 +2356,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkspaceAgentSessionCancelResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "400":
+          $ref: "#/components/responses/InvalidRequestError"
+        "404":
+          $ref: "#/components/responses/WorkspaceNotFoundError"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowedError"
+        "502":
+          $ref: "#/components/responses/WorkspaceOperationError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailableError"
+  /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/goal:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceID"
+      - $ref: "#/components/parameters/AgentSessionID"
+    post:
+      operationId: goalControlWorkspaceAgentSession
+      tags:
+        - agent-session
+      summary: Perform a goal control action on one workspace agent session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceAgentSessionGoalControlRequest"
+      responses:
+        "200":
+          description: Workspace agent session goal updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceAgentSessionGoalControlResponse"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "400":
@@ -4019,6 +4118,7 @@ components:
         - agentComposerDefaultsByProvider
         - agentGuiConversationRailCollapsedByProvider
         - agentConversationDetailMode
+        - agentDockLayout
         - appCatalogChannel
         - defaultAgentProvider
         - dockIconStyle
@@ -4038,6 +4138,8 @@ components:
           $ref: "#/components/schemas/DesktopAgentGuiConversationRailCollapsedByProvider"
         agentConversationDetailMode:
           $ref: "#/components/schemas/DesktopAgentConversationDetailMode"
+        agentDockLayout:
+          $ref: "#/components/schemas/DesktopAgentDockLayout"
         appCatalogChannel:
           $ref: "#/components/schemas/DesktopAppCatalogChannel"
         browserUseConnectionMode:
@@ -4097,6 +4199,11 @@ components:
       enum:
         - coding
         - general
+    DesktopAgentDockLayout:
+      type: string
+      enum:
+        - legacySplit
+        - unified
     DesktopAgentComposerDefaultsByProvider:
       type: object
       additionalProperties: false
@@ -4165,6 +4272,76 @@ components:
       properties:
         preferences:
           $ref: "#/components/schemas/DesktopPreferences"
+    AgentTargetProvider:
+      type: string
+      enum:
+        - codex
+        - claude-code
+    AgentTargetSource:
+      type: string
+      enum:
+        - system
+        - user
+    AgentTargetLaunchRef:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - provider
+      properties:
+        type:
+          type: string
+          enum:
+            - local_cli
+        provider:
+          $ref: "#/components/schemas/AgentTargetProvider"
+    AgentTarget:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - provider
+        - launchRef
+        - name
+        - enabled
+        - source
+        - sortOrder
+        - createdAtUnixMs
+        - updatedAtUnixMs
+      properties:
+        id:
+          type: string
+        provider:
+          $ref: "#/components/schemas/AgentTargetProvider"
+        launchRef:
+          $ref: "#/components/schemas/AgentTargetLaunchRef"
+        name:
+          type: string
+        iconKey:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        source:
+          $ref: "#/components/schemas/AgentTargetSource"
+        sortOrder:
+          type: integer
+        createdAtUnixMs:
+          type: integer
+          format: int64
+        updatedAtUnixMs:
+          type: integer
+          format: int64
+    ListAgentTargetsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - targets
+      properties:
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentTarget"
     ListWorkspacesResponse:
       type: object
       additionalProperties: false
@@ -6021,6 +6198,10 @@ components:
         id:
           type: string
           minLength: 1
+        agentTargetId:
+          type: string
+          nullable: true
+          description: Agent target that authorized this session launch. Historical or imported provider-only sessions may omit it.
         provider:
           $ref: "#/components/schemas/WorkspaceAgentProvider"
         providerSessionId:
@@ -6291,7 +6472,6 @@ components:
       required:
         - workspaceId
         - sessions
-        - hasMore
       properties:
         workspaceId:
           type: string
@@ -6300,30 +6480,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkspaceAgentSession"
-        hasMore:
-          type: boolean
-        nextCursor:
-          type: string
-          minLength: 1
-    WorkspaceAgentSessionGroup:
+    WorkspaceAgentSessionSectionKind:
+      type: string
+      enum:
+        - conversations
+        - project
+    WorkspaceAgentSessionSection:
       type: object
       additionalProperties: false
       required:
-        - cwd
-        - sessionCount
-        - latestSessionUpdatedAtUnixMs
+        - kind
+        - sectionKey
         - sessions
         - hasMore
       properties:
-        cwd:
+        kind:
+          $ref: "#/components/schemas/WorkspaceAgentSessionSectionKind"
+        sectionKey:
           type: string
-        sessionCount:
-          type: integer
-          minimum: 0
-        latestSessionUpdatedAtUnixMs:
-          type: integer
-          format: int64
-          minimum: 0
+          minLength: 1
+        userProject:
+          $ref: "#/components/schemas/UserProject"
         sessions:
           type: array
           items:
@@ -6332,21 +6509,34 @@ components:
           type: boolean
         nextCursor:
           type: string
+          description: Cursor for the next older page, encoded as updatedAtUnixMs|agentSessionId.
           minLength: 1
-    WorkspaceAgentSessionGroupsResponse:
+    WorkspaceAgentSessionSectionsResponse:
       type: object
       additionalProperties: false
       required:
         - workspaceId
-        - groups
+        - sections
       properties:
         workspaceId:
           type: string
           minLength: 1
-        groups:
+        sections:
           type: array
           items:
-            $ref: "#/components/schemas/WorkspaceAgentSessionGroup"
+            $ref: "#/components/schemas/WorkspaceAgentSessionSection"
+    WorkspaceAgentSessionSectionPageResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - workspaceId
+        - section
+      properties:
+        workspaceId:
+          type: string
+          minLength: 1
+        section:
+          $ref: "#/components/schemas/WorkspaceAgentSessionSection"
     ExternalAgentImportScanRequest:
       type: object
       additionalProperties: false
@@ -6599,20 +6789,51 @@ components:
       properties:
         visible:
           type: boolean
+    WorkspaceAgentSessionGoalControlRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - pause
+            - resume
+            - clear
+            - set
+        objective:
+          type: string
+    WorkspaceAgentSessionGoalControlResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - session
+      properties:
+        session:
+          $ref: "#/components/schemas/WorkspaceAgentSession"
+        goal:
+          type: object
+          additionalProperties: true
     CreateWorkspaceAgentSessionRequest:
       type: object
       additionalProperties: false
       required:
         - agentSessionId
-        - provider
+        - agentTargetId
         - initialContent
       properties:
         agentSessionId:
           type: string
           format: uuid
           minLength: 1
+        agentTargetId:
+          type: string
+          minLength: 1
+          description: Required target-first session launch authority. The daemon derives provider and providerTargetRef from the stored agent target launchRef and rejects mismatched provider values.
         provider:
           $ref: "#/components/schemas/WorkspaceAgentProvider"
+          description: Legacy provider hint. Optional when agentTargetId is present; when both are present, the daemon rejects mismatches with the target launchRef-derived provider. It does not authorize launches without agentTargetId.
         initialContent:
           type: array
           minItems: 1
@@ -6630,7 +6851,7 @@ components:
           type: object
           nullable: true
           additionalProperties: true
-          description: Opaque host-owned provider target reference. It is not authority; trusted launchers must re-authenticate and resolve it before invoking a provider.
+          description: Deprecated opaque host-owned provider target reference. It is not launch authority; the daemon derives the trusted provider target ref from the stored agent target identified by agentTargetId.
         title:
           type: string
           nullable: true
@@ -6836,6 +7057,7 @@ components:
         - id
         - path
         - label
+        - sectionKey
         - createdAtUnixMs
         - updatedAtUnixMs
       properties:
@@ -6846,6 +7068,9 @@ components:
           type: string
           minLength: 1
         label:
+          type: string
+          minLength: 1
+        sectionKey:
           type: string
           minLength: 1
         createdAtUnixMs:
@@ -6951,6 +7176,9 @@ components:
         agentSessionId:
           type: string
           minLength: 1
+        agentTargetId:
+          type: string
+          nullable: true
         type:
           type: string
           minLength: 1

@@ -130,11 +130,67 @@ Workbench and desktop product integration wrap that chain:
 
 ```text
 Workbench dock or external launch
+  -> buildAgentGuiDockEntries
   -> createAgentGuiWorkbenchLaunchDescriptor
   -> DesktopAgentGUIWorkbenchBody
   -> workbench node state + desktop preferences + mention providers
   -> <AgentGUI ... />
 ```
+
+`agentDockLayout` is a daemon-owned desktop preference that changes only the
+dock presentation. `legacySplit` keeps provider-specific Codex and Claude Code
+dock entries. `unified` exposes one Agent dock entry that matches Codex and
+Claude Code AgentGUI nodes, but launches still create provider-specific
+multi-instance AgentGUI nodes. The unified entry may choose a default target or
+provider for its launch payload; that selection must not synthesize a provider
+or replace the provider identity recorded on the node/session.
+Unified workbench chrome should keep the generic Agent title and use generic
+Agent artwork instead of provider-branded icons even when the underlying
+launch/session provider is Codex or Claude Code.
+
+AgentGuiNode may expose provider target selection in multiple UI-local entry
+points, including the conversation rail target grid and the provider select next
+to the composer add/reference control.
+These controls are launch/default selection surfaces only: they must flow
+through the controller's provider-selection action, resolve an
+`AgentGUIProviderTarget`, return the node to the home composer when switching
+providers, and preserve the real provider identity used by runtime create/send
+commands. Once a session is active, the composer provider select is display-only
+and must not switch the running session. Do not encode provider switching only
+as a conversation-list filter; filters can scope the visible Codex/Claude
+session list, while provider selection changes which provider a new empty
+composer will launch.
+The empty composer chrome and settings defaults must follow the selected
+provider target immediately, including the empty-state artwork, model options,
+and permission modes. Generic home composer overrides are single-target draft
+state and must be cleared when the selected provider target changes; provider-
+or target-scoped defaults may still provide the next settings.
+When an empty composer has an `agentTargetId`, model, permission, reasoning,
+and speed options are target-scoped. Do not fall back to provider-level options
+for that target; a missing target-scoped option snapshot should remain a
+loading/missing state until the target options arrive.
+If restored node data has a stale `provider` that disagrees with a resolvable
+`agentTargetId`, the target's provider wins for empty-composer settings and
+launch preparation.
+UI affordances that aggregate across providers, such as rail provider filters
+and composer provider switching, belong to the current conversation scope
+derived by the host/workbench presentation, not to durable AgentGUI node data.
+Provider-scoped rail footer affordances, such as usage limits and environment
+setup, follow the rail's active provider filter target in multi-provider scope;
+when the rail filter is `All`, they should stay hidden because there is no
+single provider target to inspect. In legacy single-provider dock scope, the
+same footer continues to use the node/session provider.
+Unified empty-home provider readiness is a host-projected, provider-scoped gate,
+not a durable session rule. Desktop may subscribe to its
+`agentProviderStatusService` and pass a narrow readiness map plus install,
+login, or refresh callbacks into AgentGUI only when `agentDockLayout` is
+`unified`. AgentGUI resolves the gate from the selected
+`AgentGUIProviderTarget.provider` first, from `agentTargetId` through the
+current provider target list second, and from legacy node/session `provider`
+only when no target can be resolved. A non-ready provider replaces only the
+empty-home composer with a friendly gate; active/history conversations,
+existing-session composer behavior, and the legacySplit dock hover
+install/login chain remain outside this gate.
 
 This means an AgentGUI bug can start at several different interfaces. Do not
 assume that a visible UI symptom starts in the visible UI component.
@@ -218,6 +274,84 @@ The durable activity data is the original turn summary input:
   zero executable diffs; for absolute file paths with a synthetic `/` workspace
   root, use the file's containing directory as the Git cwd.
 
+Claude SDK sidecars must not treat Edit/Write input text as authoritative patch
+data. They should collect the `PostToolUse` `tool_response.structuredPatch`
+hunks, convert them into file-level `changes[].diff` payloads, and only use
+input-derived file metadata for optimistic display before the tool response
+arrives.
+
+Approval tool calls may wrap the pending Edit/Write input so the transcript can
+preview what the user approved. Treat that nested input as preview-only data:
+Approval rows must not contribute edit diff counts, changed-file summaries, or
+undo/reapply patch batches. The executed file-change tool output remains the
+source of truth for edit statistics and reversible patches.
+
+Claude SDK interactive tools must preserve `callType: "interactive"` on the
+top-level durable tool payload, not only inside `metadata`. Agent GUI and
+Message Center both project approvals and prompts from the normalized top-level
+call type. For `AskUserQuestion`, renderer payloads may keep
+`answersByQuestionId` keyed by stable UI question ids, but the Claude SDK
+permission callback must return `updatedInput.answers` keyed by the full
+question text because current Claude SDK result rendering looks up answers by
+question text. Legacy Claude ACP `AskUserQuestion` failures may be hidden only
+when the recorded failure says the tool is unavailable; waiting or completed
+Claude SDK `AskUserQuestion` calls must remain in the Agent GUI detail
+projection so the composer prompt can render.
+
+Runtime interactive prompts also travel through session state. Provider
+adapters expose them as `SessionStateSnapshot.pendingInteractive`; runtime
+state patches must preserve that field through `WorkspaceAgentStatePatch`,
+`AgentActivityStatePatch`, and `AgentHostWorkspaceAgentStatePatch` so
+AgentGuiNode can render prompts before any durable tool-call row completes.
+This field is tri-state: omitted means "no change", an object means "show this
+prompt", and explicit `null` means "clear the current prompt". Do not model it
+as a persisted workspace session field or as a pointer-only JSON field that
+cannot emit `null`.
+
+Claude background agents are session-level runtime state for both ACP and SDK
+adapters. Raw Claude `task_started`, `task_progress`, `task_notification`,
+`task_updated`, and SDK sidecar `task_*` events should update
+`runtimeContext.backgroundAgents` and emit activity timeline events, without
+forcing the parent session into a working lifecycle state. Composer wait copy
+such as "Waiting for 1 background agent to finish" must be derived from that
+structured runtime context. Do not infer background agent waits from terminal
+streaming state or from transcript text; persistent session readers can receive
+task progress after the active prompt call has returned.
+
+For Claude SDK background agents, treat the Agent tool call id
+(`parentToolUseId`) as the canonical background-agent key. SDK `task_id` and
+`agent_id` values are aliases that may arrive later or from hooks without a
+parent id, and `task_id` frequently carries the agent id, so aliases must be
+resolved against both maps. Do not bind any unscoped task event (`TaskCreated`,
+`TaskCompleted`, `task_started`, `task_progress`, `task_notification`) to "the
+only running" delegated task when its alias fails to resolve and another
+registered task already has a known alias; concurrent launches can otherwise
+attach one child task id to a different Agent tool call, fold two background
+agents into one runtime entry, and leave the composer wait count stale or
+cleared early. The daemon `backgroundAgents` map follows the same canonical
+rule: an update carrying an explicit parent tool call id may merge through
+weaker aliases only into an entry with an empty or identical recorded parent.
+Delegated tasks settle only on the child `result` message, the
+`task_notification` system message, or the `TaskCompleted` hook. Child
+assistant messages tagged with `parent_tool_use_id` stream while the child is
+still running and must not complete the task, and a trailing `task_progress`
+after settlement must not flip the task back to running; only a new
+`task_started` may restart it. Violating either rule makes the running
+background-agent count oscillate without new launches.
+
+Claude SDK manual `/compact` turns must publish a visible compact completion
+activity when the SDK emits only a `compact_boundary` system message. The
+boundary still updates context usage, but it can arrive before the SDK echoes
+the user message or after the result settles; AgentGUI needs the sidecar to
+attach a durable `compact_completed` event to the compact command turn rather
+than only the currently active turn.
+
+When Claude resumes parent work after a background agent completes, that resumed
+work is a new synthetic turn for AgentGUI lifecycle purposes. The sidecar and
+runtime adapter must publish a turn-start lifecycle patch before transcript or
+tool updates for that synthetic turn; otherwise AgentGuiNode will correctly keep
+the composer idle because the authoritative runtime state is still settled.
+
 Do not persist the UI button state. A successful Undo only flips the local
 button to Reapply for the current render. If the page reloads, the source of
 truth is still the recorded diff plus the current worktree state; `git apply`
@@ -287,12 +421,9 @@ AgentGUI / AgentGuiNode mount
   -> AgentActivityController.load
   -> desktopAgentActivityAdapter.listSessions
   -> tuttid ListWorkspaceAgentSessions
-  -> agent.Service.ListPage
+  -> agent.Service.ListFiltered
   -> live RuntimeController sessions + persisted ActivityProjection sessions
   -> AgentActivityController snapshot
-  -> AgentActivityRuntime.listSessionGroups
-  -> tuttid ListWorkspaceAgentSessionGroups
-  -> agent.Service.ListGroups
   -> conversation-list projection/store
   -> rail and active-session fallback selection
 ```
@@ -301,14 +432,36 @@ The session list is not owned by AgentGuiNode. AgentGuiNode may keep query,
 selection, pending create/delete/submit overlays, and read-state UI metadata.
 The session rows themselves come from the runtime snapshot and are refreshed
 through `load`, event reconciliation, or explicit session fetches.
-The default rail uses grouped session summaries, not a global recent-session
-slice as the source of project truth. `ListWorkspaceAgentSessionGroups` scans
-the durable summary set once, returns project/group counts, latest session
-times, and the first bounded page of sessions per group. Per-project "load
-more" calls `ListWorkspaceAgentSessions` with `cwd`, `cursor`, and `limit`.
-Search is a separate full-summary query path with its own cursor. Keep heavy
-detail data, especially messages and timeline pages, out of list and group
-loads.
+The desktop adapter should keep broad session-list loads bounded before they
+enter `AgentActivityRuntime`; large workspaces can accumulate hundreds or
+thousands of historical agent sessions, and pushing all of them through the
+runtime snapshot forces AgentGuiNode to repeatedly project and reconcile data
+the user is unlikely to inspect in the rail.
+AgentGUI rail sections are loaded from the daemon section contract, not inferred
+from conversation `cwd` values. The runtime exposes `listSessionSections` for
+section first pages and `listSessionSectionPage` for Show more; both are backed
+by `GET /v1/workspaces/{workspaceID}/agent-session-sections` and
+`GET /v1/workspaces/{workspaceID}/agent-session-sections/page`. Project
+sections come from current `userProjects` and use the stable
+`project:/canonical/path` `sectionKey`; the Chats section uses
+`conversations`. The daemon pages sessions by `rail_section_key`, so AgentGUI
+must render returned section props and use backend `hasMore`/`nextCursor`
+rather than cwd grouping, root filters, excluded project paths, or local
+Show more heuristics. Removing a project removes that rail section from the
+section list; re-adding the same path reveals historical sessions with the same
+section key.
+When the provider rail is scoped to a specific agent target, AgentGUI must pass
+that `agentTargetId` to both section endpoints. The daemon applies that filter
+before `LIMIT` and `hasMore` calculation; frontend filtering after an unscoped
+page is not equivalent and can leave sections with fewer visible rows but a
+stale Show more affordance.
+AgentGUI must not refetch section first pages merely because a user activates a
+conversation, the active detail provider changes, or an existing conversation
+summary receives detail/status/time updates. Those updates should refresh
+already-rendered row props locally while preserving backend section membership.
+First-page section refetches are reserved for workspace, rail filter, user
+project, or session membership changes; Show more continues to use the section
+page endpoint.
 Conversation-list read-state metadata is notification-style UI state. Historical
 imports that carry `runtimeContext.imported === true` should remain visible in
 the rail, but they must not seed unread completion lamps as though they just
@@ -483,6 +636,25 @@ Claude SDK message rather than an ACP `agent_message_chunk`, the daemon adapter
 must normalize that text into the same persisted message projection. AgentGUI
 must not read provider transcript files or SDK-specific logs to recover missing
 final output.
+Tool output follows the same rule. Provider adapters may preserve raw fields
+such as `stdout`, `output`, `content`, or SDK content blocks for diagnostics and
+specialized renderers, but the daemon message projection must populate
+canonical `output.text` when visible tool output exists. AgentGUI renderers
+should prefer canonical fields and treat provider-specific output shapes only as
+legacy persisted-message fallbacks.
+Prompt image input is also part of the normalized runtime contract. Daemon
+adapters that advertise `imageInput` must forward the structured prompt content
+blocks to their runtime boundary; SDK sidecars may keep a text `prompt` fallback
+for short-term IPC compatibility, but image execution must use the structured
+`content` blocks instead of reconstructing input from display text.
+Claude Code runtime options follow the same parity rule. The legacy ACP adapter
+and the Claude SDK adapter must derive system prompt append text, Tutti detail
+mode instructions, plan-mode instructions, plugin directory, custom model args,
+disallowed tools, and the Claude Code built-in tool preset from one daemon-side
+builder before they cross their runtime boundary. SDK sidecars should map that
+structured payload into SDK `query` options; they should not rediscover plugin
+dirs, infer tool availability from UI labels, or keep a separate prompt/options
+contract from the ACP path.
 
 ### Event Reconcile And UI Refresh
 
@@ -518,6 +690,13 @@ may carry lifecycle status such as `active` while the visible state is derived
 from `currentPhase` or turn lifecycle. Projection layers that bridge into legacy
 Host DTOs must normalize the tuple together, or `active/idle` and
 `active/working` sessions will render as the wrong conversation state.
+Daemon terminal turn reports must settle the tuple atomically: clear
+`turn.activeTurnId` and `turnLifecycle.activeTurnId`, set
+`turnLifecycle.phase` to `settled`, set `currentPhase` to `idle`, and replace an
+`active_turn` submit block with `submitAvailability.state = "available"`.
+Message Center and AgentGUI should keep AgentActivityRuntime as the source of
+truth instead of guessing that a completed turn with stale active-turn fields is
+safe to treat as finished.
 
 When the visible symptom is a sticky error badge on a rail row, dock preview, or
 message-center trigger, also inspect the latest loaded turn messages. A
@@ -588,7 +767,7 @@ state should map to one owner and one clearing condition.
 ### Rail And Conversation List
 
 ```text
-runtime snapshot sessions + grouped session pages
+runtime snapshot sessions
   -> conversation list query/search/project filters
   -> local pending create/submit/delete overlays
   -> activeConversationId highlight
@@ -603,13 +782,20 @@ User-visible rules:
   runtime update time.
 - Search and project grouping are list-query concerns. They may hide a session
   from the rail, but must not delete or unactivate the session.
-- The default rail view should render bounded session pages per group, not a
-  global top-N session window. Empty project sections are derived from group
-  counts plus user projects, so a project outside the first visible session page
-  must not be shown as empty.
-- When a search result is opened and search is later cleared, the selected
-  session must remain visible through an active-session overlay until its group
-  page contains the authoritative row.
+- Conversation target filters are also list-query concerns. The All rail filter
+  applies no `agentTargetId` constraint; provider target rail filters such as
+  Codex and Claude Code match sessions by `session.agentTargetId`, not by
+  `session.provider`. Filter normalization and list projection helpers must not
+  mutate workbench node `provider`, provider target fields, composer drafts,
+  desktop default provider, or composer-default preferences. All-filter clicks
+  must only clear the `agentTargetId` constraint. Provider target rail clicks
+  that should also change the empty composer launch target must flow through a
+  single controller action that updates both the conversation filter and the
+  composer provider target; React view components must not dispatch separate
+  filter and provider-selection actions for one click.
+  Apply them only for multi-provider conversation scopes. Single-provider
+  panels should let the node provider constrain the query and collapse target
+  filter actions back to All in the controller.
 - A pending create row can appear before the daemon-created session is
   authoritative. It must be replaced by the authoritative session or removed on
   create failure.
@@ -634,10 +820,9 @@ User-visible rules:
 - AgentGUI conversation titles must use the shared title projection before they
   reach desktop-owned chrome, dock previews, message center cards, or toast
   notifications. Do not display raw `session.title.trim()` in those surfaces.
-- Live runtime snapshot data is the primary source for workbench and dock
-  titles. `lastActiveConversationTitle` is a hydration fallback only; it must not
-  override a current snapshot title and must be cleared when starting a new
-  conversation.
+- Live runtime snapshot data is the source for workbench and dock titles. Do
+  not persist or restore `lastActiveConversationTitle` from workbench node
+  state.
 - Title projection must normalize rich mention markdown, strip provider-only and
   untitled placeholders from workbench chrome, and use cached first-user-message
   content only when the session title is not displayable.
@@ -699,11 +884,48 @@ User-visible rules:
   and provider options. They should not be reconstructed from transcript rows.
 - Browser/computer capability controls come from daemon composer options and
   live runtime capabilities. `computerUse` must not be advertised or injected
-  unless the daemon can reach the local `cua-driver`; installed/authorization UI
-  is only the setup surface, not the runtime capability source.
+  unless the daemon can reach the local `cua-driver` and its read-only
+  `permissions status --json` reports Accessibility and Screen Recording are
+  granted. Installed/authorization UI is the setup surface and should guide
+  missing macOS grants in order. It may try CuaDriver's grant command, but must
+  keep that call single-flight and bounded by a timeout because macOS may not
+  re-show TCC prompts after a denial. When prompts are unavailable, the UI should
+  open the matching System Settings privacy pane and poll read-only status until
+  the permission state changes. Runtime tool startup must fail fast on missing
+  permission state instead of triggering CuaDriver authorization prompts. Treat
+  `screen_recording=true` with `screen_recording_capturable=false` as a CuaDriver
+  capture-availability problem, not as a promptable Screen Recording grant.
+  Permission setup is a user-driven, linear five-step wizard (install → grant
+  Accessibility → grant Screen Recording → check again → done). Guiding the
+  user's own actions is primary; status reads are auxiliary (per-step chips
+  and the initial-step guess) and must never gate navigation, because every
+  status source is unreliable in some window: `AXIsProcessTrusted` is cached
+  per-process (a fresh Accessibility grant stays invisible to the running
+  daemon), Screen Recording capturability freezes per-process, and toggling
+  Screen Recording kills the daemon outright. The grant command
+  fires-and-forgets only behind the user's explicit "Open Settings" click —
+  its only job is registering CuaDriver in the privacy panes and raising the
+  TCC prompt when macOS still shows one, and because the CLI may open windows
+  of its own it must never run on step entry; it is never awaited and never
+  becomes a blocking operation. The "check
+  again" step reconciles unconditionally: it always restarts the daemon
+  (`cua-driver stop`, relaunch the app bundle via `open -g -a` so the daemon
+  keeps its own TCC identity, then short-poll read-only status), which clears
+  every staleness at once, and passes `force` so a still-confirming grant
+  cannot make it hang. The restart itself must never call the grant command —
+  grant waits on TCC confirmation and would hang a fresh install; prompting
+  stays exclusive to the single-flight grant flow. Completing an install
+  advances the wizard straight into the first grant step. Status reads
+  in the Electron main process are coalesced so overlapping polls share one
+  subprocess, and the renderer re-checks on window focus/visibility and keeps
+  polling while the permission dialog is open and unauthorized.
 - User composer defaults are owned by desktop preferences. AgentGUI may request
   a defaults write only from the home/new composer path, through an explicit host
   callback.
+- Target-backed home/new composer defaults and draft settings must be keyed by
+  `agentTargetId` first. Provider-keyed defaults are legacy fallback only, so two
+  targets under the same provider cannot share model, permission, reasoning,
+  speed, or draft state by accident.
 - Active session settings are session state. Opening, restoring, or editing an
   active session must not promote that session's model, permission mode, or
   reasoning setting into user defaults.
@@ -953,30 +1175,58 @@ activity data source:
 
 ### Provider Targets
 
-AgentGUI distinguishes real provider identity from launch targets. `provider`
-continues to mean the concrete provider family (`codex`, `claude-code`,
-`nexight`, and so on) and remains the key for composer options, settings,
-icons, probes, provider status, and adapter policy.
+AgentGUI distinguishes launch authority, real provider identity, and legacy
+provider-target compatibility. `agentTargetId` is the authority for new
+session launches, workbench target selection, and AgentGUI node state. The
+daemon resolves that id against `agent_targets` and derives the execution
+provider and runtime `providerTargetRef` from the trusted target `launchRef`.
+Target-backed create requests may omit `provider`; if a request supplies both
+`agentTargetId` and `provider`, the daemon rejects mismatches. Client-supplied
+`providerTargetRef` must not override the daemon-derived target ref when
+`agentTargetId` is present. `provider` continues to mean the concrete provider
+family (`codex`, `claude-code`, `nexight`, and so on) and remains the key for
+display labels/icons, probes, provider status, historical conversation filters,
+telemetry, and provider execution policy.
 
 `providerTargets` lets a host expose multiple targets under that same provider.
 AgentGUI owns only target display and passthrough:
 
 - show `target.label` for new-session surfaces
 - keep provider behavior keyed by `target.provider`
-- persist `providerTargetId` / `providerTargetRef` in workbench node state
-- pass `providerTargetRef` through `AgentActivityRuntime.activateSession`
+- persist `agentTargetId` in new workbench node state when the host target has
+  one
+- read legacy `providerTargetId` / `providerTargetRef` from old workbench node
+  state to recover the selected target
+- pass `agentTargetId` through `AgentActivityRuntime.activateSession`
+- pass `providerTargetRef` only as a legacy opaque compatibility hint for
+  provider-only launches
 
-`providerTargetRef` is an opaque host reference, not authority. AgentGUI must
-not interpret `ref.kind`, mint invocation-control tokens, resolve invocation
-plans, contact command gateways, or handle raw credentials. Host/trusted code
-must re-authenticate the current user and workspace and resolve any invocation
-plan before launching. A target may identify shared, local, remote, or other
-host-owned launch mechanisms, but those meanings stay outside AgentGUI.
+`providerTargetId` and `providerTargetRef` are transition fields, not daemon
+authority. AgentGUI must not interpret `ref.kind`, mint invocation-control
+tokens, resolve invocation plans, contact command gateways, or handle raw
+credentials. Host/trusted code must re-authenticate the current user and
+workspace and resolve any invocation plan before launching. When
+`agentTargetId` is present, the daemon maps the stored launch ref to the runtime
+target ref shape, currently `{ kind: launchRef.type, provider, targetId }`, and
+runtime session reuse must match that ref as part of the launch key. A target
+may identify shared, local, remote, or other host-owned launch mechanisms, but
+those meanings stay outside AgentGUI.
 
-When `providerTargets` is omitted or empty, AgentGUI may synthesize local
-targets from the static provider catalog for picker/display compatibility. Those
-fallback targets do not change the legacy activation contract: AgentGUI does not
-persist or send their `providerTargetRef`.
+When `providerTargets` is omitted, package-level AgentGUI hosts may synthesize
+local targets from the static provider catalog for picker/display compatibility.
+An explicit `providerTargets` array, including an empty array, is authoritative
+and must not fall back to static local targets. Desktop workbench loads this
+array through the renderer `AgentsService`, which is the renderer-side source
+of truth for agent target presentation data. The same service-backed snapshot
+feeds the AgentGUI rail, the composer `@` agent target contributor, and
+readonly/markdown mention hydration. While that fetch is in progress the
+workbench passes an empty array plus a loading flag so the rail can show a
+loading state instead of pretending Codex or Claude Code came from durable
+target data. Fallback targets do not change the legacy activation contract:
+AgentGUI does not persist or send their `providerTargetRef`. For system local
+Codex and Claude Code targets, the synthesized targets may expose `local:codex`
+and `local:claude-code` as `agentTargetId`, matching the legacy local
+`providerTargetId` format so old node state can fall back without remapping.
 
 ### Conversation Projection
 
@@ -1079,6 +1329,18 @@ files or `workspace-reference` mentions must clear the active trigger text
 before launching the picker, otherwise the raw `@` query remains in the
 composer before the inserted mention.
 
+Composer toolbar affordances that open the `@` panel should insert the same
+trigger text through `AgentRichTextEditor` at the current selection and let the
+Tiptap suggestion plugin publish `AgentRichTextEditor` suggestion state. Do not
+open the mention palette as a separate UI-only state path; the trigger range
+still owns command replacement, keyboard handling, and panel anchoring.
+
+Pasting text that contains an `@` must not be treated as active mention input
+unless the paste leaves the caret immediately after the `@` trigger. A bare
+`@` paste may open the mention panel; a complete pasted query such as `@readme`
+should remain plain prompt text until the user explicitly places the caret in
+an active trigger position.
+
 `workspace-reference` hrefs are the passive reference contract, not a visual
 metadata store. Do not serialize app icons into the href just to render a chip.
 For `source=app` references, readonly and markdown renderers should hydrate the
@@ -1099,6 +1361,24 @@ to archive the selected file under a Tutti-managed agent prompt assets
 directory, then returns that managed absolute path to AgentGUI. This capability
 is file-only in desktop today; image drafts keep the existing image input path
 unless a runtime explicitly advertises image prompt upload support.
+
+Agent launch mentions use the external rich-text `agent-target` provider. The
+`workspace-app` provider is reserved for real workspace apps and must not return
+legacy `agent-codex` or `agent-claude-code` pseudo apps. New agent mentions
+should serialize as `mention://agent-target/local:codex` or
+`mention://agent-target/local:claude-code` with workspace scope only; they must
+not serialize provider ids or icon hints into the href. Renderer display code
+must resolve labels, providers, and icons by looking up the current
+`agentTargetId` in `AgentsService`-derived presentation data, so future
+user-defined icons and editable targets have one renderer source of truth.
+Historical pseudo-app mentions may remain as display tokens but are not a new
+insertion target.
+Desktop AgentGUI host input must include the `agent-target` capability when it
+builds composer context mention providers. Inside the AgentGUI mention palette,
+the Apps tab queries only `workspace-app`; first-party launch targets appear in
+a separate Agents tab that queries only `agent-target`. Do not use the Apps tab
+as an agent fallback, because that recreates the old pseudo workspace-app
+contract.
 
 Quick check:
 

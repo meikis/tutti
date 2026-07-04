@@ -14,6 +14,8 @@ import type {
   AgentProviderStatusListResponse,
   CancelWorkspaceAgentSessionResponse,
   ClearWorkspaceAgentSessionsResponse,
+  GoalControlWorkspaceAgentSessionResponse,
+  WorkspaceAgentSessionGoalControlRequest,
   CliCapabilitiesResponse,
   AgentSessionComposerSettings,
   GetAgentProviderComposerOptionsRequest,
@@ -63,6 +65,7 @@ import type {
   IssueManagerTaskListResponse,
   IssueManagerTopic,
   IssueManagerTopicListResponse,
+  ListAgentTargetsResponse,
   ListWorkspacesResponse,
   CopyWorkspaceFileEntryRequest,
   MoveWorkspaceFileEntryRequest,
@@ -96,8 +99,9 @@ import type {
   WorkspaceAgentSessionAttachmentResponse,
   WorkspaceAgentGeneratedFileListResponse,
   WorkspaceAgentSessionGitBranchesResponse,
-  WorkspaceAgentSessionGroupsResponse,
   WorkspaceGitPatchSupportResponse,
+  WorkspaceAgentSessionSectionPageResponse,
+  WorkspaceAgentSessionSectionsResponse,
   WorkspaceAgentSessionMessagesResponse,
   WorkspaceAgentSessionListResponse,
   WorkspaceFileDirectoryResponse,
@@ -133,6 +137,7 @@ export type TuttidTrackEvent = TrackEvent;
 export type TuttidTrackEventsRequest = TrackEventsRequest;
 
 export interface TuttidClient {
+  listAgentTargets(): Promise<ListAgentTargetsResponse>;
   startAccountLogin(): Promise<AccountLoginStartResponse>;
   getAccountLoginStatus(attemptID: string): Promise<AccountLoginStatusResponse>;
   getAccountUserInfo(): Promise<AccountUserInfo | null>;
@@ -477,20 +482,29 @@ export interface TuttidClient {
   listWorkspaceAgentSessions(
     workspaceID: string,
     request?: {
-      cwd?: string;
-      cursor?: string;
       limit?: number;
       searchQuery?: string;
-      visibleOnly?: boolean;
-    }
+    },
+    requestOptions?: TuttidRequestOptions
   ): Promise<WorkspaceAgentSessionListResponse>;
-  listWorkspaceAgentSessionGroups(
+  listWorkspaceAgentSessionSections(
     workspaceID: string,
     request?: {
-      sessionLimit?: number;
-      visibleOnly?: boolean;
-    }
-  ): Promise<WorkspaceAgentSessionGroupsResponse>;
+      agentTargetId?: string;
+      limitPerSection?: number;
+    },
+    requestOptions?: TuttidRequestOptions
+  ): Promise<WorkspaceAgentSessionSectionsResponse>;
+  listWorkspaceAgentSessionSectionPage(
+    workspaceID: string,
+    request: {
+      sectionKey: string;
+      agentTargetId?: string;
+      cursor?: string;
+      limit?: number;
+    },
+    requestOptions?: TuttidRequestOptions
+  ): Promise<WorkspaceAgentSessionSectionPageResponse>;
   listWorkspaceAgentGeneratedFiles(
     workspaceID: string,
     request?: {
@@ -600,6 +614,11 @@ export interface TuttidClient {
     workspaceID: string,
     agentSessionID: string
   ): Promise<CancelWorkspaceAgentSessionResponse>;
+  goalControlWorkspaceAgentSession(
+    workspaceID: string,
+    agentSessionID: string,
+    request: WorkspaceAgentSessionGoalControlRequest
+  ): Promise<GoalControlWorkspaceAgentSessionResponse>;
   sendWorkspaceAgentSessionInput(
     workspaceID: string,
     agentSessionID: string,
