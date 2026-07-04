@@ -188,6 +188,7 @@ import {
   resolveEffectiveComposerSettings,
   sameComposerSettings
 } from "./agentGuiController.composerHelpers";
+import { mergeAgentSessionControlStateSnapshot } from "./agentGuiController.sessionHelpers";
 import {
   PLAN_IMPLEMENTATION_ACTION_FEEDBACK,
   PLAN_IMPLEMENTATION_ACTION_IMPLEMENT,
@@ -5554,9 +5555,9 @@ export function useAgentGUINodeController({
           ...sessionStateSnapshotCauseBySessionIdRef.current,
           [agentSessionId]: cause ? { source: cause.source } : undefined
         };
-        setAgentSessionViewControlState(
+        updateAgentSessionViewControlState(
           sessionViewRef(agentSessionId),
-          snapshot
+          (current) => mergeAgentSessionControlStateSnapshot(current, snapshot)
         );
       } catch (error) {
         if (
