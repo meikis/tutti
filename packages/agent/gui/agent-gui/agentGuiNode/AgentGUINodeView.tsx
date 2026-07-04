@@ -16,6 +16,7 @@ import { useSnapshot } from "valtio";
 import { proxy } from "valtio/vanilla";
 import {
   ChevronRight,
+  ChevronsDown,
   ExternalLink,
   Info,
   LayoutGrid,
@@ -326,6 +327,7 @@ export interface AgentGUIViewLabels {
   selectConversation: string;
   loadingConversations: string;
   loadingConversation: string;
+  scrollToBottom: string;
   searchNoConversations: string;
   conversationUnavailable: string;
   fallbackAgentTitle: string;
@@ -1699,6 +1701,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     scrollTop: number;
   } | null>(null);
   const [isTimelineScrolledToTop, setIsTimelineScrolledToTop] = useState(true);
+  const [isTimelineScrolledToBottom, setIsTimelineScrolledToBottom] =
+    useState(true);
   const [
     bottomDockDismissedPromptRequestId,
     setBottomDockDismissedPromptRequestId
@@ -2525,6 +2529,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       pendingPrependScrollAnchorRef.current = null;
       submittedPromptScrollConversationRef.current = null;
       setIsTimelineScrolledToTop(true);
+      setIsTimelineScrolledToBottom(true);
       return;
     }
 
@@ -2584,6 +2589,9 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     setIsTimelineScrolledToTop(
       nextScrollTop <= AGENT_GUI_TOP_MASK_SCROLL_EPSILON_PX
     );
+    setIsTimelineScrolledToBottom(
+      maxScrollTop - nextScrollTop <= AGENT_GUI_STICK_TO_BOTTOM_THRESHOLD_PX
+    );
   }, [
     conversation,
     showTimelineSkeleton,
@@ -2605,6 +2613,9 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       const bottomDockRect = bottomDock.getBoundingClientRect();
       let visualTop = bottomDockRect.top;
       bottomDock.querySelectorAll("*").forEach((element) => {
+        if (element.closest(`.${styles.bottomDockScrollToBottom}`)) {
+          return;
+        }
         const rect = element.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
           visualTop = Math.min(visualTop, rect.top);
@@ -2616,6 +2627,10 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       );
       timeline.style.setProperty(
         "--agent-gui-bottom-dock-safe-area",
+        `${overflowHeight}px`
+      );
+      bottomDock.style.setProperty(
+        "--agent-gui-bottom-dock-floating-safe-area",
         `${overflowHeight}px`
       );
     };
@@ -2653,6 +2668,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
         setIsTimelineScrolledToTop(
           maxScrollTop <= AGENT_GUI_TOP_MASK_SCROLL_EPSILON_PX
         );
+        setIsTimelineScrolledToBottom(true);
       });
     };
 
@@ -2660,6 +2676,9 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     if (typeof ResizeObserver === "undefined") {
       return () => {
         timeline.style.removeProperty("--agent-gui-bottom-dock-safe-area");
+        bottomDock.style.removeProperty(
+          "--agent-gui-bottom-dock-floating-safe-area"
+        );
         if (animationFrameId !== null) {
           window.cancelAnimationFrame(animationFrameId);
         }
@@ -2676,6 +2695,9 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     }
     return () => {
       timeline.style.removeProperty("--agent-gui-bottom-dock-safe-area");
+      bottomDock.style.removeProperty(
+        "--agent-gui-bottom-dock-floating-safe-area"
+      );
       if (animationFrameId !== null) {
         window.cancelAnimationFrame(animationFrameId);
       }
@@ -2700,6 +2722,10 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       };
       setIsTimelineScrolledToTop(
         scrollTop <= AGENT_GUI_TOP_MASK_SCROLL_EPSILON_PX
+      );
+      setIsTimelineScrolledToBottom(
+        timeline.scrollHeight - scrollTop - timeline.clientHeight <=
+          AGENT_GUI_STICK_TO_BOTTOM_THRESHOLD_PX
       );
       if (
         viewModel.hasOlderMessages &&
@@ -2726,6 +2752,30 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     viewModel.hasOlderMessages,
     viewModel.isLoadingOlderMessages
   ]);
+
+  const scrollTimelineToBottom = useCallback(() => {
+    const timeline = timelineRef.current;
+    const activeConversationId = viewModel.activeConversationId;
+    if (!timeline || !activeConversationId) {
+      return;
+    }
+
+    const maxScrollTop = Math.max(
+      0,
+      timeline.scrollHeight - timeline.clientHeight
+    );
+    setTimelineScrollTopWithUserTransition(timeline, maxScrollTop);
+    timelineScrollAnchorRef.current = {
+      conversationId: activeConversationId,
+      scrollHeight: timeline.scrollHeight,
+      scrollTop: maxScrollTop,
+      clientHeight: timeline.clientHeight
+    };
+    setIsTimelineScrolledToTop(
+      maxScrollTop <= AGENT_GUI_TOP_MASK_SCROLL_EPSILON_PX
+    );
+    setIsTimelineScrolledToBottom(true);
+  }, [viewModel.activeConversationId]);
 
   return (
     <main className={styles.detail}>
@@ -2829,6 +2879,9 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       {hasActiveConversation ? (
         <AgentGUIBottomDockPane
           bottomDockRef={bottomDockRef}
+          showScrollToBottom={!isTimelineScrolledToBottom}
+          scrollToBottomLabel={labels.scrollToBottom}
+          onScrollToBottom={scrollTimelineToBottom}
           bottomDockLiftedPrompt={bottomDockLiftedPrompt}
           bottomDockReplacementPrompt={bottomDockReplacementPrompt}
           store={bottomDockStore}
@@ -3238,6 +3291,9 @@ function EmptyHeroTitle({
 
 interface AgentGUIBottomDockPaneProps {
   bottomDockRef: React.RefObject<HTMLDivElement | null>;
+  showScrollToBottom: boolean;
+  scrollToBottomLabel: string;
+  onScrollToBottom: () => void;
   // Approval / ask-user prompts lifted above the inline notice (composer stays
   // visible below). Mutually exclusive with bottomDockReplacementPrompt.
   bottomDockLiftedPrompt:
@@ -3268,6 +3324,9 @@ interface AgentGUIBottomDockPaneProps {
 
 const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
   bottomDockRef,
+  showScrollToBottom,
+  scrollToBottomLabel,
+  onScrollToBottom,
   bottomDockLiftedPrompt,
   bottomDockReplacementPrompt,
   store,
@@ -3310,6 +3369,22 @@ const AgentGUIBottomDockPane = memo(function AgentGUIBottomDockPane({
       className={styles.bottomDock}
       data-testid="agent-gui-bottom-dock"
     >
+      {showScrollToBottom ? (
+        <button
+          type="button"
+          className={cn(
+            styles.bottomDockScrollToBottom,
+            "nodrag tsh-desktop-no-drag [-webkit-app-region:no-drag]"
+          )}
+          data-testid="agent-gui-scroll-to-bottom"
+          aria-label={scrollToBottomLabel}
+          title={scrollToBottomLabel}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={onScrollToBottom}
+        >
+          <ChevronsDown aria-hidden="true" size={15} strokeWidth={2.2} />
+        </button>
+      ) : null}
       {bottomDockLiftedPrompt ? (
         <div
           className={styles.bottomDockPrompt}
@@ -5625,5 +5700,22 @@ function setTimelineScrollTopInstantly(
 ): void {
   // Timeline anchoring runs for high-frequency streaming updates. Smooth scrolling
   // queues animations that can overlap with incoming layout commits and make the transcript flicker.
+  element.scrollTop = top;
+}
+
+function setTimelineScrollTopWithUserTransition(
+  element: HTMLElement,
+  top: number
+): void {
+  const reducedMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (typeof element.scrollTo === "function") {
+    element.scrollTo({
+      top,
+      behavior: reducedMotion ? "auto" : "smooth"
+    });
+    return;
+  }
   element.scrollTop = top;
 }

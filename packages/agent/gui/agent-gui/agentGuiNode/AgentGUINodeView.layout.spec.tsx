@@ -2421,6 +2421,45 @@ describe("AgentGUINodeView layout persistence", () => {
       "agent-gui-node__timeline--scrolled-from-top"
     );
   });
+
+  it("shows a scroll-to-bottom action when the timeline is away from bottom", () => {
+    const activeConversation = createConversationSummary("session-1");
+    renderAgentGUINodeView({
+      viewModel: {
+        ...createViewModel(),
+        conversations: [activeConversation],
+        activeConversation,
+        activeConversationId: activeConversation.id,
+        conversationDetail: createConversationDetail()
+      }
+    });
+
+    const timeline = screen.getByTestId("agent-gui-timeline") as HTMLElement;
+    Object.defineProperty(timeline, "scrollHeight", {
+      configurable: true,
+      get: () => 1000
+    });
+    Object.defineProperty(timeline, "clientHeight", {
+      configurable: true,
+      get: () => 400
+    });
+    const scrollTo = vi.spyOn(timeline, "scrollTo");
+
+    timeline.scrollTop = 240;
+    fireEvent.scroll(timeline);
+
+    const button = screen.getByTestId("agent-gui-scroll-to-bottom");
+    expect(button).toHaveAccessibleName("scrollToBottom");
+
+    fireEvent.click(button);
+
+    expect(scrollTo).toHaveBeenCalledWith({
+      top: 600,
+      behavior: "smooth"
+    });
+    expect(screen.queryByTestId("agent-gui-scroll-to-bottom")).toBeNull();
+  });
+
   it("renders older-message loading above the transcript", () => {
     const activeConversation = createConversationSummary("session-1");
     renderAgentGUINodeView({
@@ -3434,6 +3473,7 @@ function createLabels(): AgentGUIViewLabels {
     selectConversation: "selectConversation",
     loadingConversations: "loadingConversations",
     loadingConversation: "loadingConversation",
+    scrollToBottom: "scrollToBottom",
     searchNoConversations: "searchNoConversations",
     conversationUnavailable: "conversationUnavailable",
     fallbackAgentTitle: "Agent",
