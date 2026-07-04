@@ -1243,6 +1243,7 @@ test("Workspace App Center service starts non-running apps before launching them
 function createWorkspaceApp(overrides: Partial<WorkspaceApp>): WorkspaceApp {
   return {
     appId: "ready",
+    authors: [],
     availableIconUrl: null,
     availableVersion: null,
     cli: {
@@ -1300,6 +1301,7 @@ function createWorkspaceAppListResponse(input: {
 
 function createFakeHostFilesApi(
   overrides: Partial<{
+    openExternal(url: string): Promise<void>;
     revealInFolder(path: string): Promise<void>;
     selectAppArchive(): Promise<string | null>;
     selectAppArchiveExportPath(input: {
@@ -1309,6 +1311,7 @@ function createFakeHostFilesApi(
     selectAppIconImage(): Promise<string | null>;
   }> = {}
 ): {
+  openExternal(url: string): Promise<void>;
   revealInFolder(path: string): Promise<void>;
   selectAppArchive(): Promise<string | null>;
   selectAppArchiveExportPath(input: {
@@ -1318,6 +1321,7 @@ function createFakeHostFilesApi(
   selectAppIconImage(): Promise<string | null>;
 } {
   return {
+    async openExternal() {},
     async revealInFolder() {},
     async selectAppArchive() {
       return "/tmp/app.zip";

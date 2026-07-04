@@ -108,7 +108,10 @@ export function buildWorkspaceAgentMessageCenterDigest(
 export function resolveWorkspaceAgentMessageCenterDigestAgentMessageSummary(
   message: AgentActivityMessage
 ): string {
-  if (!isAgentMessageRole(message.role)) {
+  if (
+    !isAgentMessageRole(message.role) ||
+    isReasoningMessageKind(message.kind)
+  ) {
     return "";
   }
   return meaningfulMessageSummary(message);
@@ -147,6 +150,15 @@ function isAgentMessageRole(role: string): boolean {
   return normalized === "assistant" || normalized === "agent";
 }
 
+/**
+ * Mirrors the same-named guard in workspaceAgentMessageCenterModel.ts: a
+ * reasoning/thinking message carries an assistant-like `role` but
+ * `kind: "reasoning"` and must never be summarized as a normal agent reply.
+ */
+function isReasoningMessageKind(kind: string): boolean {
+  return kind.trim().toLowerCase() === "reasoning";
+}
+
 type MessageSummarySource =
   | "payload.summary"
   | "payload.displayPrompt"
@@ -167,7 +179,7 @@ interface MessageSummaryCandidate {
 function meaningfulMessageSummary(message: AgentActivityMessage): string {
   const payload = recordValue(message.payload);
   const isToolMessage = isToolLikeMessage(message, payload);
-  const candidates = messageSummaryCandidates(message, payload, isToolMessage);
+  const candidates = messageSummaryCandidates(payload, isToolMessage);
   const structuralLabelTokens = isToolMessage
     ? structuralToolLabelTokens(message, payload)
     : null;
@@ -189,7 +201,6 @@ function meaningfulMessageSummary(message: AgentActivityMessage): string {
 }
 
 function messageSummaryCandidates(
-  message: AgentActivityMessage,
   payload: Record<string, unknown>,
   isToolMessage: boolean
 ): MessageSummaryCandidate[] {

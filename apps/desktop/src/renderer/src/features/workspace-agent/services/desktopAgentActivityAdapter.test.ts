@@ -13,11 +13,15 @@ const workspaceId = "workspace-1";
 
 test("desktop agent activity adapter maps tuttid sessions and messages", async () => {
   const calls: Array<{ method: string; args: unknown[] }> = [];
+  const diagnostics: unknown[] = [];
   const adapter = createDesktopAgentActivityAdapter({
     tuttidClient: createTuttidClient({
-      async listWorkspaceAgentSessions(requestWorkspaceId: string) {
+      async listWorkspaceAgentSessions(
+        requestWorkspaceId: string,
+        request?: { limit?: number }
+      ) {
         calls.push({
-          args: [requestWorkspaceId],
+          args: [requestWorkspaceId, request],
           method: "listSessions"
         });
         return {
@@ -66,7 +70,7 @@ test("desktop agent activity adapter maps tuttid sessions and messages", async (
         };
       }
     }),
-    runtimeApi: createRuntimeApi()
+    runtimeApi: createRuntimeApi(diagnostics)
   });
 
   const sessions = await adapter.listSessions({ workspaceId });
@@ -79,7 +83,7 @@ test("desktop agent activity adapter maps tuttid sessions and messages", async (
 
   assert.deepEqual(calls, [
     {
-      args: [workspaceId],
+      args: [workspaceId, { limit: 100 }],
       method: "listSessions"
     },
     {
@@ -137,6 +141,36 @@ test("desktop agent activity adapter maps tuttid sessions and messages", async (
       }
     ]
   });
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(diagnostics[0], {
+    details: {
+      afterVersion: 3,
+      agentSessionId: "agent-session-1",
+      beforeVersion: null,
+      event: "requested",
+      limit: 10,
+      order: null
+    },
+    event: "agent.activity.messages.list",
+    level: "info",
+    workspaceId
+  });
+  const resolvedDiagnostic = diagnostics[1] as {
+    details?: Record<string, unknown>;
+    event?: string;
+    level?: string;
+    workspaceId?: string;
+  };
+  assert.equal(resolvedDiagnostic.event, "agent.activity.messages.list");
+  assert.equal(resolvedDiagnostic.level, "info");
+  assert.equal(resolvedDiagnostic.workspaceId, workspaceId);
+  assert.equal(resolvedDiagnostic.details?.agentSessionId, "agent-session-1");
+  assert.equal(resolvedDiagnostic.details?.event, "resolved");
+  assert.equal(resolvedDiagnostic.details?.firstVersion, 5);
+  assert.equal(resolvedDiagnostic.details?.lastVersion, 5);
+  assert.equal(resolvedDiagnostic.details?.latestVersion, 5);
+  assert.equal(resolvedDiagnostic.details?.messageCount, 1);
+  assert.equal(typeof resolvedDiagnostic.details?.durationMs, "number");
 });
 
 test("desktop agent activity adapter returns cancel result metadata", async () => {
@@ -289,6 +323,7 @@ test("desktop agent activity adapter refreshes provider status and localizes ada
   await assert.rejects(
     adapter.createSession({
       agentSessionId: "agent-session-1",
+      agentTargetId: "local:claude-code",
       provider: "claude-code",
       workspaceId
     }),
@@ -322,6 +357,7 @@ test("desktop agent activity adapter does not refresh provider status for unrela
   await assert.rejects(
     adapter.createSession({
       agentSessionId: "agent-session-1",
+      agentTargetId: "local:claude-code",
       provider: "claude-code",
       workspaceId
     }),
@@ -590,6 +626,7 @@ test("desktop agent activity adapter sends plan mode when creating sessions", as
 
   const session = await adapter.createSession({
     agentSessionId: "22222222-2222-4222-8222-222222222222",
+    agentTargetId: "local:codex",
     cwd: "/workspace",
     initialContent: [{ type: "text", text: "hello" }],
     metadata: {
@@ -601,6 +638,11 @@ test("desktop agent activity adapter sends plan mode when creating sessions", as
     permissionModeId: "read-only",
     planMode: true,
     provider: "codex",
+    providerTargetRef: {
+      kind: "sharedAgent",
+      provider: "codex",
+      sharedAgentId: "agent-1"
+    },
     reasoningEffort: "high",
     speed: null,
     title: "Plan",
@@ -613,6 +655,7 @@ test("desktop agent activity adapter sends plan mode when creating sessions", as
       workspaceId,
       {
         agentSessionId: "22222222-2222-4222-8222-222222222222",
+        agentTargetId: "local:codex",
         cwd: "/workspace",
         initialContent: [{ type: "text", text: "hello" }],
         initialDisplayPrompt: null,
@@ -654,6 +697,7 @@ test("desktop agent activity adapter times out create session requests", async (
   await assert.rejects(
     adapter.createSession({
       agentSessionId: "22222222-2222-4222-8222-222222222222",
+      agentTargetId: "local:claude-code",
       initialContent: [],
       model: "claude-sonnet-4-20250514",
       provider: "claude-code",
@@ -982,6 +1026,7 @@ test("desktop agent activity adapter promotes Claude draft on first prompt", asy
     runtimeApi: createRuntimeApi()
   });
   const options = await adapter.loadComposerOptions({
+    agentTargetId: "local:claude-code",
     provider: "claude-code",
     workspaceId
   });
@@ -991,6 +1036,7 @@ test("desktop agent activity adapter promotes Claude draft on first prompt", asy
 
   const session = await adapter.createSession({
     agentSessionId: draftAgentSessionId,
+    agentTargetId: "local:claude-code",
     initialContent: [{ type: "text", text: "hello" }],
     provider: "claude-code",
     workspaceId
@@ -1004,6 +1050,196 @@ test("desktop agent activity adapter promotes Claude draft on first prompt", asy
   assert.equal(session.agentSessionId, draftAgentSessionId);
   assert.equal(session.status, "running");
   assert.equal(session.visible, true);
+});
+
+test("desktop agent activity adapter forwards agent target id when creating Claude drafts", async () => {
+  const createRequests: unknown[] = [];
+  const calls: string[] = [];
+  const adapter = createDesktopAgentActivityAdapter({
+    tuttidClient: createTuttidClient({
+      async createWorkspaceAgentSession(_workspaceId, request) {
+        createRequests.push(request);
+        calls.push(
+          `create:${request.visible === false ? "hidden" : "visible"}`
+        );
+        return createSession({
+          id: request.agentSessionId,
+          provider: "claude-code",
+          visible: false
+        });
+      },
+      async updateWorkspaceAgentSessionVisibility(
+        _workspaceId,
+        agentSessionId,
+        request
+      ) {
+        calls.push(`visibility:${agentSessionId}:${request.visible}`);
+        return createSession({
+          id: agentSessionId,
+          provider: "claude-code",
+          visible: request.visible
+        });
+      },
+      async sendWorkspaceAgentSessionInput(
+        _workspaceId,
+        agentSessionId,
+        request
+      ) {
+        calls.push(`send:${agentSessionId}:${request.content[0]?.text}`);
+        return createSendInputResponse(
+          createSession({
+            id: agentSessionId,
+            provider: "claude-code",
+            status: "running",
+            visible: true
+          })
+        );
+      }
+    }),
+    runtimeApi: createRuntimeApi()
+  });
+
+  const session = await adapter.createSession({
+    agentSessionId: "22222222-2222-4222-8222-222222222222",
+    agentTargetId: "shared-agent:claude-1",
+    initialContent: [{ type: "text", text: "hello" }],
+    provider: "claude-code",
+    workspaceId
+  });
+
+  assert.deepEqual(createRequests, [
+    {
+      agentSessionId: "22222222-2222-4222-8222-222222222222",
+      agentTargetId: "shared-agent:claude-1",
+      cwd: null,
+      initialContent: [],
+      model: null,
+      permissionModeId: null,
+      planMode: null,
+      provider: "claude-code",
+      reasoningEffort: null,
+      speed: null,
+      title: null,
+      visible: false
+    }
+  ]);
+  assert.deepEqual(calls, [
+    "create:hidden",
+    "visibility:22222222-2222-4222-8222-222222222222:true",
+    "send:22222222-2222-4222-8222-222222222222:hello"
+  ]);
+  assert.equal(session.agentSessionId, "22222222-2222-4222-8222-222222222222");
+});
+
+test("desktop agent activity adapter uses a fresh Claude draft id after target switches", async () => {
+  const fixedAgentSessionId = "22222222-2222-4222-8222-222222222222";
+  const createRequests: unknown[] = [];
+  const calls: string[] = [];
+  const firstAgentTargetId = "shared-agent:claude-1";
+  const secondAgentTargetId = "shared-agent:claude-2";
+  let resolveFirstDraft: ((session: WorkspaceAgentSession) => void) | undefined;
+  const firstDraft = new Promise<WorkspaceAgentSession>((resolve) => {
+    resolveFirstDraft = resolve;
+  });
+  const adapter = createDesktopAgentActivityAdapter({
+    tuttidClient: createTuttidClient({
+      async createWorkspaceAgentSession(_workspaceId, request) {
+        createRequests.push(request);
+        if (createRequests.length === 1) {
+          return await firstDraft;
+        }
+        return createSession({
+          id: request.agentSessionId,
+          provider: "claude-code",
+          visible: false
+        });
+      },
+      async deleteWorkspaceAgentSession(_workspaceId, agentSessionId) {
+        calls.push(`delete:${agentSessionId}`);
+        return { removed: true };
+      },
+      async updateWorkspaceAgentSessionVisibility(
+        _workspaceId,
+        agentSessionId,
+        request
+      ) {
+        calls.push(`visibility:${agentSessionId}:${request.visible}`);
+        return createSession({
+          id: agentSessionId,
+          provider: "claude-code",
+          visible: request.visible
+        });
+      },
+      async sendWorkspaceAgentSessionInput(
+        _workspaceId,
+        agentSessionId,
+        request
+      ) {
+        calls.push(`send:${agentSessionId}:${request.content[0]?.text}`);
+        return createSendInputResponse(
+          createSession({
+            id: agentSessionId,
+            provider: "claude-code",
+            status: "running",
+            visible: true
+          })
+        );
+      }
+    }),
+    runtimeApi: createRuntimeApi()
+  });
+
+  const firstSubmission = adapter.createSession({
+    agentSessionId: fixedAgentSessionId,
+    agentTargetId: firstAgentTargetId,
+    initialContent: [{ type: "text", text: "first" }],
+    provider: "claude-code",
+    workspaceId
+  });
+  await waitForCondition(
+    () => createRequests.length === 1,
+    "expected the first Claude draft request to start"
+  );
+
+  const session = await adapter.createSession({
+    agentSessionId: fixedAgentSessionId,
+    agentTargetId: secondAgentTargetId,
+    initialContent: [{ type: "text", text: "second" }],
+    provider: "claude-code",
+    workspaceId
+  });
+
+  assert.equal(createRequests.length, 2);
+  assert.equal(
+    (createRequests[0] as { agentSessionId?: string }).agentSessionId,
+    fixedAgentSessionId
+  );
+  const replacementAgentSessionId = (
+    createRequests[1] as { agentSessionId?: string }
+  ).agentSessionId;
+  assert.notEqual(replacementAgentSessionId, fixedAgentSessionId);
+  assert.deepEqual(
+    (createRequests[1] as { agentTargetId?: unknown }).agentTargetId,
+    secondAgentTargetId
+  );
+  assert.deepEqual(calls, [
+    `visibility:${replacementAgentSessionId}:true`,
+    `send:${replacementAgentSessionId}:second`
+  ]);
+  assert.equal(session.agentSessionId, replacementAgentSessionId);
+
+  resolveFirstDraft?.(
+    createSession({
+      id: fixedAgentSessionId,
+      provider: "claude-code",
+      visible: false
+    })
+  );
+  await firstSubmission;
+  await waitForCondition(
+    () => calls.includes(`delete:${fixedAgentSessionId}`),
+    "expected the stale Claude draft from the previous target to be deleted"
+  );
 });
 
 test("desktop agent activity adapter loads Claude options without mutating draft sessions", async () => {
@@ -1153,6 +1389,19 @@ function createRuntimeApi(diagnostics: unknown[] = []) {
 
 function unknownPermissionModeSemantic(value: string): PermissionModeSemantic {
   return value as unknown as PermissionModeSemantic;
+}
+
+async function waitForCondition(
+  condition: () => boolean,
+  message: string
+): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (condition()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  assert.fail(message);
 }
 
 function createSession(

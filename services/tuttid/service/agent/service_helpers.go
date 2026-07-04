@@ -3,12 +3,16 @@ package agent
 import (
 	"errors"
 	"strings"
+
+	"github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
 )
 
 const (
 	runtimeConfigOptionIDReasoningEffort       = "reasoning_effort"
 	runtimeConfigOptionIDLegacyReasoningEffort = "model_reasoning_effort"
 	runtimeConfigOptionIDEffort                = "effort"
+	runtimeContextAdapterClaudeAgentSDK        = "claude-agent-sdk"
+	runtimeContextCapabilityImageInput         = "imageInput"
 )
 
 func cloneSessionMessages(messages []SessionMessage) []SessionMessage {
@@ -133,9 +137,28 @@ func clonePayload(payload map[string]any) map[string]any {
 	}
 	out := make(map[string]any, len(payload))
 	for key, value := range payload {
-		out[key] = value
+		out[key] = clonePayloadValue(value)
 	}
 	return out
+}
+
+func clonePayloadValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			out[key] = clonePayloadValue(item)
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for index, item := range typed {
+			out[index] = clonePayloadValue(item)
+		}
+		return out
+	default:
+		return value
+	}
 }
 
 func cloneComposerSettingsPointer(settings *ComposerSettings) *ComposerSettings {
@@ -177,6 +200,7 @@ func normalizeRuntimeContextForProvider(
 	if normalizedReasoning != "" {
 		cloned["reasoningEffort"] = normalizedReasoning
 	}
+	normalizeClaudeSDKRuntimeCapabilities(normalizedProvider, cloned)
 	rawConfigOptions, ok := cloned["configOptions"]
 	if !ok {
 		return cloned
@@ -190,6 +214,49 @@ func normalizeRuntimeContextForProvider(
 		cloned["configOptions"] = normalizedConfigOptions
 	}
 	return cloned
+}
+
+func normalizeClaudeSDKRuntimeCapabilities(provider string, runtimeContext map[string]any) {
+	if agentprovider.Normalize(provider) != agentprovider.ClaudeCode ||
+		strings.TrimSpace(runtimeContextString(runtimeContext, "adapter")) != runtimeContextAdapterClaudeAgentSDK {
+		return
+	}
+	runtimeContext["capabilities"] = runtimeContextWithCapability(
+		runtimeContext["capabilities"],
+		runtimeContextCapabilityImageInput,
+	)
+}
+
+func runtimeContextWithCapability(raw any, capability string) any {
+	capability = strings.TrimSpace(capability)
+	if capability == "" {
+		return raw
+	}
+	switch list := raw.(type) {
+	case []string:
+		for _, entry := range list {
+			if strings.TrimSpace(entry) == capability {
+				return list
+			}
+		}
+		return append(append([]string(nil), list...), capability)
+	case []any:
+		for _, entry := range list {
+			if text, ok := entry.(string); ok && strings.TrimSpace(text) == capability {
+				return list
+			}
+		}
+		next := append([]any(nil), list...)
+		next = append(next, capability)
+		return next
+	default:
+		return []string{capability}
+	}
+}
+
+func runtimeContextString(runtimeContext map[string]any, key string) string {
+	value, _ := runtimeContext[key].(string)
+	return strings.TrimSpace(value)
 }
 
 func normalizeRuntimeConfigOptionsForProvider(
@@ -309,4 +376,11 @@ func normalizeRuntimeError(err error) error {
 		return ErrSessionNotFound
 	}
 	return err
+}
+
+func isStaleInteractiveRequestError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "no longer live")
 }

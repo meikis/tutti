@@ -4,6 +4,8 @@ type desktopPreferencesMutationPayload struct {
 	Preferences struct {
 		AgentComposerDefaultsByProvider             desktopAgentComposerDefaultsByProviderPayload             `json:"agentComposerDefaultsByProvider"`
 		AgentGUIConversationRailCollapsedByProvider desktopAgentGUIConversationRailCollapsedByProviderPayload `json:"agentGuiConversationRailCollapsedByProvider"`
+		AgentConversationDetailMode                 string                                                    `json:"agentConversationDetailMode"`
+		AgentDockLayout                             string                                                    `json:"agentDockLayout"`
 		AppCatalogChannel                           string                                                    `json:"appCatalogChannel"`
 		BrowserUseConnectionMode                    string                                                    `json:"browserUseConnectionMode,omitempty"`
 		DefaultAgentProvider                        string                                                    `json:"defaultAgentProvider"`
@@ -13,6 +15,7 @@ type desktopPreferencesMutationPayload struct {
 		Locale                                      string                                                    `json:"locale"`
 		MinimizeAnimation                           string                                                    `json:"minimizeAnimation"`
 		SleepPreventionMode                         string                                                    `json:"sleepPreventionMode"`
+		ShowAppDeveloperSources                     bool                                                      `json:"showAppDeveloperSources"`
 		ThemeSource                                 string                                                    `json:"themeSource"`
 		UpdateChannel                               string                                                    `json:"updateChannel"`
 		UpdatePolicy                                string                                                    `json:"updatePolicy"`
@@ -28,6 +31,8 @@ type desktopPreferencesUpdatedPayload struct {
 type desktopPreferencesSettingsPayload struct {
 	AgentComposerDefaultsByProvider             desktopAgentComposerDefaultsByProviderPayload             `json:"agentComposerDefaultsByProvider"`
 	AgentGUIConversationRailCollapsedByProvider desktopAgentGUIConversationRailCollapsedByProviderPayload `json:"agentGuiConversationRailCollapsedByProvider"`
+	AgentConversationDetailMode                 string                                                    `json:"agentConversationDetailMode"`
+	AgentDockLayout                             string                                                    `json:"agentDockLayout"`
 	AppCatalogChannel                           string                                                    `json:"appCatalogChannel"`
 	BrowserUseConnectionMode                    string                                                    `json:"browserUseConnectionMode,omitempty"`
 	DefaultAgentProvider                        string                                                    `json:"defaultAgentProvider"`
@@ -37,6 +42,7 @@ type desktopPreferencesSettingsPayload struct {
 	Locale                                      string                                                    `json:"locale"`
 	MinimizeAnimation                           string                                                    `json:"minimizeAnimation"`
 	SleepPreventionMode                         string                                                    `json:"sleepPreventionMode"`
+	ShowAppDeveloperSources                     bool                                                      `json:"showAppDeveloperSources"`
 	ThemeSource                                 string                                                    `json:"themeSource"`
 	UpdateChannel                               string                                                    `json:"updateChannel"`
 	UpdatePolicy                                string                                                    `json:"updatePolicy"`

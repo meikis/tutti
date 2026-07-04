@@ -6,7 +6,6 @@ import type { AgentGUIComposerSettingOption } from "../model/agentGuiNodeTypes";
 
 export type AgentGUIRuntimeErrorPhase =
   | "create_conversation"
-  | "drain_queued_prompt_interrupt"
   | "interrupt_current_turn"
   | "load_session_state"
   | "retry_activation"
@@ -25,7 +24,6 @@ export interface QueuedPromptRetryBlock {
 
 export interface QueuedComposerSettingsUpdate {
   sessionSettingsPatch: AgentSessionComposerSettings;
-  nextNodeDefaults: AgentSessionComposerSettings;
 }
 
 export interface ACPConfigOptionSelection {

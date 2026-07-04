@@ -118,6 +118,68 @@ describe("projectWorkspaceAgentMessagesToConversationVM", () => {
     ]);
   });
 
+  it("orders late completed tool calls by start time before the final assistant answer", () => {
+    const conversation = projectWorkspaceAgentMessagesToConversationVM({
+      activity: activity(),
+      session: session(),
+      messages: [
+        message({
+          messageId: "user-1",
+          id: 1,
+          version: 1,
+          role: "user",
+          kind: "text",
+          payload: { text: "Inspect AI Canvas" },
+          occurredAtUnixMs: 100,
+          startedAtUnixMs: 100
+        }),
+        message({
+          messageId: "toolcall:search-1",
+          id: 2,
+          version: 4,
+          role: "assistant",
+          kind: "tool_call",
+          status: "completed",
+          payload: {
+            callId: "search-1",
+            title: "Bash",
+            toolName: "Bash",
+            input: { command: "rg 陶瓷家具与冲浪 /Users/Sun" }
+          },
+          startedAtUnixMs: 110,
+          occurredAtUnixMs: 400,
+          completedAtUnixMs: 400
+        }),
+        message({
+          messageId: "assistant-final",
+          id: 3,
+          version: 3,
+          role: "assistant",
+          kind: "text",
+          payload: { text: "项目里有图片和视频。" },
+          occurredAtUnixMs: 300,
+          startedAtUnixMs: 300
+        })
+      ]
+    });
+
+    expect(
+      conversation.rows.map((row) => {
+        if (row.kind === "message") {
+          return `${row.speaker}:${row.messages[0]?.body}`;
+        }
+        if (row.kind === "tool-group") {
+          return `tool:${row.calls[0]?.toolName}`;
+        }
+        return row.kind;
+      })
+    ).toEqual([
+      "user:Inspect AI Canvas",
+      "tool:Bash",
+      "assistant:项目里有图片和视频。"
+    ]);
+  });
+
   it("projects text, reasoning, errors, and unknown kinds conservatively", () => {
     const conversation = projectWorkspaceAgentMessagesToConversationVM({
       activity: activity(),
@@ -321,6 +383,72 @@ describe("projectWorkspaceAgentMessagesToConversationVM", () => {
     expect(call?.statusKind).toBe("completed");
     expect(call?.input).toEqual({ path: "/workspace/demo/README.md" });
     expect(call?.output).toEqual({ text: "README contents" });
+  });
+
+  it("projects durable AskUserQuestion tool_call messages as pending interactive prompts", () => {
+    const conversation = projectWorkspaceAgentMessagesToConversationVM({
+      activity: activity(),
+      session: session({
+        effectiveStatus: "working",
+        turnPhase: "working"
+      }),
+      messages: [
+        message({
+          messageId: "toolcall:call-ask",
+          id: 1,
+          version: 1,
+          role: "assistant",
+          kind: "tool_call",
+          status: "running",
+          payload: {
+            callId: "call-ask",
+            callType: "interactive",
+            title: "AskUserQuestion",
+            toolName: "AskUserQuestion",
+            status: "streaming",
+            input: {
+              requestId: "request-ask",
+              toolName: "AskUserQuestion",
+              questions: [
+                {
+                  id: "favorite-color",
+                  header: "Color",
+                  question: "What's your favorite color?",
+                  options: [
+                    {
+                      label: "Green",
+                      description: "Pick green"
+                    }
+                  ]
+                }
+              ]
+            },
+            metadata: {
+              adapter: "claude-agent-sdk",
+              callType: "interactive",
+              interactiveKind: "ask-user",
+              toolName: "AskUserQuestion"
+            }
+          }
+        })
+      ]
+    });
+
+    expect(conversation.pendingInteractivePrompt).toEqual({
+      kind: "ask-user",
+      requestId: "request-ask",
+      title: "Ask User Question",
+      questions: [
+        {
+          id: "favorite-color",
+          header: "Color",
+          question: "What's your favorite color?",
+          options: [{ label: "Green", description: "Pick green" }],
+          multiSelect: false,
+          answer: null
+        }
+      ]
+    });
   });
 
   it("does not use opaque call ids as tool names", () => {

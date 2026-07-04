@@ -41,6 +41,7 @@ func FromStruct[T any]() InputSpec {
 			Hint:        strings.TrimSpace(field.Tag.Get("hint")),
 		}
 		applyValidateTag(&fieldSpec, field.Tag.Get("validate"))
+		fieldSpec.Enum = parseCSVTag(field.Tag.Get("enum"))
 		spec.Fields = append(spec.Fields, fieldSpec)
 		spec.AcceptsInput = true
 	}
@@ -60,8 +61,20 @@ func Schema(input InputSpec) map[string]any {
 			propertyType = "string"
 		}
 		property := map[string]any{"type": propertyType}
+		if propertyType == "array" {
+			property["items"] = map[string]any{"type": "string"}
+		}
 		if field.Description != "" {
 			property["description"] = field.Description
+		}
+		if field.Min != nil {
+			property["minimum"] = *field.Min
+		}
+		if field.Max != nil {
+			property["maximum"] = *field.Max
+		}
+		if len(field.Enum) > 0 {
+			property["enum"] = field.Enum
 		}
 		properties[field.Name] = property
 		if field.Required {
@@ -148,7 +161,28 @@ func setFieldValue(field reflect.Value, spec FieldSpec, raw any) error {
 		if !ok {
 			return invalidInputError(spec.Name)
 		}
-		field.SetString(strings.TrimSpace(text))
+		trimmed := strings.TrimSpace(text)
+		if err := validateEnum(spec, trimmed); err != nil {
+			return err
+		}
+		field.SetString(trimmed)
+	case reflect.Slice:
+		if field.Type().Elem().Kind() != reflect.String {
+			return invalidInputError(spec.Name)
+		}
+		values, ok := stringValues(raw)
+		if !ok {
+			return invalidInputError(spec.Name)
+		}
+		slice := reflect.MakeSlice(field.Type(), 0, len(values))
+		for _, value := range values {
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				continue
+			}
+			slice = reflect.Append(slice, reflect.ValueOf(trimmed))
+		}
+		field.Set(slice)
 	case reflect.Bool:
 		value, err := parseBool(raw)
 		if err != nil {
@@ -161,16 +195,37 @@ func setFieldValue(field reflect.Value, spec FieldSpec, raw any) error {
 			return invalidInputError(spec.Name)
 		}
 		if spec.Min != nil && value < *spec.Min {
-			return invalidInputError(spec.Name)
+			return invalidInputErrorWithReason(spec.Name, fmt.Sprintf("must be >= %d", *spec.Min))
 		}
 		if spec.Max != nil && value > *spec.Max {
-			return invalidInputError(spec.Name)
+			return invalidInputErrorWithReason(spec.Name, fmt.Sprintf("must be <= %d", *spec.Max))
 		}
 		field.SetInt(value)
 	default:
 		return invalidInputError(spec.Name)
 	}
 	return nil
+}
+
+func stringValues(raw any) ([]string, bool) {
+	switch value := raw.(type) {
+	case string:
+		return []string{value}, true
+	case []string:
+		return value, true
+	case []any:
+		result := make([]string, 0, len(value))
+		for _, item := range value {
+			text, ok := item.(string)
+			if !ok {
+				return nil, false
+			}
+			result = append(result, text)
+		}
+		return result, true
+	default:
+		return nil, false
+	}
 }
 
 func parseBool(raw any) (bool, error) {
@@ -221,6 +276,26 @@ func invalidInputError(name string) error {
 	return fmt.Errorf("%w: invalid input %q", cliservice.ErrInvalidInput, name)
 }
 
+func invalidInputErrorWithReason(name string, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return invalidInputError(name)
+	}
+	return fmt.Errorf("%w: invalid input %q: %s", cliservice.ErrInvalidInput, name, reason)
+}
+
+func validateEnum(spec FieldSpec, value string) error {
+	if len(spec.Enum) == 0 || strings.TrimSpace(value) == "" && !spec.Required {
+		return nil
+	}
+	for _, allowed := range spec.Enum {
+		if value == allowed {
+			return nil
+		}
+	}
+	return invalidInputErrorWithReason(spec.Name, "must be one of "+strings.Join(spec.Enum, ", "))
+}
+
 func applyValidateTag(field *FieldSpec, tag string) {
 	for _, part := range strings.Split(tag, ",") {
 		part = strings.TrimSpace(part)
@@ -245,6 +320,20 @@ func applyValidateTag(field *FieldSpec, tag string) {
 	}
 }
 
+func parseCSVTag(tag string) []string {
+	if strings.TrimSpace(tag) == "" {
+		return nil
+	}
+	values := []string{}
+	for _, part := range strings.Split(tag, ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			values = append(values, part)
+		}
+	}
+	return values
+}
+
 func schemaType(typ reflect.Type) string {
 	if typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
@@ -254,6 +343,8 @@ func schemaType(typ reflect.Type) string {
 		return "boolean"
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return "integer"
+	case reflect.Slice:
+		return "array"
 	default:
 		return "string"
 	}

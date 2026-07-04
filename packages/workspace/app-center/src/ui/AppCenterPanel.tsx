@@ -20,11 +20,6 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectSplitColumn,
-  SelectSplitColumnItems,
-  SelectSplitColumnLabel,
-  SelectSplitDivider,
-  SelectSplitLayout,
   SelectTrigger,
   SelectValue,
   SectionTabs,
@@ -45,6 +40,8 @@ import type {
 } from "../contracts/viewModel.ts";
 import type { WorkspaceAppLocalRepairRequest } from "../contracts/host.ts";
 import {
+  isCommunityRecommendedApp,
+  sortCommunityApps,
   sortMyAppsByCreatedDesc,
   sortRecommendedApps,
   sortRecommendedAppsForAllTab
@@ -69,14 +66,14 @@ type FactoryTemplateID =
   | "system"
   | "news"
   | "gomoku";
-export type AppCenterAppTab = "recommended" | "my";
+export type AppCenterAppTab = "recommended" | "community" | "my";
 type RecommendedCategoryTabID =
   | "all"
   | "product-design"
   | "office"
   | "tools"
   | "content-creation";
-type FactorySettingsMenu = "modelReasoning" | "permission" | "provider";
+type FactorySettingsMenu = "model" | "permission" | "provider" | "reasoning";
 
 interface FactoryTemplate {
   readonly id: FactoryTemplateID;
@@ -153,9 +150,11 @@ export interface AppCenterPanelProps {
     provider: string
   ) => Promise<AppCenterFactoryProviderConfiguration>;
   readonly onActiveAppTabChange?: (tab: AppCenterAppTab) => void;
+  readonly officialDeveloperIconUrl?: string | null;
   readonly providerErrorMessage?: string | null;
   readonly providerLoading?: boolean;
   readonly providerOptions?: readonly AppCenterFactoryProviderOption[];
+  readonly showDeveloperSources?: boolean;
   readonly viewModel: AppCenterViewModel;
 }
 
@@ -169,9 +168,11 @@ export function AppCenterPanel({
   errorMessage,
   loadProviderConfiguration,
   onActiveAppTabChange,
+  officialDeveloperIconUrl = null,
   providerErrorMessage = null,
   providerLoading = false,
   providerOptions = [],
+  showDeveloperSources = false,
   viewModel
 }: AppCenterPanelProps): ReactElement {
   const promptTextareaId = useId();
@@ -489,12 +490,16 @@ export function AppCenterPanel({
     viewModel.apps.filter((app) => app.sourceKind === "local")
   );
   const recommendedSourceApps = viewModel.apps.filter(
-    (app) => app.sourceKind !== "local"
+    (app) => app.sourceKind !== "local" && !isCommunityRecommendedApp(app.id)
+  );
+  const communitySourceApps = viewModel.apps.filter(
+    (app) => app.sourceKind !== "local" && isCommunityRecommendedApp(app.id)
   );
   const recommendedApps = sortRecommendedApps(recommendedSourceApps);
   const recommendedAppsForAllTab = sortRecommendedAppsForAllTab(
     recommendedSourceApps
   );
+  const communityApps = sortCommunityApps(communitySourceApps);
   const recommendedCategoryTabs = createRecommendedCategoryTabs(
     recommendedApps,
     copy
@@ -510,15 +515,23 @@ export function AppCenterPanel({
           (app) => app.category === activeRecommendedCategoryLabel
         );
   const activeApps =
-    activeAppTab === "recommended" ? activeRecommendedApps : myApps;
+    activeAppTab === "recommended"
+      ? activeRecommendedApps
+      : activeAppTab === "community"
+        ? communityApps
+        : myApps;
   const activeAppTabTitle =
     activeAppTab === "recommended"
       ? copy.t("labels.recommendedApps")
-      : copy.t("labels.myApps");
+      : activeAppTab === "community"
+        ? copy.t("labels.communityApps")
+        : copy.t("labels.myApps");
   const activeAppEmptyMessage =
     activeAppTab === "recommended"
       ? copy.t("messages.recommendedAppsEmpty")
-      : copy.t("messages.myAppsEmpty");
+      : activeAppTab === "community"
+        ? copy.t("messages.communityAppsEmpty")
+        : copy.t("messages.myAppsEmpty");
   const pendingDeleteAppInstalled = pendingDeleteApp?.installed ?? false;
   const deleteAppConfirmLabel = copy.t(
     pendingDeleteAppInstalled
@@ -574,6 +587,10 @@ export function AppCenterPanel({
                 {
                   label: copy.t("labels.recommendedApps"),
                   value: "recommended"
+                },
+                {
+                  label: copy.t("labels.communityApps"),
+                  value: "community"
                 },
                 {
                   label: copy.t("labels.myApps"),
@@ -759,6 +776,8 @@ export function AppCenterPanel({
             apps={activeApps}
             copy={copy}
             emptyMessage={activeAppEmptyMessage}
+            officialDeveloperIconUrl={officialDeveloperIconUrl}
+            showDeveloperSources={showDeveloperSources}
             title={activeAppTabTitle}
           />
         </section>
@@ -968,22 +987,45 @@ export function AppCenterPanel({
                         aria-hidden="true"
                         className="h-4 w-px bg-[var(--line-2)]"
                       />
-                      <FactoryModelReasoningDropdown
-                        copy={copy}
+                      <FactoryOptionDropdown
+                        ariaLabel={copy.t("factory.labels.model")}
+                        emptyMessage={copy.t("factory.messages.noModelOptions")}
                         loading={providerConfigurationStatus === "loading"}
-                        modelOptions={modelOptions}
-                        open={openFactorySettingsMenu === "modelReasoning"}
-                        reasoningEffortOptions={reasoningEffortOptions}
-                        selectedModel={selectedModel}
-                        selectedReasoningEffort={selectedReasoningEffort}
+                        loadingMessage={copy.t(
+                          "factory.messages.loadingConfiguration"
+                        )}
+                        open={openFactorySettingsMenu === "model"}
+                        options={modelOptions}
+                        selectedValue={selectedModel}
+                        triggerClassName="h-6 w-auto max-w-full border-0 bg-transparent px-1.5 text-[11px] font-medium text-[var(--text-secondary)] shadow-none hover:bg-transparent focus-visible:bg-transparent"
+                        onOpenChange={(nextOpen) =>
+                          setOpenFactorySettingsMenu(nextOpen ? "model" : null)
+                        }
+                        onSelectValue={setSelectedModel}
+                      />
+                      <div
+                        aria-hidden="true"
+                        className="h-4 w-px bg-[var(--line-2)]"
+                      />
+                      <FactoryOptionDropdown
+                        ariaLabel={copy.t("factory.labels.reasoningEffort")}
+                        emptyMessage={copy.t(
+                          "factory.messages.noReasoningEffortOptions"
+                        )}
+                        loading={providerConfigurationStatus === "loading"}
+                        loadingMessage={copy.t(
+                          "factory.messages.loadingConfiguration"
+                        )}
+                        open={openFactorySettingsMenu === "reasoning"}
+                        options={reasoningEffortOptions}
+                        selectedValue={selectedReasoningEffort}
                         triggerClassName="h-6 w-auto max-w-full border-0 bg-transparent px-1.5 text-[11px] font-medium text-[var(--text-secondary)] shadow-none hover:bg-transparent focus-visible:bg-transparent"
                         onOpenChange={(nextOpen) =>
                           setOpenFactorySettingsMenu(
-                            nextOpen ? "modelReasoning" : null
+                            nextOpen ? "reasoning" : null
                           )
                         }
-                        onSelectModel={setSelectedModel}
-                        onSelectReasoningEffort={setSelectedReasoningEffort}
+                        onSelectValue={setSelectedReasoningEffort}
                       />
                     </div>
                   </div>
@@ -1208,60 +1250,33 @@ function FactoryPermissionDropdown({
   );
 }
 
-function FactoryModelReasoningDropdown({
-  copy,
+function FactoryOptionDropdown({
+  ariaLabel,
+  emptyMessage,
   loading,
-  modelOptions,
+  loadingMessage,
   onOpenChange,
-  onSelectModel,
-  onSelectReasoningEffort,
+  onSelectValue,
   open,
-  reasoningEffortOptions,
-  selectedModel,
-  selectedReasoningEffort,
+  options,
+  selectedValue,
   triggerClassName
 }: {
-  copy: AppCenterI18nRuntime;
+  ariaLabel: string;
+  emptyMessage: string;
   loading: boolean;
-  modelOptions: readonly { label: string; value: string }[];
+  loadingMessage: string;
   onOpenChange: (open: boolean) => void;
-  onSelectModel: (value: string) => void;
-  onSelectReasoningEffort: (value: string) => void;
+  onSelectValue: (value: string) => void;
   open: boolean;
-  reasoningEffortOptions: readonly { label: string; value: string }[];
-  selectedModel: string;
-  selectedReasoningEffort: string;
+  options: readonly { label: string; value: string }[];
+  selectedValue: string;
   triggerClassName?: string;
 }): ReactElement {
-  const showModelSection = modelOptions.length > 0;
-  const showReasoningSection = reasoningEffortOptions.length > 0;
-  const disabled = loading || (!showModelSection && !showReasoningSection);
-  const selectedModelLabel =
-    modelOptions.find((option) => option.value === selectedModel)?.label ??
-    selectedModel;
-  const selectedReasoningLabel =
-    reasoningEffortOptions.find(
-      (option) => option.value === selectedReasoningEffort
-    )?.label ?? selectedReasoningEffort;
-  const triggerLabel = [selectedModelLabel, selectedReasoningLabel]
-    .filter((value) => value.trim().length > 0)
-    .join(" ");
-  const selectedValue = showModelSection
-    ? selectedModel
-      ? `model:${selectedModel}`
-      : ""
-    : selectedReasoningEffort
-      ? `reasoning:${selectedReasoningEffort}`
-      : "";
-  const applySettingsValue = (nextValue: string): void => {
-    if (nextValue.startsWith("reasoning:")) {
-      onSelectReasoningEffort(nextValue.slice("reasoning:".length));
-      return;
-    }
-    if (nextValue.startsWith("model:")) {
-      onSelectModel(nextValue.slice("model:".length));
-    }
-  };
+  const disabled = loading || options.length === 0;
+  const selectedLabel =
+    options.find((option) => option.value === selectedValue)?.label ??
+    selectedValue;
 
   return (
     <Select
@@ -1269,10 +1284,10 @@ function FactoryModelReasoningDropdown({
       open={open}
       value={selectedValue}
       onOpenChange={onOpenChange}
-      onValueChange={applySettingsValue}
+      onValueChange={onSelectValue}
     >
       <SelectTrigger
-        aria-label={copy.t("factory.labels.modelReasoning")}
+        aria-label={ariaLabel}
         className={cn(
           "h-9 max-w-full rounded-[999px] border border-[color:var(--line-2)] bg-[var(--background-panel)] px-3 text-[13px] font-medium text-[var(--text-primary)] shadow-none hover:bg-[var(--transparency-block)] [&>svg:last-child]:opacity-70",
           loading
@@ -1284,90 +1299,31 @@ function FactoryModelReasoningDropdown({
           triggerClassName
         )}
       >
-        <span className="flex min-w-0 items-center gap-2 overflow-hidden">
-          {triggerLabel ? (
-            selectedModelLabel && selectedReasoningLabel ? (
-              <>
-                <span className="min-w-0 truncate">{selectedModelLabel}</span>
-                <span className="shrink-0 text-[var(--text-secondary)]">
-                  {selectedReasoningLabel}
-                </span>
-              </>
-            ) : (
-              <span className="min-w-0 truncate">{triggerLabel}</span>
-            )
+        <span className="min-w-0 truncate">
+          {selectedLabel ? (
+            selectedLabel
           ) : (
-            <span className="min-w-0 truncate text-[var(--text-tertiary)]">
-              {loading
-                ? copy.t("factory.messages.loadingConfiguration")
-                : copy.t("factory.messages.noConfigurationOptions")}
+            <span className="text-[var(--text-tertiary)]">
+              {loading ? loadingMessage : emptyMessage}
             </span>
           )}
         </span>
       </SelectTrigger>
       <SelectContent
         align="end"
-        className={cn(
-          "max-w-[min(100vw-32px,460px)] data-[side=top]:!translate-y-0",
-          showModelSection && showReasoningSection
-            ? "w-[430px]"
-            : "w-max min-w-[240px]"
-        )}
+        className="w-max min-w-[200px] max-w-[min(100vw-32px,320px)] data-[side=top]:!translate-y-0"
         sideOffset={4}
         style={{ zIndex: "var(--z-dialog-popover)" }}
       >
-        {showModelSection && showReasoningSection ? (
-          <SelectSplitLayout>
-            <SelectSplitColumn>
-              <SelectSplitColumnLabel>
-                {copy.t("factory.labels.model")}
-              </SelectSplitColumnLabel>
-              <SelectSplitColumnItems>
-                {modelOptions.map((option) => (
-                  <SelectItem
-                    key={option.value}
-                    value={`model:${option.value}`}
-                  >
-                    <span className="min-w-0 truncate">{option.label}</span>
-                  </SelectItem>
-                ))}
-              </SelectSplitColumnItems>
-            </SelectSplitColumn>
-            <SelectSplitDivider />
-            <SelectSplitColumn>
-              <SelectSplitColumnLabel>
-                {copy.t("factory.labels.reasoningEffort")}
-              </SelectSplitColumnLabel>
-              <SelectSplitColumnItems>
-                {reasoningEffortOptions.map((option) => (
-                  <SelectItem
-                    forceSelectedIndicator={
-                      selectedReasoningEffort === option.value
-                    }
-                    key={option.value}
-                    value={`reasoning:${option.value}`}
-                  >
-                    <span className="min-w-0 truncate">{option.label}</span>
-                  </SelectItem>
-                ))}
-              </SelectSplitColumnItems>
-            </SelectSplitColumn>
-          </SelectSplitLayout>
-        ) : showModelSection ? (
-          modelOptions.map((option) => (
-            <SelectItem key={option.value} value={`model:${option.value}`}>
-              <span className="min-w-0 truncate">{option.label}</span>
-            </SelectItem>
-          ))
-        ) : showReasoningSection ? (
-          reasoningEffortOptions.map((option) => (
-            <SelectItem key={option.value} value={`reasoning:${option.value}`}>
+        {options.length > 0 ? (
+          options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
               <span className="min-w-0 truncate">{option.label}</span>
             </SelectItem>
           ))
         ) : (
           <SelectItem disabled value="__empty__">
-            {copy.t("factory.messages.noConfigurationOptions")}
+            {emptyMessage}
           </SelectItem>
         )}
       </SelectContent>
@@ -1437,12 +1393,16 @@ function AppCardGrid({
   apps,
   copy,
   emptyMessage,
+  officialDeveloperIconUrl,
+  showDeveloperSources,
   title
 }: {
   readonly actions: AppCenterHostActions;
   readonly apps: AppCenterViewModel["apps"];
   readonly copy: AppCenterI18nRuntime;
   readonly emptyMessage: string;
+  readonly officialDeveloperIconUrl?: string | null;
+  readonly showDeveloperSources: boolean;
   readonly title: string;
 }): ReactElement {
   if (apps.length === 0) {
@@ -1465,7 +1425,14 @@ function AppCardGrid({
         role="list"
       >
         {apps.map((app) => (
-          <AppCard actions={actions} app={app} copy={copy} key={app.id} />
+          <AppCard
+            actions={actions}
+            app={app}
+            copy={copy}
+            key={app.id}
+            officialDeveloperIconUrl={officialDeveloperIconUrl}
+            showDeveloperSources={showDeveloperSources}
+          />
         ))}
       </div>
       <div aria-hidden="true" className="h-6 shrink-0" />

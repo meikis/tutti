@@ -23,6 +23,42 @@ func writeListWorkspaceAgentSessionsError(err error) tuttigenerated.ListWorkspac
 	}
 }
 
+func writeListWorkspaceAgentSessionSectionsError(err error) tuttigenerated.ListWorkspaceAgentSessionSectionsResponseObject {
+	protocolErr := apierrors.Classify(err)
+	switch protocolErr.Code {
+	case tuttigenerated.WorkspaceNotFound:
+		return tuttigenerated.ListWorkspaceAgentSessionSections404JSONResponse{
+			WorkspaceNotFoundErrorJSONResponse: workspaceNotFoundError(protocolErr),
+		}
+	case tuttigenerated.InvalidRequest:
+		return tuttigenerated.ListWorkspaceAgentSessionSections400JSONResponse{
+			InvalidRequestErrorJSONResponse: invalidRequestError(protocolErr),
+		}
+	default:
+		return tuttigenerated.ListWorkspaceAgentSessionSections502JSONResponse{
+			WorkspaceOperationErrorJSONResponse: workspaceOperationError(protocolErr),
+		}
+	}
+}
+
+func writeListWorkspaceAgentSessionSectionPageError(err error) tuttigenerated.ListWorkspaceAgentSessionSectionPageResponseObject {
+	protocolErr := apierrors.Classify(err)
+	switch protocolErr.Code {
+	case tuttigenerated.WorkspaceNotFound:
+		return tuttigenerated.ListWorkspaceAgentSessionSectionPage404JSONResponse{
+			WorkspaceNotFoundErrorJSONResponse: workspaceNotFoundError(protocolErr),
+		}
+	case tuttigenerated.InvalidRequest:
+		return tuttigenerated.ListWorkspaceAgentSessionSectionPage400JSONResponse{
+			InvalidRequestErrorJSONResponse: invalidRequestError(protocolErr),
+		}
+	default:
+		return tuttigenerated.ListWorkspaceAgentSessionSectionPage502JSONResponse{
+			WorkspaceOperationErrorJSONResponse: workspaceOperationError(protocolErr),
+		}
+	}
+}
+
 func writeClearWorkspaceAgentSessionsError(err error) tuttigenerated.ClearWorkspaceAgentSessionsResponseObject {
 	protocolErr := apierrors.Classify(err)
 	switch protocolErr.Code {
@@ -181,6 +217,24 @@ func writeCancelWorkspaceAgentSessionError(err error) tuttigenerated.CancelWorks
 	}
 }
 
+func writeGoalControlWorkspaceAgentSessionError(err error) tuttigenerated.GoalControlWorkspaceAgentSessionResponseObject {
+	protocolErr := apierrors.Classify(err)
+	switch protocolErr.Code {
+	case tuttigenerated.WorkspaceNotFound:
+		return tuttigenerated.GoalControlWorkspaceAgentSession404JSONResponse{
+			WorkspaceNotFoundErrorJSONResponse: workspaceNotFoundError(protocolErr),
+		}
+	case tuttigenerated.InvalidRequest:
+		return tuttigenerated.GoalControlWorkspaceAgentSession400JSONResponse{
+			InvalidRequestErrorJSONResponse: invalidRequestError(protocolErr),
+		}
+	default:
+		return tuttigenerated.GoalControlWorkspaceAgentSession502JSONResponse{
+			WorkspaceOperationErrorJSONResponse: workspaceOperationError(protocolErr),
+		}
+	}
+}
+
 func writeSendWorkspaceAgentSessionInputError(err error) tuttigenerated.SendWorkspaceAgentSessionInputResponseObject {
 	protocolErr := apierrors.Classify(err)
 	switch protocolErr.Code {
@@ -248,6 +302,42 @@ func writeListWorkspaceGitBranchesError(err error) tuttigenerated.ListWorkspaceG
 		}
 	default:
 		return tuttigenerated.ListWorkspaceGitBranches502JSONResponse{
+			WorkspaceOperationErrorJSONResponse: workspaceOperationError(protocolErr),
+		}
+	}
+}
+
+func writeResolveWorkspaceGitPatchSupportError(err error) tuttigenerated.ResolveWorkspaceGitPatchSupportResponseObject {
+	protocolErr := apierrors.Classify(err)
+	switch protocolErr.Code {
+	case tuttigenerated.WorkspaceNotFound:
+		return tuttigenerated.ResolveWorkspaceGitPatchSupport404JSONResponse{
+			WorkspaceNotFoundErrorJSONResponse: workspaceNotFoundError(protocolErr),
+		}
+	case tuttigenerated.InvalidRequest:
+		return tuttigenerated.ResolveWorkspaceGitPatchSupport400JSONResponse{
+			InvalidRequestErrorJSONResponse: invalidRequestError(protocolErr),
+		}
+	default:
+		return tuttigenerated.ResolveWorkspaceGitPatchSupport502JSONResponse{
+			WorkspaceOperationErrorJSONResponse: workspaceOperationError(protocolErr),
+		}
+	}
+}
+
+func writeApplyWorkspaceGitPatchError(err error) tuttigenerated.ApplyWorkspaceGitPatchResponseObject {
+	protocolErr := apierrors.Classify(err)
+	switch protocolErr.Code {
+	case tuttigenerated.WorkspaceNotFound:
+		return tuttigenerated.ApplyWorkspaceGitPatch404JSONResponse{
+			WorkspaceNotFoundErrorJSONResponse: workspaceNotFoundError(protocolErr),
+		}
+	case tuttigenerated.InvalidRequest:
+		return tuttigenerated.ApplyWorkspaceGitPatch400JSONResponse{
+			InvalidRequestErrorJSONResponse: invalidRequestError(protocolErr),
+		}
+	default:
+		return tuttigenerated.ApplyWorkspaceGitPatch502JSONResponse{
 			WorkspaceOperationErrorJSONResponse: workspaceOperationError(protocolErr),
 		}
 	}

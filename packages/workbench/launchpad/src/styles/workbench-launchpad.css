@@ -88,7 +88,7 @@
   transition:
     opacity 180ms ease,
     transform 180ms cubic-bezier(0.4, 0, 1, 1);
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 .workspace-launchpad-overlay__content[data-dock-placement="left"] {
@@ -118,7 +118,7 @@
   min-width: 0;
   align-items: flex-start;
   justify-content: center;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 .workspace-launchpad-search {
@@ -175,8 +175,8 @@
 
 .workspace-launchpad-search__input:focus,
 .workspace-launchpad-search__input:focus-visible {
-  border-color: var(--border-1);
-  box-shadow: none;
+  border-color: color-mix(in srgb, var(--text-primary) 18%, var(--border-1));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-primary) 10%, transparent);
 }
 
 .workspace-launchpad-search__clear {
@@ -320,7 +320,7 @@
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  color: inherit;
+  color: var(--white-stationary);
   font-size: 13px;
   font-weight: 400;
   line-height: 17px;

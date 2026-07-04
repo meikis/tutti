@@ -65,6 +65,7 @@ function input(
     cliVersionDetail: null,
     adapterDetail: null,
     accountDetail: null,
+    authMethod: null,
     networkDetail: null,
     labels,
     ...overrides
@@ -132,6 +133,32 @@ describe("deriveAgentSetupStages", () => {
       kind: "text",
       text: "0.100.0"
     });
+  });
+
+  it("flags install pending with a platform-incomplete problem when the launcher is present but the platform subpackage is missing", () => {
+    const stages = deriveAgentSetupStages(
+      input({
+        cliInstalled: true,
+        platformPackageIncomplete: true,
+        cliVersionDetail: { kind: "text", text: "1.2.3 · /usr/bin/codex" }
+      })
+    );
+    expect(stage(stages, "install").status).toBe("pending");
+    expect(stage(stages, "install").problem).toBe(
+      "install-platform-incomplete"
+    );
+  });
+
+  it("marks install ok when ready even if the platform subpackage flag is set", () => {
+    const stages = deriveAgentSetupStages(
+      input({
+        cliInstalled: true,
+        platformPackageIncomplete: true,
+        ready: true
+      })
+    );
+    expect(stage(stages, "install").status).toBe("ok");
+    expect(stage(stages, "install").problem).toBeUndefined();
   });
 
   it("marks adapter pending when CLI is installed but the adapter is missing", () => {
@@ -214,7 +241,8 @@ describe("deriveAgentSetupStages", () => {
         ready: true,
         activePhase: "done",
         cliVersionDetail: { kind: "text", text: "0.142.1" },
-        accountDetail: { kind: "text", text: "user@example.com" }
+        accountDetail: { kind: "text", text: "user@example.com" },
+        authMethod: "oauth"
       })
     );
     expect(stages.map((s) => s.status)).toEqual([
@@ -229,6 +257,21 @@ describe("deriveAgentSetupStages", () => {
       kind: "text",
       text: "user@example.com"
     });
+    expect(stage(stages, "login").authMethod).toBe("oauth");
+  });
+
+  it("carries authMethod on the login stage for API billing", () => {
+    const stages = deriveAgentSetupStages(
+      input({
+        cliInstalled: true,
+        adapterInstalled: true,
+        authenticated: true,
+        ready: true,
+        accountDetail: { kind: "text", text: "API Usage Billing" },
+        authMethod: "apiKey"
+      })
+    );
+    expect(stage(stages, "login").authMethod).toBe("apiKey");
   });
 
   it("flags the network stage as error when connectivity is unreachable", () => {
@@ -347,6 +390,21 @@ describe("stageRemediation", () => {
     expect(stageRemediation(mk("install", "error"))).toEqual({
       actionId: "redetect",
       problem: "install-outdated"
+    });
+  });
+
+  it("maps a platform-incomplete install to install-platform-incomplete → install (daemon repairs in place)", () => {
+    expect(
+      stageRemediation({
+        id: "install",
+        label: "install",
+        status: "pending",
+        detail: null,
+        problem: "install-platform-incomplete"
+      })
+    ).toEqual({
+      actionId: "install",
+      problem: "install-platform-incomplete"
     });
   });
 

@@ -6,6 +6,7 @@ import {
 } from "../theme/index.ts";
 import type {
   DesktopAgentComposerDefaultsByProvider,
+  DesktopAgentDockLayout,
   DesktopAgentGuiConversationRailCollapsedByProvider,
   DesktopAgentProvider,
   DesktopFileDefaultOpenersByExtension,
@@ -61,7 +62,11 @@ export const desktopIpcChannels = {
     checkStatus: "computerUse:checkStatus",
     install: "computerUse:install",
     uninstall: "computerUse:uninstall",
-    grantPermissions: "computerUse:grantPermissions"
+    grantPermissions: "computerUse:grantPermissions",
+    startPermissionGrant: "computerUse:startPermissionGrant",
+    getPermissionGrantStatus: "computerUse:getPermissionGrantStatus",
+    openPermissionSettings: "computerUse:openPermissionSettings",
+    restartDriver: "computerUse:restartDriver"
   },
   appContext: {
     agentStatusBroadcast: "workspace-app-context:agent-status-broadcast",
@@ -73,6 +78,7 @@ export const desktopIpcChannels = {
     openUrl: "workspace-app:open-url"
   },
   appExternal: {
+    activityReportActive: "workspace-app-activity:report-active",
     atQuery: "workspace-app-at:query",
     filesOpen: "workspace-app-files:open",
     filesSelect: "workspace-app-files:select",
@@ -169,6 +175,7 @@ export const desktopIpcChannels = {
       openTerminalLink: "host:files:openTerminalLink",
       readLocalFileText: "host:files:readLocalFileText",
       readLocalPreviewFile: "host:files:readLocalPreviewFile",
+      archiveAgentPromptFile: "host:files:archiveAgentPromptFile",
       readPreviewFile: "host:files:readPreviewFile",
       resolveEntryIcon: "host:files:resolveEntryIcon",
       selectAppArchive: "host:files:selectAppArchive",
@@ -176,6 +183,7 @@ export const desktopIpcChannels = {
       selectAppIconImage: "host:files:selectAppIconImage",
       selectDirectory: "host:files:selectDirectory",
       selectUploadFiles: "host:files:selectUploadFiles",
+      copyImageToClipboard: "host:files:copyImageToClipboard",
       copyFilesToClipboard: "host:files:copyFilesToClipboard"
     },
     window: {
@@ -251,6 +259,25 @@ export interface DesktopWorkspaceFileEntryIconPayload extends DesktopWorkspaceFi
   entryKind: string;
   entryMtimeMs: number | null;
   entryName: string;
+}
+
+export interface DesktopArchiveAgentPromptFileInput {
+  dataBase64?: string;
+  displayName?: string | null;
+  hostPath?: string;
+  mimeType?: string | null;
+  workspaceID: string;
+}
+
+export interface DesktopArchiveAgentPromptFileResult {
+  name: string;
+  path: string;
+  sizeBytes: number;
+}
+
+export interface DesktopClipboardImagePayload {
+  data: string;
+  mimeType: "image/png";
 }
 
 export interface DesktopTerminalLinkPathPayload {
@@ -360,6 +387,7 @@ export interface DesktopSelectUploadFilesInput {
 
 export interface DesktopHostPreferencesSyncPayload {
   agentComposerDefaultsByProvider?: DesktopAgentComposerDefaultsByProvider;
+  agentDockLayout?: DesktopAgentDockLayout;
   agentGuiConversationRailCollapsedByProvider?: DesktopAgentGuiConversationRailCollapsedByProvider;
   fileDefaultOpenersByExtension?: DesktopFileDefaultOpenersByExtension;
   defaultAgentProvider?: DesktopAgentProvider;
@@ -646,9 +674,46 @@ export interface DesktopComputerUsePermissionsStatus {
   source: DesktopComputerUsePermissionStatusSource;
 }
 
+export type DesktopComputerUseAuthorizationState =
+  | "authorized"
+  | "needs-authorization"
+  | "unknown";
+
+export type DesktopComputerUseStatusReason =
+  | "driver-daemon-not-running"
+  | "not-installed"
+  | "permission-missing"
+  | "screen-recording-not-capturable"
+  | "status-command-failed"
+  | "status-unparseable";
+
 export interface DesktopComputerUseStatus {
   installed: boolean;
   permissions: DesktopComputerUsePermissionsStatus | null;
+  authorization: DesktopComputerUseAuthorizationState;
+  reason?: DesktopComputerUseStatusReason;
+  diagnosticMessage?: string;
+}
+
+export function desktopComputerUseStatusesEqual(
+  left: DesktopComputerUseStatus | null,
+  right: DesktopComputerUseStatus | null
+): boolean {
+  return (
+    left === right ||
+    (left !== null &&
+      right !== null &&
+      left.installed === right.installed &&
+      left.authorization === right.authorization &&
+      left.reason === right.reason &&
+      left.diagnosticMessage === right.diagnosticMessage &&
+      left.permissions?.accessibility === right.permissions?.accessibility &&
+      left.permissions?.screenRecording ===
+        right.permissions?.screenRecording &&
+      left.permissions?.screenRecordingCapturable ===
+        right.permissions?.screenRecordingCapturable &&
+      left.permissions?.source === right.permissions?.source)
+  );
 }
 
 export interface DesktopComputerUseActionResult {
@@ -656,12 +721,44 @@ export interface DesktopComputerUseActionResult {
   output: string;
 }
 
+export type DesktopComputerUsePermissionPane =
+  | "accessibility"
+  | "screen-recording"
+  | "privacy";
+
+export interface DesktopComputerUsePermissionGrantStatus {
+  id: "computer-use-permission-grant";
+  running: boolean;
+  startedAtUnixMs: number;
+  elapsedMs: number;
+  result?: DesktopComputerUseActionResult;
+}
+
+export interface DesktopComputerUseRestartDriverInput {
+  // Restart even while a permission grant is still confirming. Used by the
+  // wizard's explicit re-check, where the user has finished granting.
+  force?: boolean;
+}
+
+export interface DesktopComputerUseRestartDriverResult {
+  result: DesktopComputerUseActionResult;
+  status: DesktopComputerUseStatus;
+}
+
 export interface DesktopInvokePayloadByChannel {
   [desktopIpcChannels.computerUse.checkStatus]: undefined;
   [desktopIpcChannels.computerUse.install]: undefined;
   [desktopIpcChannels.computerUse.uninstall]: undefined;
   [desktopIpcChannels.computerUse.grantPermissions]: undefined;
+  [desktopIpcChannels.computerUse.startPermissionGrant]: undefined;
+  [desktopIpcChannels.computerUse.getPermissionGrantStatus]: undefined;
+  [desktopIpcChannels.computerUse
+    .openPermissionSettings]: DesktopComputerUsePermissionPane;
+  [desktopIpcChannels.computerUse.restartDriver]:
+    | DesktopComputerUseRestartDriverInput
+    | undefined;
   [desktopIpcChannels.appContext.get]: undefined;
+  [desktopIpcChannels.appExternal.activityReportActive]: undefined;
   [desktopIpcChannels.appExternal.atQuery]: TuttiExternalAtQueryInput;
   [desktopIpcChannels.appExternal.filesOpen]: TuttiExternalFileOpenInput;
   [desktopIpcChannels.appExternal.filesSelect]: TuttiExternalFileSelectInput;
@@ -755,6 +852,8 @@ export interface DesktopInvokePayloadByChannel {
   [desktopIpcChannels.host.files.readLocalFileText]: string;
   [desktopIpcChannels.host.files.readLocalPreviewFile]: string;
   [desktopIpcChannels.host.files
+    .archiveAgentPromptFile]: DesktopArchiveAgentPromptFileInput;
+  [desktopIpcChannels.host.files
     .readPreviewFile]: DesktopWorkspaceFilePathPayload;
   [desktopIpcChannels.host.files
     .resolveEntryIcon]: DesktopWorkspaceFileEntryIconPayload;
@@ -766,6 +865,8 @@ export interface DesktopInvokePayloadByChannel {
   [desktopIpcChannels.host.files.selectUploadFiles]:
     | DesktopSelectUploadFilesInput
     | undefined;
+  [desktopIpcChannels.host.files
+    .copyImageToClipboard]: DesktopClipboardImagePayload;
   [desktopIpcChannels.host.files.copyFilesToClipboard]: string[];
   [desktopIpcChannels.host.window.approveClose]: undefined;
   [desktopIpcChannels.host.window
@@ -782,7 +883,15 @@ export interface DesktopInvokeResultByChannel {
   [desktopIpcChannels.computerUse.uninstall]: DesktopComputerUseActionResult;
   [desktopIpcChannels.computerUse
     .grantPermissions]: DesktopComputerUseActionResult;
+  [desktopIpcChannels.computerUse
+    .startPermissionGrant]: DesktopComputerUsePermissionGrantStatus;
+  [desktopIpcChannels.computerUse
+    .getPermissionGrantStatus]: DesktopComputerUsePermissionGrantStatus | null;
+  [desktopIpcChannels.computerUse.openPermissionSettings]: void;
+  [desktopIpcChannels.computerUse
+    .restartDriver]: DesktopComputerUseRestartDriverResult;
   [desktopIpcChannels.appContext.get]: DesktopWorkspaceAppContext;
+  [desktopIpcChannels.appExternal.activityReportActive]: void;
   [desktopIpcChannels.appExternal.atQuery]: TuttiExternalAtQueryResult[];
   [desktopIpcChannels.appExternal.filesOpen]: void;
   [desktopIpcChannels.appExternal.filesSelect]: TuttiExternalFileSelectResult;
@@ -867,6 +976,8 @@ export interface DesktopInvokeResultByChannel {
   [desktopIpcChannels.host.files.openTerminalLink]: void;
   [desktopIpcChannels.host.files.readLocalFileText]: DesktopLocalFileTextResult;
   [desktopIpcChannels.host.files.readLocalPreviewFile]: Uint8Array;
+  [desktopIpcChannels.host.files
+    .archiveAgentPromptFile]: DesktopArchiveAgentPromptFileResult;
   [desktopIpcChannels.host.files.readPreviewFile]: Uint8Array;
   [desktopIpcChannels.host.files.resolveEntryIcon]: string | null;
   [desktopIpcChannels.host.files.selectAppArchive]: string | null;
@@ -874,6 +985,7 @@ export interface DesktopInvokeResultByChannel {
   [desktopIpcChannels.host.files.selectAppIconImage]: string | null;
   [desktopIpcChannels.host.files.selectDirectory]: string | null;
   [desktopIpcChannels.host.files.selectUploadFiles]: string[];
+  [desktopIpcChannels.host.files.copyImageToClipboard]: void;
   [desktopIpcChannels.host.files.copyFilesToClipboard]: void;
   [desktopIpcChannels.host.window.approveClose]: void;
   [desktopIpcChannels.host.window.capturePreview]: string | null;

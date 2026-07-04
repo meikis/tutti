@@ -7,6 +7,8 @@
   "required": [
     "agentComposerDefaultsByProvider",
     "agentGuiConversationRailCollapsedByProvider",
+    "agentConversationDetailMode",
+    "agentDockLayout",
     "appCatalogChannel",
     "defaultAgentProvider",
     "dockIconStyle",
@@ -15,6 +17,7 @@
     "locale",
     "minimizeAnimation",
     "sleepPreventionMode",
+    "showAppDeveloperSources",
     "themeSource",
     "updateChannel",
     "updatePolicy"
@@ -43,6 +46,14 @@
         "hermes": { "type": "boolean" },
         "openclaw": { "type": "boolean" }
       }
+    },
+    "agentConversationDetailMode": {
+      "type": "string",
+      "enum": ["coding", "general"]
+    },
+    "agentDockLayout": {
+      "type": "string",
+      "enum": ["legacySplit", "unified"]
     },
     "appCatalogChannel": {
       "type": "string",
@@ -89,6 +100,9 @@
     "sleepPreventionMode": {
       "type": "string",
       "enum": ["never", "whileAgentRunning", "always"]
+    },
+    "showAppDeveloperSources": {
+      "type": "boolean"
     },
     "themeSource": {
       "type": "string",

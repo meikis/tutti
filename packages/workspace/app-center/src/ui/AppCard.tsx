@@ -1,5 +1,5 @@
 import type { KeyboardEvent, ReactElement } from "react";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   ChatIcon,
@@ -11,15 +11,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   FolderIcon,
+  GitHubBrandIcon,
   MoreHorizontalIcon,
   NavApplicationsFilledIcon,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   RefreshIcon,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
   UninstallIcon,
   UploadIcon,
   cn
 } from "@tutti-os/ui-system";
 import type {
   WorkspaceAppActionContext,
+  WorkspaceAppAuthorViewModel,
   WorkspaceAppCardViewModel
 } from "../contracts/viewModel.ts";
 import type { WorkspaceAppInstallProgress } from "../contracts/runtime.ts";
@@ -27,6 +36,7 @@ import type {
   WorkspaceAppLocalRepairAgentRequest,
   WorkspaceAppLocalRepairRequest
 } from "../contracts/host.ts";
+import { isCommunityRecommendedApp } from "../core/appCenterAppOrdering.ts";
 import type { AppCenterI18nRuntime } from "../i18n/appCenterI18n.ts";
 
 export interface AppCenterFactoryProviderOption {
@@ -92,6 +102,7 @@ export interface AppCenterHostActions {
   ) => Promise<void> | void;
   readonly openAppFolder?: (appId: string) => Promise<void> | void;
   readonly openAppPackageFolder?: (appId: string) => Promise<void> | void;
+  readonly openExternalUrl?: (url: string) => Promise<void> | void;
   readonly openFactoryJobAgentSession?: (
     agentSessionId: string,
     provider?: string | null
@@ -124,13 +135,17 @@ export interface AppCardProps {
   readonly app: WorkspaceAppCardViewModel;
   readonly className?: string;
   readonly copy: AppCenterI18nRuntime;
+  readonly officialDeveloperIconUrl?: string | null;
+  readonly showDeveloperSources?: boolean;
 }
 
 export const AppCard = memo(function AppCard({
   actions,
   app,
   className,
-  copy
+  copy,
+  officialDeveloperIconUrl = null,
+  showDeveloperSources = false
 }: AppCardProps): ReactElement {
   const statusLabel = copy.t(app.statusLabelKey);
   const installBusy =
@@ -167,11 +182,13 @@ export const AppCard = memo(function AppCard({
     app.canOpenFactorySession &&
     !!app.factoryAgentSessionId &&
     !!app.factoryJobId;
+  const communityDeveloper = resolveCommunityAppDeveloper(app);
   const actionContext = useMemo(
     () => createWorkspaceAppActionContext(app),
     [app]
   );
   const hasMoreActions =
+    communityDeveloper != null ||
     canPublishFactoryUpdate ||
     canOpenFactorySession ||
     app.canExport ||
@@ -249,6 +266,7 @@ export const AppCard = memo(function AppCard({
                 app={app}
                 canOpenFactorySession={canOpenFactorySession}
                 canPublishFactoryUpdate={canPublishFactoryUpdate}
+                communityDeveloper={communityDeveloper}
                 copy={copy}
               />
             ) : null}
@@ -292,9 +310,13 @@ export const AppCard = memo(function AppCard({
       <div className="mt-5 flex min-h-0 min-w-0 flex-1 flex-col p-1">
         <div className="min-w-0">
           <div className="flex min-w-0 items-baseline gap-2">
-            <h3 className="block min-w-0 truncate text-[15px] font-semibold leading-6 tracking-[0] text-[var(--text-primary)]">
+            <AppCardTextTooltip
+              as="h3"
+              className="block min-w-0 truncate text-[15px] font-semibold leading-6 tracking-[0] text-[var(--text-primary)]"
+              content={app.name}
+            >
               {app.name}
-            </h3>
+            </AppCardTextTooltip>
             {app.version ? (
               <span className="min-w-0 flex-none text-[11px] leading-4 text-[var(--text-tertiary)] opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
                 {copy.t("labels.version", { version: app.version })}
@@ -307,9 +329,13 @@ export const AppCard = memo(function AppCard({
             ) : null}
           </div>
           {app.description ? (
-            <p className="mt-2 line-clamp-3 text-[13px] font-normal leading-[1.3] text-[var(--text-secondary)]">
+            <AppCardTextTooltip
+              as="p"
+              className="mt-2 line-clamp-3 text-[13px] font-normal leading-[1.3] text-[var(--text-secondary)]"
+              content={app.description}
+            >
               {app.description}
-            </p>
+            </AppCardTextTooltip>
           ) : null}
         </div>
 
@@ -323,10 +349,114 @@ export const AppCard = memo(function AppCard({
             </p>
           </div>
         ) : null}
+
+        {showDeveloperSources ? (
+          <AppDeveloperSourceRow
+            actions={actions}
+            app={app}
+            copy={copy}
+            officialDeveloperIconUrl={officialDeveloperIconUrl}
+          />
+        ) : null}
       </div>
     </article>
   );
 });
+
+function AppCardTextTooltip({
+  as,
+  children,
+  className,
+  content
+}: {
+  readonly as: "h3" | "p";
+  readonly children: string;
+  readonly className: string;
+  readonly content: string;
+}): ReactElement {
+  const normalizedContent = content.trim();
+  const textRef = useRef<HTMLHeadingElement | HTMLParagraphElement | null>(
+    null
+  );
+  const [overflowing, setOverflowing] = useState(false);
+
+  useEffect(() => {
+    const element = textRef.current;
+    if (!element || !normalizedContent) {
+      setOverflowing(false);
+      return;
+    }
+
+    let frame = 0;
+    const measure = (): void => {
+      frame = 0;
+      setOverflowing(
+        element.scrollWidth - element.clientWidth > 1 ||
+          element.scrollHeight - element.clientHeight > 1
+      );
+    };
+    const queueMeasure = (): void => {
+      if (frame !== 0) {
+        window.cancelAnimationFrame(frame);
+      }
+      frame = window.requestAnimationFrame(measure);
+    };
+
+    queueMeasure();
+    window.addEventListener("resize", queueMeasure);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        window.removeEventListener("resize", queueMeasure);
+        if (frame !== 0) {
+          window.cancelAnimationFrame(frame);
+        }
+      };
+    }
+
+    const observer = new ResizeObserver(queueMeasure);
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", queueMeasure);
+      if (frame !== 0) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
+  }, [normalizedContent]);
+
+  const textElement =
+    as === "h3" ? (
+      <h3 ref={textRef} className={className}>
+        {children}
+      </h3>
+    ) : (
+      <p ref={textRef} className={className}>
+        {children}
+      </p>
+    );
+
+  if (!normalizedContent) {
+    return textElement;
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{textElement}</TooltipTrigger>
+        {overflowing ? (
+          <TooltipContent
+            className="max-w-[min(420px,calc(100vw-32px))] whitespace-normal text-left [overflow-wrap:anywhere]"
+            collisionPadding={12}
+          >
+            {normalizedContent}
+          </TooltipContent>
+        ) : null}
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 function createWorkspaceAppActionContext(
   app: WorkspaceAppCardViewModel
@@ -338,20 +468,303 @@ function createWorkspaceAppActionContext(
   };
 }
 
+function AppDeveloperSourceRow({
+  actions,
+  app,
+  copy,
+  officialDeveloperIconUrl
+}: {
+  readonly actions: AppCenterHostActions;
+  readonly app: WorkspaceAppCardViewModel;
+  readonly copy: AppCenterI18nRuntime;
+  readonly officialDeveloperIconUrl?: string | null;
+}): ReactElement | null {
+  const sourceAuthors = app.authors ?? [];
+  const repository = app.repository ?? null;
+  const authors =
+    sourceAuthors.length > 0
+      ? sourceAuthors
+      : app.sourceKind === "bundled"
+        ? [{ name: "Tutti" }]
+        : [];
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const clearCloseTimer = useCallback((): void => {
+    if (closeTimerRef.current === null) {
+      return;
+    }
+    window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
+  }, []);
+  const openPopover = useCallback((): void => {
+    clearCloseTimer();
+    setPopoverOpen(true);
+  }, [clearCloseTimer]);
+  const scheduleClosePopover = useCallback((): void => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setPopoverOpen(false);
+      closeTimerRef.current = null;
+    }, 120);
+  }, [clearCloseTimer]);
+  if (authors.length === 0 && repository === null) {
+    return null;
+  }
+
+  const primaryAuthor = authors[0] ?? null;
+  const rowLabel =
+    authors.length > 1
+      ? copy.t("sources.developerCount", { count: String(authors.length) })
+      : primaryAuthor?.name ||
+        (repository ? copy.t("sources.githubRepository") : "");
+  const official = isOfficialAuthor(primaryAuthor?.name);
+  const canOpenPopover =
+    repository !== null || authors.some((author) => Boolean(author.url));
+
+  const content = (
+    <div className="mt-auto min-w-0 pt-3">
+      <div className="group/source flex min-h-7 min-w-0 items-center gap-2 border-t border-[color:var(--line-2)] pt-2 text-[12px] leading-4 text-[var(--text-secondary)]">
+        <AvatarStack
+          authors={authors}
+          fallbackIconUrl={official ? officialDeveloperIconUrl : null}
+        />
+        <span className="min-w-0 flex-1 truncate">{rowLabel}</span>
+        {official ? (
+          <span className="shrink-0 rounded-[5px] border border-[color:var(--line-2)] px-1.5 py-0 text-[10px] font-medium leading-4 text-[var(--text-secondary)]">
+            {copy.t("sources.official")}
+          </span>
+        ) : null}
+        {canOpenPopover ? (
+          <span className="flex size-5 shrink-0 items-center justify-center text-[var(--text-secondary)]">
+            <GitHubBrandIcon className="size-4 group-hover/source:hidden" />
+            <span
+              aria-hidden="true"
+              className="hidden text-[18px] leading-none group-hover/source:block"
+            >
+              ›
+            </span>
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  if (!canOpenPopover) {
+    return content;
+  }
+
+  return (
+    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className="block w-full min-w-0 border-0 bg-transparent p-0 text-left"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          onPointerEnter={openPopover}
+          onPointerLeave={scheduleClosePopover}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          {content}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[280px] max-w-[min(280px,calc(100vw-32px))]"
+        collisionPadding={12}
+        side="bottom"
+        style={{ zIndex: "var(--z-panel-popover)" }}
+        onPointerEnter={openPopover}
+        onPointerLeave={scheduleClosePopover}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+        }}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <div className="px-2 py-1.5 text-[12px] font-semibold leading-4 text-[var(--text-primary)]">
+          {copy.t("sources.title")}
+        </div>
+        <div className="flex flex-col gap-[2px]">
+          {authors.map((author, index) => (
+            <button
+              className="flex min-h-8 min-w-0 items-center gap-2 rounded-[6px] px-2 py-1 text-left text-[12px] font-normal leading-4 text-[var(--text-primary)] hover:bg-[var(--transparency-hover)] disabled:cursor-default disabled:opacity-60"
+              disabled={!author.url}
+              key={`${author.name}:${author.url ?? ""}`}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                openExternalURL(actions, author.url);
+              }}
+            >
+              <AuthorAvatar
+                author={author}
+                fallbackIconUrl={
+                  index === 0 && isOfficialAuthor(author.name)
+                    ? officialDeveloperIconUrl
+                    : null
+                }
+              />
+              <span className="min-w-0 flex-1 truncate">{author.name}</span>
+            </button>
+          ))}
+          {repository ? (
+            <button
+              className="flex min-h-8 min-w-0 items-center gap-2 rounded-[6px] px-2 py-1 text-left text-[12px] font-normal leading-4 text-[var(--text-primary)] hover:bg-[var(--transparency-hover)]"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                openExternalURL(actions, repository.url);
+              }}
+            >
+              <GitHubBrandIcon className="size-4" />
+              <span className="min-w-0 flex-1 truncate">
+                {displayRepositoryURL(repository.url)}
+              </span>
+            </button>
+          ) : null}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function AvatarStack({
+  authors,
+  fallbackIconUrl
+}: {
+  readonly authors: readonly WorkspaceAppAuthorViewModel[];
+  readonly fallbackIconUrl?: string | null;
+}): ReactElement {
+  const visibleAuthors = authors.slice(0, 2);
+  if (visibleAuthors.length === 0) {
+    return (
+      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--transparency-block)]">
+        <GitHubBrandIcon className="size-3.5" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex shrink-0 -space-x-1">
+      {visibleAuthors.map((author, index) => (
+        <AuthorAvatar
+          author={author}
+          fallbackIconUrl={index === 0 ? fallbackIconUrl : null}
+          key={`${author.name}:${author.url ?? ""}`}
+        />
+      ))}
+    </span>
+  );
+}
+
+function AuthorAvatar({
+  author,
+  fallbackIconUrl
+}: {
+  readonly author: WorkspaceAppAuthorViewModel;
+  readonly fallbackIconUrl?: string | null;
+}): ReactElement {
+  if (author.avatarUrl) {
+    return (
+      <img
+        alt=""
+        className="size-5 shrink-0 rounded-full border border-[var(--background-fronted)] object-cover"
+        draggable={false}
+        src={author.avatarUrl}
+      />
+    );
+  }
+  if (fallbackIconUrl) {
+    return (
+      <img
+        alt=""
+        className="size-5 shrink-0 rounded-[5px] border border-[var(--background-fronted)] object-contain"
+        draggable={false}
+        src={fallbackIconUrl}
+      />
+    );
+  }
+  return (
+    <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-[var(--background-fronted)] bg-[var(--transparency-block)] text-[10px] font-semibold uppercase text-[var(--text-secondary)]">
+      {author.name.slice(0, 1)}
+    </span>
+  );
+}
+
+function isOfficialAuthor(name: string | null | undefined): boolean {
+  const normalized = name?.trim().toLowerCase() ?? "";
+  return normalized === "tutti" || normalized === "tutti official";
+}
+
+function displayRepositoryURL(url: string): string {
+  return url.replace(/^https?:\/\//u, "");
+}
+
+function openExternalURL(
+  actions: AppCenterHostActions,
+  url: string | null | undefined
+): void {
+  const target = url?.trim();
+  if (!target) {
+    return;
+  }
+  if (actions.openExternalUrl) {
+    void actions.openExternalUrl(target);
+    return;
+  }
+  window.open(target, "_blank", "noopener,noreferrer");
+}
+
 function AppCardMoreActions({
   actions,
   app,
   canOpenFactorySession,
   canPublishFactoryUpdate,
+  communityDeveloper,
   copy
 }: {
   readonly actions: AppCenterHostActions;
   readonly app: WorkspaceAppCardViewModel;
   readonly canOpenFactorySession: boolean;
   readonly canPublishFactoryUpdate: boolean;
+  readonly communityDeveloper: WorkspaceAppAuthorViewModel | null;
   readonly copy: AppCenterI18nRuntime;
 }): ReactElement {
   const menuItems: AppCenterActionMenuItem[] = [];
+
+  if (communityDeveloper) {
+    menuItems.push({
+      content: (
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0">{copy.t("sources.developer")}</span>
+          <AuthorAvatar author={communityDeveloper} />
+          <span className="min-w-0 flex-1 truncate">
+            {communityDeveloper.name}
+          </span>
+        </span>
+      ),
+      key: "developer",
+      label: copy.t("sources.developerMenuLabel", {
+        name: communityDeveloper.name
+      }),
+      onSelect: () => {
+        openExternalURL(actions, communityDeveloper.url);
+      }
+    });
+  }
 
   if (canPublishFactoryUpdate) {
     menuItems.push({
@@ -480,7 +893,8 @@ function AppCardMoreActions({
 
 interface AppCenterActionMenuItem {
   readonly attention?: boolean;
-  readonly icon: ReactElement;
+  readonly content?: ReactElement;
+  readonly icon?: ReactElement;
   readonly key: string;
   readonly label: string;
   readonly onSelect: () => void;
@@ -548,8 +962,12 @@ function AppCenterActionMenu({
                 item.onSelect();
               }}
             >
-              {item.icon}
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              {item.content ?? (
+                <>
+                  {item.icon}
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                </>
+              )}
               {item.attention ? (
                 <i
                   aria-hidden="true"
@@ -561,6 +979,19 @@ function AppCenterActionMenu({
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function resolveCommunityAppDeveloper(
+  app: WorkspaceAppCardViewModel
+): WorkspaceAppAuthorViewModel | null {
+  if (!isCommunityRecommendedApp(app.id)) {
+    return null;
+  }
+  return (
+    app.authors?.find(
+      (author) => author.name.trim() && Boolean(author.url?.trim())
+    ) ?? null
   );
 }
 

@@ -80,6 +80,8 @@ export interface PreferencesDesktopPreferencesV1 {
     hermes?: boolean;
     openclaw?: boolean;
   };
+  agentConversationDetailMode: "coding" | "general";
+  agentDockLayout: "legacySplit" | "unified";
   appCatalogChannel: "production" | "staging";
   browserUseConnectionMode?: "isolated" | "autoConnect";
   defaultAgentProvider:
@@ -98,6 +100,7 @@ export interface PreferencesDesktopPreferencesV1 {
   locale: "en" | "zh-CN";
   minimizeAnimation: "scale" | "genie" | "off";
   sleepPreventionMode: "never" | "whileAgentRunning" | "always";
+  showAppDeveloperSources: boolean;
   themeSource: "system" | "dark" | "light";
   updateChannel: "stable" | "rc";
   updatePolicy: "off" | "prompt" | "auto";
@@ -139,6 +142,12 @@ export interface WorkspaceWorkspaceAppV1 {
   displayName: string;
   version: string;
   description: string;
+  authors: readonly {
+    name: string;
+    url?: string | null;
+    avatarUrl?: string | null;
+  }[];
+  repository: Record<string, unknown> | null;
   iconUrl: string | null;
   installed: boolean;
   enabled: boolean;
@@ -184,6 +193,7 @@ export type AgentActivityUpdatedPayloadV1 =
       data: {
         workspaceId: string;
         agentSessionId: string;
+        agentTargetId?: string;
         eventType: "session_update";
         lastEventUnixMs: number;
       };
@@ -238,6 +248,7 @@ export type AgentActivityUpdatedPayloadV1 =
         lastEventUnixMs: number;
         occurredAtUnixMs?: number;
         provider?: string;
+        agentTargetId?: string;
         providerSessionId?: string;
         model?: string;
         cwd?: string;

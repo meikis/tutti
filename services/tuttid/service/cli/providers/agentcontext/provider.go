@@ -6,6 +6,7 @@ import (
 
 	"github.com/tutti-os/tutti/services/tuttid/biz/agentgui"
 	agentproviderbiz "github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
+	agenttargetbiz "github.com/tutti-os/tutti/services/tuttid/biz/agenttarget"
 	preferencesbiz "github.com/tutti-os/tutti/services/tuttid/biz/preferences"
 	agentservice "github.com/tutti-os/tutti/services/tuttid/service/agent"
 	cliservice "github.com/tutti-os/tutti/services/tuttid/service/cli"
@@ -28,6 +29,7 @@ type AgentSessions interface {
 	ListActivePeers(context.Context, string) (agentservice.ActivePeers, error)
 	ListMessages(context.Context, string, string, agentservice.ListMessagesInput) (agentservice.SessionMessagesPage, error)
 	ListProviderAvailability(context.Context, agentservice.ProviderAvailabilityInput) ([]agentservice.ProviderAvailability, error)
+	LocalAttachmentPath(context.Context, string, string, string, string) (string, error)
 	SendInput(context.Context, string, string, agentservice.SendInput) (agentservice.SendInputResult, error)
 }
 
@@ -78,22 +80,24 @@ func (p Provider) Commands() []cliservice.Command {
 		p.newComposerOptionsCommand(),
 		p.newSkillBundleCommand(),
 		p.newProviderStartCommand(providerStartCommandSpec{
-			AppID:       codexAgentAppID,
-			AppName:     "Codex",
-			CommandID:   appID + ".codex.start",
-			Description: "Start a Codex agent session in the current workspace. Use --show to request AgentGUI activation.",
-			Path:        []string{"codex", "start"},
-			Provider:    agentproviderbiz.Codex,
-			Summary:     "Start a Codex agent session",
+			AppID:         codexAgentAppID,
+			AppName:       "Codex",
+			CommandID:     appID + ".codex.start",
+			Description:   "Start a Codex agent session in the current workspace. Use --show to request AgentGUI activation.",
+			Path:          []string{"codex", "start"},
+			Provider:      agentproviderbiz.Codex,
+			AgentTargetID: agenttargetbiz.IDLocalCodex,
+			Summary:       "Start a Codex agent session",
 		}),
 		p.newProviderStartCommand(providerStartCommandSpec{
-			AppID:       claudeCodeAgentAppID,
-			AppName:     "Claude Code",
-			CommandID:   appID + ".claude.start",
-			Description: "Start a Claude Code agent session in the current workspace. Use --show to request AgentGUI activation.",
-			Path:        []string{"claude", "start"},
-			Provider:    agentproviderbiz.ClaudeCode,
-			Summary:     "Start a Claude Code agent session",
+			AppID:         claudeCodeAgentAppID,
+			AppName:       "Claude Code",
+			CommandID:     appID + ".claude.start",
+			Description:   "Start a Claude Code agent session in the current workspace. Use --show to request AgentGUI activation.",
+			Path:          []string{"claude", "start"},
+			Provider:      agentproviderbiz.ClaudeCode,
+			AgentTargetID: agenttargetbiz.IDLocalClaudeCode,
+			Summary:       "Start a Claude Code agent session",
 		}),
 		p.newStartCommand(),
 		p.newGetCommand(),
@@ -102,6 +106,7 @@ func (p Provider) Commands() []cliservice.Command {
 		p.newCancelCommand(),
 		p.newSessionsCommand([]string{"agent", "sessions"}, appID+".agent.sessions"),
 		p.newSessionSummaryCommand(),
+		p.newTurnResourcesCommand(),
 		p.newActivePeersCommand(),
 	}
 }

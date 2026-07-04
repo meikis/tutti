@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -137,7 +138,7 @@ func (s *SQLiteStore) GetSession(
 		return agentactivitybiz.Session{}, false, nil
 	}
 	row := s.db.QueryRowContext(ctx, `
-SELECT workspace_id, agent_session_id, origin, provider, provider_session_id, model,
+SELECT workspace_id, agent_session_id, origin, agent_target_id, provider, provider_session_id, model,
        settings_json, runtime_context_json, cwd,
        title, status, current_phase, last_error, message_version, last_event_at_unix_ms,
        started_at_unix_ms, ended_at_unix_ms, pinned_at_unix_ms,
@@ -167,7 +168,7 @@ func (s *SQLiteStore) ListSessions(
 		return nil, false, nil
 	}
 	rows, err := s.db.QueryContext(ctx, `
-SELECT workspace_id, agent_session_id, origin, provider, provider_session_id, model,
+SELECT workspace_id, agent_session_id, origin, agent_target_id, provider, provider_session_id, model,
        settings_json, runtime_context_json, cwd,
        title, status, current_phase, last_error, message_version, last_event_at_unix_ms,
        started_at_unix_ms, ended_at_unix_ms, pinned_at_unix_ms,
@@ -403,6 +404,13 @@ func (s *SQLiteStore) ListSessionMessages(
 	if queryLimit > 0 {
 		queryLimit++
 	}
+	turnID := strings.TrimSpace(input.TurnID)
+	where := []string{"workspace_id = ?", "agent_session_id = ?", "deleted_at_unix_ms = 0"}
+	args := []any{workspaceID, agentSessionID}
+	if turnID != "" {
+		where = append(where, "turn_id = ?")
+		args = append(args, turnID)
+	}
 	order := input.Order
 	if order == "" {
 		order = agentactivitybiz.MessageOrderAsc
@@ -412,42 +420,56 @@ func (s *SQLiteStore) ListSessionMessages(
 	switch order {
 	case agentactivitybiz.MessageOrderDesc:
 		if input.BeforeVersion > 0 {
+			whereWithCursor := append(append([]string{}, where...), "version < ?")
+			argsWithCursor := append(append([]any{}, args...), input.BeforeVersion, queryLimit)
 			rows, err = s.db.QueryContext(ctx, `
 SELECT id, agent_session_id, message_id, version, turn_id, role, kind, status,
        payload_json, occurred_at_unix_ms, started_at_unix_ms, completed_at_unix_ms,
        created_at_unix_ms, updated_at_unix_ms
 FROM workspace_agent_messages
-WHERE workspace_id = ? AND agent_session_id = ? AND deleted_at_unix_ms = 0
-  AND version < ?
+WHERE `+strings.Join(whereWithCursor, " AND ")+`
 ORDER BY version DESC, id DESC
 LIMIT ?
-`, workspaceID, agentSessionID, input.BeforeVersion, queryLimit)
+`, argsWithCursor...)
 		} else {
+			argsWithLimit := append(append([]any{}, args...), queryLimit)
 			rows, err = s.db.QueryContext(ctx, `
 SELECT id, agent_session_id, message_id, version, turn_id, role, kind, status,
        payload_json, occurred_at_unix_ms, started_at_unix_ms, completed_at_unix_ms,
        created_at_unix_ms, updated_at_unix_ms
 FROM workspace_agent_messages
-WHERE workspace_id = ? AND agent_session_id = ? AND deleted_at_unix_ms = 0
+WHERE `+strings.Join(where, " AND ")+`
 ORDER BY version DESC, id DESC
 LIMIT ?
-`, workspaceID, agentSessionID, queryLimit)
+`, argsWithLimit...)
 		}
 	case agentactivitybiz.MessageOrderAsc:
+		whereWithCursor := append(append([]string{}, where...), "version > ?")
+		argsWithCursor := append(append([]any{}, args...), input.AfterVersion, queryLimit)
 		rows, err = s.db.QueryContext(ctx, `
 SELECT id, agent_session_id, message_id, version, turn_id, role, kind, status,
        payload_json, occurred_at_unix_ms, started_at_unix_ms, completed_at_unix_ms,
        created_at_unix_ms, updated_at_unix_ms
 FROM workspace_agent_messages
-WHERE workspace_id = ? AND agent_session_id = ? AND deleted_at_unix_ms = 0
-  AND version > ?
+WHERE `+strings.Join(whereWithCursor, " AND ")+`
 ORDER BY version ASC, id ASC
 LIMIT ?
-`, workspaceID, agentSessionID, input.AfterVersion, queryLimit)
+`, argsWithCursor...)
 	default:
 		return agentactivitybiz.MessagePage{}, false, fmt.Errorf("unsupported workspace agent message order: %s", order)
 	}
 	if err != nil {
+		slog.Warn("workspace agent messages query failed",
+			"event", "workspace.agent_session.messages.sqlite.query_failed",
+			"workspace_id", workspaceID,
+			"agent_session_id", agentSessionID,
+			"after_version", input.AfterVersion,
+			"before_version", input.BeforeVersion,
+			"order", order,
+			"limit", input.Limit,
+			"query_limit", queryLimit,
+			"error", err,
+		)
 		return agentactivitybiz.MessagePage{}, false, fmt.Errorf("list workspace agent messages: %w", err)
 	}
 	defer rows.Close()
@@ -456,11 +478,35 @@ LIMIT ?
 	for rows.Next() {
 		message, err := scanAgentMessage(rows)
 		if err != nil {
+			slog.Warn("workspace agent message row scan failed",
+				"event", "workspace.agent_session.messages.sqlite.scan_failed",
+				"workspace_id", workspaceID,
+				"agent_session_id", agentSessionID,
+				"after_version", input.AfterVersion,
+				"before_version", input.BeforeVersion,
+				"order", order,
+				"limit", input.Limit,
+				"query_limit", queryLimit,
+				"scanned_message_count", len(messages),
+				"error", err,
+			)
 			return agentactivitybiz.MessagePage{}, false, err
 		}
 		messages = append(messages, message)
 	}
 	if err := rows.Err(); err != nil {
+		slog.Warn("workspace agent messages row iteration failed",
+			"event", "workspace.agent_session.messages.sqlite.iterate_failed",
+			"workspace_id", workspaceID,
+			"agent_session_id", agentSessionID,
+			"after_version", input.AfterVersion,
+			"before_version", input.BeforeVersion,
+			"order", order,
+			"limit", input.Limit,
+			"query_limit", queryLimit,
+			"scanned_message_count", len(messages),
+			"error", err,
+		)
 		return agentactivitybiz.MessagePage{}, false, fmt.Errorf("iterate workspace agent messages: %w", err)
 	}
 	hasMore := false
@@ -533,6 +579,7 @@ func upsertAgentSessionTx(
 			WorkspaceID:       workspaceID,
 			AgentSessionID:    agentSessionID,
 			Origin:            input.Origin,
+			AgentTargetID:     input.AgentTargetID,
 			Provider:          input.Provider,
 			ProviderSessionID: input.ProviderSessionID,
 			Model:             input.Model,
@@ -561,21 +608,38 @@ func upsertAgentSessionTx(
 	if err != nil {
 		return false, false, 0, agentactivitybiz.Session{}, err
 	}
+	railSection, err := resolveAgentSessionRailSectionTx(
+		ctx,
+		tx,
+		workspaceID,
+		agentSessionID,
+		hasExisting,
+		existing.CWD,
+		session.CWD,
+		session.RuntimeContext,
+	)
+	if err != nil {
+		return false, false, 0, agentactivitybiz.Session{}, err
+	}
 	result, err := tx.ExecContext(ctx, `
 INSERT INTO workspace_agent_sessions (
-  workspace_id, agent_session_id, origin, provider, provider_session_id, model,
-  settings_json, runtime_context_json, cwd,
+  workspace_id, agent_session_id, origin, agent_target_id, provider, provider_session_id, model,
+  settings_json, runtime_context_json, cwd, rail_section_kind, rail_project_path, rail_section_key,
   title, status, current_phase, last_error, last_event_at_unix_ms, started_at_unix_ms,
   ended_at_unix_ms, created_at_unix_ms, updated_at_unix_ms
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(workspace_id, agent_session_id) DO UPDATE SET
   origin = excluded.origin,
+  agent_target_id = excluded.agent_target_id,
   provider = excluded.provider,
   provider_session_id = excluded.provider_session_id,
   model = excluded.model,
   settings_json = excluded.settings_json,
   runtime_context_json = excluded.runtime_context_json,
   cwd = excluded.cwd,
+  rail_section_kind = excluded.rail_section_kind,
+  rail_project_path = excluded.rail_project_path,
+  rail_section_key = excluded.rail_section_key,
   title = excluded.title,
   status = excluded.status,
   current_phase = excluded.current_phase,
@@ -586,9 +650,9 @@ ON CONFLICT(workspace_id, agent_session_id) DO UPDATE SET
   deleted_at_unix_ms = 0,
   updated_at_unix_ms = excluded.updated_at_unix_ms
 WHERE workspace_agent_sessions.deleted_at_unix_ms = 0
-	`, session.WorkspaceID, session.AgentSessionID, session.Origin, session.Provider,
+`, session.WorkspaceID, session.AgentSessionID, session.Origin, nullString(session.AgentTargetID), session.Provider,
 		session.ProviderSessionID, session.Model, settingsJSON, runtimeContextJSON,
-		session.CWD, session.Title,
+		session.CWD, railSection.Kind, railSection.ProjectPath, railSection.Key, session.Title,
 		session.Status, session.CurrentPhase, session.LastError, session.LastEventUnixMS,
 		session.StartedAtUnixMS, session.EndedAtUnixMS, session.CreatedAtUnixMS,
 		session.UpdatedAtUnixMS)
@@ -609,7 +673,7 @@ func getAgentSessionForUpdate(
 	agentSessionID string,
 ) (agentactivityprojection.SessionSnapshot, bool, error) {
 	row := tx.QueryRowContext(ctx, `
-SELECT workspace_id, agent_session_id, origin, provider, provider_session_id, model,
+SELECT workspace_id, agent_session_id, origin, agent_target_id, provider, provider_session_id, model,
        settings_json, runtime_context_json, cwd,
        title, status, current_phase, last_error, message_version, last_event_at_unix_ms,
        started_at_unix_ms, ended_at_unix_ms, created_at_unix_ms, updated_at_unix_ms,
@@ -618,12 +682,14 @@ FROM workspace_agent_sessions
 WHERE workspace_id = ? AND agent_session_id = ?
 `, workspaceID, agentSessionID)
 	var session agentactivityprojection.SessionSnapshot
+	var agentTargetID sql.NullString
 	var settingsJSON string
 	var runtimeContextJSON string
 	err := row.Scan(
 		&session.WorkspaceID,
 		&session.AgentSessionID,
 		&session.Origin,
+		&agentTargetID,
 		&session.Provider,
 		&session.ProviderSessionID,
 		&session.Model,
@@ -651,6 +717,7 @@ WHERE workspace_id = ? AND agent_session_id = ?
 	if session.Settings, err = unmarshalJSONMap(settingsJSON); err != nil {
 		return agentactivityprojection.SessionSnapshot{}, false, fmt.Errorf("decode workspace agent session settings: %w", err)
 	}
+	session.AgentTargetID = strings.TrimSpace(agentTargetID.String)
 	if session.RuntimeContext, err = unmarshalJSONMap(runtimeContextJSON); err != nil {
 		return agentactivityprojection.SessionSnapshot{}, false, fmt.Errorf("decode workspace agent session runtime context: %w", err)
 	}
@@ -663,12 +730,14 @@ type rowScanner interface {
 
 func scanAgentSession(scanner rowScanner) (agentactivitybiz.Session, error) {
 	var session agentactivitybiz.Session
+	var agentTargetID sql.NullString
 	var settingsJSON string
 	var runtimeContextJSON string
 	err := scanner.Scan(
 		&session.WorkspaceID,
 		&session.ID,
 		&session.Origin,
+		&agentTargetID,
 		&session.Provider,
 		&session.ProviderSessionID,
 		&session.Model,
@@ -693,10 +762,19 @@ func scanAgentSession(scanner rowScanner) (agentactivitybiz.Session, error) {
 	if session.Settings, err = unmarshalJSONMap(settingsJSON); err != nil {
 		return agentactivitybiz.Session{}, fmt.Errorf("decode workspace agent session settings: %w", err)
 	}
+	session.AgentTargetID = strings.TrimSpace(agentTargetID.String)
 	if session.RuntimeContext, err = unmarshalJSONMap(runtimeContextJSON); err != nil {
 		return agentactivitybiz.Session{}, fmt.Errorf("decode workspace agent session runtime context: %w", err)
 	}
 	return session, nil
+}
+
+func nullString(value string) sql.NullString {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: value, Valid: true}
 }
 
 func marshalJSONMap(payload map[string]any) (string, error) {

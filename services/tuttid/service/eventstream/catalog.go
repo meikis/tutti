@@ -24,21 +24,8 @@ const (
 	TopicWorkspaceWorkbenchNodeLaunchRequested = "workspace.workbench.node.launch.requested"
 )
 
-type Direction string
-
-const (
-	DirectionClientToServer Direction = "client->server"
-	DirectionServerToClient Direction = "server->client"
-)
-
-type ValidationCode string
-
-const (
-	ValidationCodeInvalidDirection ValidationCode = "invalid_direction"
-	ValidationCodeInvalidPayload   ValidationCode = "invalid_payload"
-	ValidationCodeInvalidTopic     ValidationCode = "invalid_topic"
-)
-
+// Direction, ValidationCode and ValidationError now live in stream-go and are
+// re-exported as aliases from service.go; PayloadValidator stays catalog-local.
 type PayloadValidator func([]byte) error
 
 type TopicDefinition struct {
@@ -76,6 +63,7 @@ func (d TopicDefinition) validatePayload(direction Direction, payload []byte) er
 type Catalog interface {
 	Topic(topic string) (TopicDefinition, bool)
 	Topics() []TopicDefinition
+	TopicVersion(topic string) (int, bool)
 	ValidatePublish(topic string, direction Direction, payload []byte) error
 	ValidateSubscription(topic string) error
 }
@@ -183,6 +171,14 @@ func (c StaticCatalog) Topic(topic string) (TopicDefinition, bool) {
 	return definition, ok
 }
 
+func (c StaticCatalog) TopicVersion(topic string) (int, bool) {
+	definition, ok := c.Topic(topic)
+	if !ok {
+		return 0, false
+	}
+	return definition.Version, true
+}
+
 func (c StaticCatalog) Topics() []TopicDefinition {
 	topics := make([]TopicDefinition, 0, len(c.topics))
 	for _, definition := range c.topics {
@@ -242,20 +238,6 @@ func (c StaticCatalog) ValidateSubscription(topic string) error {
 	return nil
 }
 
-type ValidationError struct {
-	Code      ValidationCode
-	Message   string
-	Topic     string
-	Direction Direction
-}
-
-func (e *ValidationError) Error() string {
-	if e == nil {
-		return ""
-	}
-	return e.Message
-}
-
 type analyticsDebugReportedPayload struct {
 	Events []analyticsDebugReportedEventPayload `json:"events"`
 }
@@ -269,6 +251,7 @@ type analyticsDebugReportedEventPayload struct {
 type agentActivityUpdatedPayload struct {
 	WorkspaceID    string          `json:"workspaceId"`
 	AgentSessionID string          `json:"agentSessionId"`
+	AgentTargetID  string          `json:"agentTargetId,omitempty"`
 	EventType      string          `json:"eventType"`
 	Data           json.RawMessage `json:"data"`
 }
@@ -281,6 +264,7 @@ type agentActivityUpdatedDataHeader struct {
 
 type agentActivitySessionUpdateData struct {
 	agentActivityUpdatedDataHeader
+	AgentTargetID   string `json:"agentTargetId,omitempty"`
 	LastEventUnixMS *int64 `json:"lastEventUnixMs"`
 }
 
@@ -318,6 +302,7 @@ type agentActivityStatePatchData struct {
 	LastEventUnixMS  *int64                      `json:"lastEventUnixMs"`
 	OccurredAtUnixMS *int64                      `json:"occurredAtUnixMs,omitempty"`
 	Provider         string                      `json:"provider,omitempty"`
+	AgentTargetID    string                      `json:"agentTargetId,omitempty"`
 	ProviderSession  string                      `json:"providerSessionId,omitempty"`
 	Model            string                      `json:"model,omitempty"`
 	CWD              string                      `json:"cwd,omitempty"`
@@ -392,6 +377,12 @@ func validateDesktopPreferencesUpdateRequestedPayload(payload []byte) error {
 	}
 	if !preferencesbiz.IsDesktopDockPlacement(decoded.DockPlacement) {
 		return fmt.Errorf("preferences.dockPlacement is unsupported")
+	}
+	if strings.TrimSpace(decoded.AgentDockLayout) == "" {
+		return fmt.Errorf("preferences.agentDockLayout is required")
+	}
+	if !preferencesbiz.IsDesktopAgentDockLayout(strings.TrimSpace(decoded.AgentDockLayout)) {
+		return fmt.Errorf("preferences.agentDockLayout is unsupported")
 	}
 	if decoded.AppCatalogChannel == "" {
 		return fmt.Errorf("preferences.appCatalogChannel is required")
@@ -472,6 +463,18 @@ func validateDesktopPreferencesUpdatedPayload(payload []byte) error {
 	}
 	if !preferencesbiz.IsDesktopDockPlacement(decoded.Preferences.DockPlacement) {
 		return fmt.Errorf("preferences.dockPlacement is unsupported")
+	}
+	if decoded.Preferences.AgentConversationDetailMode == "" {
+		return fmt.Errorf("preferences.agentConversationDetailMode is required")
+	}
+	if !preferencesbiz.IsDesktopAgentConversationDetailMode(decoded.Preferences.AgentConversationDetailMode) {
+		return fmt.Errorf("preferences.agentConversationDetailMode is unsupported")
+	}
+	if strings.TrimSpace(decoded.Preferences.AgentDockLayout) == "" {
+		return fmt.Errorf("preferences.agentDockLayout is required")
+	}
+	if !preferencesbiz.IsDesktopAgentDockLayout(strings.TrimSpace(decoded.Preferences.AgentDockLayout)) {
+		return fmt.Errorf("preferences.agentDockLayout is unsupported")
 	}
 	if decoded.Preferences.AppCatalogChannel == "" {
 		return fmt.Errorf("preferences.appCatalogChannel is required")

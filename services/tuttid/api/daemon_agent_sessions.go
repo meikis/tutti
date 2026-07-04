@@ -2,19 +2,23 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	tuttigenerated "github.com/tutti-os/tutti/services/tuttid/api/generated"
 	"github.com/tutti-os/tutti/services/tuttid/apierrors"
 	agentactivitybiz "github.com/tutti-os/tutti/services/tuttid/biz/agentactivity"
 	agentproviderbiz "github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
+	preferencesbiz "github.com/tutti-os/tutti/services/tuttid/biz/preferences"
 	agentservice "github.com/tutti-os/tutti/services/tuttid/service/agent"
 )
 
 type AgentSessionService interface {
 	List(context.Context, string) ([]agentservice.Session, error)
 	ListFiltered(context.Context, string, agentservice.ListSessionsInput) ([]agentservice.Session, error)
+	ListSessionSections(context.Context, string, agentservice.ListSessionSectionsInput) (agentservice.SessionSectionsPage, error)
+	ListSessionSectionPage(context.Context, string, agentservice.ListSessionSectionPageInput) (agentservice.SessionSection, error)
 	GetComposerOptions(context.Context, agentservice.ComposerOptionsInput) (agentservice.ComposerOptions, error)
 	ListGeneratedFiles(context.Context, string, agentservice.ListGeneratedFilesInput) (agentservice.GeneratedFileList, error)
 	ListMessages(context.Context, string, string, agentservice.ListMessagesInput) (agentservice.SessionMessagesPage, error)
@@ -26,53 +30,17 @@ type AgentSessionService interface {
 	ReadAttachment(context.Context, string, string, string) (agentservice.PromptAttachment, error)
 	ListGitBranches(context.Context, string, string) (agentservice.GitBranches, error)
 	ListGitBranchesForPath(context.Context, string, string) (agentservice.GitBranches, error)
+	ResolveGitPatchSupportForPath(context.Context, string, string) (agentservice.GitPatchSupport, error)
+	ApplyGitPatchForPath(context.Context, string, agentservice.ApplyGitPatchInput) (agentservice.ApplyGitPatchResult, error)
 	Clear(context.Context, string) (agentservice.ClearSessionsResult, error)
 	Delete(context.Context, string, string) (bool, error)
 	Cancel(context.Context, string, string) (agentservice.CancelSessionResult, error)
+	GoalControl(ctx context.Context, workspaceID string, agentSessionID string, action string, objective string) (agentservice.GoalControlSessionResult, error)
 	SendInput(context.Context, string, string, agentservice.SendInput) (agentservice.SendInputResult, error)
 	UpdatePin(context.Context, string, string, bool) (agentservice.Session, error)
 	UpdateVisible(context.Context, string, string, bool) (agentservice.Session, error)
 	UpdateSettings(context.Context, string, string, agentservice.ComposerSettingsPatch) (agentservice.Session, error)
 	SubmitInteractive(context.Context, string, string, string, agentservice.SubmitInteractiveInput) (agentservice.Session, error)
-}
-
-const listWorkspaceAgentSessionsLimitMax = 100
-
-func agentSessionServiceUnavailableError() tuttigenerated.ServiceUnavailableErrorJSONResponse {
-	return serviceUnavailableError(
-		apierrors.WorkspaceAgentSessionServiceUnavailable(
-			apierrors.WithDeveloperMessage("workspace agent session service is unavailable"),
-		),
-	)
-}
-
-func (api DaemonAPI) ListWorkspaceAgentSessions(ctx context.Context, request tuttigenerated.ListWorkspaceAgentSessionsRequestObject) (tuttigenerated.ListWorkspaceAgentSessionsResponseObject, error) {
-	if api.AgentSessionService == nil {
-		return tuttigenerated.ListWorkspaceAgentSessions503JSONResponse{
-			ServiceUnavailableErrorJSONResponse: agentSessionServiceUnavailableError(),
-		}, nil
-	}
-	input := agentservice.ListSessionsInput{}
-	if request.Params.SearchQuery != nil {
-		input.SearchQuery = strings.TrimSpace(*request.Params.SearchQuery)
-	}
-	if request.Params.Limit != nil {
-		if *request.Params.Limit <= 0 || *request.Params.Limit > listWorkspaceAgentSessionsLimitMax {
-			return writeListWorkspaceAgentSessionsError(agentservice.ErrInvalidArgument), nil
-		}
-		input.Limit = int(*request.Params.Limit)
-	}
-	if request.Params.VisibleOnly != nil {
-		input.VisibleOnly = *request.Params.VisibleOnly
-	}
-	sessions, err := api.AgentSessionService.ListFiltered(ctx, string(request.WorkspaceID), input)
-	if err != nil {
-		return writeListWorkspaceAgentSessionsError(err), nil
-	}
-	return tuttigenerated.ListWorkspaceAgentSessions200JSONResponse{
-		Sessions:    generatedAgentSessions(sessions),
-		WorkspaceId: string(request.WorkspaceID),
-	}, nil
 }
 
 func (api DaemonAPI) ClearWorkspaceAgentSessions(ctx context.Context, request tuttigenerated.ClearWorkspaceAgentSessionsRequestObject) (tuttigenerated.ClearWorkspaceAgentSessionsResponseObject, error) {
@@ -158,6 +126,9 @@ func (api DaemonAPI) ListWorkspaceAgentSessionMessages(ctx context.Context, requ
 			ServiceUnavailableErrorJSONResponse: agentSessionServiceUnavailableError(),
 		}, nil
 	}
+	startedAt := time.Now()
+	workspaceID := string(request.WorkspaceID)
+	agentSessionID := string(request.AgentSessionID)
 	input := agentservice.ListMessagesInput{}
 	if request.Params.AfterVersion != nil {
 		if *request.Params.AfterVersion < 0 {
@@ -187,19 +158,72 @@ func (api DaemonAPI) ListWorkspaceAgentSessionMessages(ctx context.Context, requ
 		}
 		input.Limit = *request.Params.Limit
 	}
+	slog.Info("workspace agent session messages list requested",
+		"event", "workspace.agent_session.messages.api.list_requested",
+		"workspace_id", workspaceID,
+		"agent_session_id", agentSessionID,
+		"after_version", input.AfterVersion,
+		"before_version", input.BeforeVersion,
+		"order", input.Order,
+		"limit", input.Limit,
+	)
 	page, err := api.AgentSessionService.ListMessages(
 		ctx,
-		string(request.WorkspaceID),
-		string(request.AgentSessionID),
+		workspaceID,
+		agentSessionID,
 		input,
 	)
 	if err != nil {
+		slog.Warn("workspace agent session messages list failed",
+			"event", "workspace.agent_session.messages.api.list_failed",
+			"workspace_id", workspaceID,
+			"agent_session_id", agentSessionID,
+			"after_version", input.AfterVersion,
+			"before_version", input.BeforeVersion,
+			"order", input.Order,
+			"limit", input.Limit,
+			"duration_ms", time.Since(startedAt).Milliseconds(),
+			"error", err,
+		)
 		return writeListWorkspaceAgentSessionMessagesError(err), nil
 	}
 	messages, err := generatedAgentSessionMessages(page.Messages)
 	if err != nil {
+		firstVersion, lastVersion := agentSessionMessageVersionRange(page.Messages)
+		slog.Warn("workspace agent session messages response transform failed",
+			"event", "workspace.agent_session.messages.api.transform_failed",
+			"workspace_id", workspaceID,
+			"agent_session_id", agentSessionID,
+			"after_version", input.AfterVersion,
+			"before_version", input.BeforeVersion,
+			"order", input.Order,
+			"limit", input.Limit,
+			"message_count", len(page.Messages),
+			"first_version", firstVersion,
+			"last_version", lastVersion,
+			"latest_version", page.LatestVersion,
+			"has_more", page.HasMore,
+			"duration_ms", time.Since(startedAt).Milliseconds(),
+			"error", err,
+		)
 		return writeListWorkspaceAgentSessionMessagesError(err), nil
 	}
+	firstVersion, lastVersion := generatedAgentSessionMessageVersionRange(messages)
+	slog.Info("workspace agent session messages list completed",
+		"event", "workspace.agent_session.messages.api.list_completed",
+		"workspace_id", workspaceID,
+		"agent_session_id", agentSessionID,
+		"after_version", input.AfterVersion,
+		"before_version", input.BeforeVersion,
+		"order", input.Order,
+		"limit", input.Limit,
+		"message_count", len(messages),
+		"first_version", firstVersion,
+		"last_version", lastVersion,
+		"latest_version", page.LatestVersion,
+		"has_more", page.HasMore,
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+	)
 	return tuttigenerated.ListWorkspaceAgentSessionMessages200JSONResponse{
 		AgentSessionId: page.AgentSessionID,
 		HasMore:        page.HasMore,
@@ -428,6 +452,33 @@ func generatedAgentSessions(sessions []agentservice.Session) []tuttigenerated.Wo
 	return result
 }
 
+func generatedAgentSessionSections(sections []agentservice.SessionSection) []tuttigenerated.WorkspaceAgentSessionSection {
+	result := make([]tuttigenerated.WorkspaceAgentSessionSection, 0, len(sections))
+	for _, section := range sections {
+		result = append(result, generatedAgentSessionSection(section))
+	}
+	return result
+}
+
+func generatedAgentSessionSection(section agentservice.SessionSection) tuttigenerated.WorkspaceAgentSessionSection {
+	var userProject *tuttigenerated.UserProject
+	if section.UserProject != nil {
+		value := generatedUserProject(*section.UserProject)
+		userProject = &value
+	}
+	response := tuttigenerated.WorkspaceAgentSessionSection{
+		HasMore:     section.HasMore,
+		Kind:        tuttigenerated.WorkspaceAgentSessionSectionKind(section.Kind),
+		SectionKey:  section.SectionKey,
+		Sessions:    generatedAgentSessions(section.Sessions),
+		UserProject: userProject,
+	}
+	if strings.TrimSpace(section.NextCursor) != "" {
+		response.NextCursor = &section.NextCursor
+	}
+	return response
+}
+
 func composerSettingsFromGenerated(settings tuttigenerated.AgentSessionComposerSettings) agentservice.ComposerSettings {
 	return agentservice.ComposerSettings{
 		Model:            optionalStringValue(settings.Model),
@@ -464,6 +515,17 @@ func (api DaemonAPI) composerDefaultLocale(ctx context.Context) string {
 		return ""
 	}
 	return preferences.Locale
+}
+
+func (api DaemonAPI) agentConversationDetailMode(ctx context.Context) string {
+	if api.PreferencesService == nil {
+		return preferencesbiz.DefaultDesktopAgentConversationDetailMode
+	}
+	preferences, err := api.PreferencesService.Get(ctx)
+	if err != nil {
+		return preferencesbiz.DefaultDesktopAgentConversationDetailMode
+	}
+	return preferencesbiz.NormalizeDesktopAgentConversationDetailMode(preferences.AgentConversationDetailMode)
 }
 
 func mergeComposerSettings(base agentservice.ComposerSettings, override agentservice.ComposerSettings) agentservice.ComposerSettings {
@@ -571,61 +633,6 @@ func optionalStringPointer(value string) *string {
 	return &value
 }
 
-func generatedAgentSessionMessages(messages []agentservice.SessionMessage) ([]tuttigenerated.WorkspaceAgentSessionMessage, error) {
-	result := make([]tuttigenerated.WorkspaceAgentSessionMessage, 0, len(messages))
-	for _, message := range messages {
-		turnID := strings.TrimSpace(message.TurnID)
-		if turnID == "" {
-			messageID := strings.TrimSpace(message.MessageID)
-			if messageID == "" {
-				messageID = fmt.Sprintf("id:%d", message.ID)
-			}
-			return nil, apierrors.WorkspaceOperationFailed(
-				apierrors.WithDeveloperMessage(fmt.Sprintf("workspace agent session message %q is missing turnId", messageID)),
-			)
-		}
-		result = append(result, tuttigenerated.WorkspaceAgentSessionMessage{
-			AgentSessionId:    strings.TrimSpace(message.AgentSessionID),
-			CompletedAtUnixMs: int64Pointer(message.CompletedAtUnixMS),
-			CreatedAtUnixMs:   int64Pointer(message.CreatedAtUnixMS),
-			Id:                int64(message.ID),
-			Kind:              strings.TrimSpace(message.Kind),
-			MessageId:         strings.TrimSpace(message.MessageID),
-			OccurredAtUnixMs:  normalizedGeneratedMessageOccurredAtUnixMS(message),
-			Payload:           clonePayloadPointer(message.Payload),
-			Role:              strings.TrimSpace(message.Role),
-			StartedAtUnixMs:   int64Pointer(message.StartedAtUnixMS),
-			Status:            stringPointer(strings.TrimSpace(message.Status)),
-			TurnId:            turnID,
-			UpdatedAtUnixMs:   int64Pointer(message.UpdatedAtUnixMS),
-			Version:           int64(message.Version),
-		})
-	}
-	return result, nil
-}
-
-func normalizedGeneratedMessageOccurredAtUnixMS(message agentservice.SessionMessage) int64 {
-	return firstPositiveInt64(
-		message.OccurredAtUnixMS,
-		message.StartedAtUnixMS,
-		message.CompletedAtUnixMS,
-		message.CreatedAtUnixMS,
-		message.UpdatedAtUnixMS,
-		int64(message.Version),
-		int64(message.ID),
-		1,
-	)
-}
-
-func firstPositiveInt64(values ...int64) int64 {
-	for _, value := range values {
-		if value > 0 {
-			return value
-		}
-	}
-	return 0
-}
-
 func generatedAgentGeneratedFiles(files []agentservice.GeneratedFile) []tuttigenerated.WorkspaceAgentGeneratedFileEntry {
 	result := make([]tuttigenerated.WorkspaceAgentGeneratedFileEntry, 0, len(files))
 	for _, file := range files {
@@ -696,6 +703,7 @@ func generatedAgentSession(session agentservice.Session) tuttigenerated.Workspac
 	}
 	runtimeContext := clonePayloadPointer(session.RuntimeContext)
 	return tuttigenerated.WorkspaceAgentSession{
+		AgentTargetId:      optionalStringPointer(strings.TrimSpace(session.AgentTargetID)),
 		CreatedAt:          session.CreatedAt,
 		Cwd:                stringPointer(strings.TrimSpace(session.Cwd)),
 		EndedAt:            session.EndedAt,
@@ -778,7 +786,7 @@ func clonePayloadPointer(payload map[string]any) *map[string]any {
 	}
 	out := make(map[string]any, len(payload))
 	for key, value := range payload {
-		out[key] = value
+		out[key] = clonePayloadValue(value)
 	}
 	return &out
 }
@@ -790,8 +798,27 @@ func mapValue(payload *map[string]any) map[string]any {
 	out := make(map[string]any, len(*payload))
 	for key, value := range *payload {
 		if trimmed := strings.TrimSpace(key); trimmed != "" {
-			out[trimmed] = value
+			out[trimmed] = clonePayloadValue(value)
 		}
 	}
 	return out
+}
+
+func clonePayloadValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			out[key] = clonePayloadValue(item)
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for index, item := range typed {
+			out[index] = clonePayloadValue(item)
+		}
+		return out
+	default:
+		return value
+	}
 }

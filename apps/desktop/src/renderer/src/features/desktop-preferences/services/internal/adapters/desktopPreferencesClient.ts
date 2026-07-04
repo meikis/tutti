@@ -7,6 +7,7 @@ import type {
 import {
   defaultDesktopMinimizeAnimation,
   desktopWorkbenchWindowSnappingEqual,
+  normalizeDesktopAgentConversationDetailMode,
   normalizeDesktopWorkbenchWindowSnapping
 } from "../../../../../../../shared/preferences/index.ts";
 
@@ -231,6 +232,10 @@ function createPreferencesKey(
     stableAgentGuiConversationRailCollapsedByProviderKey(
       preferences.agentGuiConversationRailCollapsedByProvider
     ),
+    normalizeDesktopAgentConversationDetailMode(
+      preferences.agentConversationDetailMode
+    ),
+    preferences.agentDockLayout,
     preferences.appCatalogChannel,
     preferences.browserUseConnectionMode ?? "isolated",
     preferences.defaultAgentProvider,
@@ -242,6 +247,7 @@ function createPreferencesKey(
     ),
     preferences.locale,
     preferences.sleepPreventionMode,
+    preferences.showAppDeveloperSources ? "app-sources:on" : "app-sources:off",
     preferences.themeSource,
     preferences.updateChannel,
     preferences.updatePolicy,
@@ -263,6 +269,13 @@ function preferencesEqual(
       stableAgentGuiConversationRailCollapsedByProviderKey(
         right.agentGuiConversationRailCollapsedByProvider
       ) &&
+    normalizeDesktopAgentConversationDetailMode(
+      left.agentConversationDetailMode
+    ) ===
+      normalizeDesktopAgentConversationDetailMode(
+        right.agentConversationDetailMode
+      ) &&
+    left.agentDockLayout === right.agentDockLayout &&
     (left.browserUseConnectionMode ?? "isolated") ===
       (right.browserUseConnectionMode ?? "isolated") &&
     left.appCatalogChannel === right.appCatalogChannel &&
@@ -279,6 +292,8 @@ function preferencesEqual(
       ) &&
     left.locale === right.locale &&
     left.sleepPreventionMode === right.sleepPreventionMode &&
+    (left.showAppDeveloperSources ?? false) ===
+      (right.showAppDeveloperSources ?? false) &&
     left.themeSource === right.themeSource &&
     left.updateChannel === right.updateChannel &&
     left.updatePolicy === right.updatePolicy &&

@@ -7,6 +7,11 @@ export type AgentHostAgentSessionProvider =
   | "gemini"
   | "hermes"
   | "openclaw";
+export interface AgentHostAgentSessionProviderTargetRef {
+  kind: string;
+  provider: AgentHostAgentSessionProvider;
+  [key: string]: unknown;
+}
 export type AgentHostAgentSessionPermissionModeSemantic =
   | "ask-before-write"
   | "accept-edits"
@@ -50,6 +55,7 @@ export interface AgentHostAgentSessionComposerSettings {
 export interface AgentHostAgentSession {
   workspaceId: string;
   agentSessionId: string;
+  agentTargetId?: string | null;
   provider: AgentHostAgentSessionProvider;
   providerSessionId: string;
   resumable?: boolean;
@@ -69,6 +75,7 @@ export interface AgentHostAgentSessionEvent {
   id: string;
   workspaceId: string;
   agentSessionId: string;
+  agentTargetId?: string | null;
   provider: AgentHostAgentSessionProvider;
   providerSessionId?: string;
   type: string;
@@ -94,6 +101,7 @@ export interface AgentHostAgentSessionInteractivePrompt {
 export interface AgentHostAgentSessionState {
   workspaceId: string;
   agentSessionId: string;
+  agentTargetId?: string | null;
   provider: AgentHostAgentSessionProvider;
   providerSessionId?: string;
   resumable?: boolean;
@@ -146,7 +154,14 @@ interface AgentHostActivateAgentSessionInputBase {
 
 export interface AgentHostActivateNewAgentSessionInput extends AgentHostActivateAgentSessionInputBase {
   mode: "new";
+  agentTargetId?: string | null;
   provider: AgentHostAgentSessionProvider;
+  /**
+   * Opaque target reference supplied by the host. It is not authority,
+   * credential material, or an invocation plan; trusted host code must
+   * re-authenticate and resolve it before launching.
+   */
+  providerTargetRef?: AgentHostAgentSessionProviderTargetRef | null;
   cwd: string;
   title: string;
   settings: AgentHostAgentSessionComposerSettings;

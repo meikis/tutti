@@ -1,5 +1,12 @@
 import type { AgentActivityRuntime } from "@tutti-os/agent-gui";
-import type { DesktopRuntimeApi } from "@preload/types";
+import type {
+  AgentActivityMessage,
+  AgentActivityMessagePage,
+  AgentActivitySession,
+  AgentActivitySessionEventEnvelope,
+  AgentActivitySnapshot
+} from "@tutti-os/agent-activity-core";
+import type { DesktopHostFilesApi, DesktopRuntimeApi } from "@preload/types";
 import type { IReporterService } from "../../analytics/services/reporterService.interface.ts";
 import { AgentConversationPinnedReporter } from "../../analytics/reporters/agent-conversation-pinned/agentConversationPinnedReporter.ts";
 import { AgentConversationUnpinnedReporter } from "../../analytics/reporters/agent-conversation-unpinned/agentConversationUnpinnedReporter.ts";
@@ -19,6 +26,11 @@ import {
   type AgentHostAgentSessionComposerSettings
 } from "./internal/desktopAgentHostProjection.ts";
 import { reportAgentSessionSettingsChanges } from "./internal/agentSessionSettingsAnalytics.ts";
+import {
+  AgentAnalyticsErrorCode,
+  createAgentNodeResultTracker,
+  safeTrackAgentNodeResult
+} from "./internal/agentNodeResultAnalytics.ts";
 import type { IWorkspaceAgentActivityService } from "./workspaceAgentActivityService.interface";
 import type { IWorkspaceUserProjectService } from "../../workspace-user-project/index.ts";
 
@@ -31,6 +43,7 @@ type AgentComposerSettingsChange = {
 interface CreateDesktopAgentActivityRuntimeOptions {
   reporterNow?: () => number;
   reporterService?: Pick<IReporterService, "trackEvents">;
+  hostFilesApi?: Pick<DesktopHostFilesApi, "archiveAgentPromptFile">;
   runtimeApi?: Pick<
     DesktopRuntimeApi,
     "logRendererDiagnostic" | "logTerminalDiagnostic"
@@ -46,6 +59,78 @@ export function createDesktopAgentActivityRuntime(
   workspaceAgentActivityService: IWorkspaceAgentActivityService,
   options: CreateDesktopAgentActivityRuntimeOptions = {}
 ): AgentActivityRuntime {
+  const runtimeSnapshotDiagnosticSignatures = new Map<string, string>();
+  const runtimeMessagePageDiagnosticSignatures = new Map<string, string>();
+  const reportRuntimeDiagnostic = (input: {
+    details?: Record<string, unknown>;
+    event: string;
+    level?: "debug" | "info" | "warn" | "error";
+    workspaceId?: string | null;
+  }): void => {
+    try {
+      void options.runtimeApi
+        ?.logRendererDiagnostic({
+          details: input.details ?? {},
+          event: input.event,
+          level: input.level ?? "info",
+          source: "agent-gui",
+          workspaceId: input.workspaceId ?? undefined
+        })
+        .catch(() => {});
+    } catch {
+      // Diagnostic logging must never affect the render tree.
+    }
+  };
+  const reportSnapshotDiagnostic = (
+    workspaceId: string,
+    snapshot: AgentActivitySnapshot,
+    source: "get_snapshot" | "load" | "subscribe"
+  ): void => {
+    const signature = agentActivitySnapshotDiagnosticSignature(snapshot);
+    const key = `${workspaceId}:${source}`;
+    if (runtimeSnapshotDiagnosticSignatures.get(key) === signature) {
+      return;
+    }
+    runtimeSnapshotDiagnosticSignatures.set(key, signature);
+    reportRuntimeDiagnostic({
+      details: {
+        source,
+        ...agentActivitySnapshotDiagnosticDetails(snapshot)
+      },
+      event: "agent.gui.runtime.snapshot_changed",
+      level: source === "get_snapshot" ? "debug" : "info",
+      workspaceId
+    });
+  };
+  const reportMessagePageDiagnostic = (
+    input: Parameters<AgentActivityRuntime["listSessionMessages"]>[0],
+    page: AgentActivityMessagePage
+  ): void => {
+    const signature = agentActivityMessagePageDiagnosticSignature(page);
+    const key = `${input.workspaceId}:${input.agentSessionId}:${input.afterVersion ?? ""}:${input.beforeVersion ?? ""}:${input.order ?? ""}:${input.limit ?? ""}`;
+    if (runtimeMessagePageDiagnosticSignatures.get(key) === signature) {
+      return;
+    }
+    runtimeMessagePageDiagnosticSignatures.set(key, signature);
+    reportRuntimeDiagnostic({
+      details: {
+        afterVersion: input.afterVersion ?? null,
+        agentSessionId: input.agentSessionId,
+        beforeVersion: input.beforeVersion ?? null,
+        cache: input.cache ?? null,
+        hasMore: page.hasMore,
+        lastMessage: agentActivityMessageDiagnosticDetails(
+          page.messages.at(-1) ?? null
+        ),
+        latestVersion: page.latestVersion,
+        messageCount: page.messages.length,
+        order: input.order ?? null
+      },
+      event: "agent.gui.runtime.messages.resolved",
+      level: "info",
+      workspaceId: input.workspaceId
+    });
+  };
   const messageSentTracker = createAgentMessageSentTracker({
     reporterNow: options.reporterNow,
     reporterService: options.reporterService
@@ -58,7 +143,16 @@ export function createDesktopAgentActivityRuntime(
     reporterNow: options.reporterNow,
     reporterService: options.reporterService
   });
+  const nodeResultTracker = createAgentNodeResultTracker({
+    reporterNow: options.reporterNow,
+    reporterService: options.reporterService
+  });
+  const archiveAgentPromptFile = options.hostFilesApi?.archiveAgentPromptFile;
   return {
+    promptContentUploadSupport: {
+      file: Boolean(archiveAgentPromptFile),
+      image: false
+    },
     async activateSession(input) {
       reportAgentSubmitTraceDiagnostic({
         agentSessionId: input.agentSessionId,
@@ -71,8 +165,29 @@ export function createDesktopAgentActivityRuntime(
           provider: resolveDesktopAgentGUIProvider(input.provider)
         }
       });
-      const activation =
-        await workspaceAgentActivityService.activateSession(input);
+      const flow = "session_create" as const;
+      const node = "activate_session" as const;
+      const fallbackErrorCode =
+        input.mode === "existing"
+          ? AgentAnalyticsErrorCode.SessionResumeFailed
+          : AgentAnalyticsErrorCode.SessionCreateFailed;
+      let activation: Awaited<
+        ReturnType<IWorkspaceAgentActivityService["activateSession"]>
+      >;
+      try {
+        activation = await workspaceAgentActivityService.activateSession(input);
+      } catch (error) {
+        await safeTrackAgentNodeResult(nodeResultTracker, {
+          agentSessionId: input.agentSessionId,
+          error,
+          fallbackErrorCode,
+          flow,
+          node,
+          provider: resolveDesktopAgentGUIProvider(input.provider),
+          success: false
+        });
+        throw error;
+      }
       reportAgentSubmitTraceDiagnostic({
         agentSessionId: activation.session.agentSessionId,
         event: "activity_runtime.activate.resolved",
@@ -86,6 +201,19 @@ export function createDesktopAgentActivityRuntime(
         }
       });
       const activationFailed = activation.activation.status === "failed";
+      await safeTrackAgentNodeResult(nodeResultTracker, {
+        agentSessionId: activation.session.agentSessionId,
+        error: activationFailed
+          ? (activation.error?.message ??
+            activation.error?.code ??
+            "Agent session activation failed.")
+          : undefined,
+        fallbackErrorCode,
+        flow,
+        node,
+        provider: activation.session.provider,
+        success: !activationFailed
+      });
       if (input.mode === "new" && !activationFailed) {
         await sessionStartedTracker.track({
           agentSessionId: activation.session.agentSessionId,
@@ -102,6 +230,30 @@ export function createDesktopAgentActivityRuntime(
           provider: activation.session.provider,
           source: resolveAgentSessionSource({ mode: input.mode })
         });
+        await safeTrackAgentNodeResult(nodeResultTracker, {
+          agentSessionId: activation.session.agentSessionId,
+          flow,
+          node: "session_started_reported",
+          provider: activation.session.provider,
+          success: true
+        });
+        const initialPrompt = promptContentDisplayText(
+          input.initialContent ?? []
+        );
+        if (initialPrompt) {
+          await messageSentTracker.track({
+            agentSessionId: activation.session.agentSessionId,
+            prompt: initialPrompt,
+            provider: activation.session.provider
+          });
+          await safeTrackAgentNodeResult(nodeResultTracker, {
+            agentSessionId: activation.session.agentSessionId,
+            flow,
+            node: "message_sent_reported",
+            provider: activation.session.provider,
+            success: true
+          });
+        }
       }
       return activation;
     },
@@ -115,6 +267,7 @@ export function createDesktopAgentActivityRuntime(
       }
       return result;
     },
+    goalControl: (input) => workspaceAgentActivityService.goalControl(input),
     createSession: (input) =>
       workspaceAgentActivityService.createSession(input),
     deleteSession: (input) =>
@@ -125,16 +278,45 @@ export function createDesktopAgentActivityRuntime(
       workspaceAgentActivityService.getSession(workspaceId, agentSessionId),
     getSessionControlState: (input) =>
       workspaceAgentActivityService.getSessionControlState(input),
-    getSnapshot: (workspaceId) =>
-      workspaceAgentActivityService.getSnapshot(workspaceId),
-    listSessionMessages: (input) =>
-      workspaceAgentActivityService.listSessionMessages(input),
+    getSnapshot(workspaceId) {
+      const snapshot = workspaceAgentActivityService.getSnapshot(workspaceId);
+      reportSnapshotDiagnostic(workspaceId, snapshot, "get_snapshot");
+      return snapshot;
+    },
+    async listSessionMessages(input) {
+      const page =
+        await workspaceAgentActivityService.listSessionMessages(input);
+      reportMessagePageDiagnostic(input, page);
+      return page;
+    },
     listAgentGeneratedFiles: (input) =>
       workspaceAgentActivityService.listAgentGeneratedFiles(input),
-    load: (workspaceId, signal) =>
-      workspaceAgentActivityService.load(workspaceId, signal),
-    ensureSessionSynchronized: (input) =>
-      workspaceAgentActivityService.ensureSessionSynchronized(input),
+    listSessionsPage: (input) =>
+      workspaceAgentActivityService.listSessionsPage(input),
+    listSessionSections: (input) =>
+      workspaceAgentActivityService.listSessionSections(input),
+    listSessionSectionPage: (input) =>
+      workspaceAgentActivityService.listSessionSectionPage(input),
+    async load(workspaceId, signal) {
+      const snapshot = await workspaceAgentActivityService.load(
+        workspaceId,
+        signal
+      );
+      reportSnapshotDiagnostic(workspaceId, snapshot, "load");
+      return snapshot;
+    },
+    ensureSessionSynchronized(input) {
+      reportRuntimeDiagnostic({
+        details: {
+          afterVersion: input.afterVersion ?? null,
+          agentSessionId: input.agentSessionId
+        },
+        event: "agent.gui.runtime.ensure_session_synchronized",
+        level: "debug",
+        workspaceId: input.workspaceId
+      });
+      return workspaceAgentActivityService.ensureSessionSynchronized(input);
+    },
     retainSessionEvents: (input) =>
       workspaceAgentActivityService.retainSessionEvents(input),
     async sendInput(input) {
@@ -145,7 +327,23 @@ export function createDesktopAgentActivityRuntime(
         runtimeApi: options.runtimeApi,
         workspaceId: input.workspaceId
       });
-      const result = await workspaceAgentActivityService.sendInput(input);
+      let result: Awaited<
+        ReturnType<IWorkspaceAgentActivityService["sendInput"]>
+      >;
+      try {
+        result = await workspaceAgentActivityService.sendInput(input);
+      } catch (error) {
+        await safeTrackAgentNodeResult(nodeResultTracker, {
+          agentSessionId: input.agentSessionId,
+          error,
+          fallbackErrorCode: AgentAnalyticsErrorCode.RuntimeExecFailed,
+          flow: "message_send",
+          node: "send_input_request",
+          provider: null,
+          success: false
+        });
+        throw error;
+      }
       reportAgentSubmitTraceDiagnostic({
         agentSessionId: result.session.agentSessionId,
         event: "activity_runtime.send.resolved",
@@ -159,13 +357,79 @@ export function createDesktopAgentActivityRuntime(
           turnPhase: result.turnLifecycle?.phase ?? null
         }
       });
+      await safeTrackAgentNodeResult(nodeResultTracker, {
+        agentSessionId: result.session.agentSessionId,
+        flow: "message_send",
+        node: "send_input_request",
+        provider: result.session.provider,
+        success: true
+      });
       await messageSentTracker.track({
         agentSessionId: result.session.agentSessionId,
         prompt: promptContentDisplayText(input.content),
         provider: result.session.provider
       });
+      await safeTrackAgentNodeResult(nodeResultTracker, {
+        agentSessionId: result.session.agentSessionId,
+        flow: "message_send",
+        node: "message_sent_reported",
+        provider: result.session.provider,
+        success: true
+      });
       return result;
     },
+    ...(archiveAgentPromptFile
+      ? {
+          async uploadPromptContent(
+            input: Parameters<
+              NonNullable<AgentActivityRuntime["uploadPromptContent"]>
+            >[0]
+          ) {
+            const content = await Promise.all(
+              input.content.map(async (block) => {
+                if (block.type === "file") {
+                  const hostPath = block.hostPath?.trim() ?? "";
+                  if (!hostPath) {
+                    throw new Error("Prompt file upload requires hostPath.");
+                  }
+                  const archived = await archiveAgentPromptFile({
+                    workspaceID: input.workspaceId,
+                    hostPath,
+                    displayName: block.name ?? null,
+                    mimeType: block.mimeType ?? null
+                  });
+                  return {
+                    ...block,
+                    name: archived.name,
+                    path: archived.path,
+                    sizeBytes: archived.sizeBytes,
+                    uploadStatus: "uploaded"
+                  };
+                }
+                if (block.type === "image" && block.data) {
+                  const archived = await archiveAgentPromptFile({
+                    workspaceID: input.workspaceId,
+                    dataBase64: block.data,
+                    displayName: block.name ?? null,
+                    mimeType: block.mimeType ?? null
+                  });
+                  const blockWithoutData = { ...block };
+                  delete blockWithoutData.data;
+                  return {
+                    ...blockWithoutData,
+                    name: archived.name,
+                    path: archived.path,
+                    sizeBytes: archived.sizeBytes,
+                    uploadStatus: "uploaded"
+                  };
+                }
+                return block;
+              })
+            );
+            return { content };
+          }
+        }
+      : {}),
     readSessionAttachment: (input) =>
       workspaceAgentActivityService.readSessionAttachment(input),
     async setSessionPinned(input) {
@@ -270,20 +534,12 @@ export function createDesktopAgentActivityRuntime(
       });
     },
     reportDiagnostic(input) {
-      try {
-        void options.runtimeApi
-          ?.logRendererDiagnostic({
-            details: input.details ?? {},
-            event: input.event,
-            level: input.level ?? "info",
-            source: input.source ?? "agent-gui",
-            workspaceId: input.workspaceId ?? undefined
-          })
-          .catch(() => {});
-      } catch {
-        // IPC structured-clone can fail if details contains non-serializable values;
-        // diagnostic failures must never propagate into the render tree.
-      }
+      reportRuntimeDiagnostic({
+        details: input.details,
+        event: input.event,
+        level: input.level,
+        workspaceId: input.workspaceId
+      });
     },
     ...(options.warmupOpenclawGateway
       ? {
@@ -291,13 +547,214 @@ export function createDesktopAgentActivityRuntime(
         }
       : {}),
     subscribeSessionEvents: (workspaceId, listener) =>
-      workspaceAgentActivityService.onSessionEvent(workspaceId, listener),
+      workspaceAgentActivityService.onSessionEvent(workspaceId, (event) => {
+        reportSessionEventDiagnostic(
+          workspaceId,
+          event,
+          reportRuntimeDiagnostic
+        );
+        listener(event);
+      }),
     unactivateSession: (input) =>
       workspaceAgentActivityService.unactivateSession(input),
     submitInteractive: (input) =>
       workspaceAgentActivityService.submitInteractive(input),
     subscribe: (workspaceId, listener) =>
-      workspaceAgentActivityService.subscribe(workspaceId, listener)
+      workspaceAgentActivityService.subscribe(workspaceId, (snapshot) => {
+        reportSnapshotDiagnostic(workspaceId, snapshot, "subscribe");
+        listener(snapshot);
+      })
+  };
+}
+
+function agentActivitySnapshotDiagnosticSignature(
+  snapshot: AgentActivitySnapshot
+): string {
+  return snapshot.sessions
+    .map((session) => agentActivitySessionDiagnosticSignature(session))
+    .sort()
+    .join("|");
+}
+
+function agentActivitySnapshotDiagnosticDetails(
+  snapshot: AgentActivitySnapshot
+): Record<string, unknown> {
+  const sessions = [...snapshot.sessions].sort(
+    (left, right) =>
+      agentActivitySessionSortTimeUnixMs(right) -
+      agentActivitySessionSortTimeUnixMs(left)
+  );
+  const activeOrRecentSessions = sessions
+    .filter(
+      (session, index) => index < 8 || agentActivitySessionIsBusy(session)
+    )
+    .slice(0, 12)
+    .map((session) => agentActivitySessionDiagnosticDetails(session));
+  return {
+    activeOrRecentSessions,
+    busySessionCount: snapshot.sessions.filter(agentActivitySessionIsBusy)
+      .length,
+    presenceCount: snapshot.presences.length,
+    sessionCount: snapshot.sessions.length,
+    workspaceId: snapshot.workspaceId
+  };
+}
+
+function agentActivitySessionDiagnosticSignature(
+  session: AgentActivitySession
+): string {
+  const lifecycle = session.turnLifecycle;
+  const submitAvailability = session.submitAvailability;
+  return [
+    session.agentSessionId,
+    session.provider,
+    session.status,
+    session.currentPhase ?? "",
+    lifecycle?.activeTurnId ?? "",
+    lifecycle?.phase ?? "",
+    lifecycle?.outcome ?? "",
+    submitAvailability?.state ?? "",
+    submitAvailability?.reason ?? "",
+    session.messageVersion ?? "",
+    session.lastEventUnixMs ?? "",
+    session.updatedAtUnixMs ?? ""
+  ].join(":");
+}
+
+function agentActivitySessionDiagnosticDetails(
+  session: AgentActivitySession
+): Record<string, unknown> {
+  const lifecycle = session.turnLifecycle;
+  const submitAvailability = session.submitAvailability;
+  return {
+    activeTurnId: lifecycle?.activeTurnId ?? null,
+    agentSessionId: session.agentSessionId,
+    currentPhase: session.currentPhase ?? null,
+    lastEventUnixMs: session.lastEventUnixMs ?? null,
+    messageVersion: session.messageVersion ?? null,
+    outcome: lifecycle?.outcome ?? null,
+    provider: session.provider,
+    status: session.status,
+    submitAvailabilityReason: submitAvailability?.reason ?? null,
+    submitAvailabilityState: submitAvailability?.state ?? null,
+    turnPhase: lifecycle?.phase ?? null,
+    updatedAtUnixMs: session.updatedAtUnixMs ?? null
+  };
+}
+
+function agentActivitySessionIsBusy(session: AgentActivitySession): boolean {
+  const status = session.status;
+  const phase = session.turnLifecycle?.phase;
+  const submitState = session.submitAvailability?.state;
+  return (
+    status === "queued" ||
+    status === "working" ||
+    status === "waiting" ||
+    phase === "working" ||
+    phase === "waiting" ||
+    submitState === "blocked"
+  );
+}
+
+function agentActivitySessionSortTimeUnixMs(
+  session: AgentActivitySession
+): number {
+  return (
+    session.lastEventUnixMs ??
+    session.updatedAtUnixMs ??
+    session.createdAtUnixMs ??
+    session.startedAtUnixMs ??
+    0
+  );
+}
+
+function agentActivityMessagePageDiagnosticSignature(
+  page: AgentActivityMessagePage
+): string {
+  return [
+    page.latestVersion,
+    page.hasMore ? "1" : "0",
+    page.messages.length,
+    page.messages.at(0)?.version ?? "",
+    page.messages.at(-1)?.version ?? "",
+    page.messages.at(-1)?.kind ?? "",
+    page.messages.at(-1)?.status ?? ""
+  ].join(":");
+}
+
+function agentActivityMessageDiagnosticDetails(
+  message: AgentActivityMessage | null
+): Record<string, unknown> | null {
+  if (!message) {
+    return null;
+  }
+  return {
+    agentSessionId: message.agentSessionId,
+    kind: message.kind,
+    messageId: message.messageId,
+    role: message.role,
+    status: message.status ?? null,
+    turnId: message.turnId,
+    version: message.version
+  };
+}
+
+function reportSessionEventDiagnostic(
+  workspaceId: string,
+  event: unknown,
+  reportRuntimeDiagnostic: (input: {
+    details?: Record<string, unknown>;
+    event: string;
+    level?: "debug" | "info" | "warn" | "error";
+    workspaceId?: string | null;
+  }) => void
+): void {
+  const envelope = isAgentActivitySessionEventEnvelope(event) ? event : null;
+  reportRuntimeDiagnostic({
+    details: envelope
+      ? {
+          agentSessionId: envelope.agentSessionId,
+          data: agentActivitySessionEventDataDiagnosticDetails(envelope.data),
+          eventType: envelope.eventType
+        }
+      : {
+          eventType: "unknown"
+        },
+    event: "agent.gui.runtime.session_event_received",
+    level: "debug",
+    workspaceId
+  });
+}
+
+function isAgentActivitySessionEventEnvelope(
+  value: unknown
+): value is AgentActivitySessionEventEnvelope {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as { agentSessionId?: unknown }).agentSessionId ===
+      "string" &&
+    typeof (value as { eventType?: unknown }).eventType === "string"
+  );
+}
+
+function agentActivitySessionEventDataDiagnosticDetails(
+  data: unknown
+): Record<string, unknown> | null {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+  const record = data as Record<string, unknown>;
+  return {
+    kind: typeof record.kind === "string" ? record.kind : null,
+    messageId: typeof record.messageId === "string" ? record.messageId : null,
+    role: typeof record.role === "string" ? record.role : null,
+    status: typeof record.status === "string" ? record.status : null,
+    turnId: typeof record.turnId === "string" ? record.turnId : null,
+    version:
+      typeof record.version === "number" && Number.isFinite(record.version)
+        ? record.version
+        : null
   };
 }
 

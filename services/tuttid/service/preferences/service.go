@@ -22,6 +22,8 @@ type Service struct {
 type PutInput struct {
 	AgentComposerDefaultsByProvider             map[string]preferencesbiz.AgentComposerDefaults
 	AgentGUIConversationRailCollapsedByProvider map[string]bool
+	AgentConversationDetailMode                 string
+	AgentDockLayout                             string
 	AppCatalogChannel                           string
 	BrowserUseConnectionMode                    string
 	DefaultAgentProvider                        string
@@ -31,6 +33,7 @@ type PutInput struct {
 	Locale                                      string
 	MinimizeAnimation                           string
 	SleepPreventionMode                         string
+	ShowAppDeveloperSources                     bool
 	ThemeSource                                 string
 	UpdateChannel                               string
 	UpdatePolicy                                string
@@ -63,6 +66,8 @@ func (s Service) Put(ctx context.Context, input PutInput) (preferencesbiz.Deskto
 	preferences, err := s.Store.PutDesktopPreferences(ctx, preferencesbiz.DesktopPreferences{
 		AgentComposerDefaultsByProvider:             normalizeAgentComposerDefaultsByProvider(input.AgentComposerDefaultsByProvider),
 		AgentGUIConversationRailCollapsedByProvider: normalizeAgentGUIConversationRailCollapsedByProvider(input.AgentGUIConversationRailCollapsedByProvider),
+		AgentConversationDetailMode:                 preferencesbiz.NormalizeDesktopAgentConversationDetailMode(input.AgentConversationDetailMode),
+		AgentDockLayout:                             normalizeAgentDockLayout(input.AgentDockLayout),
 		AppCatalogChannel:                           normalizeAppCatalogChannel(input.AppCatalogChannel),
 		BrowserUseConnectionMode:                    normalizeBrowserUseConnectionMode(input.BrowserUseConnectionMode),
 		DefaultAgentProvider:                        agentproviderbiz.Normalize(input.DefaultAgentProvider),
@@ -73,6 +78,7 @@ func (s Service) Put(ctx context.Context, input PutInput) (preferencesbiz.Deskto
 		Locale:                                      strings.TrimSpace(input.Locale),
 		MinimizeAnimation:                           normalizeMinimizeAnimation(input.MinimizeAnimation),
 		SleepPreventionMode:                         strings.TrimSpace(input.SleepPreventionMode),
+		ShowAppDeveloperSources:                     input.ShowAppDeveloperSources,
 		ThemeSource:                                 strings.TrimSpace(input.ThemeSource),
 		UpdateChannel:                               strings.TrimSpace(input.UpdateChannel),
 		UpdatePolicy:                                strings.TrimSpace(input.UpdatePolicy),
@@ -104,6 +110,14 @@ func (s Service) resolveWindowSnapping(ctx context.Context, input *DesktopWindow
 		Enabled:        preferences.WindowSnappingEnabled,
 		ShortcutPreset: normalizeWindowSnappingShortcutPreset(preferences.WindowSnappingShortcutPreset),
 	}, nil
+}
+
+func normalizeAgentDockLayout(value string) string {
+	normalized := strings.TrimSpace(value)
+	if preferencesbiz.IsDesktopAgentDockLayout(normalized) {
+		return normalized
+	}
+	return preferencesbiz.DefaultDesktopAgentDockLayout
 }
 
 func normalizeAppCatalogChannel(value string) string {

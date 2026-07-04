@@ -561,6 +561,84 @@ describe("projectAgentConversationVM", () => {
     });
   });
 
+  it("carries runtime exit-plan options through the pending interactive prompt", () => {
+    const detail = detailViewModel({
+      turns: [
+        {
+          id: "turn-1",
+          userMessage: { id: "user-1", body: "Plan it" },
+          userMessages: [{ id: "user-1", body: "Plan it" }],
+          agentMessages: [],
+          toolCalls: [],
+          toolCallCount: 1,
+          hasFailedToolCall: false,
+          agentItems: [
+            {
+              kind: "tool-calls",
+              id: "tools-1",
+              toolCalls: [
+                {
+                  id: "call:plan-1",
+                  name: "Exit plan mode",
+                  toolName: "Approval",
+                  callType: "approval",
+                  status: "waiting_approval",
+                  statusKind: "waiting",
+                  summary: "",
+                  payload: {
+                    input: {
+                      requestId: "plan-request-1",
+                      toolCall: {
+                        kind: "switch_mode",
+                        title: "Exit plan mode"
+                      },
+                      options: [
+                        {
+                          optionId: "acceptEdits",
+                          name: "Yes, and auto-accept edits",
+                          kind: "acceptEdits"
+                        },
+                        {
+                          optionId: "auto",
+                          name: "Yes, and use auto mode",
+                          kind: "auto"
+                        },
+                        {
+                          optionId: "plan",
+                          name: "No, keep planning",
+                          kind: "plan"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              toolCallCount: 1,
+              hasFailedToolCall: false
+            }
+          ]
+        }
+      ]
+    });
+
+    const conversation = projectAgentConversationVM(detail);
+
+    expect(conversation.pendingInteractivePrompt).toEqual({
+      kind: "exit-plan",
+      requestId: "plan-request-1",
+      title: "Exit plan mode",
+      options: [
+        {
+          id: "acceptEdits",
+          label: "Yes, and auto-accept edits",
+          kind: "acceptEdits"
+        },
+        { id: "auto", label: "Yes, and use auto mode", kind: "auto" }
+      ],
+      keepPlanningOptionId: "plan"
+    });
+  });
+
   it("does not append the processing row when canonical detail suppresses it", () => {
     const conversation = projectAgentConversationVM(
       detailViewModel({
@@ -570,6 +648,44 @@ describe("projectAgentConversationVM", () => {
 
     expect(conversation.rows.some((row) => row.kind === "processing")).toBe(
       false
+    );
+  });
+
+  it("scopes the transient processing row identity to the latest turn", () => {
+    const firstTurn = detailViewModel().turns[0]!;
+    const secondTurn = {
+      id: "turn-2",
+      userMessage: {
+        id: "user-2",
+        body: "Follow-up request",
+        turnId: "turn-2"
+      },
+      userMessages: [
+        { id: "user-2", body: "Follow-up request", turnId: "turn-2" }
+      ],
+      agentMessages: [],
+      toolCalls: [],
+      toolCallCount: 0,
+      hasFailedToolCall: false,
+      agentItems: []
+    };
+
+    const conversation = projectAgentConversationVM(
+      detailViewModel({
+        turns: [firstTurn, secondTurn],
+        showProcessingIndicator: true
+      })
+    );
+
+    const processing = conversation.rows.find(
+      (row) => row.kind === "processing"
+    );
+
+    expect(processing).toEqual(
+      expect.objectContaining({
+        id: "processing:turn-2",
+        turnId: "turn-2"
+      })
     );
   });
 

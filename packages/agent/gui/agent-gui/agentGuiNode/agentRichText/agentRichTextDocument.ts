@@ -11,6 +11,7 @@ import {
   parseAgentCapabilityToken,
   type AgentCapabilityTokenOption
 } from "./agentCapabilityTokenExtension";
+import { AGENT_RICH_TEXT_CARET_ANCHOR } from "./agentRichTextCaretAnchor";
 
 export interface AgentRichTextDocumentOptions {
   capabilities?: readonly AgentCapabilityTokenOption[];
@@ -22,6 +23,10 @@ function createEmptyDocument(): JSONContent {
     type: "doc",
     content: [{ type: "paragraph" }]
   };
+}
+
+function isVisualLineStart(content: readonly JSONContent[]): boolean {
+  return content.length === 0 || content.at(-1)?.type === "hardBreak";
 }
 
 function createParagraphFromText(
@@ -52,6 +57,9 @@ function createParagraphFromText(
     const parsedMention = parseAgentMentionMarkdown(text, index);
     if (parsedMention) {
       flushTextBuffer();
+      if (isVisualLineStart(content)) {
+        content.push({ type: "text", text: AGENT_RICH_TEXT_CARET_ANCHOR });
+      }
       content.push({
         type: "agentFileMention",
         // 转成规范 node attrs(如 workspace-reference 的 source/groupId/fileCount),
@@ -127,20 +135,30 @@ export function agentRichTextDocToPromptText(doc: JSONContent): string {
   if (doc.type !== "doc") {
     return nodeToPromptText(doc);
   }
-  const blocks = doc.content ?? [];
-  if (blocks.length === 0) {
-    return "";
-  }
-  return blocks.map((block) => nodeToPromptText(block)).join("\n");
+  return agentRichTextContentToPromptText(doc.content ?? []);
 }
 
 export function editorToPromptText(editor: Editor): string {
   return agentRichTextDocToPromptText(editor.getJSON());
 }
 
+export function agentRichTextContentToPromptText(
+  content: readonly JSONContent[]
+): string {
+  if (content.length === 0) {
+    return "";
+  }
+  const separator = content.some((node) => isBlockPromptNode(node)) ? "\n" : "";
+  return content.map((node) => nodeToPromptText(node)).join(separator);
+}
+
+function isBlockPromptNode(node: JSONContent): boolean {
+  return node.type === "doc" || node.type === "paragraph";
+}
+
 function nodeToPromptText(node: JSONContent): string {
   if (node.type === "text") {
-    return node.text ?? "";
+    return (node.text ?? "").replaceAll(AGENT_RICH_TEXT_CARET_ANCHOR, "");
   }
   if (node.type === "agentFileMention") {
     return formatAgentMentionMarkdown(attrsToMentionItem(node.attrs ?? {}));

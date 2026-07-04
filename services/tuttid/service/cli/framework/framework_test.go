@@ -12,10 +12,12 @@ import (
 )
 
 type sampleInput struct {
-	TopicID      string `cli:"topic-id" validate:"required" description:"Topic id." hint:"Use issue topic list."`
-	PageSize     int    `cli:"page-size" validate:"min=1,max=100"`
-	AfterVersion int64  `cli:"after-version" validate:"min=0"`
-	Visible      bool   `cli:"visible"`
+	TopicID      string   `cli:"topic-id" validate:"required" description:"Topic id." hint:"Use issue topic list."`
+	Attachments  []string `cli:"attachment" description:"Attachment path."`
+	PageSize     int      `cli:"page-size" validate:"min=1,max=100"`
+	AfterVersion int64    `cli:"after-version" validate:"min=0"`
+	Priority     string   `cli:"priority" enum:"high,medium,low"`
+	Visible      bool     `cli:"visible"`
 }
 
 type optionalInput struct {
@@ -33,8 +35,22 @@ func TestFromStructGeneratesInputSchema(t *testing.T) {
 	if properties["page-size"].(map[string]any)["type"] != "integer" {
 		t.Fatalf("page-size property = %#v", properties["page-size"])
 	}
+	if properties["page-size"].(map[string]any)["minimum"] != int64(1) || properties["page-size"].(map[string]any)["maximum"] != int64(100) {
+		t.Fatalf("page-size range = %#v", properties["page-size"])
+	}
+	priority := properties["priority"].(map[string]any)
+	if !reflect.DeepEqual(priority["enum"], []string{"high", "medium", "low"}) {
+		t.Fatalf("priority property = %#v", priority)
+	}
 	if properties["visible"].(map[string]any)["type"] != "boolean" {
 		t.Fatalf("visible property = %#v", properties["visible"])
+	}
+	attachment := properties["attachment"].(map[string]any)
+	if attachment["type"] != "array" {
+		t.Fatalf("attachment property = %#v", attachment)
+	}
+	if attachment["items"].(map[string]any)["type"] != "string" {
+		t.Fatalf("attachment items = %#v", attachment["items"])
 	}
 	if required := schema["required"].([]string); !reflect.DeepEqual(required, []string{"topic-id"}) {
 		t.Fatalf("required = %#v", required)
@@ -44,15 +60,20 @@ func TestFromStructGeneratesInputSchema(t *testing.T) {
 func TestBindInputParsesAndValidates(t *testing.T) {
 	input, err := BindInput[sampleInput](FromStruct[sampleInput](), map[string]any{
 		"topic-id":      " topic-1 ",
+		"attachment":    []any{" /tmp/a.png ", "/tmp/b.png"},
 		"page-size":     "25",
 		"after-version": "10",
+		"priority":      "high",
 		"visible":       "true",
 	})
 	if err != nil {
 		t.Fatalf("BindInput: %v", err)
 	}
-	if input.TopicID != "topic-1" || input.PageSize != 25 || input.AfterVersion != 10 || !input.Visible {
+	if input.TopicID != "topic-1" || input.PageSize != 25 || input.AfterVersion != 10 || input.Priority != "high" || !input.Visible {
 		t.Fatalf("input = %#v", input)
+	}
+	if !reflect.DeepEqual(input.Attachments, []string{"/tmp/a.png", "/tmp/b.png"}) {
+		t.Fatalf("attachments = %#v", input.Attachments)
 	}
 }
 
@@ -68,7 +89,14 @@ func TestBindInputRejectsMissingRequired(t *testing.T) {
 
 func TestBindInputRejectsInvalidRange(t *testing.T) {
 	_, err := BindInput[sampleInput](FromStruct[sampleInput](), map[string]any{"topic-id": "topic-1", "page-size": "200"})
-	if !errors.Is(err, cliservice.ErrInvalidInput) || !strings.Contains(err.Error(), `invalid input "page-size"`) {
+	if !errors.Is(err, cliservice.ErrInvalidInput) || !strings.Contains(err.Error(), `invalid input "page-size": must be <= 100`) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestBindInputRejectsInvalidEnum(t *testing.T) {
+	_, err := BindInput[sampleInput](FromStruct[sampleInput](), map[string]any{"topic-id": "topic-1", "priority": "urgent"})
+	if !errors.Is(err, cliservice.ErrInvalidInput) || !strings.Contains(err.Error(), `invalid input "priority": must be one of high, medium, low`) {
 		t.Fatalf("err = %v", err)
 	}
 }

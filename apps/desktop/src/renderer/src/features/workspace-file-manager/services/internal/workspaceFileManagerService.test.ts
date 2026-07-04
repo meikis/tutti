@@ -77,6 +77,43 @@ test("workspace file manager service does not refresh unchanged locations during
   assert.deepEqual(notifications, []);
 });
 
+test("workspace file manager service caches reference aggregators by locale", async () => {
+  const dependencies = createDependenciesStub();
+  dependencies.tuttidClient.listWorkspaceApps = async () => ({
+    apps: [],
+    catalogStatus: {
+      lastError: null,
+      status: "ready",
+      updatedAtUnixMs: null
+    },
+    workspaceId: "workspace-1"
+  });
+  const service = new WorkspaceFileManagerService(dependencies);
+
+  const enAggregator = service.getReferenceSourceAggregator(
+    "workspace-1",
+    "en"
+  );
+  const zhAggregator = service.getReferenceSourceAggregator(
+    "workspace-1",
+    "zh-CN"
+  );
+
+  assert.equal(
+    service.getReferenceSourceAggregator("workspace-1", "en"),
+    enAggregator
+  );
+  assert.notEqual(enAggregator, zhAggregator);
+  assert.equal(
+    (await enAggregator.listSources({ workspaceId: "workspace-1" }))[0]?.label,
+    "Tasks"
+  );
+  assert.equal(
+    (await zhAggregator.listSources({ workspaceId: "workspace-1" }))[0]?.label,
+    "任务"
+  );
+});
+
 test("workspace file manager service defaults new sessions to the user home directory", () => {
   const service = new WorkspaceFileManagerService(createDependenciesStub());
   const copy = createWorkspaceFileManagerI18nRuntime(
@@ -735,6 +772,7 @@ function createDependenciesStub(): {
       openTerminalLink: fail,
       readLocalFileText: fail,
       readLocalPreviewFile: fail,
+      archiveAgentPromptFile: fail,
       readPreviewFile: fail,
       resolveEntryIcon: async () => null,
       selectAppArchive: fail,
@@ -742,9 +780,16 @@ function createDependenciesStub(): {
       selectAppIconImage: fail,
       selectDirectory: fail,
       selectUploadFiles: fail,
+      copyImageToClipboard: fail,
       copyFilesToClipboard: fail
     },
     tuttidClient: {
+      listAgentTargets: fail,
+      startAccountLogin: fail,
+      getAccountLoginStatus: fail,
+      getAccountUserInfo: fail,
+      logoutAccount: fail,
+      applyWorkspaceGitPatch: fail,
       listCliCapabilities: fail,
       listWorkspaceAppMentionCandidates: fail,
       addWorkspaceIssueContextRefs: fail,
@@ -761,6 +806,7 @@ function createDependenciesStub(): {
       createWorkspaceIssue: fail,
       createWorkspaceIssueTopic: fail,
       createWorkspaceIssueTask: fail,
+      createWorkspaceIssueTasks: fail,
       createWorkspaceIssueTaskRun: fail,
       createWorkspaceIssueRun: fail,
       createWorkspace: fail,
@@ -787,6 +833,7 @@ function createDependenciesStub(): {
       getWorkspace: fail,
       getWorkspaceAgentSession: fail,
       getWorkspaceAppFactoryJob: fail,
+      getWorkspaceAppFactoryProviderComposerOptions: fail,
       getAgentProviderComposerOptions: fail,
       getAgentProviderStatuses: fail,
       probeAgentProvider: fail,
@@ -815,6 +862,8 @@ function createDependenciesStub(): {
       listWorkspaceIssueRuns: fail,
       listWorkspaceIssueTasks: fail,
       listWorkspaceAgentSessions: fail,
+      listWorkspaceAgentSessionSections: fail,
+      listWorkspaceAgentSessionSectionPage: fail,
       listWorkspaceApps: fail,
       listWorkspaceAppReferences: fail,
       searchWorkspaceAppReferences: fail,
@@ -845,10 +894,12 @@ function createDependenciesStub(): {
       rollbackWorkspaceApp: fail,
       cancelWorkspaceAgentSession: fail,
       cancelWorkspaceAgentSessionWithResult: fail,
+      goalControlWorkspaceAgentSession: fail,
       sendWorkspaceAgentSessionInput: fail,
       readWorkspaceAgentSessionAttachment: fail,
       listWorkspaceAgentSessionGitBranches: fail,
       listWorkspaceGitBranches: fail,
+      resolveWorkspaceGitPatchSupport: fail,
       updateWorkspaceAgentSessionSettings: fail,
       updateWorkspaceAgentSessionPin: fail,
       submitWorkspaceAgentInteractive: fail,

@@ -14,7 +14,13 @@ import {
   type ReactElement,
   type ReactNode
 } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, Info } from "lucide-react";
+import {
+  AppWindow,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Info
+} from "lucide-react";
 import {
   Button,
   cn,
@@ -23,8 +29,12 @@ import {
   TooltipContent,
   TooltipTrigger
 } from "@tutti-os/ui-system";
-import { useTranslation } from "../i18n/index";
-import { normalizeAgentTitleText } from "../shared/utils/agentTitleText";
+import {
+  isRichTextMentionHref,
+  parseRichTextMentionHref
+} from "@tutti-os/ui-rich-text/core";
+import { getActiveUiLanguage, useTranslation } from "../i18n/index";
+import { formatAgentSessionMentionText } from "../shared/utils/agentSessionMentionText";
 import { AgentInteractivePromptSurface } from "../shared/agentConversation/components/AgentInteractivePromptSurface";
 import { AgentMessageMarkdown } from "../shared/AgentMessageMarkdown";
 import { AgentVerticalScrollArea } from "../shared/AgentVerticalScrollArea";
@@ -38,14 +48,19 @@ import {
   type WorkspaceAgentMessageCenterIdentity,
   type WorkspaceAgentMessageCenterItem
 } from "./workspaceAgentMessageCenterModel";
+import { formatAgentGuiConversationPlainTitle } from "../workbench/sessionTitle";
 
 export interface WorkspaceAgentMessageCenterCardProps {
   item: WorkspaceAgentMessageCenterItem;
   cardRef?: (node: HTMLElement | null) => void;
+  actionsAccessory?: ReactNode;
+  footerAccessory?: ReactNode;
+  headerAccessory?: ReactNode;
   highlighted?: boolean;
   interactive?: boolean;
   isSubmitting: boolean;
   lazySummary?: boolean;
+  summaryAccessory?: ReactNode;
   onLinkAction?: (action: WorkspaceLinkAction) => void;
   onOpenChat: (input: { agentSessionId: string; provider: string }) => void;
   onSubmitPrompt: (input: {
@@ -79,11 +94,15 @@ function stopMessageCenterTextPointerPropagation(
 export const WorkspaceAgentMessageCenterCard = memo(
   function WorkspaceAgentMessageCenterCard({
     cardRef,
+    actionsAccessory,
+    footerAccessory,
+    headerAccessory,
     highlighted = false,
     interactive = true,
     item,
     isSubmitting,
     lazySummary = false,
+    summaryAccessory,
     onLinkAction,
     onOpenChat,
     onSubmitPrompt
@@ -91,7 +110,9 @@ export const WorkspaceAgentMessageCenterCard = memo(
     "use memo";
     const { t } = useTranslation();
     const prompt = item.pendingPrompt;
-    const displayTitle = normalizeAgentTitleText(item.title);
+    const displayTitle = formatAgentGuiConversationPlainTitle(item, {
+      language: getActiveUiLanguage()
+    });
     const summary = messageCenterVisibleSummary(item);
     const displayStatus = statusClass(item);
     const statusTone = messageCenterStatusTone(item);
@@ -130,23 +151,26 @@ export const WorkspaceAgentMessageCenterCard = memo(
             </LazyMessageCenterTooltip>
             {item.cwd ? <ProjectPathInfo path={item.cwd} /> : null}
           </div>
-          <span
-            className={cn(
-              "workspace-agent-message-center__status inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold leading-4",
-              messageCenterStatusToneClass(statusTone)
-            )}
-            data-status={displayStatus}
-            title={statusLabel}
-          >
-            <StatusDot
-              tone={statusTone}
-              pulse={
-                isWaitingMessageCenterItem(item) || item.status === "working"
-              }
-              size="sm"
+          <span className="flex shrink-0 items-center gap-2">
+            {headerAccessory}
+            <span
+              className={cn(
+                "workspace-agent-message-center__status inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold leading-4",
+                messageCenterStatusToneClass(statusTone)
+              )}
+              data-status={displayStatus}
               title={statusLabel}
-            />
-            <span>{statusLabel}</span>
+            >
+              <StatusDot
+                tone={statusTone}
+                pulse={
+                  isWaitingMessageCenterItem(item) || item.status === "working"
+                }
+                size="sm"
+                title={statusLabel}
+              />
+              <span>{statusLabel}</span>
+            </span>
           </span>
         </div>
 
@@ -159,6 +183,8 @@ export const WorkspaceAgentMessageCenterCard = memo(
             emptyLabel={t("agentHost.workspaceAgentMessageCenterNoSummary")}
           />
         ) : null}
+
+        {summaryAccessory}
 
         {prompt && interactive ? (
           <div className="min-w-0">
@@ -177,7 +203,10 @@ export const WorkspaceAgentMessageCenterCard = memo(
           </div>
         ) : null}
 
+        {footerAccessory}
+
         <MessageCenterOpenChatButton
+          actionsAccessory={actionsAccessory}
           provider={item.provider}
           item={item}
           label={t("agentHost.workspaceAgentMessageCenterOpenChat")}
@@ -518,7 +547,7 @@ function MessageCenterStackSummary({
         </span>
         <span className="min-w-0 rounded-md bg-transparency-block p-2.5 text-[13px] leading-[1.45] text-[var(--text-primary)]">
           <span className="line-clamp-2 min-w-0 [overflow-wrap:anywhere]">
-            {messageCenterStackPreviewText(firstItem)}
+            {messageCenterStackPreviewNodes(firstItem)}
           </span>
         </span>
       </span>
@@ -526,13 +555,129 @@ function MessageCenterStackSummary({
   );
 }
 
-function messageCenterStackPreviewText(
+function messageCenterStackRawPreviewText(
   item: WorkspaceAgentMessageCenterItem
 ): string {
   return (
     item.digest.primary.summary.trim() ||
     item.lastAgentMessageSummary.trim() ||
-    normalizeAgentTitleText(item.title)
+    item.title
+  );
+}
+
+export function messageCenterStackPreviewText(
+  item: WorkspaceAgentMessageCenterItem
+): string {
+  return formatAgentSessionMentionText(messageCenterStackRawPreviewText(item), {
+    language: getActiveUiLanguage()
+  });
+}
+
+const MESSAGE_CENTER_PREVIEW_MARKDOWN_LINK_PATTERN =
+  /\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)/g;
+const MESSAGE_CENTER_PREVIEW_LABEL_ESCAPE_PATTERN = /\\([\\[\]()])/g;
+
+type MessageCenterPreviewMentionKind =
+  | "session"
+  | "workspace-app"
+  | "workspace-issue";
+
+/**
+ * 收起态预览只展示纯文本 + 一个静态(不可点击)的 mention 图标,复用
+ * AgentMessageMarkdown 里那套富文本 chip 的视觉样式,但不渲染成 <a>——
+ * 这块预览本身嵌套在外层切换展开/收起的 <button> 里,塞一个可点击链接
+ * 会出现交互元素嵌套交互元素的问题。
+ */
+export function messageCenterStackPreviewNodes(
+  item: WorkspaceAgentMessageCenterItem
+): ReactNode[] {
+  const text = messageCenterStackRawPreviewText(item);
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let mentionIndex = 0;
+
+  for (const match of text.matchAll(
+    MESSAGE_CENTER_PREVIEW_MARKDOWN_LINK_PATTERN
+  )) {
+    const [fullMatch, rawLabel = "", href = ""] = match;
+    const matchStart = match.index ?? 0;
+    if (matchStart > lastIndex) {
+      nodes.push(text.slice(lastIndex, matchStart));
+    }
+
+    const label = rawLabel.replace(
+      MESSAGE_CENTER_PREVIEW_LABEL_ESCAPE_PATTERN,
+      "$1"
+    );
+    const mention = parseRichTextMentionHref(href, label);
+    if (!mention) {
+      nodes.push(isRichTextMentionHref(href) ? label : fullMatch);
+    } else {
+      const kind = messageCenterPreviewMentionKind(mention.providerId);
+      const displayLabel = label || mention.label;
+      nodes.push(
+        kind ? (
+          <MessageCenterPreviewMentionChip
+            key={`mention-${mentionIndex}`}
+            kind={kind}
+            label={displayLabel}
+          />
+        ) : (
+          displayLabel
+        )
+      );
+      mentionIndex += 1;
+    }
+
+    lastIndex = matchStart + fullMatch.length;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return nodes;
+}
+
+function messageCenterPreviewMentionKind(
+  providerId: string
+): MessageCenterPreviewMentionKind | null {
+  switch (providerId.trim().toLowerCase()) {
+    case "agent-session":
+      return "session";
+    case "workspace-app":
+      return "workspace-app";
+    case "workspace-issue":
+      return "workspace-issue";
+    default:
+      return null;
+  }
+}
+
+function MessageCenterPreviewMentionChip({
+  kind,
+  label
+}: {
+  kind: MessageCenterPreviewMentionKind;
+  label: string;
+}): ReactElement {
+  return (
+    <span
+      className="tsh-agent-object-token tsh-agent-object-token--entity"
+      data-agent-mention-kind={kind}
+    >
+      <span className="tsh-agent-object-token__kind" aria-hidden="true">
+        {kind === "workspace-app" ? (
+          <AppWindow className="size-3.5" aria-hidden="true" />
+        ) : (
+          <span
+            className="tsh-agent-object-token__kind-icon"
+            aria-hidden="true"
+          />
+        )}
+      </span>
+      <span className="tsh-agent-object-token__main">{label}</span>
+    </span>
   );
 }
 
@@ -596,6 +741,11 @@ export function buildWorkspaceAgentInteractivePromptLabels(
         id: "bypassPermissions",
         label: t("agentHost.agentGui.planModes.allowAll.label"),
         description: t("agentHost.agentGui.planModes.allowAll.description")
+      },
+      {
+        id: "auto",
+        label: t("agentHost.agentGui.planModes.auto.label"),
+        description: t("agentHost.agentGui.planModes.auto.description")
       }
     ],
     stayInPlan: t("agentHost.agentGui.stayInPlan"),
@@ -647,7 +797,7 @@ function isGenericApprovalSummary(summary: string): boolean {
   return normalized === "approval";
 }
 
-function MessageCenterSummary({
+export function MessageCenterSummary({
   emptyLabel,
   item,
   lazy,
@@ -833,13 +983,15 @@ function useDeferredMessageCenterSummaryMeasureReady(
   return ready;
 }
 
-function MessageCenterOpenChatButton({
+export function MessageCenterOpenChatButton({
+  actionsAccessory,
   alwaysVisible = false,
   item,
   label,
   onOpenChat,
   provider
 }: {
+  actionsAccessory?: ReactNode;
   alwaysVisible?: boolean;
   item: WorkspaceAgentMessageCenterItem;
   label: string;
@@ -854,29 +1006,32 @@ function MessageCenterOpenChatButton({
         identity={item.identity}
         provider={provider}
       />
-      <Button
-        type="button"
-        variant="ghost"
-        size="default"
-        className={cn(
-          "workspace-agent-message-center__open-chat-button h-auto gap-1.5 border-0 bg-transparent p-0 text-[var(--accent-codex)] shadow-none transition-[color,opacity,visibility] hover:bg-transparent hover:text-[var(--accent-codex)] focus-visible:bg-transparent focus-visible:text-[var(--accent-codex)] active:bg-transparent",
-          !alwaysVisible &&
-            "invisible opacity-0 group-hover/message-card:visible group-hover/message-card:opacity-100 group-focus-within/message-card:visible group-focus-within/message-card:opacity-100"
-        )}
-        onClick={() =>
-          onOpenChat({
-            agentSessionId: item.agentSessionId,
-            provider: item.provider
-          })
-        }
-      >
-        <ExternalLink
-          className="size-[15px]"
-          strokeWidth={2.2}
-          aria-hidden="true"
-        />
-        {label}
-      </Button>
+      <span className="inline-flex shrink-0 items-center gap-2">
+        {actionsAccessory}
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          className={cn(
+            "workspace-agent-message-center__open-chat-button h-auto gap-1.5 border-0 bg-transparent p-0 text-[var(--accent-codex)] shadow-none transition-[color,opacity,visibility] hover:bg-transparent hover:text-[var(--accent-codex)] focus-visible:bg-transparent focus-visible:text-[var(--accent-codex)] active:bg-transparent",
+            !alwaysVisible &&
+              "invisible opacity-0 group-hover/message-card:visible group-hover/message-card:opacity-100 group-focus-within/message-card:visible group-focus-within/message-card:opacity-100"
+          )}
+          onClick={() =>
+            onOpenChat({
+              agentSessionId: item.agentSessionId,
+              provider: item.provider
+            })
+          }
+        >
+          <ExternalLink
+            className="size-[15px]"
+            strokeWidth={2.2}
+            aria-hidden="true"
+          />
+          {label}
+        </Button>
+      </span>
     </div>
   );
 }
@@ -1133,7 +1288,7 @@ export type MessageCenterStatusTone =
   | "neutral"
   | "red";
 
-function messageCenterStatusTone(
+export function messageCenterStatusTone(
   item: WorkspaceAgentMessageCenterItem
 ): MessageCenterStatusTone {
   if (isWaitingMessageCenterItem(item)) {

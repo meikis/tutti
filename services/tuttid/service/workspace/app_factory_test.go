@@ -13,6 +13,7 @@ import (
 	agentsessionstore "github.com/tutti-os/tutti/packages/agentactivity/daemon/activity"
 	workspacefiles "github.com/tutti-os/tutti/packages/workspace/files"
 	agentactivitybiz "github.com/tutti-os/tutti/services/tuttid/biz/agentactivity"
+	agenttargetbiz "github.com/tutti-os/tutti/services/tuttid/biz/agenttarget"
 	workspacebiz "github.com/tutti-os/tutti/services/tuttid/biz/workspace"
 	builtinapps "github.com/tutti-os/tutti/services/tuttid/builtin-apps"
 	workspacedata "github.com/tutti-os/tutti/services/tuttid/data/workspace"
@@ -31,6 +32,7 @@ type workspaceAppFactoryPublisherStub struct {
 type factoryAgentSessionServiceStub struct {
 	createdWorkspaceID string
 	createInput        agentservice.CreateSessionInput
+	composerInput      agentservice.ComposerOptionsInput
 	sendInput          agentservice.SendInput
 	canceledSessionID  string
 }
@@ -129,6 +131,18 @@ func (s *factoryAgentSessionServiceStub) Create(_ context.Context, workspaceID s
 	return agentservice.Session{ID: input.AgentSessionID, Provider: input.Provider}, nil
 }
 
+func (s *factoryAgentSessionServiceStub) GetComposerOptions(_ context.Context, input agentservice.ComposerOptionsInput) (agentservice.ComposerOptions, error) {
+	s.composerInput = input
+	return agentservice.ComposerOptions{
+		Provider: input.Provider,
+		EffectiveSettings: agentservice.ComposerSettings{
+			Model:            input.Settings.Model,
+			PermissionModeID: input.Settings.PermissionModeID,
+			ReasoningEffort:  input.Settings.ReasoningEffort,
+		},
+	}, nil
+}
+
 func (s *factoryAgentSessionServiceStub) SendInput(_ context.Context, _ string, _ string, input agentservice.SendInput) (agentservice.SendInputResult, error) {
 	s.sendInput = input
 	return agentservice.SendInputResult{}, nil
@@ -145,6 +159,57 @@ func (s *factoryAgentSessionServiceStub) Cancel(_ context.Context, _ string, ses
 
 func (s workspaceRootResolverStub) ResolveWorkspaceRoot(context.Context, string) (workspacefiles.WorkspaceRoot, error) {
 	return s.root, nil
+}
+
+func TestAppFactoryServiceGetProviderComposerOptionsUsesFactoryDraftContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	stateDir := t.TempDir()
+	sessions := &factoryAgentSessionServiceStub{}
+	service := AppFactoryService{
+		AgentSessionService: sessions,
+		StateDir:            stateDir,
+		WorkspaceStore: &catalogStoreStub{
+			getWorkspace: workspacebiz.Summary{ID: "ws-1", Name: "Workspace"},
+		},
+	}
+
+	options, err := service.GetProviderComposerOptions(ctx, "ws-1", AppFactoryProviderComposerOptionsInput{
+		Locale:   "zh-CN",
+		Provider: "claude-code",
+		Settings: agentservice.ComposerSettings{
+			Model:            "sonnet",
+			PermissionModeID: "default",
+			ReasoningEffort:  "high",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProviderComposerOptions() error = %v", err)
+	}
+
+	expectedCwd := filepath.Join(stateDir, "apps", "factory", "composer", "ws-1", "draft")
+	if sessions.composerInput.Cwd != expectedCwd {
+		t.Fatalf("composer cwd = %q, want %q", sessions.composerInput.Cwd, expectedCwd)
+	}
+	if _, err := os.Stat(expectedCwd); err != nil {
+		t.Fatalf("composer cwd missing: %v", err)
+	}
+	if sessions.composerInput.WorkspaceID != "ws-1" {
+		t.Fatalf("composer workspace = %q, want ws-1", sessions.composerInput.WorkspaceID)
+	}
+	if sessions.composerInput.Provider != "claude-code" {
+		t.Fatalf("composer provider = %q, want claude-code", sessions.composerInput.Provider)
+	}
+	if sessions.composerInput.Locale != "zh-CN" {
+		t.Fatalf("composer locale = %q, want zh-CN", sessions.composerInput.Locale)
+	}
+	if sessions.composerInput.IncludeCapabilityCatalog == nil || *sessions.composerInput.IncludeCapabilityCatalog {
+		t.Fatalf("composer includeCapabilityCatalog = %v, want false", sessions.composerInput.IncludeCapabilityCatalog)
+	}
+	if options.EffectiveSettings.Model != "sonnet" {
+		t.Fatalf("composer options model = %q, want sonnet", options.EffectiveSettings.Model)
+	}
 }
 
 func TestAppFactoryServiceCreateUsesDraftDirAndReferenceContext(t *testing.T) {
@@ -183,6 +248,9 @@ func TestAppFactoryServiceCreateUsesDraftDirAndReferenceContext(t *testing.T) {
 	if sessions.createInput.Cwd == nil || *sessions.createInput.Cwd != job.DraftDir {
 		t.Fatalf("CreateSession cwd = %v, want %q", sessions.createInput.Cwd, job.DraftDir)
 	}
+	if sessions.createInput.AgentTargetID != agenttargetbiz.IDLocalCodex {
+		t.Fatalf("CreateSession agentTargetId = %q, want %q", sessions.createInput.AgentTargetID, agenttargetbiz.IDLocalCodex)
+	}
 	if job.ReasoningEffort != "high" {
 		t.Fatalf("job reasoningEffort = %q, want high", job.ReasoningEffort)
 	}
@@ -195,8 +263,8 @@ func TestAppFactoryServiceCreateUsesDraftDirAndReferenceContext(t *testing.T) {
 	if sessions.createInput.ReasoningEffort == nil || *sessions.createInput.ReasoningEffort != "high" {
 		t.Fatalf("CreateSession reasoning = %v, want high", sessions.createInput.ReasoningEffort)
 	}
-	if len(sessions.createInput.ExtraSkills) != 1 {
-		t.Fatalf("CreateSession extra skills = %#v, want app factory skill", sessions.createInput.ExtraSkills)
+	if len(sessions.createInput.ExtraSkills) != 2 {
+		t.Fatalf("CreateSession extra skills = %#v, want app factory and agent workspace app skills", sessions.createInput.ExtraSkills)
 	}
 	appFactorySkill := sessions.createInput.ExtraSkills[0]
 	if appFactorySkill.Name != "app-factory" {
@@ -205,8 +273,55 @@ func TestAppFactoryServiceCreateUsesDraftDirAndReferenceContext(t *testing.T) {
 	if !strings.Contains(appFactorySkill.Files["SKILL.md"], "mention://workspace-app-factory/create") {
 		t.Fatalf("app factory skill missing mention contract: %q", appFactorySkill.Files["SKILL.md"])
 	}
+	if !strings.Contains(appFactorySkill.Files["SKILL.md"], "simple-node-static-app") {
+		t.Fatalf("app factory skill should point complete package examples at the Node demo:\n%s", appFactorySkill.Files["SKILL.md"])
+	}
+	if strings.Contains(appFactorySkill.Files["SKILL.md"], "simple-python-static-app") {
+		t.Fatalf("app factory skill should not point new package examples at the Python demo:\n%s", appFactorySkill.Files["SKILL.md"])
+	}
 	if _, ok := appFactorySkill.Files["references/manifest-contract.md"]; !ok {
 		t.Fatalf("app factory skill missing manifest reference: %#v", appFactorySkill.Files)
+	}
+	runtimeEnvReference := appFactorySkill.Files["references/runtime-env.md"]
+	if !strings.Contains(runtimeEnvReference, "@tutti-os/agent-acp-kit` detection") {
+		t.Fatalf("runtime env reference should route agent provider choices through app-owned agent-acp-kit detection:\n%s", runtimeEnvReference)
+	}
+	tuttiCLIReference := appFactorySkill.Files["references/tutti-cli-commands.md"]
+	if !strings.Contains(tuttiCLIReference, "@tutti-os/agent-acp-kit") {
+		t.Fatalf("tutti CLI reference should point agent execution to agent-acp-kit:\n%s", tuttiCLIReference)
+	}
+	if strings.Contains(tuttiCLIReference, "node:child_process") {
+		t.Fatalf("tutti CLI reference should not lead with child_process examples:\n%s", tuttiCLIReference)
+	}
+	agentWorkspaceAppSkill := sessions.createInput.ExtraSkills[1]
+	if agentWorkspaceAppSkill.Name != "tutti-agent-workspace-app" {
+		t.Fatalf("CreateSession second extra skill name = %q, want tutti-agent-workspace-app", agentWorkspaceAppSkill.Name)
+	}
+	if !strings.Contains(agentWorkspaceAppSkill.Files["SKILL.md"], "@tutti-os/agent-acp-kit") {
+		t.Fatalf("agent workspace app skill missing agent-acp-kit guidance: %q", agentWorkspaceAppSkill.Files["SKILL.md"])
+	}
+	agentACPReference, ok := agentWorkspaceAppSkill.Files["references/agent-acp-kit.md"]
+	if !ok {
+		t.Fatalf("agent workspace app skill missing agent-acp-kit reference: %#v", agentWorkspaceAppSkill.Files)
+	}
+	for _, want := range []string{
+		"Do not hand-roll provider detection",
+		"Claude Code and Codex",
+		"localAgentRuntime.detect",
+	} {
+		if !strings.Contains(agentACPReference, want) {
+			t.Fatalf("agent-acp-kit reference missing %q:\n%s", want, agentACPReference)
+		}
+	}
+	if strings.Contains(agentACPReference, `command: "pnpm"`) {
+		t.Fatalf("agent-acp-kit reference should not use bare pnpm in packaged MCP examples:\n%s", agentACPReference)
+	}
+	packageBuilderReference := agentWorkspaceAppSkill.Files["references/package-builder.md"]
+	if strings.Contains(packageBuilderReference, `TUTTI_APP_PORT:-`) {
+		t.Fatalf("package builder bootstrap example should not provide a fallback app port:\n%s", packageBuilderReference)
+	}
+	if strings.Contains(packageBuilderReference, `TUTTI_APP_NODE:-node`) {
+		t.Fatalf("package builder bootstrap example should not fall back to bare node:\n%s", packageBuilderReference)
 	}
 	if !strings.HasPrefix(job.DraftDir, filepath.Join(stateDir, "apps", "factory", "jobs")) {
 		t.Fatalf("draft dir = %q, want under factory job state", job.DraftDir)
@@ -310,8 +425,22 @@ func TestAppFactoryServiceCreateUsesDraftDirAndReferenceContext(t *testing.T) {
 	if !mentionContext.Workspace.FilesReadonlyByDefault {
 		t.Fatalf("context workspace files should be readonly by default")
 	}
-	if len(mentionContext.Constraints) == 0 || !strings.Contains(strings.Join(mentionContext.Constraints, "\n"), "Do not assume hidden Tutti daemon internals") {
+	constraints := strings.Join(mentionContext.Constraints, "\n")
+	if len(mentionContext.Constraints) == 0 || !strings.Contains(constraints, "Do not assume hidden Tutti daemon internals") {
 		t.Fatalf("context constraints = %#v", mentionContext.Constraints)
+	}
+	for _, want := range []string{
+		"Default new apps to a Node server",
+		"@tutti-os/agent-acp-kit",
+		"TUTTI_CLI agent/codex/session polling",
+		"Claude Code and Codex provider options",
+	} {
+		if !strings.Contains(constraints, want) {
+			t.Fatalf("context constraints missing %q: %#v", want, mentionContext.Constraints)
+		}
+	}
+	if strings.Contains(constraints, "AI-generated user-facing content") {
+		t.Fatalf("context constraints should not force non-agent AI integrations onto agent-acp-kit: %#v", mentionContext.Constraints)
 	}
 
 	secondJob, err := service.Create(ctx, "ws-1", CreateAppFactoryJobInput{
@@ -323,6 +452,73 @@ func TestAppFactoryServiceCreateUsesDraftDirAndReferenceContext(t *testing.T) {
 	}
 	if secondJob.DraftDir == job.DraftDir {
 		t.Fatalf("second draft dir reused first draft dir %q", job.DraftDir)
+	}
+}
+
+func TestAppFactoryServiceCreateLaunchesSessionsWithAgentTargetID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		provider     string
+		wantTargetID string
+		wantProvider string
+	}{
+		{
+			name:         "codex",
+			provider:     "codex",
+			wantTargetID: agenttargetbiz.IDLocalCodex,
+			wantProvider: "codex",
+		},
+		{
+			name:         "claude code",
+			provider:     "claude-code",
+			wantTargetID: agenttargetbiz.IDLocalClaudeCode,
+			wantProvider: "claude-code",
+		},
+		{
+			name:         "default provider",
+			provider:     "",
+			wantTargetID: agenttargetbiz.IDLocalCodex,
+			wantProvider: "codex",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			sessions := &factoryAgentSessionServiceStub{}
+			service := AppFactoryService{
+				Store:               newAppFactoryStoreStub(),
+				AgentSessionService: sessions,
+				StateDir:            t.TempDir(),
+				WorkspaceRootResolver: workspaceRootResolverStub{root: workspacefiles.WorkspaceRoot{
+					LogicalRoot:  "/workspace",
+					PhysicalRoot: "/Users/example",
+				}},
+				WorkspaceStore: &catalogStoreStub{
+					getWorkspace: workspacebiz.Summary{ID: "ws-1", Name: "Workspace"},
+				},
+			}
+
+			job, err := service.Create(context.Background(), "ws-1", CreateAppFactoryJobInput{
+				DisplayName: "Target App",
+				Prompt:      "Create an app.",
+				Provider:    tt.provider,
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			if job.Status != workspacebiz.AppFactoryJobStatusGenerating {
+				t.Fatalf("status = %q, want generating", job.Status)
+			}
+			if sessions.createInput.AgentTargetID != tt.wantTargetID {
+				t.Fatalf("CreateSession agentTargetId = %q, want %q", sessions.createInput.AgentTargetID, tt.wantTargetID)
+			}
+			if sessions.createInput.Provider != tt.wantProvider {
+				t.Fatalf("CreateSession provider = %q, want %q", sessions.createInput.Provider, tt.wantProvider)
+			}
+		})
 	}
 }
 

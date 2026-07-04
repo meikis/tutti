@@ -52,6 +52,38 @@ func RegisterRoutes(mux *http.ServeMux, routes Routes) {
 		wrapper.TrackEvents(w, r)
 	})
 
+	mux.HandleFunc("/v1/account/login/start", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.StartAccountLogin(w, r)
+	})
+
+	mux.HandleFunc("/v1/account/login/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.GetAccountLoginStatus(w, r)
+	})
+
+	mux.HandleFunc("/v1/account/user_info", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.GetAccountUserInfo(w, r)
+	})
+
+	mux.HandleFunc("/v1/account/logout", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.LogoutAccount(w, r)
+	})
+
 	mux.HandleFunc("/v1/cli/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			tuttitypes.WriteMethodNotAllowed(w)
@@ -77,6 +109,14 @@ func RegisterRoutes(mux *http.ServeMux, routes Routes) {
 		default:
 			tuttitypes.WriteMethodNotAllowed(w)
 		}
+	})
+
+	mux.HandleFunc("/v1/agent-targets", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.ListAgentTargets(w, r)
 	})
 
 	mux.HandleFunc("/v1/user-projects", func(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +178,14 @@ func RegisterRoutes(mux *http.ServeMux, routes Routes) {
 			return
 		}
 		wrapper.GetAgentProviderStatuses(w, r)
+	})
+
+	mux.HandleFunc("/v1/workspaces/{workspaceID}/app-factory/providers/{provider}/composer-options", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.GetWorkspaceAppFactoryProviderComposerOptions(w, r)
 	})
 
 	mux.HandleFunc("/v1/workspaces", func(w http.ResponseWriter, r *http.Request) {
@@ -306,6 +354,22 @@ func RegisterRoutes(mux *http.ServeMux, routes Routes) {
 		}
 	})
 
+	mux.HandleFunc("/v1/workspaces/{workspaceID}/agent-session-sections", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.ListWorkspaceAgentSessionSections(w, r)
+	})
+
+	mux.HandleFunc("/v1/workspaces/{workspaceID}/agent-session-sections/page", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.ListWorkspaceAgentSessionSectionPage(w, r)
+	})
+
 	mux.HandleFunc("/v1/workspaces/{workspaceID}/agent-sessions/external-imports/scan", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			tuttitypes.WriteMethodNotAllowed(w)
@@ -365,6 +429,14 @@ func RegisterRoutes(mux *http.ServeMux, routes Routes) {
 		wrapper.CancelWorkspaceAgentSession(w, r)
 	})
 
+	mux.HandleFunc("/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/goal", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.GoalControlWorkspaceAgentSession(w, r)
+	})
+
 	mux.HandleFunc("/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/input", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			tuttitypes.WriteMethodNotAllowed(w)
@@ -419,6 +491,22 @@ func RegisterRoutes(mux *http.ServeMux, routes Routes) {
 			return
 		}
 		wrapper.ListWorkspaceGitBranches(w, r)
+	})
+
+	mux.HandleFunc("/v1/workspaces/{workspaceID}/git-patch-support", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.ResolveWorkspaceGitPatchSupport(w, r)
+	})
+
+	mux.HandleFunc("/v1/workspaces/{workspaceID}/git-patch", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tuttitypes.WriteMethodNotAllowed(w)
+			return
+		}
+		wrapper.ApplyWorkspaceGitPatch(w, r)
 	})
 
 	mux.HandleFunc("/v1/workspaces/{workspaceID}/issues", func(w http.ResponseWriter, r *http.Request) {
@@ -519,6 +607,15 @@ func RegisterRoutes(mux *http.ServeMux, routes Routes) {
 			wrapper.ListWorkspaceIssueTasks(w, r)
 		case http.MethodPost:
 			wrapper.CreateWorkspaceIssueTask(w, r)
+		default:
+			tuttitypes.WriteMethodNotAllowed(w)
+		}
+	})
+
+	mux.HandleFunc("/v1/workspaces/{workspaceID}/issues/{issueID}/tasks/batch-create", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			wrapper.CreateWorkspaceIssueTasks(w, r)
 		default:
 			tuttitypes.WriteMethodNotAllowed(w)
 		}

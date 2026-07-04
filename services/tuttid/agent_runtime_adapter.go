@@ -31,13 +31,30 @@ func (a agentRuntimeAdapter) Cancel(ctx context.Context, input agentservice.Runt
 	}, nil
 }
 
+func (a agentRuntimeAdapter) GoalControl(ctx context.Context, input agentservice.RuntimeGoalControlInput) (agentservice.RuntimeGoalControlResult, error) {
+	result, err := a.controller.GoalControl(ctx, agentruntime.GoalControlInput{
+		RoomID:         input.WorkspaceID,
+		AgentSessionID: input.AgentSessionID,
+		Action:         agentruntime.GoalControlAction(input.Action),
+		Objective:      input.Objective,
+	})
+	if err != nil {
+		return agentservice.RuntimeGoalControlResult{}, mapAgentRuntimeError(err)
+	}
+	return agentservice.RuntimeGoalControlResult{
+		AgentSessionID: result.AgentSessionID,
+		Goal:           result.Goal,
+	}, nil
+}
+
 func agentRuntimeSessionSettings(settings agentservice.ComposerSettings) *agentruntime.SessionSettings {
 	result := &agentruntime.SessionSettings{
-		Model:            settings.Model,
-		ReasoningEffort:  settings.ReasoningEffort,
-		Speed:            settings.Speed,
-		PlanMode:         settings.PlanMode,
-		PermissionModeID: settings.PermissionModeID,
+		Model:                  settings.Model,
+		ReasoningEffort:        settings.ReasoningEffort,
+		Speed:                  settings.Speed,
+		PlanMode:               settings.PlanMode,
+		PermissionModeID:       settings.PermissionModeID,
+		ConversationDetailMode: settings.ConversationDetailMode,
 	}
 	if settings.BrowserUse != nil {
 		value := *settings.BrowserUse
@@ -61,6 +78,7 @@ func (a agentRuntimeAdapter) CanResume(input agentservice.RuntimeResumeInput) bo
 		CreatedAtUnixMS:   input.CreatedAtUnixMS,
 		UpdatedAtUnixMS:   input.UpdatedAtUnixMS,
 		Visible:           input.Visible,
+		RuntimeContext:    cloneRuntimeContext(input.RuntimeContext),
 	})
 }
 
@@ -206,6 +224,7 @@ func (a agentRuntimeAdapter) Resume(ctx context.Context, input agentservice.Runt
 	session, err := a.controller.Resume(ctx, agentruntime.ResumeInput{
 		RoomID:            input.WorkspaceID,
 		AgentSessionID:    input.AgentSessionID,
+		AgentTargetID:     input.AgentTargetID,
 		Provider:          input.Provider,
 		ProviderSessionID: input.ProviderSessionID,
 		CWD:               input.Cwd,
@@ -217,6 +236,8 @@ func (a agentRuntimeAdapter) Resume(ctx context.Context, input agentservice.Runt
 		CreatedAtUnixMS:   input.CreatedAtUnixMS,
 		UpdatedAtUnixMS:   input.UpdatedAtUnixMS,
 		Visible:           input.Visible,
+		RuntimeContext:    cloneRuntimeContext(input.RuntimeContext),
+		RecreateIfMissing: input.RecreateIfMissing,
 	})
 	if err != nil {
 		return agentservice.RuntimeSession{}, mapAgentRuntimeError(err)
@@ -251,20 +272,24 @@ func (a agentRuntimeAdapter) Sessions(workspaceID string) []agentservice.Runtime
 
 func (a agentRuntimeAdapter) Start(ctx context.Context, input agentservice.RuntimeStartInput) (agentservice.RuntimeSession, error) {
 	result, err := a.controller.Start(ctx, agentruntime.StartInput{
-		RoomID:           input.WorkspaceID,
-		AgentSessionID:   input.AgentSessionID,
-		Provider:         input.Provider,
-		CWD:              input.Cwd,
-		Env:              append([]string(nil), input.Env...),
-		Title:            input.Title,
-		PermissionModeID: input.PermissionModeID,
+		RoomID:            input.WorkspaceID,
+		AgentSessionID:    input.AgentSessionID,
+		AgentTargetID:     input.AgentTargetID,
+		Provider:          input.Provider,
+		CWD:               input.Cwd,
+		Env:               append([]string(nil), input.Env...),
+		Title:             input.Title,
+		ProviderTargetRef: cloneRuntimeContext(input.ProviderTargetRef),
+		RuntimeContext:    cloneRuntimeContext(input.RuntimeContext),
+		PermissionModeID:  input.PermissionModeID,
 		Settings: &agentruntime.SessionSettings{
-			Model:            input.Model,
-			ReasoningEffort:  input.ReasoningEffort,
-			Speed:            input.Speed,
-			PlanMode:         input.PlanMode,
-			BrowserUse:       cloneOptionalBool(input.BrowserUse),
-			PermissionModeID: input.PermissionModeID,
+			Model:                  input.Model,
+			ReasoningEffort:        input.ReasoningEffort,
+			Speed:                  input.Speed,
+			PlanMode:               input.PlanMode,
+			BrowserUse:             cloneOptionalBool(input.BrowserUse),
+			PermissionModeID:       input.PermissionModeID,
+			ConversationDetailMode: input.ConversationDetailMode,
 		},
 		Visible: input.Visible,
 	})
@@ -297,6 +322,7 @@ func agentRuntimeSession(session agentruntime.Session) agentservice.RuntimeSessi
 	return agentservice.RuntimeSession{
 		ID:                 session.AgentSessionID,
 		WorkspaceID:        session.RoomID,
+		AgentTargetID:      session.AgentTargetID,
 		Provider:           session.Provider,
 		ProviderSessionID:  session.ProviderSessionID,
 		Cwd:                session.CWD,
@@ -308,6 +334,7 @@ func agentRuntimeSession(session agentruntime.Session) agentservice.RuntimeSessi
 		Visible:            session.Visible,
 		Title:              session.Title,
 		LastError:          session.LastError,
+		RuntimeContext:     cloneRuntimeContext(session.RuntimeContext),
 		CreatedAtUnixMS:    session.CreatedAtUnixMS,
 		UpdatedAtUnixMS:    session.UpdatedAtUnixMS,
 	}
@@ -331,6 +358,9 @@ func (a agentRuntimeAdapter) runtimeSessionWithState(session agentruntime.Sessio
 	if state.SubmitAvailability != nil {
 		result.SubmitAvailability = serviceSubmitAvailabilityPointerFromRuntime(state.SubmitAvailability)
 	}
+	if state.PendingInteractive != nil {
+		result.PendingInteractive = serviceInteractivePromptFromRuntime(state.PendingInteractive)
+	}
 	if state.Settings != nil {
 		result.Settings = agentRuntimeComposerSettings(state.Settings)
 	}
@@ -339,6 +369,22 @@ func (a agentRuntimeAdapter) runtimeSessionWithState(session agentruntime.Sessio
 		result.UpdatedAtUnixMS = state.UpdatedAtUnixMS
 	}
 	return result
+}
+
+func serviceInteractivePromptFromRuntime(value *agentruntime.SessionInteractivePrompt) *agentservice.RuntimeInteractivePrompt {
+	if value == nil {
+		return nil
+	}
+	return &agentservice.RuntimeInteractivePrompt{
+		Kind:      value.Kind,
+		RequestID: value.RequestID,
+		ToolName:  value.ToolName,
+		Status:    value.Status,
+		Input:     cloneRuntimeContext(value.Input),
+		Output:    cloneRuntimeContext(value.Output),
+		Error:     cloneRuntimeContext(value.Error),
+		Metadata:  cloneRuntimeContext(value.Metadata),
+	}
 }
 
 func serviceSubmitAvailabilityPointerFromRuntime(value *agentruntime.SubmitAvailability) *agentservice.SubmitAvailability {
@@ -362,12 +408,13 @@ func agentRuntimeComposerSettings(settings *agentruntime.SessionSettings) *agent
 		return nil
 	}
 	return &agentservice.ComposerSettings{
-		Model:            settings.Model,
-		PermissionModeID: settings.PermissionModeID,
-		PlanMode:         settings.PlanMode,
-		BrowserUse:       cloneOptionalBool(settings.BrowserUse),
-		ReasoningEffort:  settings.ReasoningEffort,
-		Speed:            settings.Speed,
+		Model:                  settings.Model,
+		PermissionModeID:       settings.PermissionModeID,
+		PlanMode:               settings.PlanMode,
+		BrowserUse:             cloneOptionalBool(settings.BrowserUse),
+		ReasoningEffort:        settings.ReasoningEffort,
+		Speed:                  settings.Speed,
+		ConversationDetailMode: settings.ConversationDetailMode,
 	}
 }
 
@@ -377,9 +424,28 @@ func cloneRuntimeContext(value map[string]any) map[string]any {
 	}
 	cloned := make(map[string]any, len(value))
 	for key, item := range value {
-		cloned[key] = item
+		cloned[key] = cloneRuntimeContextValue(item)
 	}
 	return cloned
+}
+
+func cloneRuntimeContextValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			out[key] = cloneRuntimeContextValue(item)
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for index, item := range typed {
+			out[index] = cloneRuntimeContextValue(item)
+		}
+		return out
+	default:
+		return value
+	}
 }
 
 func cloneOptionalBool(value *bool) *bool {

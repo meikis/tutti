@@ -55,11 +55,14 @@ const (
 type StartInput struct {
 	RoomID               string
 	AgentSessionID       string
+	AgentTargetID        string
 	Provider             string
 	CWD                  string
 	Env                  []string
 	Title                string
 	Visible              *bool
+	RuntimeContext       map[string]any
+	ProviderTargetRef    map[string]any
 	OpenclawGatewayReady bool
 	PermissionModeID     string
 	Settings             *SessionSettings
@@ -68,6 +71,7 @@ type StartInput struct {
 type ResumeInput struct {
 	RoomID            string
 	AgentSessionID    string
+	AgentTargetID     string
 	Provider          string
 	ProviderSessionID string
 	CWD               string
@@ -75,10 +79,15 @@ type ResumeInput struct {
 	Title             string
 	Status            string
 	Visible           *bool
+	RuntimeContext    map[string]any
 	PermissionModeID  string
 	Settings          *SessionSettings
 	CreatedAtUnixMS   int64
 	UpdatedAtUnixMS   int64
+	// RecreateIfMissing creates a fresh provider session in place when the
+	// existing provider session can no longer be restored locally (e.g. an
+	// imported conversation), instead of returning a restore error.
+	RecreateIfMissing bool
 }
 
 type CloseInput struct {
@@ -123,13 +132,14 @@ type UpdateSettingsInput struct {
 }
 
 type SessionSettings struct {
-	Model            string `json:"model,omitempty"`
-	ReasoningEffort  string `json:"reasoningEffort,omitempty"`
-	Speed            string `json:"speed,omitempty"`
-	PlanMode         bool   `json:"planMode,omitempty"`
-	BrowserUse       *bool  `json:"browserUse,omitempty"`
-	ComputerUse      *bool  `json:"computerUse,omitempty"`
-	PermissionModeID string `json:"permissionModeId,omitempty"`
+	Model                  string `json:"model,omitempty"`
+	ReasoningEffort        string `json:"reasoningEffort,omitempty"`
+	Speed                  string `json:"speed,omitempty"`
+	PlanMode               bool   `json:"planMode,omitempty"`
+	BrowserUse             *bool  `json:"browserUse,omitempty"`
+	ComputerUse            *bool  `json:"computerUse,omitempty"`
+	PermissionModeID       string `json:"permissionModeId,omitempty"`
+	ConversationDetailMode string `json:"conversationDetailMode,omitempty"`
 }
 
 type SessionSettingsPatch struct {
@@ -155,6 +165,7 @@ type PromptContentBlock struct {
 type Session struct {
 	RoomID               string              `json:"roomId"`
 	AgentSessionID       string              `json:"agentSessionId"`
+	AgentTargetID        string              `json:"agentTargetId,omitempty"`
 	Provider             string              `json:"provider"`
 	ProviderSessionID    string              `json:"providerSessionId"`
 	CWD                  string              `json:"cwd,omitempty"`
@@ -165,11 +176,21 @@ type Session struct {
 	Title                string              `json:"title,omitempty"`
 	LastError            string              `json:"lastError,omitempty"`
 	Visible              bool                `json:"visible"`
+	RuntimeContext       map[string]any      `json:"runtimeContext,omitempty"`
+	ProviderTargetRef    map[string]any      `json:"-"`
 	OpenclawGatewayReady bool                `json:"-"`
 	PermissionModeID     string              `json:"permissionModeId,omitempty"`
 	Settings             *SessionSettings    `json:"settings,omitempty"`
 	CreatedAtUnixMS      int64               `json:"createdAtUnixMs"`
 	UpdatedAtUnixMS      int64               `json:"updatedAtUnixMs"`
+	// LifecycleAuthority is set once an adapter-origin TurnLifecycle snapshot
+	// was applied (ADR 0008). Authority sessions copy lifecycle from
+	// snapshots and derive Status purely; legacy sessions keep the historic
+	// event-folding path until their provider publishes snapshots (Phase B).
+	LifecycleAuthority bool `json:"-"`
+	// LifecycleSeq is the sequence of the last applied lifecycle snapshot;
+	// lower-seq snapshots arriving over a slower channel are dropped.
+	LifecycleSeq uint64 `json:"-"`
 }
 
 type SessionInteractivePrompt struct {
@@ -186,6 +207,7 @@ type SessionInteractivePrompt struct {
 type SessionStateSnapshot struct {
 	RoomID             string                    `json:"roomId"`
 	AgentSessionID     string                    `json:"agentSessionId"`
+	AgentTargetID      string                    `json:"agentTargetId,omitempty"`
 	Provider           string                    `json:"provider"`
 	ProviderSessionID  string                    `json:"providerSessionId,omitempty"`
 	Status             string                    `json:"status"`

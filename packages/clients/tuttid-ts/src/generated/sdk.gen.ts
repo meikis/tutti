@@ -13,6 +13,9 @@ import type {
   AddWorkspaceIssueTaskContextRefsData,
   AddWorkspaceIssueTaskContextRefsErrors,
   AddWorkspaceIssueTaskContextRefsResponses,
+  ApplyWorkspaceGitPatchData,
+  ApplyWorkspaceGitPatchErrors,
+  ApplyWorkspaceGitPatchResponses,
   AttachEventStreamData,
   AttachEventStreamErrors,
   AttachEventStreamResponses,
@@ -72,6 +75,9 @@ import type {
   CreateWorkspaceIssueTaskRunData,
   CreateWorkspaceIssueTaskRunErrors,
   CreateWorkspaceIssueTaskRunResponses,
+  CreateWorkspaceIssueTasksData,
+  CreateWorkspaceIssueTasksErrors,
+  CreateWorkspaceIssueTasksResponses,
   CreateWorkspaceIssueTopicData,
   CreateWorkspaceIssueTopicErrors,
   CreateWorkspaceIssueTopicResponses,
@@ -112,6 +118,12 @@ import type {
   FixWorkspaceAppFactoryJobData,
   FixWorkspaceAppFactoryJobErrors,
   FixWorkspaceAppFactoryJobResponses,
+  GetAccountLoginStatusData,
+  GetAccountLoginStatusErrors,
+  GetAccountLoginStatusResponses,
+  GetAccountUserInfoData,
+  GetAccountUserInfoErrors,
+  GetAccountUserInfoResponses,
   GetAgentProviderComposerOptionsData,
   GetAgentProviderComposerOptionsErrors,
   GetAgentProviderComposerOptionsResponses,
@@ -133,6 +145,9 @@ import type {
   GetWorkspaceAppFactoryJobData,
   GetWorkspaceAppFactoryJobErrors,
   GetWorkspaceAppFactoryJobResponses,
+  GetWorkspaceAppFactoryProviderComposerOptionsData,
+  GetWorkspaceAppFactoryProviderComposerOptionsErrors,
+  GetWorkspaceAppFactoryProviderComposerOptionsResponses,
   GetWorkspaceData,
   GetWorkspaceErrors,
   GetWorkspaceFileTreeSnapshotData,
@@ -160,6 +175,9 @@ import type {
   GetWorkspaceWorkbenchData,
   GetWorkspaceWorkbenchErrors,
   GetWorkspaceWorkbenchResponses,
+  GoalControlWorkspaceAgentSessionData,
+  GoalControlWorkspaceAgentSessionErrors,
+  GoalControlWorkspaceAgentSessionResponses,
   ImportWorkspaceAppData,
   ImportWorkspaceAppErrors,
   ImportWorkspaceAppResponses,
@@ -175,6 +193,9 @@ import type {
   LaunchWorkspaceAppData,
   LaunchWorkspaceAppErrors,
   LaunchWorkspaceAppResponses,
+  ListAgentTargetsData,
+  ListAgentTargetsErrors,
+  ListAgentTargetsResponses,
   ListCliCapabilitiesData,
   ListCliCapabilitiesErrors,
   ListCliCapabilitiesResponses,
@@ -191,6 +212,12 @@ import type {
   ListWorkspaceAgentSessionMessagesErrors,
   ListWorkspaceAgentSessionMessagesResponses,
   ListWorkspaceAgentSessionsData,
+  ListWorkspaceAgentSessionSectionPageData,
+  ListWorkspaceAgentSessionSectionPageErrors,
+  ListWorkspaceAgentSessionSectionPageResponses,
+  ListWorkspaceAgentSessionSectionsData,
+  ListWorkspaceAgentSessionSectionsErrors,
+  ListWorkspaceAgentSessionSectionsResponses,
   ListWorkspaceAgentSessionsErrors,
   ListWorkspaceAgentSessionsResponses,
   ListWorkspaceAppFactoryJobsData,
@@ -238,6 +265,9 @@ import type {
   LoadLocalWorkspaceAppData,
   LoadLocalWorkspaceAppErrors,
   LoadLocalWorkspaceAppResponses,
+  LogoutAccountData,
+  LogoutAccountErrors,
+  LogoutAccountResponses,
   MoveWorkspaceFileEntryData,
   MoveWorkspaceFileEntryErrors,
   MoveWorkspaceFileEntryResponses,
@@ -295,6 +325,9 @@ import type {
   ResizeWorkspaceTerminalData,
   ResizeWorkspaceTerminalErrors,
   ResizeWorkspaceTerminalResponses,
+  ResolveWorkspaceGitPatchSupportData,
+  ResolveWorkspaceGitPatchSupportErrors,
+  ResolveWorkspaceGitPatchSupportResponses,
   RetryWorkspaceAppData,
   RetryWorkspaceAppErrors,
   RetryWorkspaceAppFactoryJobValidationData,
@@ -322,6 +355,9 @@ import type {
   SendWorkspaceAgentSessionInputData,
   SendWorkspaceAgentSessionInputErrors,
   SendWorkspaceAgentSessionInputResponses,
+  StartAccountLoginData,
+  StartAccountLoginErrors,
+  StartAccountLoginResponses,
   StartEnabledWorkspaceAppsData,
   StartEnabledWorkspaceAppsErrors,
   StartEnabledWorkspaceAppsResponses,
@@ -426,6 +462,70 @@ export const trackEvents = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers
     }
+  });
+
+/**
+ * Start desktop account login
+ */
+export const startAccountLogin = <ThrowOnError extends boolean = false>(
+  options?: Options<StartAccountLoginData, ThrowOnError>
+) =>
+  (options?.client ?? client).post<
+    StartAccountLoginResponses,
+    StartAccountLoginErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/account/login/start",
+    ...options
+  });
+
+/**
+ * Get desktop account login status
+ */
+export const getAccountLoginStatus = <ThrowOnError extends boolean = false>(
+  options: Options<GetAccountLoginStatusData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetAccountLoginStatusResponses,
+    GetAccountLoginStatusErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/account/login/status",
+    ...options
+  });
+
+/**
+ * Get current desktop account user
+ */
+export const getAccountUserInfo = <ThrowOnError extends boolean = false>(
+  options?: Options<GetAccountUserInfoData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    GetAccountUserInfoResponses,
+    GetAccountUserInfoErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/account/user_info",
+    ...options
+  });
+
+/**
+ * Sign out current desktop account
+ */
+export const logoutAccount = <ThrowOnError extends boolean = false>(
+  options?: Options<LogoutAccountData, ThrowOnError>
+) =>
+  (options?.client ?? client).post<
+    LogoutAccountResponses,
+    LogoutAccountErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/account/logout",
+    ...options
   });
 
 /**
@@ -614,6 +714,24 @@ export const attachEventStream = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/v1/events/ws",
+    ...options
+  });
+
+/**
+ * List daemon-owned Agent Targets
+ *
+ * Returns durable Agent Target records. The launch ref is a controlled union and not a free-form configuration blob.
+ */
+export const listAgentTargets = <ThrowOnError extends boolean = false>(
+  options?: Options<ListAgentTargetsData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<
+    ListAgentTargetsResponses,
+    ListAgentTargetsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/agent-targets",
     ...options
   });
 
@@ -1201,6 +1319,34 @@ export const createWorkspaceAppFactoryJob = <
   });
 
 /**
+ * Get App Factory provider composer options
+ *
+ * Resolves provider composer options for App Factory using daemon-owned workspace and factory draft context. Clients provide workspace and provider selection, while tuttid owns the working directory used for provider discovery.
+ *
+ */
+export const getWorkspaceAppFactoryProviderComposerOptions = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<
+    GetWorkspaceAppFactoryProviderComposerOptionsData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    GetWorkspaceAppFactoryProviderComposerOptionsResponses,
+    GetWorkspaceAppFactoryProviderComposerOptionsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/app-factory/providers/{provider}/composer-options",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
+  });
+
+/**
  * Delete one App Factory job
  */
 export const deleteWorkspaceAppFactoryJob = <
@@ -1382,6 +1528,42 @@ export const createWorkspaceAgentSession = <
       "Content-Type": "application/json",
       ...options.headers
     }
+  });
+
+/**
+ * List agent session rail sections for one workspace
+ */
+export const listWorkspaceAgentSessionSections = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<ListWorkspaceAgentSessionSectionsData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkspaceAgentSessionSectionsResponses,
+    ListWorkspaceAgentSessionSectionsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/agent-session-sections",
+    ...options
+  });
+
+/**
+ * List one agent session rail section page for one workspace
+ */
+export const listWorkspaceAgentSessionSectionPage = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<ListWorkspaceAgentSessionSectionPageData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListWorkspaceAgentSessionSectionPageResponses,
+    ListWorkspaceAgentSessionSectionPageErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/agent-session-sections/page",
+    ...options
   });
 
 /**
@@ -1603,6 +1785,44 @@ export const listWorkspaceGitBranches = <ThrowOnError extends boolean = false>(
   });
 
 /**
+ * Resolve whether git patch operations are available for a workspace working directory
+ */
+export const resolveWorkspaceGitPatchSupport = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<ResolveWorkspaceGitPatchSupportData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ResolveWorkspaceGitPatchSupportResponses,
+    ResolveWorkspaceGitPatchSupportErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/git-patch-support",
+    ...options
+  });
+
+/**
+ * Apply or reverse-apply a git patch in a workspace working directory
+ */
+export const applyWorkspaceGitPatch = <ThrowOnError extends boolean = false>(
+  options: Options<ApplyWorkspaceGitPatchData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    ApplyWorkspaceGitPatchResponses,
+    ApplyWorkspaceGitPatchErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/git-patch",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
+  });
+
+/**
  * List git branches for the agent session working directory
  */
 export const listWorkspaceAgentSessionGitBranches = <
@@ -1636,6 +1856,28 @@ export const cancelWorkspaceAgentSession = <
     security: [{ scheme: "bearer", type: "http" }],
     url: "/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/cancel",
     ...options
+  });
+
+/**
+ * Perform a goal control action on one workspace agent session
+ */
+export const goalControlWorkspaceAgentSession = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<GoalControlWorkspaceAgentSessionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    GoalControlWorkspaceAgentSessionResponses,
+    GoalControlWorkspaceAgentSessionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/goal",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
   });
 
 /**
@@ -2484,6 +2726,26 @@ export const createWorkspaceIssueTask = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: "bearer", type: "http" }],
     url: "/v1/workspaces/{workspaceID}/issues/{issueID}/tasks",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
+  });
+
+/**
+ * Create ordered tasks for an issue-manager issue
+ */
+export const createWorkspaceIssueTasks = <ThrowOnError extends boolean = false>(
+  options: Options<CreateWorkspaceIssueTasksData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateWorkspaceIssueTasksResponses,
+    CreateWorkspaceIssueTasksErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/issues/{issueID}/tasks/batch-create",
     ...options,
     headers: {
       "Content-Type": "application/json",

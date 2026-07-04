@@ -5,7 +5,12 @@ import type {
 import type {
   DesktopBackendConfig,
   DesktopComputerUseActionResult,
+  DesktopComputerUsePermissionGrantStatus,
+  DesktopComputerUsePermissionPane,
+  DesktopComputerUseRestartDriverInput,
+  DesktopComputerUseRestartDriverResult,
   DesktopComputerUseStatus,
+  DesktopClipboardImagePayload,
   DesktopCreateUserDocumentsProjectDirectoryResult,
   DesktopCustomWallpaperImage,
   DesktopLocalFileTextResult,
@@ -34,7 +39,9 @@ import type {
   DesktopWorkspaceAppExternalRendererRequest,
   DesktopWorkspaceAppExternalRendererResult,
   DesktopWorkspaceAppOpenFileResolvedPayload,
-  DesktopWorkspaceOpenFeatureRequest
+  DesktopWorkspaceOpenFeatureRequest,
+  DesktopArchiveAgentPromptFileInput,
+  DesktopArchiveAgentPromptFileResult
 } from "../shared/contracts/ipc";
 import type { BrowserNodeHostApi } from "@tutti-os/browser-node";
 
@@ -65,7 +72,13 @@ export interface DesktopDockPreviewCacheApi {
 export interface DesktopPlatformApi {
   homeDirectory: string;
   os: NodeJS.Platform;
+  resolveDroppedEntries(files: File[]): DesktopDroppedEntry[];
   resolveDroppedPaths(files: File[]): string[];
+}
+
+export interface DesktopDroppedEntry {
+  kind: "file" | "folder";
+  path: string;
 }
 
 export interface DesktopHostWorkspaceApi {
@@ -165,6 +178,9 @@ export interface DesktopHostFilesApi {
   }): Promise<void>;
   readLocalFileText(path: string): Promise<DesktopLocalFileTextResult>;
   readLocalPreviewFile(path: string): Promise<Uint8Array>;
+  archiveAgentPromptFile(
+    input: DesktopArchiveAgentPromptFileInput
+  ): Promise<DesktopArchiveAgentPromptFileResult>;
   readPreviewFile(workspaceID: string, path: string): Promise<Uint8Array>;
   resolveEntryIcon(
     workspaceID: string,
@@ -176,6 +192,7 @@ export interface DesktopHostFilesApi {
     }
   ): Promise<string | null>;
   selectUploadFiles(input?: DesktopSelectUploadFilesInput): Promise<string[]>;
+  copyImageToClipboard(input: DesktopClipboardImagePayload): Promise<void>;
   copyFilesToClipboard(paths: string[]): Promise<void>;
 }
 
@@ -226,6 +243,12 @@ export interface DesktopComputerUseApi {
   install(): Promise<DesktopComputerUseActionResult>;
   uninstall(): Promise<DesktopComputerUseActionResult>;
   grantPermissions(): Promise<DesktopComputerUseActionResult>;
+  startPermissionGrant(): Promise<DesktopComputerUsePermissionGrantStatus>;
+  getPermissionGrantStatus(): Promise<DesktopComputerUsePermissionGrantStatus | null>;
+  openPermissionSettings(pane: DesktopComputerUsePermissionPane): Promise<void>;
+  restartDriver(
+    input?: DesktopComputerUseRestartDriverInput
+  ): Promise<DesktopComputerUseRestartDriverResult>;
 }
 
 export interface DesktopApi {

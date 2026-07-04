@@ -156,6 +156,235 @@ describe("projectAgentTurnSummaryRowForTurn", () => {
     ]);
   });
 
+  it("summarizes Codex delete-add replacements as modified files", () => {
+    const rows = projectAgentTurnSummaryRowForTurn(
+      {
+        id: "turn-codex-replace",
+        userMessage: null,
+        userMessages: [],
+        agentMessages: [],
+        toolCalls: [
+          {
+            id: "call:delete-index",
+            name: "Edit file",
+            toolName: "Edit",
+            callType: "tool",
+            status: "Completed",
+            statusKind: "completed",
+            summary: "Deleted index.html",
+            occurredAtUnixMs: 14,
+            payload: {
+              input: {
+                changes: [
+                  {
+                    path: "/workspace/game/index.html",
+                    kind: { type: "delete" },
+                    diff: "<!doctype html>\n<title>Old</title>\n"
+                  },
+                  {
+                    path: "/workspace/game/stale.css",
+                    kind: { type: "update" },
+                    diff: "@@ -1 +1 @@\n-body{}\n+body{color:red}\n"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            id: "call:add-index",
+            name: "Edit file",
+            toolName: "Edit",
+            callType: "tool",
+            status: "Completed",
+            statusKind: "completed",
+            summary: "Created index.html",
+            occurredAtUnixMs: 15,
+            payload: {
+              input: {
+                changes: [
+                  {
+                    path: "/workspace/game/index.html",
+                    kind: { type: "add" },
+                    diff: "<!doctype html>\n<title>Snake</title>\n"
+                  },
+                  {
+                    path: "/workspace/game/stale.css",
+                    kind: { type: "delete" },
+                    diff: "body{color:red}\n"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        toolCallCount: 2,
+        hasFailedToolCall: false,
+        agentItems: []
+      } satisfies WorkspaceAgentSessionDetailTurn,
+      { workspaceRoot: "/workspace" }
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      fileCount: 2,
+      modifiedCount: 2,
+      createdCount: 0
+    });
+    expect(rows[0]?.files).toEqual([
+      expect.objectContaining({
+        path: "/workspace/game/index.html",
+        changeType: "modified",
+        oldString: "<!doctype html>\n<title>Old</title>",
+        newString: "<!doctype html>\n<title>Snake</title>",
+        unifiedDiff: null
+      }),
+      expect.objectContaining({
+        path: "/workspace/game/stale.css",
+        changeType: "deleted",
+        unifiedDiff: "body{color:red}"
+      })
+    ]);
+  });
+
+  it("preserves executable patch batches without deduping repeated paths", () => {
+    const rows = projectAgentTurnSummaryRowForTurn(
+      {
+        id: "turn-repeat-patch",
+        userMessage: null,
+        userMessages: [],
+        agentMessages: [],
+        toolCalls: [
+          {
+            id: "call:first-edit",
+            name: "Edit files",
+            toolName: "Edit",
+            callType: "tool",
+            status: "Completed",
+            statusKind: "completed",
+            summary: "First edit",
+            occurredAtUnixMs: 14,
+            payload: {
+              input: {
+                cwd: "/workspace/project",
+                changes: [
+                  {
+                    path: "/workspace/project/src/app.ts",
+                    kind: { type: "update" },
+                    diff: "@@ -1 +1 @@\n-old\n+middle\n"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            id: "call:second-edit",
+            name: "Edit files again",
+            toolName: "Edit",
+            callType: "tool",
+            status: "Completed",
+            statusKind: "completed",
+            summary: "Second edit",
+            occurredAtUnixMs: 15,
+            payload: {
+              input: {
+                cwd: "/workspace/project",
+                changes: [
+                  {
+                    path: "/workspace/project/src/app.ts",
+                    kind: { type: "update" },
+                    diff: "@@ -1 +1 @@\n-middle\n+new\n"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        toolCallCount: 2,
+        hasFailedToolCall: false,
+        agentItems: []
+      } satisfies WorkspaceAgentSessionDetailTurn,
+      { workspaceRoot: "/workspace" }
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.files).toHaveLength(1);
+    expect(rows[0]?.patchBatches).toEqual([
+      expect.objectContaining({
+        cwd: "/workspace/project",
+        toolCallId: "call:first-edit",
+        changes: [
+          expect.objectContaining({
+            path: "/workspace/project/src/app.ts",
+            unifiedDiff: "@@ -1 +1 @@\n-old\n+middle"
+          })
+        ]
+      }),
+      expect.objectContaining({
+        cwd: "/workspace/project",
+        toolCallId: "call:second-edit",
+        changes: [
+          expect.objectContaining({
+            path: "/workspace/project/src/app.ts",
+            unifiedDiff: "@@ -1 +1 @@\n-middle\n+new"
+          })
+        ]
+      })
+    ]);
+  });
+
+  it("preserves literal whitespace in executable patch batch content", () => {
+    const content = "\n  indented value  \n\n";
+    const rows = projectAgentTurnSummaryRowForTurn(
+      {
+        id: "turn-whitespace-patch",
+        userMessage: null,
+        userMessages: [],
+        agentMessages: [],
+        toolCalls: [
+          {
+            id: "call:write-whitespace",
+            name: "Write file",
+            toolName: "Write",
+            callType: "tool",
+            status: "Completed",
+            statusKind: "completed",
+            summary: "Created whitespace file",
+            occurredAtUnixMs: 16,
+            payload: {
+              input: {
+                cwd: "/workspace/project",
+                changes: {
+                  "/workspace/project/src/whitespace.txt": {
+                    type: "add",
+                    content
+                  }
+                }
+              }
+            }
+          }
+        ],
+        toolCallCount: 1,
+        hasFailedToolCall: false,
+        agentItems: []
+      } satisfies WorkspaceAgentSessionDetailTurn,
+      { workspaceRoot: "/workspace" }
+    );
+
+    expect(rows[0]?.files[0]).toEqual(
+      expect.objectContaining({
+        content,
+        newString: content
+      })
+    );
+    expect(rows[0]?.patchBatches?.[0]?.changes[0]).toEqual(
+      expect.objectContaining({
+        content,
+        newString: content,
+        oldString: ""
+      })
+    );
+  });
+
   it("extracts nested task step file changes for durable reopen summaries", () => {
     const rows = projectAgentTurnSummaryRowForTurn(
       {
@@ -201,6 +430,84 @@ describe("projectAgentTurnSummaryRowForTurn", () => {
         path: "/workspace/docs/spec.md",
         changeType: "created",
         content: "# renderer parity"
+      })
+    ]);
+  });
+
+  it("aligns payload step patch batches with nested file extraction", () => {
+    const rows = projectAgentTurnSummaryRowForTurn(
+      {
+        id: "turn-payload-steps",
+        userMessage: null,
+        userMessages: [],
+        agentMessages: [],
+        toolCalls: [
+          {
+            id: "call:task-payload-steps",
+            name: "Task",
+            toolName: "Task",
+            callType: "subagent",
+            status: "Completed",
+            statusKind: "completed",
+            summary: "Delegated change",
+            occurredAtUnixMs: 21,
+            payload: {
+              steps: [
+                {
+                  id: "step-ok",
+                  status: "completed",
+                  toolName: "Write",
+                  toolInput: {
+                    cwd: "/workspace/project",
+                    changes: {
+                      "/workspace/project/docs/ok.md": {
+                        type: "add",
+                        content: "ok\n"
+                      }
+                    }
+                  }
+                },
+                {
+                  id: "step-failed",
+                  status: "failed",
+                  toolName: "Write",
+                  toolInput: {
+                    cwd: "/workspace/project",
+                    changes: {
+                      "/workspace/project/docs/failed.md": {
+                        type: "add",
+                        content: "failed\n"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        toolCallCount: 1,
+        hasFailedToolCall: false,
+        agentItems: []
+      } satisfies WorkspaceAgentSessionDetailTurn,
+      { workspaceRoot: "/workspace" }
+    );
+
+    expect(rows[0]?.files).toEqual([
+      expect.objectContaining({
+        path: "/workspace/project/docs/ok.md",
+        changeType: "created"
+      })
+    ]);
+    expect(rows[0]?.patchBatches).toEqual([
+      expect.objectContaining({
+        cwd: "/workspace/project",
+        toolCallId: "step-ok",
+        changes: [
+          expect.objectContaining({
+            path: "/workspace/project/docs/ok.md",
+            content: "ok\n"
+          })
+        ]
       })
     ]);
   });
@@ -373,8 +680,8 @@ describe("projectAgentTurnSummaryRowForTurn", () => {
       expect.objectContaining({
         path: "/workspace/today.txt",
         changeType: "created",
-        content: "2026-05-19",
-        newString: "2026-05-19"
+        content: "2026-05-19\n",
+        newString: "2026-05-19\n"
       })
     ]);
   });
@@ -431,8 +738,8 @@ describe("projectAgentTurnSummaryRowForTurn", () => {
       expect.objectContaining({
         path: "/workspace/today.txt",
         changeType: "created",
-        content: "2026-05-22",
-        newString: "2026-05-22"
+        content: "2026-05-22\n",
+        newString: "2026-05-22\n"
       })
     ]);
   });
@@ -730,7 +1037,7 @@ describe("projectAgentTurnSummaryRows", () => {
         path: "/workspace/a.md",
         changeType: "deleted",
         content: null,
-        oldString: "aaaaa",
+        oldString: "aaaaa\n",
         newString: ""
       })
     ]);

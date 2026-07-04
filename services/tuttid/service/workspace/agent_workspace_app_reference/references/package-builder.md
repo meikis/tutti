@@ -19,6 +19,7 @@ The package builder should:
 - Include package-local `AGENTS.md`, optional `COMMANDS.md`, icons, locales, docs needed by agents, built web assets, and server bundle.
 - Reject symlinks and missing required files.
 - Validate package manifest, CLI manifest linkage, references endpoint linkage, and bootstrap executability.
+- For cloud-compatible agent apps, include the same server routes that call `@tutti-os/agent-acp-kit` managed header context helpers. The package script should package those routes; it must not add separate credential body fields, browser JSB fallback, managed cwd remapping, or `CODEX_HOME` setup.
 
 ## Bootstrap
 
@@ -30,6 +31,7 @@ Generated `bootstrap.sh` should:
 - Use `TUTTI_APP_DATA_DIR`, `TUTTI_APP_RUNTIME_DIR`, and `TUTTI_APP_LOG_DIR` for mutable files.
 - Set a package-local path for bundled MCP tools when local agents need them.
 - Start all required child processes and clean them up on `INT`/`TERM`.
+- Leave managed-agent credential, managed run cwd, and Codex home policy to `@tutti-os/agent-acp-kit` server calls. Do not export credentials or synthesize `CODEX_HOME` in `bootstrap.sh`.
 
 Pattern:
 
@@ -41,15 +43,17 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 package_dir="${TUTTI_APP_PACKAGE_DIR:-$script_dir}"
 
 export HOST="${TUTTI_APP_HOST:-127.0.0.1}"
-export APP_PORT="${TUTTI_APP_PORT:-3001}"
+: "${TUTTI_APP_PORT:?TUTTI_APP_PORT is required}"
+export APP_PORT="$TUTTI_APP_PORT"
 export APP_DATA_ROOT="${TUTTI_APP_DATA_DIR:-$package_dir/.data}"
 export APP_RUNTIME_ROOT="${TUTTI_APP_RUNTIME_DIR:-$APP_DATA_ROOT/.runtime}"
 export APP_WEB_DIST="$package_dir/dist"
 export APP_TOOLS_MCP_PATH="$package_dir/server/tools-mcp.js"
 
-node_bin="${TUTTI_APP_NODE:-node}"
+node_bin="${TUTTI_APP_NODE:?TUTTI_APP_NODE is required}"
 mkdir -p "$APP_DATA_ROOT" "$APP_RUNTIME_ROOT"
 
+cd "$APP_RUNTIME_ROOT"
 "$node_bin" "$package_dir/server/server.js"
 ```
 

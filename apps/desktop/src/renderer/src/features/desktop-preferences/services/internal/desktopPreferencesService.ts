@@ -7,12 +7,15 @@ import {
   desktopAgentComposerDefaultsByProviderEqual,
   desktopAgentGuiConversationRailCollapsedByProviderEqual,
   defaultDesktopAgentProvider,
+  defaultDesktopAgentConversationDetailMode,
+  defaultDesktopAgentDockLayout,
   defaultDesktopAppCatalogChannel,
   defaultDesktopBrowserUseConnectionMode,
   defaultDesktopDockIconStyle,
   defaultDesktopDockPlacement,
   defaultDesktopFileDefaultOpenersByExtension,
   defaultDesktopMinimizeAnimation,
+  defaultDesktopShowAppDeveloperSources,
   defaultDesktopSleepPreventionMode,
   defaultDesktopUpdateChannel,
   defaultDesktopUpdatePolicy,
@@ -21,6 +24,8 @@ import {
   mergeDesktopAgentGuiConversationRailCollapsedByProvider,
   normalizeDesktopAgentComposerDefaults,
   normalizeDesktopAgentComposerDefaultsByProvider,
+  normalizeDesktopAgentConversationDetailMode,
+  normalizeDesktopAgentDockLayout,
   normalizeDesktopFileDefaultOpenersByExtension,
   normalizeDesktopAgentGuiConversationRailCollapsedByProvider,
   normalizeDesktopWorkbenchWindowSnapping,
@@ -30,6 +35,8 @@ import {
   type DesktopAgentComposerDefaultsByProvider,
   type DesktopAgentGuiConversationRailCollapsedByProvider,
   type DesktopAgentProvider,
+  type DesktopAgentConversationDetailMode,
+  type DesktopAgentDockLayout,
   type DesktopAppCatalogChannel,
   type DesktopBrowserUseConnectionMode,
   type DesktopDockIconStyle,
@@ -65,6 +72,8 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
     this.store = createDesktopPreferencesStore({
       agentComposerDefaultsByProvider: {},
       agentGuiConversationRailCollapsedByProvider: {},
+      agentConversationDetailMode: defaultDesktopAgentConversationDetailMode,
+      agentDockLayout: defaultDesktopAgentDockLayout,
       appCatalogChannel: defaultDesktopAppCatalogChannel,
       browserUseConnectionMode: defaultDesktopBrowserUseConnectionMode,
       defaultAgentProvider: defaultDesktopAgentProvider,
@@ -76,6 +85,7 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
       locale: this.dependencies.initialLocale,
       minimizeAnimation: defaultDesktopMinimizeAnimation,
       sleepPreventionMode: defaultDesktopSleepPreventionMode,
+      showAppDeveloperSources: defaultDesktopShowAppDeveloperSources,
       theme: this.dependencies.initialTheme,
       updateChannel: defaultDesktopUpdateChannel,
       updatePolicy: defaultDesktopUpdatePolicy,
@@ -120,6 +130,68 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
     } finally {
       if (this.store.changingDefaultAgentProvider === provider) {
         this.store.changingDefaultAgentProvider = null;
+      }
+    }
+  }
+
+  async setAgentConversationDetailMode(
+    mode: DesktopAgentConversationDetailMode
+  ): Promise<DesktopAgentConversationDetailMode> {
+    const nextMode = normalizeDesktopAgentConversationDetailMode(mode);
+    if (this.store.changingAgentConversationDetailMode === nextMode) {
+      return nextMode;
+    }
+
+    const previousMode = this.store.agentConversationDetailMode;
+    this.store.changingAgentConversationDetailMode = nextMode;
+    this.store.agentConversationDetailMode = nextMode;
+    try {
+      const authoritativePreferences =
+        await this.dependencies.client.updateDesktopPreferences({
+          preferences: this.currentPreferences({
+            agentConversationDetailMode: nextMode
+          })
+        });
+      return normalizeDesktopAgentConversationDetailMode(
+        authoritativePreferences.agentConversationDetailMode
+      );
+    } catch (error) {
+      this.store.agentConversationDetailMode = previousMode;
+      throw error;
+    } finally {
+      if (this.store.changingAgentConversationDetailMode === nextMode) {
+        this.store.changingAgentConversationDetailMode = null;
+      }
+    }
+  }
+
+  async setAgentDockLayout(
+    layout: DesktopAgentDockLayout
+  ): Promise<DesktopAgentDockLayout> {
+    const nextLayout = normalizeDesktopAgentDockLayout(layout);
+    if (this.store.changingAgentDockLayout === nextLayout) {
+      return nextLayout;
+    }
+
+    const previousLayout = this.store.agentDockLayout;
+    this.store.changingAgentDockLayout = nextLayout;
+    this.store.agentDockLayout = nextLayout;
+    try {
+      const authoritativePreferences =
+        await this.dependencies.client.updateDesktopPreferences({
+          preferences: this.currentPreferences({
+            agentDockLayout: nextLayout
+          })
+        });
+      return normalizeDesktopAgentDockLayout(
+        authoritativePreferences.agentDockLayout
+      );
+    } catch (error) {
+      this.store.agentDockLayout = previousLayout;
+      throw error;
+    } finally {
+      if (this.store.changingAgentDockLayout === nextLayout) {
+        this.store.changingAgentDockLayout = null;
       }
     }
   }
@@ -424,6 +496,32 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
     }
   }
 
+  async setShowAppDeveloperSources(show: boolean): Promise<boolean> {
+    if (this.store.changingShowAppDeveloperSources === show) {
+      return show;
+    }
+
+    const previousShow = this.store.showAppDeveloperSources;
+    this.store.changingShowAppDeveloperSources = show;
+    this.store.showAppDeveloperSources = show;
+    try {
+      const authoritativePreferences =
+        await this.dependencies.client.updateDesktopPreferences({
+          preferences: this.currentPreferences({
+            showAppDeveloperSources: show
+          })
+        });
+      return authoritativePreferences.showAppDeveloperSources ?? false;
+    } catch (error) {
+      this.store.showAppDeveloperSources = previousShow;
+      throw error;
+    } finally {
+      if (this.store.changingShowAppDeveloperSources === show) {
+        this.store.changingShowAppDeveloperSources = null;
+      }
+    }
+  }
+
   async setUpdatePolicy(
     policy: DesktopUpdatePolicy
   ): Promise<DesktopUpdatePolicy> {
@@ -594,6 +692,8 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
   private applyPreferences(preferences: {
     agentComposerDefaultsByProvider?: DesktopAgentComposerDefaultsByProvider;
     agentGuiConversationRailCollapsedByProvider?: DesktopAgentGuiConversationRailCollapsedByProvider;
+    agentConversationDetailMode?: DesktopAgentConversationDetailMode;
+    agentDockLayout?: DesktopAgentDockLayout;
     appCatalogChannel: DesktopAppCatalogChannel;
     browserUseConnectionMode?: DesktopBrowserUseConnectionMode;
     defaultAgentProvider: DesktopAgentProvider;
@@ -603,6 +703,7 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
     locale: DesktopLocale;
     minimizeAnimation?: DesktopMinimizeAnimation;
     sleepPreventionMode: DesktopSleepPreventionMode;
+    showAppDeveloperSources?: boolean;
     themeSource: DesktopThemeSource;
     updateChannel: DesktopUpdateChannel;
     updatePolicy: DesktopUpdatePolicy;
@@ -616,6 +717,13 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
       normalizeDesktopAgentGuiConversationRailCollapsedByProvider(
         preferences.agentGuiConversationRailCollapsedByProvider
       );
+    this.store.agentConversationDetailMode =
+      normalizeDesktopAgentConversationDetailMode(
+        preferences.agentConversationDetailMode
+      );
+    this.store.agentDockLayout = normalizeDesktopAgentDockLayout(
+      preferences.agentDockLayout
+    );
     this.store.appCatalogChannel =
       preferences.appCatalogChannel ?? defaultDesktopAppCatalogChannel;
     this.store.browserUseConnectionMode =
@@ -632,6 +740,9 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
     this.store.minimizeAnimation =
       preferences.minimizeAnimation ?? defaultDesktopMinimizeAnimation;
     this.store.sleepPreventionMode = preferences.sleepPreventionMode;
+    this.store.showAppDeveloperSources =
+      preferences.showAppDeveloperSources ??
+      defaultDesktopShowAppDeveloperSources;
     this.applyTheme(this.dependencies.resolveTheme(preferences.themeSource));
     this.store.updateChannel = preferences.updateChannel;
     this.store.updatePolicy = preferences.updatePolicy;
@@ -645,6 +756,8 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
     overrides: Partial<{
       agentComposerDefaultsByProvider: DesktopAgentComposerDefaultsByProvider;
       agentGuiConversationRailCollapsedByProvider: DesktopAgentGuiConversationRailCollapsedByProvider;
+      agentConversationDetailMode: DesktopAgentConversationDetailMode;
+      agentDockLayout: DesktopAgentDockLayout;
       appCatalogChannel: DesktopAppCatalogChannel;
       browserUseConnectionMode: DesktopBrowserUseConnectionMode;
       defaultAgentProvider: DesktopAgentProvider;
@@ -654,6 +767,7 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
       locale: DesktopLocale;
       minimizeAnimation: DesktopMinimizeAnimation;
       sleepPreventionMode: DesktopSleepPreventionMode;
+      showAppDeveloperSources: boolean;
       themeSource: DesktopThemeSource;
       updateChannel: DesktopUpdateChannel;
       updatePolicy: DesktopUpdatePolicy;
@@ -662,6 +776,8 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
   ): {
     agentComposerDefaultsByProvider: DesktopAgentComposerDefaultsByProvider;
     agentGuiConversationRailCollapsedByProvider: DesktopAgentGuiConversationRailCollapsedByProvider;
+    agentConversationDetailMode: DesktopAgentConversationDetailMode;
+    agentDockLayout: DesktopAgentDockLayout;
     appCatalogChannel: DesktopAppCatalogChannel;
     browserUseConnectionMode: DesktopBrowserUseConnectionMode;
     defaultAgentProvider: DesktopAgentProvider;
@@ -671,6 +787,7 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
     locale: DesktopLocale;
     minimizeAnimation: DesktopMinimizeAnimation;
     sleepPreventionMode: DesktopSleepPreventionMode;
+    showAppDeveloperSources: boolean;
     themeSource: DesktopThemeSource;
     updateChannel: DesktopUpdateChannel;
     updatePolicy: DesktopUpdatePolicy;
@@ -692,6 +809,13 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
           overrides.agentGuiConversationRailCollapsedByProvider ??
             this.store.agentGuiConversationRailCollapsedByProvider
         ),
+      agentConversationDetailMode: normalizeDesktopAgentConversationDetailMode(
+        overrides.agentConversationDetailMode ??
+          this.store.agentConversationDetailMode
+      ),
+      agentDockLayout: normalizeDesktopAgentDockLayout(
+        overrides.agentDockLayout ?? this.store.agentDockLayout
+      ),
       appCatalogChannel:
         overrides.appCatalogChannel ?? this.store.appCatalogChannel,
       browserUseConnectionMode:
@@ -711,6 +835,8 @@ export class DesktopPreferencesService implements IDesktopPreferencesService {
         overrides.minimizeAnimation ?? this.store.minimizeAnimation,
       sleepPreventionMode:
         overrides.sleepPreventionMode ?? this.store.sleepPreventionMode,
+      showAppDeveloperSources:
+        overrides.showAppDeveloperSources ?? this.store.showAppDeveloperSources,
       themeSource: overrides.themeSource ?? this.store.theme.source,
       updateChannel: overrides.updateChannel ?? this.store.updateChannel,
       updatePolicy: overrides.updatePolicy ?? this.store.updatePolicy,

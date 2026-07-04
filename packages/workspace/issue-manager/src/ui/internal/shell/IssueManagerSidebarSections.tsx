@@ -4,12 +4,12 @@ import {
   Badge,
   Button,
   CloseIcon,
+  FileCreateIcon,
   Input,
   ScrollArea,
   UnderlineTabs,
   cn
 } from "@tutti-os/ui-system";
-import { CreateChatIcon } from "@tutti-os/ui-system/icons";
 import type {
   IssueManagerIssueSummary,
   IssueManagerNodeState
@@ -48,7 +48,7 @@ export function IssueManagerSidebarHeader({
   onIssueSearchQueryChange: (value: string) => void;
 }): JSX.Element {
   return (
-    <div className="px-4 py-4">
+    <div className="px-4 pb-4">
       <div className={issueManagerSidebarHeaderClassName}>
         <IssueManagerSearchField
           clearLabel={copy.t("actions.clearSearch")}
@@ -64,7 +64,7 @@ export function IssueManagerSidebarHeader({
           variant="secondary"
           onClick={onCreateIssue}
         >
-          <CreateChatIcon aria-hidden="true" />
+          <FileCreateIcon aria-hidden="true" />
           <span>{copy.t("actions.createIssue")}</span>
         </Button>
       </div>

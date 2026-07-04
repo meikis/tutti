@@ -1,5 +1,8 @@
 import type {
   AddIssueManagerContextRefsRequest,
+  AccountLoginStartResponse,
+  AccountLoginStatusResponse,
+  AccountUserInfo,
   AgentProviderComposerOptionsResponse,
   AgentProviderProbeResponse,
   AgentProviderActionId,
@@ -11,14 +14,18 @@ import type {
   AgentProviderStatusListResponse,
   CancelWorkspaceAgentSessionResponse,
   ClearWorkspaceAgentSessionsResponse,
+  GoalControlWorkspaceAgentSessionResponse,
+  WorkspaceAgentSessionGoalControlRequest,
   CliCapabilitiesResponse,
   AgentSessionComposerSettings,
   GetAgentProviderComposerOptionsRequest,
+  GetWorkspaceAppFactoryProviderComposerOptionsRequest,
   CompleteIssueManagerRunRequest,
   CheckUserProjectPathRequest,
   CreateIssueManagerIssueRequest,
   CreateIssueManagerRunRequest,
   CreateIssueManagerTaskRequest,
+  CreateIssueManagerTasksRequest,
   CreateIssueManagerTopicRequest,
   CreateWorkspaceAgentSessionRequest,
   CreateWorkspaceAppFactoryJobRequest,
@@ -58,6 +65,7 @@ import type {
   IssueManagerTaskListResponse,
   IssueManagerTopic,
   IssueManagerTopicListResponse,
+  ListAgentTargetsResponse,
   ListWorkspacesResponse,
   CopyWorkspaceFileEntryRequest,
   MoveWorkspaceFileEntryRequest,
@@ -77,6 +85,8 @@ import type {
   TrackEventsRequest,
   UpdateWorkspaceAgentSessionPinRequest,
   UpdateWorkspaceAgentSessionVisibilityRequest,
+  WorkspaceGitPatchRequest,
+  WorkspaceGitPatchResponse,
   UpdateIssueManagerIssueRequest,
   UpdateIssueManagerTaskRequest,
   UpdateIssueManagerTopicRequest,
@@ -89,6 +99,9 @@ import type {
   WorkspaceAgentSessionAttachmentResponse,
   WorkspaceAgentGeneratedFileListResponse,
   WorkspaceAgentSessionGitBranchesResponse,
+  WorkspaceGitPatchSupportResponse,
+  WorkspaceAgentSessionSectionPageResponse,
+  WorkspaceAgentSessionSectionsResponse,
   WorkspaceAgentSessionMessagesResponse,
   WorkspaceAgentSessionListResponse,
   WorkspaceFileDirectoryResponse,
@@ -124,6 +137,11 @@ export type TuttidTrackEvent = TrackEvent;
 export type TuttidTrackEventsRequest = TrackEventsRequest;
 
 export interface TuttidClient {
+  listAgentTargets(): Promise<ListAgentTargetsResponse>;
+  startAccountLogin(): Promise<AccountLoginStartResponse>;
+  getAccountLoginStatus(attemptID: string): Promise<AccountLoginStatusResponse>;
+  getAccountUserInfo(): Promise<AccountUserInfo | null>;
+  logoutAccount(): Promise<void>;
   listCliCapabilities(
     workspaceID?: string,
     options?: { includeHidden?: boolean; includeIntegration?: boolean }
@@ -168,6 +186,11 @@ export interface TuttidClient {
     issueID: string,
     request: CreateIssueManagerTaskRequest
   ): Promise<IssueManagerTask>;
+  createWorkspaceIssueTasks(
+    workspaceID: string,
+    issueID: string,
+    request: CreateIssueManagerTasksRequest
+  ): Promise<IssueManagerTask[]>;
   createWorkspaceIssueTaskRun(
     workspaceID: string,
     issueID: string,
@@ -387,6 +410,11 @@ export interface TuttidClient {
     workspaceID: string,
     jobID: string
   ): Promise<WorkspaceAppFactoryJob>;
+  getWorkspaceAppFactoryProviderComposerOptions(
+    workspaceID: string,
+    provider: WorkspaceAgentProvider,
+    request?: GetWorkspaceAppFactoryProviderComposerOptionsRequest
+  ): Promise<AgentProviderComposerOptionsResponse>;
   deleteWorkspaceAppFactoryJob(
     workspaceID: string,
     jobID: string
@@ -456,9 +484,27 @@ export interface TuttidClient {
     request?: {
       limit?: number;
       searchQuery?: string;
-      visibleOnly?: boolean;
-    }
+    },
+    requestOptions?: TuttidRequestOptions
   ): Promise<WorkspaceAgentSessionListResponse>;
+  listWorkspaceAgentSessionSections(
+    workspaceID: string,
+    request?: {
+      agentTargetId?: string;
+      limitPerSection?: number;
+    },
+    requestOptions?: TuttidRequestOptions
+  ): Promise<WorkspaceAgentSessionSectionsResponse>;
+  listWorkspaceAgentSessionSectionPage(
+    workspaceID: string,
+    request: {
+      sectionKey: string;
+      agentTargetId?: string;
+      cursor?: string;
+      limit?: number;
+    },
+    requestOptions?: TuttidRequestOptions
+  ): Promise<WorkspaceAgentSessionSectionPageResponse>;
   listWorkspaceAgentGeneratedFiles(
     workspaceID: string,
     request?: {
@@ -568,6 +614,11 @@ export interface TuttidClient {
     workspaceID: string,
     agentSessionID: string
   ): Promise<CancelWorkspaceAgentSessionResponse>;
+  goalControlWorkspaceAgentSession(
+    workspaceID: string,
+    agentSessionID: string,
+    request: WorkspaceAgentSessionGoalControlRequest
+  ): Promise<GoalControlWorkspaceAgentSessionResponse>;
   sendWorkspaceAgentSessionInput(
     workspaceID: string,
     agentSessionID: string,
@@ -586,6 +637,14 @@ export interface TuttidClient {
     workspaceID: string,
     workingDirectory: string
   ): Promise<WorkspaceAgentSessionGitBranchesResponse>;
+  resolveWorkspaceGitPatchSupport(
+    workspaceID: string,
+    cwd: string
+  ): Promise<WorkspaceGitPatchSupportResponse>;
+  applyWorkspaceGitPatch(
+    workspaceID: string,
+    request: WorkspaceGitPatchRequest
+  ): Promise<WorkspaceGitPatchResponse>;
   updateWorkspaceAgentSessionSettings(
     workspaceID: string,
     agentSessionID: string,

@@ -9,6 +9,8 @@ export const preferencesDesktopPreferencesSchema = {
   required: [
     "agentComposerDefaultsByProvider",
     "agentGuiConversationRailCollapsedByProvider",
+    "agentConversationDetailMode",
+    "agentDockLayout",
     "appCatalogChannel",
     "defaultAgentProvider",
     "dockIconStyle",
@@ -17,6 +19,7 @@ export const preferencesDesktopPreferencesSchema = {
     "locale",
     "minimizeAnimation",
     "sleepPreventionMode",
+    "showAppDeveloperSources",
     "themeSource",
     "updateChannel",
     "updatePolicy"
@@ -142,6 +145,14 @@ export const preferencesDesktopPreferencesSchema = {
         }
       }
     },
+    agentConversationDetailMode: {
+      type: "string",
+      enum: ["coding", "general"]
+    },
+    agentDockLayout: {
+      type: "string",
+      enum: ["legacySplit", "unified"]
+    },
     appCatalogChannel: {
       type: "string",
       enum: ["production", "staging"]
@@ -180,6 +191,9 @@ export const preferencesDesktopPreferencesSchema = {
     sleepPreventionMode: {
       type: "string",
       enum: ["never", "whileAgentRunning", "always"]
+    },
+    showAppDeveloperSources: {
+      type: "boolean"
     },
     themeSource: {
       type: "string",
@@ -330,6 +344,8 @@ export const workspaceWorkspaceAppSchema = {
     "displayName",
     "version",
     "description",
+    "authors",
+    "repository",
     "iconUrl",
     "installed",
     "enabled",
@@ -365,6 +381,41 @@ export const workspaceWorkspaceAppSchema = {
     },
     description: {
       type: "string"
+    },
+    authors: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name"],
+        properties: {
+          name: {
+            type: "string",
+            minLength: 1
+          },
+          url: {
+            type: ["string", "null"]
+          },
+          avatarUrl: {
+            type: ["string", "null"]
+          }
+        }
+      }
+    },
+    repository: {
+      type: ["object", "null"],
+      additionalProperties: false,
+      required: ["type", "url"],
+      properties: {
+        type: {
+          type: "string",
+          enum: ["github"]
+        },
+        url: {
+          type: "string",
+          minLength: 1
+        }
+      }
     },
     iconUrl: {
       type: ["string", "null"]
@@ -554,6 +605,9 @@ export const agentActivityUpdatedPayloadSchema = {
             agentSessionId: {
               type: "string",
               minLength: 1
+            },
+            agentTargetId: {
+              type: "string"
             },
             eventType: {
               const: "session_update"
@@ -784,6 +838,9 @@ export const agentActivityUpdatedPayloadSchema = {
             provider: {
               type: "string"
             },
+            agentTargetId: {
+              type: "string"
+            },
             providerSessionId: {
               type: "string"
             },
@@ -853,6 +910,9 @@ export const agentActivityUpdatedPayloadSchema = {
       type: "string",
       minLength: 1
     },
+    agentTargetId: {
+      type: "string"
+    },
     eventType: {
       type: "string",
       enum: [
@@ -912,6 +972,8 @@ export const preferencesDesktopUpdateRequestedPayloadSchema = {
       required: [
         "agentComposerDefaultsByProvider",
         "agentGuiConversationRailCollapsedByProvider",
+        "agentConversationDetailMode",
+        "agentDockLayout",
         "appCatalogChannel",
         "defaultAgentProvider",
         "dockIconStyle",
@@ -920,6 +982,7 @@ export const preferencesDesktopUpdateRequestedPayloadSchema = {
         "locale",
         "minimizeAnimation",
         "sleepPreventionMode",
+        "showAppDeveloperSources",
         "themeSource",
         "updateChannel",
         "updatePolicy"
@@ -1045,6 +1108,14 @@ export const preferencesDesktopUpdateRequestedPayloadSchema = {
             }
           }
         },
+        agentConversationDetailMode: {
+          type: "string",
+          enum: ["coding", "general"]
+        },
+        agentDockLayout: {
+          type: "string",
+          enum: ["legacySplit", "unified"]
+        },
         appCatalogChannel: {
           type: "string",
           enum: ["production", "staging"]
@@ -1090,6 +1161,9 @@ export const preferencesDesktopUpdateRequestedPayloadSchema = {
         sleepPreventionMode: {
           type: "string",
           enum: ["never", "whileAgentRunning", "always"]
+        },
+        showAppDeveloperSources: {
+          type: "boolean"
         },
         themeSource: {
           type: "string",
@@ -1156,6 +1230,8 @@ export const preferencesDesktopUpdatedPayloadSchema = {
       required: [
         "agentComposerDefaultsByProvider",
         "agentGuiConversationRailCollapsedByProvider",
+        "agentConversationDetailMode",
+        "agentDockLayout",
         "appCatalogChannel",
         "defaultAgentProvider",
         "dockIconStyle",
@@ -1164,6 +1240,7 @@ export const preferencesDesktopUpdatedPayloadSchema = {
         "locale",
         "minimizeAnimation",
         "sleepPreventionMode",
+        "showAppDeveloperSources",
         "themeSource",
         "updateChannel",
         "updatePolicy"
@@ -1289,6 +1366,14 @@ export const preferencesDesktopUpdatedPayloadSchema = {
             }
           }
         },
+        agentConversationDetailMode: {
+          type: "string",
+          enum: ["coding", "general"]
+        },
+        agentDockLayout: {
+          type: "string",
+          enum: ["legacySplit", "unified"]
+        },
         appCatalogChannel: {
           type: "string",
           enum: ["production", "staging"]
@@ -1334,6 +1419,9 @@ export const preferencesDesktopUpdatedPayloadSchema = {
         sleepPreventionMode: {
           type: "string",
           enum: ["never", "whileAgentRunning", "always"]
+        },
+        showAppDeveloperSources: {
+          type: "boolean"
         },
         themeSource: {
           type: "string",
@@ -1399,6 +1487,8 @@ export const workspaceAppUpdatedPayloadSchema = {
         "displayName",
         "version",
         "description",
+        "authors",
+        "repository",
         "iconUrl",
         "installed",
         "enabled",
@@ -1434,6 +1524,41 @@ export const workspaceAppUpdatedPayloadSchema = {
         },
         description: {
           type: "string"
+        },
+        authors: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["name"],
+            properties: {
+              name: {
+                type: "string",
+                minLength: 1
+              },
+              url: {
+                type: ["string", "null"]
+              },
+              avatarUrl: {
+                type: ["string", "null"]
+              }
+            }
+          }
+        },
+        repository: {
+          type: ["object", "null"],
+          additionalProperties: false,
+          required: ["type", "url"],
+          properties: {
+            type: {
+              type: "string",
+              enum: ["github"]
+            },
+            url: {
+              type: "string",
+              minLength: 1
+            }
+          }
         },
         iconUrl: {
           type: ["string", "null"]

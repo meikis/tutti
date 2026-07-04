@@ -26,6 +26,7 @@ import {
   IAgentProviderStatusService,
   requestWorkspaceAgentGuiLaunch
 } from "@renderer/features/workspace-agent";
+import { useDesktopPreferencesService } from "@renderer/features/desktop-preferences";
 import { normalizeDesktopAgentGUIProvider } from "@renderer/features/workspace-agent/desktopAgentGUINodeState";
 import { useTranslation } from "@renderer/i18n";
 import { Toast } from "@renderer/lib/toast";
@@ -61,10 +62,20 @@ const designReviewAppIconUrl = new URL(
   "../../../assets/workspace-canvas/dock/default/apps/design-review.png",
   import.meta.url
 ).href;
-const documentSummarizerAppIconUrl = new URL(
-  "../../../assets/workspace-canvas/dock/default/apps/aisummary.png",
+const tuttiDeveloperIconUrl = new URL(
+  "../../../assets/workspace-canvas/dock/default/tutti.png",
   import.meta.url
 ).href;
+
+const communityAppDeveloperOverrides: Record<
+  string,
+  NonNullable<WorkspaceAppManifest["authors"]>[number]
+> = {
+  "group-chat": {
+    name: "svenzeng",
+    url: "https://github.com/tutti-os/tutti"
+  }
+};
 
 const comingSoonWorkspaceAppDefinitions = [
   {
@@ -108,13 +119,6 @@ const comingSoonWorkspaceAppDefinitions = [
     iconUrl: designReviewAppIconUrl,
     nameKey: "appCenter.comingSoonApps.designReview.name",
     tags: ["coming-soon", "product", "design"]
-  },
-  {
-    appId: "document-summarizer",
-    descriptionKey: "appCenter.comingSoonApps.documentSummarizer.description",
-    iconUrl: documentSummarizerAppIconUrl,
-    nameKey: "appCenter.comingSoonApps.documentSummarizer.name",
-    tags: ["coming-soon", "productivity", "summary", "document"]
   }
 ] as const;
 
@@ -126,6 +130,7 @@ export function WorkspaceAppCenterPane({
   workspaceId: string;
 }) {
   const { service, state } = useWorkspaceAppCenterService();
+  const { state: desktopPreferencesState } = useDesktopPreferencesService();
   const agentProviderStatusService = useService(IAgentProviderStatusService);
   const agentProviderSnapshot = useSyncExternalStore(
     (listener) => agentProviderStatusService.subscribe(listener),
@@ -170,9 +175,12 @@ export function WorkspaceAppCenterPane({
       async (
         provider: string
       ): Promise<AppCenterFactoryProviderConfiguration> => {
-        return service.getFactoryProviderConfiguration(provider);
+        return service.getFactoryProviderConfiguration({
+          provider,
+          workspaceId
+        });
       },
-    [service]
+    [service, workspaceId]
   );
   const appCenterActions = useMemo<AppCenterHostActions>(
     () => ({
@@ -195,6 +203,7 @@ export function WorkspaceAppCenterPane({
       openAppFolder: (appId) => service.openAppFolder({ appId, workspaceId }),
       openAppPackageFolder: (appId) =>
         service.openAppPackageFolder({ appId, workspaceId }),
+      openExternalUrl: (url) => service.openExternalUrl(url),
       openFactoryJobAgentSession: async (agentSessionId, provider) => {
         await requestWorkspaceAgentGuiLaunch({
           agentSessionId,
@@ -322,9 +331,11 @@ export function WorkspaceAppCenterPane({
         defaultAgentProvider={agentProviderSnapshot.defaultProvider}
         loadProviderConfiguration={loadFactoryProviderConfiguration}
         onActiveAppTabChange={handleActiveAppTabChange}
+        officialDeveloperIconUrl={tuttiDeveloperIconUrl}
         providerErrorMessage={agentProviderSnapshot.error}
         providerLoading={agentProviderSnapshot.isLoading}
         providerOptions={factoryProviderOptions}
+        showDeveloperSources={desktopPreferencesState.showAppDeveloperSources}
         viewModel={viewModel}
       />
     </>
@@ -461,7 +472,10 @@ function resolveWorkspaceAppCategory(
     case "issue-manager":
     case "workspace-issue":
     case "workspace-issue-manager":
-    case "document-summarizer":
+    case "draw-topic-app":
+    case "answer-book":
+    case "app_answer_book":
+    case "idea-draw":
       return labels.tools;
     default:
       return null;
@@ -534,6 +548,7 @@ function toWorkspaceAppRecord(
 function toWorkspaceAppManifest(
   app: WorkspaceAppCenterApp
 ): WorkspaceAppManifest {
+  const authors = normalizeWorkspaceAppManifestAuthors(app);
   return {
     appId: app.appId,
     description: app.description ?? "",
@@ -550,6 +565,8 @@ function toWorkspaceAppManifest(
         }
       : {}),
     name: app.name,
+    ...(authors.length > 0 ? { authors } : {}),
+    ...(app.repository ? { source: app.repository } : {}),
     schemaVersion: workspaceAppManifestSchemaVersion,
     tags: app.tags ?? [],
     version: app.version ?? "0.1.0",
@@ -557,6 +574,39 @@ function toWorkspaceAppManifest(
       minimizeBehavior: app.minimizeBehavior
     }
   };
+}
+
+function normalizeWorkspaceAppManifestAuthors(
+  app: WorkspaceAppCenterApp
+): NonNullable<WorkspaceAppManifest["authors"]> {
+  const developerOverride =
+    communityAppDeveloperOverrides[app.appId.trim().toLowerCase()];
+  const authors = developerOverride
+    ? [
+        developerOverride,
+        ...(app.authors ?? []).filter(
+          (author) =>
+            author.name.trim().toLowerCase() !==
+            developerOverride.name.toLowerCase()
+        )
+      ]
+    : (app.authors ?? []);
+
+  return authors
+    .map((author) => {
+      const name = author.name.trim();
+      const avatarUrl = author.avatarUrl?.trim();
+      const url = author.url?.trim();
+      if (!name) {
+        return null;
+      }
+      return {
+        name,
+        ...(avatarUrl ? { avatarUrl } : {}),
+        ...(url ? { url } : {})
+      };
+    })
+    .filter((author): author is NonNullable<typeof author> => author !== null);
 }
 
 function toWorkspaceAppRuntimeState(

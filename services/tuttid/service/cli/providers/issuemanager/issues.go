@@ -10,8 +10,8 @@ import (
 )
 
 type issueListInput struct {
-	TopicID   string `cli:"topic-id" validate:"required" description:"Required topic id. Use issue topic list to discover workspace topics." hint:"Use issue topic list to discover workspace topics."`
-	Status    string `cli:"status"`
+	TopicID   string `cli:"topic-id" validate:"required" description:"Required topic id. Use issue topic list --json to discover workspace topics before listing issues." hint:"Use issue topic list --json to discover workspace topics."`
+	Status    string `cli:"status" description:"Issue status filter." enum:"all,not_started,running,pending_acceptance,completed,failed,canceled"`
 	Search    string `cli:"search"`
 	PageSize  int    `cli:"page-size" validate:"min=1,max=100"`
 	PageToken string `cli:"page-token"`
@@ -32,15 +32,15 @@ type issueUpdateInput struct {
 	IssueID string  `cli:"issue-id" validate:"required" description:"Issue to update."`
 	Title   *string `cli:"title" description:"Replace the issue title."`
 	Content *string `cli:"content" description:"Replace the issue content."`
-	Status  *string `cli:"status" description:"Issue status: not_started, running, pending_acceptance, completed, failed, or canceled."`
+	Status  *string `cli:"status" description:"Issue status." enum:"not_started,running,pending_acceptance,completed,failed,canceled"`
 }
 
 func (p Provider) newIssueListCommand() cliservice.Command {
 	return framework.Register(framework.CommandSpec[issueListInput]{
 		ID:          appID + ".issue.list",
 		Path:        []string{"issue", "list"},
-		Summary:     "List issues",
-		Description: "List issue records in a specific workspace topic. JSON output omits issue content bodies.",
+		Summary:     "List issues in a topic",
+		Description: "List issue records in one workspace topic. Requires --topic-id; use `issue topic list --json` first when the topic is unknown. JSON output omits issue content bodies.",
 		Kind:        framework.KindList,
 		Workspace:   framework.WorkspaceRequired,
 		Workspaces:  p.workspaces,

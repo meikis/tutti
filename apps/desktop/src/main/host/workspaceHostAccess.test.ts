@@ -23,6 +23,24 @@ function createTransportClient(
   overrides: Partial<TuttidClient> = {}
 ): TuttidClient {
   return {
+    async listAgentTargets() {
+      throw new Error("not used");
+    },
+    async startAccountLogin() {
+      throw new Error("not used");
+    },
+    async getAccountLoginStatus() {
+      throw new Error("not used");
+    },
+    async getAccountUserInfo() {
+      throw new Error("not used");
+    },
+    async logoutAccount() {
+      throw new Error("not used");
+    },
+    async applyWorkspaceGitPatch() {
+      throw new Error("not used");
+    },
     async listCliCapabilities() {
       throw new Error("not used");
     },
@@ -90,6 +108,9 @@ function createTransportClient(
       throw new Error("not used");
     },
     async createWorkspaceIssueTask() {
+      throw new Error("not used");
+    },
+    async createWorkspaceIssueTasks() {
       throw new Error("not used");
     },
     async createWorkspaceIssueTaskRun() {
@@ -171,6 +192,9 @@ function createTransportClient(
       throw new Error("not used");
     },
     async getWorkspaceAppFactoryJob() {
+      throw new Error("not used");
+    },
+    async getWorkspaceAppFactoryProviderComposerOptions() {
       throw new Error("not used");
     },
     async getAgentProviderComposerOptions() {
@@ -266,6 +290,12 @@ function createTransportClient(
     async listWorkspaceAgentSessions() {
       throw new Error("not used");
     },
+    async listWorkspaceAgentSessionSections() {
+      throw new Error("not used");
+    },
+    async listWorkspaceAgentSessionSectionPage() {
+      throw new Error("not used");
+    },
     async scanWorkspaceExternalAgentSessionImports() {
       throw new Error("not used");
     },
@@ -302,6 +332,9 @@ function createTransportClient(
     async cancelWorkspaceAgentSessionWithResult() {
       throw new Error("not used");
     },
+    async goalControlWorkspaceAgentSession() {
+      throw new Error("not used");
+    },
     async sendWorkspaceAgentSessionInput() {
       throw new Error("not used");
     },
@@ -312,6 +345,9 @@ function createTransportClient(
       throw new Error("not used");
     },
     async listWorkspaceGitBranches() {
+      throw new Error("not used");
+    },
+    async resolveWorkspaceGitPatchSupport() {
       throw new Error("not used");
     },
     async updateWorkspaceAgentSessionSettings() {

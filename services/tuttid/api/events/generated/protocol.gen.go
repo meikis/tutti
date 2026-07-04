@@ -6,7 +6,7 @@ import "encoding/json"
 
 const (
 	BusinessEventProtocolVersion = 1
-	BusinessEventCatalogRevision = "sha256:383768b406efdf44"
+	BusinessEventCatalogRevision = "sha256:00e7c0e227c0387c"
 )
 
 type Topic string
@@ -99,6 +99,8 @@ type PreferencesDesktopPreferences struct {
 		Hermes     *bool `json:"hermes,omitempty"`
 		Openclaw   *bool `json:"openclaw,omitempty"`
 	} `json:"agentGuiConversationRailCollapsedByProvider"`
+	AgentConversationDetailMode   string            `json:"agentConversationDetailMode"`
+	AgentDockLayout               string            `json:"agentDockLayout"`
 	AppCatalogChannel             string            `json:"appCatalogChannel"`
 	BrowserUseConnectionMode      *string           `json:"browserUseConnectionMode,omitempty"`
 	DefaultAgentProvider          string            `json:"defaultAgentProvider"`
@@ -108,6 +110,7 @@ type PreferencesDesktopPreferences struct {
 	Locale                        string            `json:"locale"`
 	MinimizeAnimation             string            `json:"minimizeAnimation"`
 	SleepPreventionMode           string            `json:"sleepPreventionMode"`
+	ShowAppDeveloperSources       bool              `json:"showAppDeveloperSources"`
 	ThemeSource                   string            `json:"themeSource"`
 	UpdateChannel                 string            `json:"updateChannel"`
 	UpdatePolicy                  string            `json:"updatePolicy"`
@@ -137,10 +140,19 @@ type WorkspaceWorkspaceAppFactoryJob struct {
 }
 
 type WorkspaceWorkspaceApp struct {
-	AppId           string   `json:"appId"`
-	DisplayName     string   `json:"displayName"`
-	Version         string   `json:"version"`
-	Description     string   `json:"description"`
+	AppId       string `json:"appId"`
+	DisplayName string `json:"displayName"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	Authors     []struct {
+		Name      string  `json:"name"`
+		Url       *string `json:"url,omitempty"`
+		AvatarUrl *string `json:"avatarUrl,omitempty"`
+	} `json:"authors"`
+	Repository *struct {
+		Type string `json:"type"`
+		Url  string `json:"url"`
+	} `json:"repository"`
 	IconUrl         *string  `json:"iconUrl"`
 	Installed       bool     `json:"installed"`
 	Enabled         bool     `json:"enabled"`
@@ -178,10 +190,11 @@ type WorkspaceWorkspaceApp struct {
 }
 
 type AgentActivityUpdatedPayload struct {
-	WorkspaceId    string `json:"workspaceId"`
-	AgentSessionId string `json:"agentSessionId"`
-	EventType      string `json:"eventType"`
-	Data           any    `json:"data"`
+	WorkspaceId    string  `json:"workspaceId"`
+	AgentSessionId string  `json:"agentSessionId"`
+	AgentTargetId  *string `json:"agentTargetId,omitempty"`
+	EventType      string  `json:"eventType"`
+	Data           any     `json:"data"`
 }
 
 type AnalyticsDebugReportedPayload struct {

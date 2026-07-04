@@ -7,10 +7,12 @@ import {
 import type { AgentSessionComposerSettings } from "../../../shared/agentSessionTypes";
 import { getAppErrorCode } from "../../../shared/errors/appError";
 import { useAgentActivityRuntime } from "../../../agentActivityRuntime";
+import type { AgentGUIProviderTargetRef } from "../../../types";
 
 type AgentGUILiveState = "inactive" | "activating" | "active" | "failed";
 interface AgentGUIActivateInput {
   agentSessionId: string;
+  agentTargetId?: string | null;
   cwd?: string;
   initialContent?: AgentPromptContentBlock[];
   initialDisplayPrompt?: string;
@@ -18,6 +20,7 @@ interface AgentGUIActivateInput {
   mode: "existing" | "new";
   openclawGatewayReady?: boolean;
   provider?: string;
+  providerTargetRef?: AgentGUIProviderTargetRef | null;
   settings?: AgentSessionComposerSettings;
   title?: string;
   visible?: boolean;
@@ -68,12 +71,14 @@ export function useAgentGUIActivation({
                 mode: input.mode,
                 workspaceId,
                 agentSessionId,
+                agentTargetId: input.agentTargetId,
                 provider: input.provider,
                 cwd: input.cwd,
                 initialContent: input.initialContent,
                 initialDisplayPrompt: input.initialDisplayPrompt,
                 metadata: input.metadata,
                 title: input.title,
+                providerTargetRef: input.providerTargetRef,
                 settings: input.settings,
                 visible: input.visible,
                 openclawGatewayReady: input.openclawGatewayReady

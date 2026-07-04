@@ -19,9 +19,11 @@ func (s *SQLiteStore) applyDesktopPreferencesV1(ctx context.Context) error {
 	_, err = s.db.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS desktop_preferences (
   id TEXT PRIMARY KEY,
+  agent_dock_layout TEXT NOT NULL DEFAULT 'legacySplit',
   dock_icon_style TEXT NOT NULL DEFAULT 'flat',
   dock_placement TEXT NOT NULL DEFAULT 'bottom',
   default_agent_provider TEXT NOT NULL DEFAULT 'codex',
+  agent_conversation_detail_mode TEXT NOT NULL DEFAULT 'coding',
   agent_composer_defaults_by_provider_json TEXT NOT NULL DEFAULT '{}',
   agent_gui_conversation_rail_collapsed_by_provider_json TEXT NOT NULL DEFAULT '{}',
   file_default_openers_by_extension_json TEXT NOT NULL DEFAULT '{"htm":"appBrowser","html":"appBrowser","shtml":"appBrowser","xhtml":"appBrowser"}',
@@ -33,6 +35,7 @@ CREATE TABLE IF NOT EXISTS desktop_preferences (
   app_catalog_channel TEXT NOT NULL DEFAULT 'production',
   update_channel TEXT NOT NULL DEFAULT 'stable',
   update_policy TEXT NOT NULL DEFAULT 'prompt',
+  show_app_developer_sources INTEGER NOT NULL DEFAULT 0,
   workbench_window_snapping_enabled INTEGER NOT NULL DEFAULT 0,
   workbench_window_snapping_shortcut_preset TEXT NOT NULL DEFAULT 'commandArrows',
   updated_at_unix_ms INTEGER NOT NULL
@@ -42,6 +45,102 @@ INSERT INTO tuttid_schema_migrations (id, applied_at_unix_ms)
 `, schemaMigrationDesktopPreferencesV1, now)
 	if err != nil {
 		return fmt.Errorf("migrate workspace database for desktop preferences: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SQLiteStore) applyDesktopPreferencesAgentDockLayoutV1(ctx context.Context) error {
+	applied, err := s.hasMigration(ctx, schemaMigrationDesktopPreferencesAgentDockLayoutV1)
+	if err != nil {
+		return err
+	}
+	if applied {
+		return nil
+	}
+
+	now := unixMs(time.Now().UTC())
+	hasAgentDockLayout, err := s.hasColumn(ctx, "desktop_preferences", "agent_dock_layout")
+	if err != nil {
+		return err
+	}
+	if !hasAgentDockLayout {
+		if _, err := s.db.ExecContext(ctx, `
+ALTER TABLE desktop_preferences
+  ADD COLUMN agent_dock_layout TEXT NOT NULL DEFAULT 'legacySplit';`); err != nil {
+			return fmt.Errorf("migrate workspace database for desktop agent dock layout: %w", err)
+		}
+	}
+	_, err = s.db.ExecContext(ctx, `
+INSERT INTO tuttid_schema_migrations (id, applied_at_unix_ms)
+  VALUES (?, ?);
+`, schemaMigrationDesktopPreferencesAgentDockLayoutV1, now)
+	if err != nil {
+		return fmt.Errorf("record desktop agent dock layout migration: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SQLiteStore) applyDesktopPreferencesAgentConversationDetailModeV1(ctx context.Context) error {
+	applied, err := s.hasMigration(ctx, schemaMigrationDesktopPreferencesAgentConversationDetailModeV1)
+	if err != nil {
+		return err
+	}
+	if applied {
+		return nil
+	}
+
+	now := unixMs(time.Now().UTC())
+	hasAgentConversationDetailMode, err := s.hasColumn(ctx, "desktop_preferences", "agent_conversation_detail_mode")
+	if err != nil {
+		return err
+	}
+	if !hasAgentConversationDetailMode {
+		if _, err := s.db.ExecContext(ctx, `
+ALTER TABLE desktop_preferences
+  ADD COLUMN agent_conversation_detail_mode TEXT NOT NULL DEFAULT 'coding';`); err != nil {
+			return fmt.Errorf("migrate workspace database for desktop agent conversation detail mode: %w", err)
+		}
+	}
+	_, err = s.db.ExecContext(ctx, `
+INSERT INTO tuttid_schema_migrations (id, applied_at_unix_ms)
+  VALUES (?, ?);
+`, schemaMigrationDesktopPreferencesAgentConversationDetailModeV1, now)
+	if err != nil {
+		return fmt.Errorf("record desktop agent conversation detail mode migration: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SQLiteStore) applyDesktopPreferencesShowAppDeveloperSourcesV1(ctx context.Context) error {
+	applied, err := s.hasMigration(ctx, schemaMigrationDesktopPreferencesShowAppDeveloperSourcesV1)
+	if err != nil {
+		return err
+	}
+	if applied {
+		return nil
+	}
+
+	now := unixMs(time.Now().UTC())
+	hasShowAppDeveloperSources, err := s.hasColumn(ctx, "desktop_preferences", "show_app_developer_sources")
+	if err != nil {
+		return err
+	}
+	if !hasShowAppDeveloperSources {
+		if _, err := s.db.ExecContext(ctx, `
+ALTER TABLE desktop_preferences
+  ADD COLUMN show_app_developer_sources INTEGER NOT NULL DEFAULT 0;`); err != nil {
+			return fmt.Errorf("migrate workspace database for desktop app developer sources: %w", err)
+		}
+	}
+	_, err = s.db.ExecContext(ctx, `
+INSERT INTO tuttid_schema_migrations (id, applied_at_unix_ms)
+  VALUES (?, ?);
+`, schemaMigrationDesktopPreferencesShowAppDeveloperSourcesV1, now)
+	if err != nil {
+		return fmt.Errorf("record desktop app developer sources migration: %w", err)
 	}
 
 	return nil

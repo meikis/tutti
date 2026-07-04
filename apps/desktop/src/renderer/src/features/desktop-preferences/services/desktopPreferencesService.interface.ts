@@ -2,6 +2,8 @@ import { createDecorator } from "@tutti-os/infra/di";
 import type { DesktopLocale } from "@shared/i18n";
 import type {
   DesktopAgentComposerDefaults,
+  DesktopAgentConversationDetailMode,
+  DesktopAgentDockLayout,
   DesktopAgentProvider,
   DesktopAppCatalogChannel,
   DesktopBrowserUseConnectionMode,
@@ -24,6 +26,12 @@ export interface IDesktopPreferencesService {
   setDefaultAgentProvider(
     provider: DesktopAgentProvider
   ): Promise<DesktopAgentProvider>;
+  setAgentConversationDetailMode(
+    mode: DesktopAgentConversationDetailMode
+  ): Promise<DesktopAgentConversationDetailMode>;
+  setAgentDockLayout(
+    layout: DesktopAgentDockLayout
+  ): Promise<DesktopAgentDockLayout>;
   setAppCatalogChannel(
     channel: DesktopAppCatalogChannel
   ): Promise<DesktopAppCatalogChannel>;
@@ -44,6 +52,7 @@ export interface IDesktopPreferencesService {
   setSleepPreventionMode(
     mode: DesktopSleepPreventionMode
   ): Promise<DesktopSleepPreventionMode>;
+  setShowAppDeveloperSources(show: boolean): Promise<boolean>;
   setThemeSource(source: DesktopThemeSource): Promise<DesktopThemeState>;
   setUpdateChannel(
     channel: DesktopUpdateChannel

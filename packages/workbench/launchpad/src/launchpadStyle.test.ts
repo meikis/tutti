@@ -23,14 +23,27 @@ test("launchpad dock icon adapts to wallpaper tone", () => {
   );
 });
 
-test("launchpad top bar remains draggable without stealing controls", () => {
-  assert.match(
+test("launchpad blank areas stay dismissible instead of trapping clicks in a drag region", () => {
+  // Electron drag regions swallow pointerdown at the OS level before it
+  // reaches the document, so any area marked `drag` breaks click-to-dismiss
+  // (see WorkspaceChrome's header fix for the same class of bug). The
+  // launchpad overlay only exists while it is open, so none of its
+  // sub-regions should claim the drag region.
+  assert.doesNotMatch(
     css,
     /\.workspace-launchpad-overlay__content\s*{[^}]*-webkit-app-region:\s*drag;/s
   );
   assert.match(
     css,
+    /\.workspace-launchpad-overlay__content\s*{[^}]*-webkit-app-region:\s*no-drag;/s
+  );
+  assert.doesNotMatch(
+    css,
     /\.workspace-launchpad-overlay__topbar\s*{[^}]*-webkit-app-region:\s*drag;/s
+  );
+  assert.match(
+    css,
+    /\.workspace-launchpad-overlay__topbar\s*{[^}]*-webkit-app-region:\s*no-drag;/s
   );
   assert.match(
     css,
@@ -61,7 +74,7 @@ test("launchpad top bar remains draggable without stealing controls", () => {
 test("launchpad search focus stays neutral", () => {
   assert.match(
     css,
-    /\.workspace-launchpad-search__input:focus,\s*\.workspace-launchpad-search__input:focus-visible\s*{[^}]*border-color:\s*var\(--border-1\);[^}]*box-shadow:\s*none;/s
+    /\.workspace-launchpad-search__input:focus,\s*\.workspace-launchpad-search__input:focus-visible\s*{[^}]*border-color:\s*color-mix\(in srgb,\s*var\(--text-primary\)\s*18%,\s*var\(--border-1\)\);[^}]*box-shadow:\s*0 0 0 2px\s*color-mix\(in srgb,\s*var\(--text-primary\)\s*10%,\s*transparent\);/s
   );
   assert.doesNotMatch(
     css,
@@ -77,5 +90,12 @@ test("launchpad search icon is vertically centered", () => {
   assert.match(
     css,
     /\.workspace-launchpad-search__icon svg\s*{[^}]*width:\s*16px;[^}]*height:\s*16px;/s
+  );
+});
+
+test("launchpad item labels use stationary white on content", () => {
+  assert.match(
+    css,
+    /\.workspace-launchpad-item__label\s*{[^}]*color:\s*var\(--white-stationary\);/s
   );
 });

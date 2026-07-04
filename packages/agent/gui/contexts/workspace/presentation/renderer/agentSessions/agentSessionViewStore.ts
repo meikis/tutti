@@ -1,12 +1,15 @@
 import { useSyncExternalStore } from "react";
-import { mergeAgentActivityMessages } from "@tutti-os/agent-activity-core";
 import type {
   AgentHostAgentActivityStreamEvent,
   AgentHostAgentSessionCommand,
   AgentHostAgentSessionState,
   AgentHostSubscribeAgentSessionEventsInput
 } from "../../../../../shared/contracts/dto";
-import type { WorkspaceAgentActivityMessage } from "../../../../../shared/workspaceAgentActivityTypes";
+import {
+  isWorkspaceAgentActivityOptimisticMessage,
+  type WorkspaceAgentActivityMessage
+} from "../../../../../shared/workspaceAgentActivityTypes";
+import { mergeWorkspaceAgentMessages } from "../../../../../host/workspaceAgentSessionMessages";
 import { getOptionalAgentActivityRuntime } from "../../../../../agentActivityRuntime";
 
 const STREAM_LINGER_MS = 15000;
@@ -262,7 +265,7 @@ export function setAgentSessionViewDetailMessages(
     return;
   }
   updateAgentSessionView(normalized, (current) => {
-    const detailMessages = mergeMessages([], nextMessages);
+    const detailMessages = mergeMessages([], durableOnlyMessages(nextMessages));
     const oldestLoadedVersion = oldestMessageVersion(detailMessages);
     if (
       sameMessages(current.detailMessages, detailMessages) &&
@@ -298,7 +301,10 @@ export function mergeAgentSessionViewDetailMessages(
     return;
   }
   updateAgentSessionView(normalized, (current) => {
-    const detailMessages = mergeMessages(current.detailMessages, nextMessages);
+    const detailMessages = mergeMessages(
+      current.detailMessages,
+      durableOnlyMessages(nextMessages)
+    );
     const oldestLoadedVersion = oldestMessageVersion(detailMessages);
     if (
       sameMessages(current.detailMessages, detailMessages) &&
@@ -988,7 +994,7 @@ function mergeMessages(
   left: readonly WorkspaceAgentActivityMessage[],
   right: readonly WorkspaceAgentActivityMessage[]
 ): WorkspaceAgentActivityMessage[] {
-  return mergeAgentActivityMessages(left, right);
+  return mergeWorkspaceAgentMessages(left, right);
 }
 
 function sameMessages(
@@ -1003,10 +1009,22 @@ function sameMessages(
   );
 }
 
+// Detail messages are the durable half of the session view: optimistic
+// echoes (version 0, outside the durable version domain) are excluded at
+// this boundary so they can never poison the paging cursor.
+function durableOnlyMessages(
+  messages: readonly WorkspaceAgentActivityMessage[]
+): WorkspaceAgentActivityMessage[] {
+  return messages.filter(
+    (message) => !isWorkspaceAgentActivityOptimisticMessage(message)
+  );
+}
+
 function oldestMessageVersion(
   messages: readonly WorkspaceAgentActivityMessage[]
 ): number | null {
   const versions = messages
+    .filter((message) => !isWorkspaceAgentActivityOptimisticMessage(message))
     .map((message) => message.version)
     .filter((version) => Number.isFinite(version));
   return versions.length === 0 ? null : Math.min(...versions);

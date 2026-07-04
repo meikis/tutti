@@ -12,6 +12,7 @@ import (
 	"github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
 	externalagentregistry "github.com/tutti-os/tutti/services/tuttid/service/externalagentregistry"
 	managedruntime "github.com/tutti-os/tutti/services/tuttid/service/managedruntime"
+	reporterservice "github.com/tutti-os/tutti/services/tuttid/service/reporter"
 )
 
 type AvailabilityStatus string
@@ -177,6 +178,7 @@ type AdapterStatus struct {
 type AuthInfo struct {
 	Status       AuthStatus
 	AccountLabel string
+	AuthMethod   string
 }
 
 type Action struct {
@@ -222,6 +224,7 @@ type Service struct {
 	Registry                    Registry
 	ExternalAgentRegistry       externalagentregistry.Store
 	ManagedRuntime              managedruntime.Resolver
+	AnalyticsReporter           reporterservice.Reporter
 	// RunOutcomes lets a runtime auth failure override a stale "logged in" marker
 	// so the dock/wizard surface that login dropped. Shared pointer across copies.
 	RunOutcomes *RunOutcomeStore
@@ -259,10 +262,11 @@ func (s Service) List(ctx context.Context, input ListInput) (Snapshot, error) {
 	// callers only need local availability (CLI/adapter/auth), never Network. Only
 	// the wizard, which renders the network diagnostic, opts in.
 	//
-	// Registry reachability (install path) and proxy detection are provider-
-	// independent, so probe them once; the API endpoint (run/login path) differs
-	// per provider, so probe that per status. All are reported separately on each
-	// provider's Network.
+	// Proxy detection is provider-independent, so probe it once. Registry
+	// reachability is checked per provider package so the wizard displays the same
+	// ranked npm source the install path will try first. The API endpoint
+	// (run/login path) also differs per provider, so probe that per status. All
+	// are reported separately on each provider's Network.
 	//
 	// Even when opted in, skip the probe for any provider that is mid-install: the
 	// network doesn't change during an install, and the per-second install-progress
@@ -279,16 +283,15 @@ func (s Service) List(ctx context.Context, input ListInput) (Snapshot, error) {
 				anyNeedsNetwork = true
 			}
 		}
-		var registry NetworkEndpointStatus
 		var proxy *NetworkProxyStatus
 		if anyNeedsNetwork {
-			registry = s.probeRegistry(ctx)
 			proxy = s.probeProxy(ctx)
 		}
 		for i := range statuses {
 			if installing[i] {
 				continue
 			}
+			registry := s.probeRegistry(ctx, agentNPMRegistryProbePackage(specs[i]))
 			api := s.probeProviderAPI(ctx, statuses[i].Provider)
 			statuses[i].Network = &NetworkStatus{
 				Registry:    registry,
@@ -376,7 +379,7 @@ func (s Service) probeAdapterRuntimeCommand(
 		return result
 	}
 
-	env := s.commandResolver().Env(spec.AdapterEnv)
+	env := s.commandResolver().Env(s.adapterCommandEnv(ctx, spec))
 	command[0] = s.commandResolver().Resolve(command[0], env)
 	result.Command = cloneStrings(command)
 	if strings.TrimSpace(runtimeResolution.AdapterPath) != "" {
@@ -409,7 +412,16 @@ func (s Service) RunAction(ctx context.Context, input RunActionInput) (RunAction
 
 	switch input.ActionID {
 	case ActionInstall:
-		return s.runInstallAction(ctx, spec, result)
+		startedAt := s.now()
+		result, err := s.runInstallAction(ctx, spec, result)
+		s.reportProviderSetupNodeResult(ctx, providerSetupNodeResultInput{
+			Error:     err,
+			Node:      "install_daemon_action",
+			Provider:  spec.Provider,
+			Result:    result,
+			StartedAt: startedAt,
+		})
+		return result, err
 	default:
 		return RunActionResult{}, ErrInvalidAction
 	}
@@ -430,38 +442,55 @@ func (s Service) runInstallAction(ctx context.Context, spec ProviderSpec, result
 	defer clearActiveAction(installCtx, spec.Provider)
 	runtimeResolution := s.resolveProviderRuntime(ctx, spec)
 	summary, updatedRuntime, err := s.installMissingProviderRuntime(installCtx, spec, runtimeResolution)
-	result.Command = strings.Join(summary.Commands, " && ")
-	result.Stdout = trimActionOutput(strings.Join(summary.Stdout, "\n"))
-	result.Stderr = trimActionOutput(strings.Join(summary.Stderr, "\n"))
-	result.ExitCode = summary.ExitCode
+	result = applyInstallerExecutionSummary(result, summary)
 	if err != nil {
-		result.Status = RunActionFailed
-		if errors.Is(err, context.DeadlineExceeded) {
-			result.ReasonCode = "install_timed_out"
-			result.Message = "Install command timed out after " + s.installTimeout().String()
-			return result, nil
-		}
-		if errors.Is(err, context.Canceled) {
-			result.ReasonCode = "install_canceled"
-			result.Message = err.Error()
-			return result, nil
-		}
-		result.ReasonCode = "install_start_failed"
-		result.Message = err.Error()
-		return result, nil
+		return installActionErrorResult(result, err, s.installTimeout()), nil
 	}
 	if len(summary.Commands) == 0 {
+		probeStartedAt := s.now()
 		probe, err := s.Probe(ctx, ProbeInput{Provider: spec.Provider})
 		if err != nil {
+			s.reportProviderSetupNodeResult(ctx, providerSetupNodeResultInput{
+				Error:     err,
+				Node:      "install_post_probe",
+				Provider:  spec.Provider,
+				StartedAt: probeStartedAt,
+				Status:    "failure",
+			})
 			return RunActionResult{}, err
 		}
 		result.Probe = &probe
 		if probe.Status == ProbeFailed {
+			repairStatus := s.statusForSpec(ctx, spec, s.now())
+			if repairStatus.Availability.ReasonCode == "acp_adapter_launch_failed" {
+				runtimeResolution.ReasonCode = "acp_adapter_launch_failed"
+				summary, updatedRuntime, err = s.installMissingProviderRuntime(installCtx, spec, runtimeResolution)
+				result = applyInstallerExecutionSummary(result, summary)
+				result.Probe = nil
+				if err != nil {
+					return installActionErrorResult(result, err, s.installTimeout()), nil
+				}
+				if len(summary.Commands) > 0 {
+					goto postInstallProbe
+				}
+			}
 			result.Status = RunActionFailed
 			result.ReasonCode = "post_install_probe_failed"
 			result.Message = firstNonBlank(probe.Message, probe.ReasonCode, "Agent provider runtime probe failed")
+			s.reportProviderSetupNodeResult(ctx, providerSetupNodeResultInput{
+				Node:      "install_post_probe",
+				Provider:  spec.Provider,
+				Result:    result,
+				StartedAt: probeStartedAt,
+			})
 			return result, nil
 		}
+		s.reportProviderSetupNodeResult(ctx, providerSetupNodeResultInput{
+			Node:      "install_post_probe",
+			Provider:  spec.Provider,
+			Result:    RunActionResult{Status: RunActionCompleted},
+			StartedAt: probeStartedAt,
+		})
 		result.Status = RunActionCompleted
 		return result, nil
 	}
@@ -472,8 +501,17 @@ func (s Service) runInstallAction(ctx context.Context, spec ProviderSpec, result
 		return result, nil
 	}
 
+postInstallProbe:
+	probeStartedAt := s.now()
 	probe, err := s.Probe(ctx, ProbeInput{Provider: spec.Provider})
 	if err != nil {
+		s.reportProviderSetupNodeResult(ctx, providerSetupNodeResultInput{
+			Error:     err,
+			Node:      "install_post_probe",
+			Provider:  spec.Provider,
+			StartedAt: probeStartedAt,
+			Status:    "failure",
+		})
 		return RunActionResult{}, err
 	}
 	result.Probe = &probe
@@ -481,13 +519,50 @@ func (s Service) runInstallAction(ctx context.Context, spec ProviderSpec, result
 		result.Status = RunActionFailed
 		result.ReasonCode = "post_install_probe_failed"
 		result.Message = firstNonBlank(probe.Message, probe.ReasonCode, "Agent provider runtime probe failed")
+		s.reportProviderSetupNodeResult(ctx, providerSetupNodeResultInput{
+			Node:      "install_post_probe",
+			Provider:  spec.Provider,
+			Result:    result,
+			StartedAt: probeStartedAt,
+		})
 		return result, nil
 	}
+	s.reportProviderSetupNodeResult(ctx, providerSetupNodeResultInput{
+		Node:      "install_post_probe",
+		Provider:  spec.Provider,
+		Result:    RunActionResult{Status: RunActionCompleted},
+		StartedAt: probeStartedAt,
+	})
 	if strings.TrimSpace(updatedRuntime.AdapterPath) != "" {
 		result.Probe.BinaryPath = updatedRuntime.AdapterPath
 	}
 	result.Status = RunActionCompleted
 	return result, nil
+}
+
+func applyInstallerExecutionSummary(result RunActionResult, summary installerExecutionSummary) RunActionResult {
+	result.Command = strings.Join(summary.Commands, " && ")
+	result.Stdout = trimActionOutput(strings.Join(summary.Stdout, "\n"))
+	result.Stderr = trimActionOutput(strings.Join(summary.Stderr, "\n"))
+	result.ExitCode = summary.ExitCode
+	return result
+}
+
+func installActionErrorResult(result RunActionResult, err error, timeout time.Duration) RunActionResult {
+	result.Status = RunActionFailed
+	if errors.Is(err, context.DeadlineExceeded) {
+		result.ReasonCode = "install_timed_out"
+		result.Message = "Install command timed out after " + timeout.String()
+		return result
+	}
+	if errors.Is(err, context.Canceled) {
+		result.ReasonCode = "install_canceled"
+		result.Message = err.Error()
+		return result
+	}
+	result.ReasonCode = "install_start_failed"
+	result.Message = err.Error()
+	return result
 }
 
 func (s Service) statusForSpec(ctx context.Context, spec ProviderSpec, now time.Time) ProviderStatus {
@@ -509,7 +584,7 @@ func (s Service) statusForSpec(ctx context.Context, spec ProviderSpec, now time.
 	auth := s.resolveAuth(ctx, spec, installed, runtimeResolution.CLIPath)
 	cliVersion := ""
 	if installed {
-		cliVersion = s.cliVersion(ctx, runtimeResolution.CLIPath)
+		cliVersion = s.cliVersion(ctx, runtimeResolution.CLIPath, runtimeResolution.Env)
 	}
 	codexPlatformOK := true
 	if spec.Provider == agentprovider.Codex && installed {
@@ -547,15 +622,33 @@ func (s Service) statusForSpec(ctx context.Context, spec ProviderSpec, now time.
 		actions = append(actions, daemonAction(ActionInstall))
 	} else {
 		actions = append(actions, terminalAction(ActionLogin, loginCommandForRuntime(spec, runtimeResolution)))
-		switch auth.Status {
-		case AuthRequired:
-			availability.Status = AvailabilityAuthRequired
-			availability.ReasonCode = "auth_required"
-			actions = append(actions, Action{ID: ActionRefresh, Kind: ActionKindRefresh})
-		case AuthUnknown:
-			availability.Status = AvailabilityAuthRequired
-			availability.ReasonCode = "auth_unknown"
-			actions = append(actions, Action{ID: ActionRefresh, Kind: ActionKindRefresh})
+
+		// Claude Code can run in API Usage Billing mode — an API key, an auth
+		// token, or an apiKeyHelper — which bills usage to an API account and
+		// overrides any stored OAuth/subscription session. `claude auth status`
+		// only reflects the stored session, so it is blind to these env/settings
+		// credentials; detect them directly and prefer that signal over whatever
+		// the CLI reports, so the wizard shows "已配置 API 计费" instead of a
+		// stale OAuth label or "未登录". A bare custom endpoint without a
+		// credential is NOT API billing (the user may still be on an OAuth
+		// session), so it does not trigger this override.
+		if spec.Provider == agentprovider.ClaudeCode && s.providerHasAPICredential(agentprovider.ClaudeCode) {
+			auth.Status = AuthAuthenticated
+			auth.AccountLabel = "API Usage Billing"
+			auth.AuthMethod = "apiKey"
+		} else {
+			switch auth.Status {
+			case AuthAuthenticated:
+				// already ready
+			case AuthRequired:
+				availability.Status = AvailabilityAuthRequired
+				availability.ReasonCode = "auth_required"
+				actions = append(actions, Action{ID: ActionRefresh, Kind: ActionKindRefresh})
+			case AuthUnknown:
+				availability.Status = AvailabilityAuthRequired
+				availability.ReasonCode = "auth_unknown"
+				actions = append(actions, Action{ID: ActionRefresh, Kind: ActionKindRefresh})
+			}
 		}
 	}
 
@@ -602,6 +695,7 @@ func (s Service) statusForSpec(ctx context.Context, spec ProviderSpec, now time.
 			"reasonCode", status.Availability.ReasonCode,
 			"version", status.CLI.Version,
 			"lastErrorCode", providerLastErrorCode(status.LastError),
+			"missingPlatformPath", s.codexPlatformPackageMissingPath(runtimeResolution.CLIPath),
 		)
 	}
 	return status
@@ -619,6 +713,25 @@ func (s Service) probeReadyAfterForSpec(spec ProviderSpec) time.Duration {
 		return externalRegistryNPMProbeReadyAfter(s.probeTimeout())
 	}
 	return s.probeReadyAfter()
+}
+
+func agentNPMRegistryProbePackage(spec ProviderSpec) string {
+	if spec.Provider == agentprovider.Codex {
+		return "@openai/codex"
+	}
+	if spec.AdapterInstall.RegistryNPM != nil {
+		packageName, _ := splitNPMPackageSpec(spec.AdapterInstall.RegistryNPM.Package)
+		if strings.TrimSpace(packageName) != "" {
+			return packageName
+		}
+	}
+	if spec.Install.RegistryNPM != nil {
+		packageName, _ := splitNPMPackageSpec(spec.Install.RegistryNPM.Package)
+		if strings.TrimSpace(packageName) != "" {
+			return packageName
+		}
+	}
+	return "@openai/codex"
 }
 
 func externalRegistryNPMProbeReadyAfter(timeout time.Duration) time.Duration {
@@ -641,6 +754,8 @@ func agentProviderProbeAdapterUnavailableMessage(reasonCode string) string {
 		return "ACP external agent registry is unavailable"
 	case ReasonManagedRuntimeUnavailable:
 		return "Managed Node runtime is unavailable"
+	case ReasonClaudeSDKSidecarUnavailable:
+		return "Claude SDK sidecar not found"
 	default:
 		return "ACP adapter not found"
 	}

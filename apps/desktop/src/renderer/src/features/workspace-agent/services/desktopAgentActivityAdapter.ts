@@ -1,11 +1,7 @@
 import type {
   AgentActivityAdapter,
-  AgentActivityComposerCapabilityOption,
-  AgentActivityComposerOptions,
-  AgentActivityComposerPermissionConfig,
-  AgentActivityComposerSettingOption,
-  AgentActivityComposerSkillOption,
   AgentActivityMessage,
+  AgentActivityProviderTargetRef,
   AgentActivitySession,
   AgentPromptContentBlock
 } from "@tutti-os/agent-activity-core";
@@ -25,6 +21,7 @@ import {
   normalizedTuttidMessageOccurredAtUnixMs,
   normalizedTuttidMessageTurnId
 } from "./desktopAgentActivityMessageNormalization.ts";
+import { agentActivityComposerOptionsFromTuttidResult } from "../../../lib/agentComposerOptionsProjection.ts";
 
 export interface CreateDesktopAgentActivityAdapterInput {
   agentProviderStatusService?: Pick<IAgentProviderStatusService, "refresh">;
@@ -36,6 +33,7 @@ export interface CreateDesktopAgentActivityAdapterInput {
 
 const defaultAgentSessionCreateRequestTimeoutMs = 30_000;
 const defaultComposerOptionsRequestTimeoutMs = 15_000;
+const agentActivitySessionListLimit = 100;
 
 export function createDesktopAgentActivityAdapter({
   agentProviderStatusService,
@@ -44,7 +42,7 @@ export function createDesktopAgentActivityAdapter({
   tuttidClient,
   runtimeApi
 }: CreateDesktopAgentActivityAdapterInput): AgentActivityAdapter {
-  // At most one pre-warm draft per workspace. Switching plan/permission/model
+  // At most one pre-warm draft per workspace target. Switching plan/permission/model
   // updates this draft in place via the ACP protocol instead of tearing it
   // down and creating a brand new hidden session on every toggle.
   const claudeDrafts = new Map<string, ClaudeDraftSessionEntry>();
@@ -54,8 +52,8 @@ export function createDesktopAgentActivityAdapter({
       return;
     }
     entry.status = "disposed";
-    if (claudeDrafts.get(entry.workspaceId) === entry) {
-      claudeDrafts.delete(entry.workspaceId);
+    if (claudeDrafts.get(entry.cacheKey) === entry) {
+      claudeDrafts.delete(entry.cacheKey);
     }
     void entry.promise
       .then((session) =>
@@ -73,12 +71,14 @@ export function createDesktopAgentActivityAdapter({
     const agentSessionId =
       normalizeText(input.agentSessionId) ??
       createDesktopAgentActivitySessionId();
+    const agentTargetId = requiredAgentTargetId(input.agentTargetId);
     const promise = withAbortableRequestTimeout(
       (signal) =>
         tuttidClient.createWorkspaceAgentSession(
           input.workspaceId,
           {
             agentSessionId,
+            agentTargetId,
             cwd,
             initialContent: [],
             model: input.settings.model,
@@ -99,14 +99,16 @@ export function createDesktopAgentActivityAdapter({
       }
     ).then((session) => sessionWithClaudeDraftContext(session, draftKey));
     const entry: ClaudeDraftSessionEntry = {
+      cacheKey: claudeDraftCacheKey(input),
       cwd,
       promise,
+      providerTargetKey: claudeDraftTargetKey(input),
       sessionId: agentSessionId,
       settingsKey,
       status: "starting",
       workspaceId: input.workspaceId
     };
-    claudeDrafts.set(input.workspaceId, entry);
+    claudeDrafts.set(entry.cacheKey, entry);
     void promise.then(
       (session) => {
         if (entry.status === "starting") {
@@ -116,8 +118,8 @@ export function createDesktopAgentActivityAdapter({
       },
       () => {
         entry.status = "failed";
-        if (claudeDrafts.get(input.workspaceId) === entry) {
-          claudeDrafts.delete(input.workspaceId);
+        if (claudeDrafts.get(entry.cacheKey) === entry) {
+          claudeDrafts.delete(entry.cacheKey);
         }
       }
     );
@@ -129,12 +131,14 @@ export function createDesktopAgentActivityAdapter({
   ): Promise<WorkspaceAgentSession> => {
     const cwd = input.cwd ?? null;
     const settingsKey = JSON.stringify(input.settings);
-    const existing = claudeDrafts.get(input.workspaceId);
+    const providerTargetKey = claudeDraftTargetKey(input);
+    const existing = claudeDrafts.get(claudeDraftCacheKey(input));
     if (
       existing &&
       existing.status !== "disposed" &&
       existing.status !== "failed" &&
       existing.cwd === cwd &&
+      existing.providerTargetKey === providerTargetKey &&
       (!input.agentSessionId || existing.sessionId === input.agentSessionId)
     ) {
       if (existing.settingsKey === settingsKey) {
@@ -171,10 +175,37 @@ export function createDesktopAgentActivityAdapter({
       );
       return updated;
     }
+    const requestedAgentSessionId = normalizeText(input.agentSessionId);
+    const existingSameRequestedSession = requestedAgentSessionId
+      ? Array.from(claudeDrafts.values()).find(
+          (entry) =>
+            entry.workspaceId === input.workspaceId &&
+            entry.sessionId === requestedAgentSessionId &&
+            entry.providerTargetKey !== providerTargetKey &&
+            !isDeadDraftStatus(entry.status)
+        )
+      : undefined;
+    const shouldCreateFreshDraftSession =
+      (existing &&
+        existing.providerTargetKey !== providerTargetKey &&
+        requestedAgentSessionId === existing.sessionId) ||
+      existingSameRequestedSession !== undefined;
     if (existing) {
       deleteClaudeDraft(existing);
     }
-    return createClaudeDraft(input, cwd, settingsKey);
+    if (
+      existingSameRequestedSession &&
+      existingSameRequestedSession !== existing
+    ) {
+      deleteClaudeDraft(existingSameRequestedSession);
+    }
+    return createClaudeDraft(
+      shouldCreateFreshDraftSession
+        ? { ...input, agentSessionId: null }
+        : input,
+      cwd,
+      settingsKey
+    );
   };
 
   const promoteClaudeDraft = async (
@@ -191,10 +222,11 @@ export function createDesktopAgentActivityAdapter({
     ) {
       return null;
     }
-    const entry = claudeDrafts.get(input.workspaceId);
+    const entry = claudeDrafts.get(claudeDraftCacheKey(input));
     if (
       !entry ||
       entry.sessionId !== agentSessionId ||
+      entry.providerTargetKey !== claudeDraftTargetKey(input) ||
       isDeadDraftStatus(entry.status)
     ) {
       return null;
@@ -210,8 +242,8 @@ export function createDesktopAgentActivityAdapter({
       { visible: true }
     );
     entry.status = "promoted";
-    if (claudeDrafts.get(input.workspaceId) === entry) {
-      claudeDrafts.delete(input.workspaceId);
+    if (claudeDrafts.get(entry.cacheKey) === entry) {
+      claudeDrafts.delete(entry.cacheKey);
     }
     const result = await tuttidClient.sendWorkspaceAgentSessionInput(
       input.workspaceId,
@@ -230,7 +262,8 @@ export function createDesktopAgentActivityAdapter({
   return {
     async listSessions(input) {
       const response = await tuttidClient.listWorkspaceAgentSessions(
-        input.workspaceId
+        input.workspaceId,
+        { limit: agentActivitySessionListLimit }
       );
       return {
         sessions: response.sessions.map((session) =>
@@ -239,23 +272,56 @@ export function createDesktopAgentActivityAdapter({
       };
     },
     async listSessionMessages(input) {
-      const response = await tuttidClient.listWorkspaceAgentSessionMessages(
-        input.workspaceId,
-        input.agentSessionId,
-        {
-          afterVersion: input.afterVersion ?? 0,
-          beforeVersion: input.beforeVersion,
-          order: input.order,
-          limit: input.limit
-        }
-      );
-      return {
-        hasMore: response.hasMore,
-        latestVersion: response.latestVersion,
-        messages: response.messages.map((message) =>
+      const startedAt = Date.now();
+      reportDesktopAgentMessageListDiagnostic(runtimeApi, input.workspaceId, {
+        afterVersion: input.afterVersion ?? 0,
+        agentSessionId: input.agentSessionId,
+        beforeVersion: input.beforeVersion ?? null,
+        event: "requested",
+        limit: input.limit ?? null,
+        order: input.order ?? null
+      });
+      try {
+        const response = await tuttidClient.listWorkspaceAgentSessionMessages(
+          input.workspaceId,
+          input.agentSessionId,
+          {
+            afterVersion: input.afterVersion ?? 0,
+            beforeVersion: input.beforeVersion,
+            order: input.order,
+            limit: input.limit
+          }
+        );
+        const messages = response.messages.map((message) =>
           agentActivityMessageFromTuttidMessage(input.workspaceId, message)
-        )
-      };
+        );
+        const versions = messages
+          .map((message) => message.version)
+          .filter((version) => Number.isFinite(version));
+        reportDesktopAgentMessageListDiagnostic(runtimeApi, input.workspaceId, {
+          agentSessionId: input.agentSessionId,
+          durationMs: Date.now() - startedAt,
+          event: "resolved",
+          firstVersion: versions.length ? Math.min(...versions) : null,
+          hasMore: response.hasMore,
+          lastVersion: versions.length ? Math.max(...versions) : null,
+          latestVersion: response.latestVersion,
+          messageCount: messages.length
+        });
+        return {
+          hasMore: response.hasMore,
+          latestVersion: response.latestVersion,
+          messages
+        };
+      } catch (error) {
+        reportDesktopAgentMessageListDiagnostic(runtimeApi, input.workspaceId, {
+          agentSessionId: input.agentSessionId,
+          durationMs: Date.now() - startedAt,
+          event: "failed",
+          ...normalizeDesktopAgentDiagnosticError(error)
+        });
+        throw error;
+      }
     },
     async loadComposerOptions(input) {
       const cwd = input.cwd?.trim();
@@ -320,6 +386,7 @@ export function createDesktopAgentActivityAdapter({
         ) {
           const draft = await ensureClaudeDraft({
             agentSessionId: input.agentSessionId?.trim() ?? null,
+            agentTargetId: input.agentTargetId ?? null,
             cwd: input.cwd ?? null,
             settings: normalizedClaudeDraftSettings({
               model: input.model,
@@ -328,6 +395,7 @@ export function createDesktopAgentActivityAdapter({
               reasoningEffort: input.reasoningEffort,
               speed: input.speed
             }),
+            providerTargetRef: input.providerTargetRef ?? null,
             signal: input.signal,
             workspaceId: input.workspaceId
           });
@@ -348,12 +416,14 @@ export function createDesktopAgentActivityAdapter({
           provider: input.provider,
           workspaceId: input.workspaceId
         });
+        const agentTargetId = requiredAgentTargetId(input.agentTargetId);
         const session = await withAbortableRequestTimeout(
           (signal) =>
             tuttidClient.createWorkspaceAgentSession(
               input.workspaceId,
               {
                 agentSessionId,
+                agentTargetId,
                 cwd: input.cwd ?? null,
                 initialContent: toTuttidPromptContentBlocks(
                   input.initialContent ?? []
@@ -455,6 +525,25 @@ export function createDesktopAgentActivityAdapter({
         )
       };
     },
+    async goalControl(input) {
+      const result = await tuttidClient.goalControlWorkspaceAgentSession(
+        input.workspaceId,
+        input.agentSessionId,
+        {
+          action: input.action,
+          ...(input.objective !== undefined
+            ? { objective: input.objective }
+            : {})
+        }
+      );
+      return {
+        goal: result.goal ?? null,
+        session: agentActivitySessionFromTuttidSession(
+          input.workspaceId,
+          result.session
+        )
+      };
+    },
     async submitInteractive(input) {
       return await tuttidClient.submitWorkspaceAgentInteractive(
         input.workspaceId,
@@ -473,6 +562,53 @@ export function createDesktopAgentActivityAdapter({
         input.agentSessionId
       );
     }
+  };
+}
+
+function reportDesktopAgentMessageListDiagnostic(
+  runtimeApi: Pick<DesktopRuntimeApi, "logTerminalDiagnostic">,
+  workspaceId: string,
+  details: Record<string, string | number | boolean | null>
+): void {
+  try {
+    void runtimeApi
+      .logTerminalDiagnostic({
+        details,
+        event: "agent.activity.messages.list",
+        level: details.event === "failed" ? "warn" : "info",
+        workspaceId
+      })
+      .catch(() => {});
+  } catch {
+    // Diagnostic logging must not affect message loading.
+  }
+}
+
+function normalizeDesktopAgentDiagnosticError(
+  error: unknown
+): Record<string, string | number | boolean | null> {
+  if (!(error instanceof Error)) {
+    return { errorName: typeof error };
+  }
+  const record = error as Error & {
+    code?: unknown;
+    reason?: unknown;
+    retryable?: unknown;
+    statusCode?: unknown;
+  };
+  return {
+    ...(typeof record.code === "string" ? { errorCode: record.code } : {}),
+    errorMessageLength: error.message.length,
+    errorName: error.name,
+    ...(typeof record.reason === "string"
+      ? { errorReason: record.reason }
+      : {}),
+    ...(typeof record.retryable === "boolean"
+      ? { errorRetryable: record.retryable }
+      : {}),
+    ...(typeof record.statusCode === "number"
+      ? { errorStatusCode: record.statusCode }
+      : {})
   };
 }
 
@@ -564,14 +700,18 @@ interface ClaudeDraftSettings {
 
 interface ClaudeDraftInput {
   agentSessionId?: string | null;
+  agentTargetId?: string | null;
   cwd: string | null;
+  providerTargetRef?: AgentActivityProviderTargetRef | null;
   settings: ClaudeDraftSettings;
   signal?: AbortSignal;
   workspaceId: string;
 }
 
 interface ClaudeDraftSessionEntry {
+  cacheKey: string;
   cwd: string | null;
+  providerTargetKey: string;
   settingsKey: string;
   promise: Promise<WorkspaceAgentSession>;
   sessionId: string;
@@ -606,10 +746,59 @@ function isDeadDraftStatus(status: ClaudeDraftStatus): boolean {
 
 function claudeDraftKey(input: ClaudeDraftInput): string {
   return JSON.stringify({
+    agentTargetId: normalizeText(input.agentTargetId) ?? "",
     cwd: input.cwd ?? "",
+    providerTargetRef: sortProviderTargetRefValue(input.providerTargetRef),
     settings: input.settings,
     workspaceId: input.workspaceId
   });
+}
+
+function claudeDraftCacheKey(
+  input: Pick<
+    ClaudeDraftInput,
+    "agentTargetId" | "providerTargetRef" | "workspaceId"
+  >
+): string {
+  return `${input.workspaceId}:${claudeDraftTargetKey(input)}`;
+}
+
+function claudeDraftTargetKey(
+  input: Pick<ClaudeDraftInput, "agentTargetId" | "providerTargetRef">
+): string {
+  const agentTargetId = normalizeText(input.agentTargetId);
+  if (agentTargetId) {
+    return `agentTarget:${agentTargetId}`;
+  }
+  return `providerTarget:${providerTargetRefKey(input.providerTargetRef)}`;
+}
+
+function requiredAgentTargetId(value: string | null | undefined): string {
+  const agentTargetId = normalizeText(value);
+  if (!agentTargetId) {
+    throw new Error("Agent target id is required to create an agent session.");
+  }
+  return agentTargetId;
+}
+
+function providerTargetRefKey(
+  value: AgentActivityProviderTargetRef | null | undefined
+): string {
+  return JSON.stringify(sortProviderTargetRefValue(value ?? null));
+}
+
+function sortProviderTargetRefValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortProviderTargetRefValue);
+  }
+  if (!isRecord(value)) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entryValue]) => [key, sortProviderTargetRefValue(entryValue)])
+  );
 }
 
 function sessionWithClaudeDraftContext(
@@ -669,8 +858,9 @@ export function agentActivitySessionFromTuttidSession(
   return {
     workspaceId,
     agentSessionId: session.id,
+    ...(session.agentTargetId ? { agentTargetId: session.agentTargetId } : {}),
     provider: session.provider,
-    providerSessionId: session.id,
+    providerSessionId: session.providerSessionId ?? session.id,
     cwd: session.cwd ?? "/",
     title: session.title ?? "",
     status: session.status,
@@ -738,384 +928,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function recordValue(value: unknown): Record<string, unknown> {
   return isRecord(value) ? { ...value } : {};
-}
-
-export function agentActivityComposerOptionsFromTuttidResult(
-  provider: string,
-  value: unknown
-): AgentActivityComposerOptions {
-  const result = recordValue(value);
-  const runtimeContext = recordValue(result.runtimeContext);
-  const rawConfigOptions = Array.isArray(runtimeContext.configOptions)
-    ? runtimeContext.configOptions
-    : [];
-  const modelConfig = recordValue(result.modelConfig);
-  const reasoningConfig = recordValue(result.reasoningConfig);
-  const speedConfig = recordValue(result.speedConfig);
-  const modelsFromConfig = settingOptionsFromComposerConfig(modelConfig);
-  // The live agent's advertised model list reflects what the running session
-  // can actually use, so it takes precedence when present.
-  const modelsFromLiveConfig = settingOptionsFromConfigOption(
-    rawConfigOptions,
-    ["model"]
-  );
-  const reasoningEffortsFromConfig =
-    settingOptionsFromComposerConfig(reasoningConfig);
-  const reasoningEffortsFromLiveConfig = settingOptionsFromConfigOption(
-    rawConfigOptions,
-    ["reasoning_effort", "model_reasoning_effort", "effort"]
-  );
-  const speedsFromConfig = settingOptionsFromComposerConfig(speedConfig);
-  const speedsFromLiveConfig = settingOptionsFromConfigOption(
-    rawConfigOptions,
-    ["service_tier", "speed", "fast"]
-  );
-  const skillsFromResult = skillOptionsFromValue(result.skills);
-  const skillsFromRuntimeContext = skillOptionsFromValue(runtimeContext.skills);
-  const capabilitiesFromResult = capabilityOptionsFromValue(
-    result.capabilityCatalog
-  );
-  const capabilitiesFromRuntimeContext = capabilityOptionsFromValue(
-    runtimeContext.capabilityCatalog
-  );
-  const capabilityCatalog =
-    capabilitiesFromResult.length > 0
-      ? capabilitiesFromResult
-      : capabilitiesFromRuntimeContext;
-  return {
-    provider: normalizeText(result.provider) ?? provider,
-    models:
-      modelsFromLiveConfig.length > 0 ? modelsFromLiveConfig : modelsFromConfig,
-    reasoningEfforts:
-      reasoningEffortsFromConfig.length > 0
-        ? reasoningEffortsFromConfig
-        : reasoningEffortsFromLiveConfig,
-    speeds:
-      speedsFromConfig.length > 0 ? speedsFromConfig : speedsFromLiveConfig,
-    modelConfigurable:
-      modelConfig.configurable === true ||
-      (modelConfig.configurable === undefined &&
-        modelsFromLiveConfig.length > 0),
-    reasoningConfigurable:
-      reasoningConfig.configurable === true ||
-      (reasoningConfig.configurable === undefined &&
-        reasoningEffortsFromLiveConfig.length > 0),
-    speedConfigurable:
-      speedConfig.configurable === true ||
-      (speedConfig.configurable === undefined &&
-        speedsFromLiveConfig.length > 0),
-    permissionConfig: permissionConfigFromValue(result.permissionConfig),
-    runtimeContext,
-    skills:
-      skillsFromResult.length > 0 ? skillsFromResult : skillsFromRuntimeContext,
-    capabilityCatalog,
-    loadedAtUnixMs: Date.now()
-  };
-}
-
-function settingOptionsFromComposerConfig(
-  config: Record<string, unknown>
-): AgentActivityComposerSettingOption[] {
-  const options = settingOptionsFromRawOptions(config.options, {
-    labelKeys: ["label", "name", "displayName"],
-    valueKeys: ["value", "id"]
-  });
-  const currentValue = normalizeText(
-    config.currentValue ?? config.current_value ?? config.defaultValue
-  );
-  return appendCurrentOption(options, currentValue);
-}
-
-function settingOptionsFromConfigOption(
-  rawConfigOptions: unknown[],
-  ids: readonly string[]
-): AgentActivityComposerSettingOption[] {
-  const idSet = new Set(ids);
-  const configOption =
-    rawConfigOptions.map(recordValue).find((option) => {
-      const id = normalizeText(option.id);
-      return id ? idSet.has(id) : false;
-    }) ?? null;
-  if (!configOption) {
-    return [];
-  }
-  const options = settingOptionsFromRawOptions(configOption.options, {
-    labelKeys: ["name", "label", "displayName"],
-    valueKeys: ["value", "id"]
-  });
-  const currentValue = normalizeText(
-    configOption.currentValue ?? configOption.current_value
-  );
-  return appendCurrentOption(options, currentValue);
-}
-
-function settingOptionsFromRawOptions(
-  value: unknown,
-  keys: {
-    labelKeys: readonly string[];
-    valueKeys: readonly string[];
-  }
-): AgentActivityComposerSettingOption[] {
-  const options: AgentActivityComposerSettingOption[] = [];
-  const seen = new Set<string>();
-  for (const item of flattenRawSettingOptions(value)) {
-    const record = recordValue(item);
-    const optionValue = firstTextValue(record, keys.valueKeys);
-    if (!optionValue || seen.has(optionValue)) {
-      continue;
-    }
-    seen.add(optionValue);
-    const label = firstTextValue(record, keys.labelKeys) ?? optionValue;
-    const description = normalizeText(record.description);
-    options.push({
-      value: optionValue,
-      label,
-      ...(description ? { description } : {})
-    });
-  }
-  return options;
-}
-
-function flattenRawSettingOptions(value: unknown): unknown[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const flattened: unknown[] = [];
-  for (const item of value as unknown[]) {
-    const record = recordValue(item);
-    if (Array.isArray(record.options)) {
-      flattened.push(...flattenRawSettingOptions(record.options));
-    } else {
-      flattened.push(item);
-    }
-  }
-  return flattened;
-}
-
-function appendCurrentOption(
-  options: AgentActivityComposerSettingOption[],
-  currentValue: string | null
-): AgentActivityComposerSettingOption[] {
-  if (
-    !currentValue ||
-    options.some((option) => option.value === currentValue)
-  ) {
-    return options;
-  }
-  return [...options, { value: currentValue, label: currentValue }];
-}
-
-function permissionConfigFromValue(
-  value: unknown
-): AgentActivityComposerPermissionConfig | null {
-  const config = recordValue(value);
-  if (Object.keys(config).length === 0) {
-    return null;
-  }
-  const modes = Array.isArray(config.modes) ? config.modes : [];
-  const parsedModes: AgentActivityComposerPermissionConfig["modes"] = [];
-  for (const item of modes) {
-    const mode = recordValue(item);
-    const id = normalizeText(mode.id);
-    if (!id) {
-      continue;
-    }
-    const label = normalizeText(mode.label);
-    const description = normalizeText(mode.description);
-    const semantic = normalizeText(mode.semantic);
-    parsedModes.push({
-      id,
-      ...(label ? { label } : {}),
-      ...(description ? { description } : {}),
-      ...(semantic ? { semantic } : {})
-    });
-  }
-  const defaultValue = normalizeText(
-    config.defaultValue ?? config.currentValue
-  );
-  return {
-    configurable: Boolean(config.configurable),
-    ...(defaultValue ? { defaultValue } : {}),
-    modes: parsedModes
-  };
-}
-
-function skillOptionsFromValue(
-  value: unknown
-): AgentActivityComposerSkillOption[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const options: AgentActivityComposerSkillOption[] = [];
-  const seen = new Set<string>();
-  for (const item of value) {
-    const record = recordValue(item);
-    const name = normalizeText(record.name);
-    const trigger = normalizeText(record.trigger);
-    const sourceKind = normalizeSkillSourceKind(record.sourceKind);
-    if (!name || !trigger || !sourceKind || seen.has(trigger)) {
-      continue;
-    }
-    seen.add(trigger);
-    const description = normalizeText(record.description);
-    const pluginName = normalizeText(record.pluginName);
-    const path = normalizeText(record.path);
-    const kind = normalizeSkillKind(record.kind);
-    options.push({
-      name,
-      trigger,
-      sourceKind,
-      ...(description ? { description } : {}),
-      ...(pluginName ? { pluginName } : {}),
-      ...(path ? { path } : {}),
-      ...(kind ? { kind } : {})
-    });
-  }
-  return options;
-}
-
-function normalizeSkillSourceKind(
-  value: unknown
-): AgentActivityComposerSkillOption["sourceKind"] | null {
-  const normalized = normalizeText(value);
-  switch (normalized) {
-    case "project":
-    case "personal":
-    case "bundled":
-    case "plugin":
-    case "system":
-    case "tutti-injected":
-    case "connector":
-      return normalized;
-    default:
-      return null;
-  }
-}
-
-function normalizeSkillKind(
-  value: unknown
-): AgentActivityComposerSkillOption["kind"] | null {
-  const normalized = normalizeText(value);
-  switch (normalized) {
-    case "skill":
-    case "connector":
-      return normalized;
-    default:
-      return null;
-  }
-}
-
-function capabilityOptionsFromValue(
-  value: unknown
-): AgentActivityComposerCapabilityOption[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const options: AgentActivityComposerCapabilityOption[] = [];
-  const seen = new Set<string>();
-  for (const item of value) {
-    const record = recordValue(item);
-    const id = normalizeText(record.id);
-    const kind = normalizeCapabilityKind(record.kind);
-    const name = normalizeText(record.name);
-    const label = normalizeText(record.label) ?? name;
-    const status = normalizeCapabilityStatus(record.status);
-    const invocation = normalizeCapabilityInvocation(record.invocation);
-    if (
-      !id ||
-      !kind ||
-      !name ||
-      !label ||
-      !status ||
-      !invocation ||
-      seen.has(id)
-    ) {
-      continue;
-    }
-    seen.add(id);
-    const description = normalizeText(record.description);
-    const source = normalizeText(record.source);
-    const pluginName = normalizeText(record.pluginName);
-    const serverName = normalizeText(record.serverName);
-    const toolName = normalizeText(record.toolName);
-    const trigger = normalizeText(record.trigger);
-    const path = normalizeText(record.path);
-    options.push({
-      id,
-      kind,
-      name,
-      label,
-      status,
-      invocation,
-      ...(description ? { description } : {}),
-      ...(source ? { source } : {}),
-      ...(pluginName ? { pluginName } : {}),
-      ...(serverName ? { serverName } : {}),
-      ...(toolName ? { toolName } : {}),
-      ...(trigger ? { trigger } : {}),
-      ...(path ? { path } : {})
-    });
-  }
-  return options;
-}
-
-function normalizeCapabilityKind(
-  value: unknown
-): AgentActivityComposerCapabilityOption["kind"] | null {
-  const normalized = normalizeText(value);
-  switch (normalized) {
-    case "skill":
-    case "plugin":
-    case "connector":
-    case "mcpServer":
-    case "mcpTool":
-      return normalized;
-    default:
-      return null;
-  }
-}
-
-function normalizeCapabilityStatus(
-  value: unknown
-): AgentActivityComposerCapabilityOption["status"] | null {
-  const normalized = normalizeText(value);
-  switch (normalized) {
-    case "available":
-    case "disabled":
-    case "authRequired":
-    case "setupRequired":
-    case "unsupported":
-      return normalized;
-    default:
-      return null;
-  }
-}
-
-function normalizeCapabilityInvocation(
-  value: unknown
-): AgentActivityComposerCapabilityOption["invocation"] | null {
-  const normalized = normalizeText(value);
-  switch (normalized) {
-    case "promptItem":
-    case "textTrigger":
-    case "none":
-      return normalized;
-    default:
-      return null;
-  }
-}
-
-function firstTextValue(
-  record: Record<string, unknown>,
-  keys: readonly string[]
-): string | null {
-  for (const key of keys) {
-    const value = normalizeText(record[key]);
-    if (value) {
-      return value;
-    }
-  }
-  return null;
 }
 
 function withAbortableRequestTimeout<T>(

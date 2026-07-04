@@ -7,6 +7,7 @@ import type {
   AgentGUINodeViewModel
 } from "./model/agentGuiNodeTypes";
 import { AgentGUINode } from "./AgentGUINode";
+import { createLocalAgentGUIProviderTarget } from "../../providerTargets";
 
 const { agentGuiNodeViewSpy } = vi.hoisted(() => ({
   agentGuiNodeViewSpy: vi.fn()
@@ -32,6 +33,7 @@ vi.mock("./controller/useAgentGUINodeController", () => ({
       createConversation: vi.fn(),
       selectConversation: vi.fn(),
       submitPrompt: vi.fn(),
+      submitGuidancePrompt: vi.fn(),
       showPromptImagesUnsupported: vi.fn(),
       submitApprovalOption: vi.fn(),
       submitInteractivePrompt: vi.fn(),
@@ -171,6 +173,70 @@ describe("AgentGUINode memoization", () => {
 
     expect(agentGuiNodeViewSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("rerenders when per-target composer overrides change", () => {
+    mockViewModel = createViewModel();
+    const props = createProps({
+      state: createState({
+        agentTargetId: "target-a",
+        composerOverridesByAgentTargetId: {
+          "target-a": { model: "gpt-5" }
+        }
+      })
+    });
+    const { rerender } = render(<AgentGUINode {...props} />);
+
+    expect(agentGuiNodeViewSpy).toHaveBeenCalledTimes(1);
+    agentGuiNodeViewSpy.mockClear();
+
+    rerender(
+      <AgentGUINode
+        {...props}
+        state={createState({
+          agentTargetId: "target-a",
+          composerOverridesByAgentTargetId: {
+            "target-a": { model: "gpt-5.1" }
+          }
+        })}
+      />
+    );
+
+    expect(agentGuiNodeViewSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("rerenders when the legacy provider target identity changes", () => {
+    mockViewModel = createViewModel();
+    const props = createProps({
+      state: createState({
+        providerTargetId: "shared-agent:codex-a",
+        providerTargetRef: {
+          kind: "shared-agent",
+          provider: "codex",
+          sharedAgentId: "codex-a"
+        }
+      })
+    });
+    const { rerender } = render(<AgentGUINode {...props} />);
+
+    expect(agentGuiNodeViewSpy).toHaveBeenCalledTimes(1);
+    agentGuiNodeViewSpy.mockClear();
+
+    rerender(
+      <AgentGUINode
+        {...props}
+        state={createState({
+          providerTargetId: "shared-agent:codex-b",
+          providerTargetRef: {
+            kind: "shared-agent",
+            provider: "codex",
+            sharedAgentId: "codex-b"
+          }
+        })}
+      />
+    );
+
+    expect(agentGuiNodeViewSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 function createProps(
@@ -221,6 +287,9 @@ function createViewModel(
     userProjects: [],
     conversation: null,
     conversationDetail: null,
+    selectedProviderTarget: createLocalAgentGUIProviderTarget("codex"),
+    providerTargets: [createLocalAgentGUIProviderTarget("codex")],
+    providerTargetsLoading: false,
     draftPrompt: "",
     draftContent,
     sessionChrome: {
@@ -236,6 +305,7 @@ function createViewModel(
     isSubmitting: false,
     isInterrupting: false,
     promptImagesSupported: true,
+    backgroundAgentCount: 0,
     listError: null,
     isCreatingConversation: false,
     isLoadingConversations: false,

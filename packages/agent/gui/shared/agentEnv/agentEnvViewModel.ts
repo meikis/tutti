@@ -26,8 +26,8 @@ export interface NetworkCheck {
 
 const MANUAL_INSTALL_COMMANDS: Partial<Record<WorkspaceAgentProvider, string>> =
   {
-    codex: "npm install -g @openai/codex",
-    "claude-code": "npm install -g @anthropic-ai/claude-code"
+    codex: "npm install -g @openai/codex --include=optional",
+    "claude-code": "curl -fsSL https://claude.ai/install.sh | bash"
   };
 
 function endpointHost(endpoint: string | null | undefined): string | null {
@@ -115,6 +115,13 @@ export function buildAgentEnvWizardViewModel(
   const reasonCode = (status?.availability.reasonCode ?? "").toLowerCase();
   const versionTooOld = reasonCodeIndicatesCliVersionUnsupported(reasonCode);
   const cliBelowFloor = reasonCode.includes("codex_version_too_old");
+  // The codex launcher is present but its platform subpackage is missing — the
+  // CLI spawns ENOENT. The daemon repairs this in place via the install action;
+  // the wizard must NOT mark the install stage ok just because the launcher
+  // resolved.
+  const platformPackageIncomplete = reasonCode.includes(
+    "codex_platform_pkg_incomplete"
+  );
   const adapterVersionMismatch = reasonCode.includes(
     "acp_adapter_version_mismatch"
   );
@@ -188,11 +195,13 @@ export function buildAgentEnvWizardViewModel(
     : status?.auth.status === "authenticated"
       ? { kind: "text", text: "__SIGNED_IN__" }
       : null;
+  const authMethod: string | null = status?.auth.authMethod ?? null;
 
   const stages = deriveAgentSetupStages({
     detected: status !== null,
     cliInstalled: status?.cli.installed ?? false,
     versionTooOld,
+    platformPackageIncomplete,
     adapterInstalled: status?.adapter.installed ?? false,
     adapterVersionMismatch,
     authenticated: status?.auth.status === "authenticated",
@@ -205,6 +214,7 @@ export function buildAgentEnvWizardViewModel(
     cliVersionDetail: cliDetail,
     adapterDetail,
     accountDetail,
+    authMethod,
     networkDetail: null,
     labels: input.stageLabels
   });
