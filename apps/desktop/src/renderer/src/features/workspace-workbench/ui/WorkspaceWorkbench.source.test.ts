@@ -15,6 +15,18 @@ const agentGuiContributionSource = readFileSync(
   ),
   "utf8"
 );
+const launchpadOverlaySource = readFileSync(
+  resolve(
+    "src/renderer/src/features/workspace-workbench/ui/WorkspaceLaunchpadOverlay.tsx"
+  ),
+  "utf8"
+);
+const shellRuntimeSource = readFileSync(
+  resolve(
+    "src/renderer/src/features/workspace-workbench/ui/useWorkspaceWorkbenchShellRuntime.tsx"
+  ),
+  "utf8"
+);
 
 test("WorkspaceWorkbench does not render a global agent install pending overlay", () => {
   assert.doesNotMatch(source, /WorkspaceAgentConnectingCard/);
@@ -73,5 +85,29 @@ test("agent gui rail external action opens an internal agent session window", ()
   assert.match(
     agentGuiContributionSource,
     /onOpenAgentConversationWindow:\s*async \(request\) => \{\s*await requestWorkspaceAgentGuiLaunch\(\{\s*\.\.\.request,\s*openInNewWindow: true\s*\}\);[\s\S]*?\}/
+  );
+});
+
+test("WorkspaceLaunchpad renders one generic Agent entry", () => {
+  assert.doesNotMatch(source, /agentDockLayout=\{runtime\.agentDockLayout\}/);
+  assert.match(
+    launchpadOverlaySource,
+    /return \[[\s\S]*iconUrl: input\.launchpadDockIcons\.agentUnified[\s\S]*id: "agent:unified"[\s\S]*\];/
+  );
+  assert.doesNotMatch(
+    launchpadOverlaySource,
+    /workspaceAgentGuiProviders\.map\(\(provider\) =>\s*resolveLaunchpadAgentDescriptor/
+  );
+});
+
+test("workspace shell loads AgentGUI provider targets while preserving static catalog for empty loads", () => {
+  assert.match(shellRuntimeSource, /loadAgentGuiProviderTargets/);
+  assert.match(
+    shellRuntimeSource,
+    /agentGuiProviderTargets && agentGuiProviderTargets\.length > 0\s*\?\s*agentGuiProviderTargets\s*:\s*undefined/s
+  );
+  assert.doesNotMatch(
+    shellRuntimeSource,
+    /const resolvedAgentGuiProviderTargets = useMemo\(\s*\(\) => agentGuiProviderTargets \?\? \[\]/s
   );
 });
