@@ -187,7 +187,7 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(onConversationRailWidthChanged).not.toHaveBeenCalled();
   });
 
-  it("only renders the provider filter for multi-provider conversation scope", () => {
+  it("always renders the provider filter rail", () => {
     const providerTargets = [
       createLocalAgentGUIProviderTarget("codex"),
       createLocalAgentGUIProviderTarget("claude-code")
@@ -195,17 +195,6 @@ describe("AgentGUINodeView layout persistence", () => {
     const { container, rerender } = renderAgentGUINodeView({
       viewModel: createViewModel({ providerTargets })
     });
-
-    expect(container.querySelector('[role="tablist"]')).toBeNull();
-
-    rerender(
-      buildAgentGUINodeViewElement({
-        viewModel: createViewModel({
-          conversationScope: "multi-provider",
-          providerTargets
-        })
-      })
-    );
 
     const providerRailPanel = container.querySelector(
       ".agent-gui-node__provider-rail-panel"
@@ -231,7 +220,6 @@ describe("AgentGUINodeView layout persistence", () => {
       buildAgentGUINodeViewElement({
         conversationRailCollapsed: true,
         viewModel: createViewModel({
-          conversationScope: "multi-provider",
           providerTargets
         })
       })
@@ -248,29 +236,6 @@ describe("AgentGUINodeView layout persistence", () => {
     ).toBe("0px");
     expect(layout?.style.gridTemplateColumns).toBe(
       "var(--agent-gui-provider-rail-width) var(--agent-gui-conversation-rail-width) minmax(var(--agent-gui-detail-min-width), 1fr)"
-    );
-  });
-
-  it("does not reserve a provider rail grid column in single-provider scope", () => {
-    const { container } = renderAgentGUINodeView({
-      viewModel: createViewModel({
-        conversationScope: "single-provider",
-        providerTargets: [createLocalAgentGUIProviderTarget("codex")]
-      })
-    });
-
-    const layout = container.querySelector<HTMLElement>(
-      ".agent-gui-node__layout"
-    );
-
-    expect(
-      container.querySelector(".agent-gui-node__provider-rail-panel")
-    ).toBeNull();
-    expect(
-      layout?.style.getPropertyValue("--agent-gui-provider-rail-width")
-    ).toBe("0px");
-    expect(layout?.style.gridTemplateColumns).toBe(
-      "var(--agent-gui-conversation-rail-width) minmax(var(--agent-gui-detail-min-width), 1fr)"
     );
   });
 
@@ -451,7 +416,7 @@ describe("AgentGUINodeView layout persistence", () => {
       )
     ).toBe("240px");
     expect(layout?.style.gridTemplateColumns).toBe(
-      "var(--agent-gui-conversation-rail-width) minmax(var(--agent-gui-detail-min-width), 1fr)"
+      "var(--agent-gui-provider-rail-width) var(--agent-gui-conversation-rail-width) minmax(var(--agent-gui-detail-min-width), 1fr)"
     );
     expect(railPanel).not.toBeNull();
     expect(railPanel).toHaveAttribute("aria-hidden", "true");
@@ -516,7 +481,6 @@ describe("AgentGUINodeView layout persistence", () => {
       actions,
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets: [
           createLocalAgentGUIProviderTarget("codex"),
           claudeTarget
@@ -548,7 +512,6 @@ describe("AgentGUINodeView layout persistence", () => {
       actions,
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets: [
           createLocalAgentGUIProviderTarget("codex"),
           createLocalAgentGUIProviderTarget("claude-code"),
@@ -586,7 +549,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             ...createLocalAgentGUIProviderTarget("nexight"),
@@ -645,7 +607,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets: [
           createLocalAgentGUIProviderTarget("codex"),
           createLocalAgentGUIProviderTarget("claude-code")
@@ -671,7 +632,6 @@ describe("AgentGUINodeView layout persistence", () => {
       actions,
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: {
           kind: "agentTarget",
           agentTargetId: claudeTarget.agentTargetId ?? ""
@@ -696,7 +656,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "all" },
         selectedProviderTarget: claudeTarget,
         providerTargets: [
@@ -721,7 +680,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: {
           kind: "agentTarget",
           agentTargetId: codexTarget.agentTargetId ?? ""
@@ -748,7 +706,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "all" },
         selectedProviderTarget: createLocalAgentGUIProviderTarget("codex"),
         providerTargets: [
@@ -772,7 +729,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "all" },
         providerTargets: [
           createLocalAgentGUIProviderTarget("claude-code"),
@@ -801,7 +757,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "all" },
         providerTargets: [
           createLocalAgentGUIProviderTarget("claude-code"),
@@ -823,7 +778,6 @@ describe("AgentGUINodeView layout persistence", () => {
     const { container } = renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "all" },
         providerTargets: [
           createLocalAgentGUIProviderTarget("claude-code"),
@@ -864,7 +818,6 @@ describe("AgentGUINodeView layout persistence", () => {
     const { container, rerender } = renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: {
           kind: "agentTarget",
           agentTargetId: codexTarget.agentTargetId ?? ""
@@ -885,7 +838,6 @@ describe("AgentGUINodeView layout persistence", () => {
     rerender(
       buildAgentGUINodeViewElement({
         viewModel: createViewModel({
-          conversationScope: "multi-provider",
           conversationFilter: {
             kind: "agentTarget",
             agentTargetId: claudeTarget.agentTargetId ?? ""
@@ -920,7 +872,6 @@ describe("AgentGUINodeView layout persistence", () => {
       actions,
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         selectedProviderTarget: createLocalAgentGUIProviderTarget("codex"),
         providerTargets: [
           createLocalAgentGUIProviderTarget("codex"),
@@ -971,7 +922,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "all" },
         selectedProviderTarget: daemonCodexTarget,
         providerTargets: [
@@ -998,7 +948,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets: [],
         providerTargetsLoading: true
       }
@@ -1015,7 +964,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets: [],
         providerTargetsLoading: false
       }
@@ -1038,7 +986,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets: createLocalAgentGUIProviderTargets(),
         providerTargetsLoading: false
       }
@@ -1064,7 +1011,6 @@ describe("AgentGUINodeView layout persistence", () => {
       actions,
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "all" },
         selectedProviderTarget: sharedGeminiTarget,
         providerTargets: [
@@ -1088,33 +1034,7 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(actions.selectProvider).not.toHaveBeenCalled();
   });
 
-  it("hides provider switching options from the single-provider title", () => {
-    const actions = createActions();
-    const codexTarget = createLocalAgentGUIProviderTarget("codex");
-    const providerTargets = [
-      codexTarget,
-      createLocalAgentGUIProviderTarget("claude-code")
-    ];
-    renderAgentGUINodeView({
-      actions,
-      labels: {
-        ...createLabels(),
-        empty: "What can Codex help you with?",
-        emptyProvider: "Codex"
-      },
-      viewModel: {
-        ...createViewModel(),
-        selectedProviderTarget: codexTarget,
-        providerTargets
-      }
-    });
-
-    expect(
-      screen.queryByRole("combobox", { name: "Switch provider" })
-    ).not.toBeInTheDocument();
-  });
-
-  it("renders provider switching options in the multi-provider title", () => {
+  it("passes provider switching options into the multi-provider composer", () => {
     const actions = createActions();
     const providerTargets = [
       createLocalAgentGUIProviderTarget("codex"),
@@ -1129,7 +1049,6 @@ describe("AgentGUINodeView layout persistence", () => {
       },
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets
       }
     });
@@ -1156,7 +1075,6 @@ describe("AgentGUINodeView layout persistence", () => {
       },
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         providerTargets
       }
     });
@@ -1177,7 +1095,6 @@ describe("AgentGUINodeView layout persistence", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         data: {
           provider: "codex",
           agentTargetId: "local:codex",
@@ -1210,7 +1127,6 @@ describe("AgentGUINodeView layout persistence", () => {
         ...createViewModel(),
         activeConversation: conversation,
         activeConversationId: conversation.id,
-        conversationScope: "multi-provider",
         conversations: [conversation],
         providerTargets
       }
@@ -2099,7 +2015,6 @@ describe("AgentGUINodeView layout persistence", () => {
       },
       viewModel: {
         ...createViewModel(),
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "agentTarget", agentTargetId },
         selectedProviderTarget: claudeTarget,
         providerTargets: [
@@ -3427,7 +3342,6 @@ describe("AgentGUINodeView provider readiness gate", () => {
   it("renders the aggregate agents checking gate when the All tab is active", () => {
     renderAgentGUINodeView({
       viewModel: createViewModel({
-        conversationScope: "multi-provider",
         conversationFilter: { kind: "all" },
         providerReadinessGate: {
           status: "checking"
@@ -3841,7 +3755,6 @@ function createViewModel(
     selectedProviderTarget: createLocalAgentGUIProviderTarget("codex"),
     providerTargets: [createLocalAgentGUIProviderTarget("codex")],
     providerTargetsLoading: false,
-    conversationScope: "single-provider",
     conversationFilter: { kind: "all" },
     conversations: [],
     userProjects: [],

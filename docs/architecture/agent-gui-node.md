@@ -137,14 +137,13 @@ Workbench dock or external launch
   -> <AgentGUI ... />
 ```
 
-`agentDockLayout` is a daemon-owned desktop preference that changes only the
-dock presentation. The default is `unified`, which exposes one Agent dock entry
-that matches Codex and Claude Code AgentGUI nodes, but launches still create
-provider-specific multi-instance AgentGUI nodes. `legacySplit` remains available
-for provider-specific Codex and Claude Code dock entries. The unified entry may
-choose a default target or provider for its launch payload; that selection must
-not synthesize a provider or replace the provider identity recorded on the
-node/session.
+`agentDockLayout` remains in the daemon desktop-preferences wire contract for
+older stored values, but the desktop host pins it to `unified`. Unified is the
+only Agent dock presentation: it exposes one Agent dock entry that matches Codex
+and Claude Code AgentGUI nodes, while launches still create provider-specific
+multi-instance AgentGUI nodes. The unified entry may choose a default target or
+provider for its launch payload; that selection must not synthesize a provider
+or replace the provider identity recorded on the node/session.
 Workspace Launchpad is a broad launcher surface, not a mirror of the dock
 entry list; it should show one generic Agent tile that resolves to the default
 or first ready provider instead of duplicating provider-specific Agent dock
@@ -190,24 +189,21 @@ If restored node data has a stale `provider` that disagrees with a resolvable
 `agentTargetId`, the target's provider wins for empty-composer settings and
 launch preparation.
 UI affordances that aggregate across providers, such as rail provider filters
-and composer provider switching, belong to the current conversation scope
-derived by the host/workbench presentation, not to durable AgentGUI node data.
+and composer provider switching, are always part of the unified AgentGUI
+surface and do not belong to durable AgentGUI node data.
 Provider-scoped rail footer affordances, such as usage limits and environment
 setup, follow the rail's active provider filter target in multi-provider scope;
 when the rail filter is `All`, they should stay hidden because there is no
-single provider target to inspect. In legacy single-provider dock scope, the
-same footer continues to use the node/session provider.
+single provider target to inspect.
 Unified empty-home provider readiness is a host-projected, provider-scoped gate,
 not a durable session rule. Desktop may subscribe to its
 `agentProviderStatusService` and pass a narrow readiness map plus install,
-login, or refresh callbacks into AgentGUI only when `agentDockLayout` is
-`unified`. AgentGUI resolves the gate from the selected
+login, or refresh callbacks into AgentGUI. AgentGUI resolves the gate from the selected
 `AgentGUIProviderTarget.provider` first, from `agentTargetId` through the
 current provider target list second, and from legacy node/session `provider`
 only when no target can be resolved. A non-ready provider replaces only the
-empty-home composer with a friendly gate; active/history conversations,
-existing-session composer behavior, and the legacySplit dock hover
-install/login chain remain outside this gate.
+empty-home composer with a friendly gate; active/history conversations and
+existing-session composer behavior remain outside this gate.
 Auth-required local providers should remain selectable; product surfaces may
 label the setup affordance as `Connect`, but the host action should still
 dispatch the provider's `login` operation when that is the daemon-reported

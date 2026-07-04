@@ -730,10 +730,6 @@ test("WorkspaceSettingsService writes changed preferences", async () => {
         writes.push(mode);
         return mode;
       },
-      onSetAgentDockLayout: async (layout) => {
-        writes.push(layout);
-        return layout;
-      },
       onSetThemeSource: async (source) => {
         writes.push(source);
         return createTheme(source);
@@ -746,7 +742,6 @@ test("WorkspaceSettingsService writes changed preferences", async () => {
   await service.changeDockPlacement("left");
   await service.changeDefaultAgentProvider("claude-code");
   await service.changeAgentConversationDetailMode("general");
-  await service.changeAgentDockLayout("unified");
   await service.changeThemeSource("dark");
 
   assert.deepEqual(writes, ["zh-CN", "left", "claude-code", "general", "dark"]);
@@ -793,9 +788,6 @@ test("WorkspaceSettingsService reports preference save failures", async () => {
       onSetDefaultAgentProvider: async () => {
         throw new Error("provider failed");
       },
-      onSetAgentDockLayout: async () => {
-        throw new Error("agent dock failed");
-      },
       onSetThemeSource: async () => {
         throw new Error("theme failed");
       },
@@ -807,7 +799,6 @@ test("WorkspaceSettingsService reports preference save failures", async () => {
   await service.changeLocale("zh-CN");
   await service.changeDockPlacement("left");
   await service.changeDefaultAgentProvider("claude-code");
-  await service.changeAgentDockLayout("unified");
   await service.changeThemeSource("dark");
 
   assert.deepEqual(notifications.items, [
@@ -1091,7 +1082,6 @@ function createWorkspaceSettingsClient(
 function createDesktopPreferencesService(input: {
   onSetDefaultAgentProvider?: IDesktopPreferencesService["setDefaultAgentProvider"];
   onSetAgentConversationDetailMode?: IDesktopPreferencesService["setAgentConversationDetailMode"];
-  onSetAgentDockLayout?: IDesktopPreferencesService["setAgentDockLayout"];
   onSetAppCatalogChannel?: IDesktopPreferencesService["setAppCatalogChannel"];
   onSetBrowserUseConnectionMode?: IDesktopPreferencesService["setBrowserUseConnectionMode"];
   onSetDockIconStyle?: IDesktopPreferencesService["setDockIconStyle"];
@@ -1115,8 +1105,6 @@ function createDesktopPreferencesService(input: {
       input.onSetAppCatalogChannel ?? (async (channel) => channel),
     setAgentConversationDetailMode:
       input.onSetAgentConversationDetailMode ?? (async (mode) => mode),
-    setAgentDockLayout:
-      input.onSetAgentDockLayout ?? (async (layout) => layout),
     setBrowserUseConnectionMode:
       input.onSetBrowserUseConnectionMode ?? (async (mode) => mode),
     setDefaultAgentProvider:
@@ -1149,12 +1137,10 @@ function createPreferencesState(
     agentComposerDefaultsByProvider: {},
     agentGuiConversationRailCollapsedByProvider: {},
     agentConversationDetailMode: "coding",
-    agentDockLayout: "unified",
     appCatalogChannel: "production",
     browserUseConnectionMode: "isolated",
     changingAppCatalogChannel: null,
     changingAgentConversationDetailMode: null,
-    changingAgentDockLayout: null,
     changingBrowserUseConnectionMode: null,
     changingDefaultAgentProvider: null,
     changingDockIconStyle: null,

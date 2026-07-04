@@ -921,22 +921,8 @@ describe("AgentGUINode", () => {
     expect(screen.getByText("暂未接入用量")).toBeInTheDocument();
   });
 
-  it("keeps the rail config entry visible for legacy single-provider docks", () => {
-    mockViewModel = createViewModel({
-      conversationScope: "single-provider",
-      conversationFilter: { kind: "all" }
-    });
-
-    renderAgentGUINode();
-
-    expect(
-      screen.getByTitle("agentHost.agentGui.agentConfig")
-    ).toBeInTheDocument();
-  });
-
   it("hides the rail config entry for the unified All provider filter", () => {
     mockViewModel = createViewModel({
-      conversationScope: "multi-provider",
       conversationFilter: { kind: "all" },
       providerTargets: [
         createLocalAgentGUIProviderTarget("codex"),
@@ -954,7 +940,6 @@ describe("AgentGUINode", () => {
     const codexTarget = createLocalAgentGUIProviderTarget("codex");
     const claudeTarget = createLocalAgentGUIProviderTarget("claude-code");
     mockViewModel = createViewModel({
-      conversationScope: "multi-provider",
       conversationFilter: {
         kind: "agentTarget",
         agentTargetId: claudeTarget.agentTargetId ?? ""
@@ -1764,6 +1749,9 @@ describe("AgentGUINode", () => {
     const iconEffect = document.querySelector(
       ".agent-gui-node__empty-hero-icon-effect"
     );
+    const launchpadIcon = document.querySelector(
+      ".agent-gui-node__empty-hero-launchpad-icon .agent-gui-node__provider-rail-launchpad-icon"
+    );
 
     expect(queryComposerEditor()).not.toBeNull();
     expect(
@@ -1771,24 +1759,30 @@ describe("AgentGUINode", () => {
     ).toBeTruthy();
     expect(screen.queryByTestId("agent-gui-bottom-dock")).toBeNull();
     expect(emptyHeading).toBeTruthy();
-    expect(iconEffect).toHaveAttribute("src", MANAGED_AGENT_ICON_URLS.codex);
-    expect(iconEffect?.querySelector("canvas")).toBeNull();
+    expect(iconEffect).toBeNull();
+    expect(launchpadIcon).not.toBeNull();
+    expect(launchpadIcon?.children).toHaveLength(4);
     expect(
       document.querySelector(".agent-gui-node__timeline-centered")
     ).toContainElement(emptyHeading);
   });
 
   it("renders the empty hero from the selected provider target", () => {
+    const claudeTarget = createLocalAgentGUIProviderTarget("claude-code");
     mockViewModel = createViewModel({
       data: {
         provider: "codex",
         lastActiveAgentSessionId: null,
         conversationRailWidthPx: null
       },
-      selectedProviderTarget: createLocalAgentGUIProviderTarget("claude-code"),
+      conversationFilter: {
+        kind: "agentTarget",
+        agentTargetId: claudeTarget.agentTargetId ?? ""
+      },
+      selectedProviderTarget: claudeTarget,
       providerTargets: [
         createLocalAgentGUIProviderTarget("codex"),
-        createLocalAgentGUIProviderTarget("claude-code")
+        claudeTarget
       ]
     });
 
@@ -7122,7 +7116,6 @@ function createViewModel(
     },
     inlineNotice: null,
     ...overrides,
-    conversationScope: overrides.conversationScope ?? "single-provider",
     conversationFilter: overrides.conversationFilter ?? { kind: "all" },
     providerReadinessGate: overrides.providerReadinessGate ?? null,
     listError: overrides.listError ?? null

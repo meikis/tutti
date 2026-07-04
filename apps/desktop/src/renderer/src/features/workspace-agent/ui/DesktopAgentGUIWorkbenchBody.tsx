@@ -468,18 +468,13 @@ function DesktopAgentGUIWorkbenchBodyImpl({
   );
   const providerReadinessGates = useMemo(
     () =>
-      desktopPreferencesState.agentDockLayout === "unified" && !previewMode
-        ? projectDesktopAgentProviderReadinessGates({
+      previewMode
+        ? null
+        : projectDesktopAgentProviderReadinessGates({
             snapshot: providerStatusSnapshot,
             onAction: handleProviderReadinessGateAction
-          })
-        : null,
-    [
-      desktopPreferencesState.agentDockLayout,
-      handleProviderReadinessGateAction,
-      previewMode,
-      providerStatusSnapshot
-    ]
+          }),
+    [handleProviderReadinessGateAction, previewMode, providerStatusSnapshot]
   );
   const rawWorkbenchStateSource = useMemo(
     () => context.externalNodeState ?? context.node.data.runtimeNodeState,
@@ -1092,11 +1087,6 @@ function DesktopAgentGUIWorkbenchBodyImpl({
         providerTargetsLoading={providerTargetsLoading}
         providerReadinessGates={providerReadinessGates}
         defaultProviderTargetId={defaultProviderTargetId}
-        conversationScope={
-          desktopPreferencesState.agentDockLayout === "unified"
-            ? "multi-provider"
-            : "single-provider"
-        }
         workspaceAgentProbes={workspaceAgentProbes}
         onAgentProbeDemandChange={
           previewMode ? undefined : handleAgentProbeDemandChange

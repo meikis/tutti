@@ -1412,7 +1412,7 @@ export function AgentGUINodeView({
   const effectiveConversationRailWidthPx = conversationRailCollapsed
     ? 0
     : visualConversationRailWidthPx;
-  const showProviderRail = viewModel.conversationScope === "multi-provider";
+  const showProviderRail = true;
   const renderProviderRail = showProviderRail && !conversationRailCollapsed;
 
   const layoutStyle = {
@@ -1464,7 +1464,6 @@ export function AgentGUINodeView({
         selectedProviderTarget: viewModel.selectedProviderTarget,
         providerTargets: viewModel.providerTargets,
         providerTargetsLoading: viewModel.providerTargetsLoading,
-        conversationScope: viewModel.conversationScope,
         conversationFilter: viewModel.conversationFilter,
         sectionAgentTargetFallbackId,
         onCreateConversation: requestCreateConversation,
@@ -1513,7 +1512,6 @@ export function AgentGUINodeView({
         viewModel.providerTargetsLoading,
         toggleConversationPinned,
         uiLanguage,
-        viewModel.conversationScope,
         viewModel.conversationFilter,
         viewModel.activeConversationId,
         viewModel.isDeletingConversation,
@@ -2472,11 +2470,8 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     },
     [submitInteractivePrompt]
   );
-  const canSwitchComposerProvider =
-    viewModel.conversationScope === "multi-provider";
-  const composerProviderTargets = canSwitchComposerProvider
-    ? viewModel.providerTargets
-    : [viewModel.selectedProviderTarget];
+  const canSwitchComposerProvider = true;
+  const composerProviderTargets = viewModel.providerTargets;
   const composerProvider =
     viewModel.activeConversationId === null
       ? (viewModel.selectedProviderTarget?.provider ?? viewModel.data.provider)
@@ -2676,15 +2671,10 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     labels.emptyForProvider?.(emptyHeroProvider) ?? labels.empty;
   const emptyHeroIconPresentations = useMemo(
     () =>
-      viewModel.conversationScope === "multi-provider" &&
       viewModel.conversationFilter.kind === "all"
         ? agentGUILaunchpadIconPresentations()
         : [agentGUIProviderIconPresentation(emptyHeroProvider)],
-    [
-      emptyHeroProvider,
-      viewModel.conversationFilter,
-      viewModel.conversationScope
-    ]
+    [emptyHeroProvider, viewModel.conversationFilter]
   );
   const bottomDockStoreState = useMemo<AgentGUIBottomDockStoreSnapshot>(
     () => ({
@@ -3941,7 +3931,6 @@ interface AgentGUIConversationRailPaneProps {
   selectedProviderTarget: AgentGUINodeViewModel["selectedProviderTarget"];
   providerTargets: AgentGUINodeViewModel["providerTargets"];
   providerTargetsLoading: AgentGUINodeViewModel["providerTargetsLoading"];
-  conversationScope: AgentGUINodeViewModel["conversationScope"];
   conversationFilter: AgentGUINodeViewModel["conversationFilter"];
   sectionAgentTargetFallbackId: string | null;
   onUpdateConversationFilter: (
@@ -4044,7 +4033,6 @@ function agentGUIConversationRailStoreSnapshotsEqual(
     current.selectedProviderTarget === next.selectedProviderTarget &&
     current.providerTargets === next.providerTargets &&
     current.providerTargetsLoading === next.providerTargetsLoading &&
-    current.conversationScope === next.conversationScope &&
     current.conversationFilter === next.conversationFilter &&
     current.sectionAgentTargetFallbackId ===
       next.sectionAgentTargetFallbackId &&

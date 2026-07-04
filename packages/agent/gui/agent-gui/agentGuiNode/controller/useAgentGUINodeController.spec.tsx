@@ -330,7 +330,6 @@ describe("useAgentGUINodeController", () => {
           providerTargetId: "local:codex",
           providerTargetRef: { kind: "local-provider", provider: "codex" }
         }),
-        conversationScope: "multi-provider",
         onDataChange,
         onRememberComposerDefaults
       })
@@ -419,7 +418,6 @@ describe("useAgentGUINodeController", () => {
         data: agentGuiData(null, "codex", {
           agentTargetId: "local:codex"
         }),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -513,7 +511,6 @@ describe("useAgentGUINodeController", () => {
         data: agentGuiData(null, "codex", {
           agentTargetId: "local:codex"
         }),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -573,7 +570,6 @@ describe("useAgentGUINodeController", () => {
         data: agentGuiData(null, "codex", {
           agentTargetId: "daemon-claude"
         }),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "daemon-claude",
@@ -619,7 +615,6 @@ describe("useAgentGUINodeController", () => {
         workspacePath: "/workspace",
         avoidGroupingEdits: false,
         data: initialData,
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "shared-agent:codex-1",
@@ -699,7 +694,6 @@ describe("useAgentGUINodeController", () => {
         workspacePath: "/workspace",
         avoidGroupingEdits: false,
         data: initialData,
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -760,7 +754,6 @@ describe("useAgentGUINodeController", () => {
         data: agentGuiData(null, "codex", {
           agentTargetId: "local:codex"
         }),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -841,7 +834,6 @@ describe("useAgentGUINodeController", () => {
         data: agentGuiData(null, "codex", {
           agentTargetId: "local:codex"
         }),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -931,7 +923,6 @@ describe("useAgentGUINodeController", () => {
         workspacePath: "/workspace",
         avoidGroupingEdits: false,
         data: initialData,
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -993,7 +984,6 @@ describe("useAgentGUINodeController", () => {
         workspacePath: "/workspace",
         avoidGroupingEdits: false,
         data: initialData,
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -1096,7 +1086,6 @@ describe("useAgentGUINodeController", () => {
             }
           }
         }),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -1209,7 +1198,6 @@ describe("useAgentGUINodeController", () => {
             }
           }
         }),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -1300,7 +1288,6 @@ describe("useAgentGUINodeController", () => {
             }
           }
         }),
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:codex",
@@ -1394,7 +1381,6 @@ describe("useAgentGUINodeController", () => {
         workspacePath: "/workspace",
         avoidGroupingEdits: false,
         data: initialData,
-        conversationScope: "multi-provider",
         providerTargets: [
           {
             targetId: "local:claude-code",
@@ -1448,94 +1434,6 @@ describe("useAgentGUINodeController", () => {
       provider: "claude-code",
       defaults: { reasoningEffort: "high" }
     });
-  });
-
-  it("keeps provider filters disabled for single-provider conversation scope", async () => {
-    installAgentHostApi({
-      list: vi.fn(async () => ({
-        presences: [],
-        sessions: [
-          workspaceAgentSession("codex-session", {
-            provider: "codex",
-            title: "Codex session",
-            updatedAtUnixMs: 3
-          }),
-          workspaceAgentSession("claude-session", {
-            provider: "claude-code",
-            title: "Claude session",
-            updatedAtUnixMs: 2
-          })
-        ]
-      })),
-      listSessionTimeline: vi.fn(async () => ({ timelineItems: [] })),
-      subscribeEvents: vi.fn(() => vi.fn())
-    });
-
-    const onDataChange = vi.fn();
-    const { result } = renderHook(() =>
-      useAgentGUINodeController({
-        workspaceId: "room-1",
-        currentUserId: "user-1",
-        workspacePath: "/workspace",
-        avoidGroupingEdits: false,
-        data: agentGuiData(null, "codex"),
-        providerTargets: [
-          {
-            targetId: "local:codex",
-            agentTargetId: "local:codex",
-            provider: "codex",
-            ref: { kind: "local-provider", provider: "codex" },
-            label: "Codex"
-          },
-          {
-            targetId: "local:claude-code",
-            agentTargetId: "local:claude-code",
-            provider: "claude-code",
-            ref: { kind: "local-provider", provider: "claude-code" },
-            label: "Claude Code"
-          }
-        ],
-        onDataChange
-      })
-    );
-
-    await waitFor(() => {
-      expect(
-        result.current.viewModel.conversations.map((item) => item.id)
-      ).toEqual(["codex-session"]);
-    });
-
-    act(() => {
-      result.current.actions.updateConversationFilter({
-        kind: "agentTarget",
-        agentTargetId: "local:claude-code"
-      });
-    });
-
-    await waitFor(() => {
-      expect(result.current.viewModel.conversationFilter).toEqual({
-        kind: "all"
-      });
-    });
-    expect(
-      result.current.viewModel.conversations.map((item) => item.id)
-    ).toEqual(["codex-session"]);
-
-    onDataChange.mockClear();
-    act(() => {
-      result.current.actions.selectConversationFilterTarget({
-        provider: "claude-code",
-        providerTargetId: "local:claude-code"
-      });
-    });
-
-    await waitFor(() => {
-      expect(result.current.viewModel.conversationFilter).toEqual({
-        kind: "all"
-      });
-    });
-    expect(onDataChange).not.toHaveBeenCalled();
-    expect(result.current.viewModel.data.provider).toBe("codex");
   });
 
   it("keeps the visible conversation list reference for equal project reloads", async () => {
@@ -2383,7 +2281,7 @@ describe("useAgentGUINodeController", () => {
     });
   });
 
-  it("blocks new conversation submit when provider targets are explicitly empty", async () => {
+  it("falls back to local provider targets for new conversation submit when provider targets are explicitly empty", async () => {
     const activate = vi.fn(
       async (input: AgentHostActivateAgentSessionInput) => ({
         session: agentSession(input.agentSessionId, {
@@ -2411,14 +2309,21 @@ describe("useAgentGUINodeController", () => {
       })
     );
 
-    expect(result.current.viewModel.canSubmit).toBe(false);
+    expect(result.current.viewModel.canSubmit).toBe(true);
 
     act(() => {
       result.current.actions.submitPrompt(promptBlocks("start without target"));
     });
 
     await waitFor(() => {
-      expect(activate).not.toHaveBeenCalled();
+      expect(activate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentTargetId: "local:codex",
+          mode: "new",
+          provider: "codex",
+          providerTargetRef: null
+        })
+      );
     });
   });
 
@@ -2435,7 +2340,6 @@ describe("useAgentGUINodeController", () => {
         currentUserId: "user-1",
         workspacePath: "/workspace",
         avoidGroupingEdits: false,
-        conversationScope: "multi-provider",
         data: agentGuiData(null),
         providerTargets: [],
         onDataChange: vi.fn()
