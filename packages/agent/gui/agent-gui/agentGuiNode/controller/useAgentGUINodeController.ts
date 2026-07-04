@@ -2438,6 +2438,30 @@ function modelSelectionFromComposerOptions(
   };
 }
 
+function configOptionCurrentValue(
+  runtimeContext: Record<string, unknown> | null | undefined,
+  ids: readonly string[]
+): string | null {
+  const rawConfigOptions = Array.isArray(runtimeContext?.configOptions)
+    ? runtimeContext.configOptions
+    : [];
+  const idSet = new Set(ids);
+  for (const rawOption of rawConfigOptions) {
+    const option = recordValue(rawOption);
+    if (!option) {
+      continue;
+    }
+    const id = normalizeOptionalText(option.id as string | null | undefined);
+    if (!id || !idSet.has(id)) {
+      continue;
+    }
+    return normalizeOptionalText(
+      (option.currentValue ?? option.current_value) as string | null | undefined
+    );
+  }
+  return null;
+}
+
 function reasoningSelectionFromComposerOptions(
   options: AgentActivityComposerOptions | null,
   currentValue: AgentSessionReasoningEffort | null
@@ -8543,12 +8567,20 @@ export function useAgentGUINodeController({
           const queuedUpdate =
             queuedComposerSettingsUpdatesRef.current[agentSessionId] ?? null;
           const optimisticSettings = queuedUpdate?.sessionSettingsPatch ?? null;
+          const confirmedModelSetting =
+            sessionSettingsPatch.model !== undefined
+              ? { model: sessionSettingsPatch.model }
+              : {};
           const nextAppliedSettings = optimisticSettings
             ? {
                 ...result.settings,
+                ...confirmedModelSetting,
                 ...optimisticSettings
               }
-            : result.settings;
+            : {
+                ...result.settings,
+                ...confirmedModelSetting
+              };
           updateAgentSessionViewControlState(
             sessionViewRef(agentSessionId),
             (existing) =>
@@ -10012,7 +10044,12 @@ export function useAgentGUINodeController({
   const draftSettings = activeConversationId
     ? (sessionSettings ?? defaultConversationDraftSettings)
     : homeComposerSettings;
-  const draftModel = normalizeOptionalText(draftSettings.model);
+  const liveConfigModel =
+    activeConversationId !== null
+      ? configOptionCurrentValue(activeSessionRuntimeContext, ["model"])
+      : null;
+  const draftModel =
+    liveConfigModel ?? normalizeOptionalText(draftSettings.model);
   const draftReasoningEffort = normalizeOptionalText(
     draftSettings.reasoningEffort
   ) as AgentSessionReasoningEffort | null;
