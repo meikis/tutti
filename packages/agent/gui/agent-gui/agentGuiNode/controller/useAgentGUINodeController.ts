@@ -20,6 +20,7 @@ import {
 } from "../../../agentQueuedPromptRuntime";
 import { useAgentHostApi } from "../../../agentActivityHost";
 import {
+  resolveSubmitAvailability,
   resolveAgentActivityCapability,
   resolveAgentActivityUsage,
   selectSessionDisplayStatuses
@@ -8538,6 +8539,8 @@ export function useAgentGUINodeController({
         );
         return;
       }
+      // Any explicit user send lifts a user-stop hold on the queue.
+      agentQueuedPromptRuntime.resumeQueue({ workspaceId, agentSessionId });
       if (
         shouldQueuePromptLocally(agentSessionId) &&
         options?.bypassLocalQueue !== true
@@ -8553,10 +8556,12 @@ export function useAgentGUINodeController({
     },
     [
       activation,
+      agentQueuedPromptRuntime,
       executePrompt,
       isSessionMarkedNonResumable,
       queuePromptLocally,
-      shouldQueuePromptLocally
+      shouldQueuePromptLocally,
+      workspaceId
     ]
   );
 
@@ -8844,6 +8849,15 @@ export function useAgentGUINodeController({
         ...current,
         [agentSessionId]: true
       }));
+      // A user stop means "stop everything": hold the queued prompts instead
+      // of letting the drainer fire the next one the moment the session
+      // becomes available. An explicit user send (submit or send-now on a
+      // queued item) lifts the hold.
+      agentQueuedPromptRuntime.suspendQueue({
+        workspaceId,
+        agentSessionId,
+        reason: "user_stop"
+      });
       setDetailError(null);
       void Promise.resolve()
         .then(() => {
@@ -8933,6 +8947,7 @@ export function useAgentGUINodeController({
         });
     },
     [
+      agentQueuedPromptRuntime,
       interruptingSessionIds,
       isCurrentConversation,
       syncConversationListProjection,
@@ -10782,8 +10797,11 @@ export function useAgentGUINodeController({
   const activeHasPendingSubmittedTurn = activeConversationId
     ? Boolean(pendingTurnIdBySessionIdRef.current[activeConversationId])
     : false;
-  const activeSubmitBlocked =
-    activeSessionState?.submitAvailability?.state === "blocked";
+  // Derive from the turn lifecycle when present (ADR 0008); trust the wire
+  // submitAvailability only for lifecycle-less control states.
+  const activeSubmitBlocked = activeSessionState
+    ? resolveSubmitAvailability(activeSessionState).state === "blocked"
+    : false;
   const activeConversationBusy =
     agentActivityDisplayStatusBusy(activeActivityDisplayStatus) ||
     activeHasPendingSubmittedTurn ||

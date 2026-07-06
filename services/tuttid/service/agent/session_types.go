@@ -37,6 +37,7 @@ type Service struct {
 	claudeStartupLock             *claudeStartupSerializer
 	liveModelDiscoveryMu          sync.Mutex
 	liveModelDiscoveryAttempted   map[string]struct{}
+	liveModelInvalidatedAtUnixMS  map[string]int64
 }
 
 type StaleTurnResumeReconciler interface {
@@ -74,6 +75,7 @@ type ComposerCapabilityLister interface {
 
 type Session struct {
 	ID                 string
+	UserID             string
 	AgentTargetID      string
 	Provider           string
 	ProviderSessionID  string
@@ -149,6 +151,7 @@ type PersistedSession struct {
 	ID                string
 	WorkspaceID       string
 	Origin            string
+	UserID            string
 	AgentTargetID     string
 	Provider          string
 	ProviderSessionID string
@@ -219,6 +222,7 @@ type SessionPinUpdater interface {
 type RuntimeSession struct {
 	ID                 string
 	WorkspaceID        string
+	UserID             string
 	AgentTargetID      string
 	Provider           string
 	ProviderSessionID  string
