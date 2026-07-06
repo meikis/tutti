@@ -479,12 +479,16 @@ function DesktopAgentGUIWorkbenchBodyImpl({
         void agentProviderStatusService?.refresh([actionProvider]);
         return;
       }
+      if (actionProvider === "tutti-agent" && action === "login") {
+        void accountService.startLogin();
+        return;
+      }
       void agentProviderStatusService?.runAction(actionProvider, action, {
         workbenchHost: context.host,
         workspaceId
       });
     },
-    [agentProviderStatusService, context.host, workspaceId]
+    [accountService, agentProviderStatusService, context.host, workspaceId]
   );
   const providerReadinessGates = useMemo(
     () =>
