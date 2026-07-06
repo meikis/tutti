@@ -916,6 +916,20 @@ export const agentActivityUpdatedPayloadSchema = {
               type: "integer",
               minimum: 0
             },
+            submitAvailability: {
+              type: "object",
+              additionalProperties: false,
+              required: ["state"],
+              properties: {
+                state: {
+                  type: "string",
+                  minLength: 1
+                },
+                reason: {
+                  type: "string"
+                }
+              }
+            },
             turn: {
               type: "object",
               additionalProperties: false,
@@ -939,6 +953,20 @@ export const agentActivityUpdatedPayloadSchema = {
                 completedAtUnixMs: {
                   type: "integer",
                   minimum: 0
+                },
+                submitAvailability: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["state"],
+                  properties: {
+                    state: {
+                      type: "string",
+                      minLength: 1
+                    },
+                    reason: {
+                      type: "string"
+                    }
+                  }
                 }
               }
             }
