@@ -454,6 +454,9 @@ export function createAgentGuiWorkbenchContribution(
             ? "absolute"
             : "cascade-same-type-centered",
         instanceId,
+        // Reusing the window already showing this specific conversation
+        // should focus it instead of resetting size or position.
+        preserveExistingNodeFrame: existingInstanceId !== null,
         reuseDockEntryNode,
         title,
         typeId: agentGuiWorkbenchTypeId

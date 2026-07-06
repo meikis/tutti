@@ -18,10 +18,7 @@ import {
   updateConversationSectionsFromSummaries,
   type AgentGUIViewLabels
 } from "./AgentGUINodeView";
-import {
-  createLocalAgentGUIProviderTarget,
-  createLocalAgentGUIProviderTargets
-} from "../../providerTargets";
+import { createLocalAgentGUIProviderTarget } from "../../providerTargets";
 import {
   AgentActivityRuntimeProvider,
   type AgentActivityRuntime,
@@ -3375,7 +3372,8 @@ function createViewModel(
 }
 
 function createConversationSummary(
-  id: string
+  id: string,
+  overrides: Partial<AgentGUINodeViewModel["conversations"][number]> = {}
 ): AgentGUINodeViewModel["conversations"][number] {
   return {
     id,
@@ -3383,7 +3381,8 @@ function createConversationSummary(
     title: id,
     status: "ready",
     cwd: "/workspace",
-    updatedAtUnixMs: Date.now()
+    updatedAtUnixMs: Date.now(),
+    ...overrides
   };
 }
 

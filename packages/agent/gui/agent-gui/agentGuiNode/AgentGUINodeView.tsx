@@ -3690,7 +3690,7 @@ export function updateConversationSectionsFromSummaries(
       continue;
     }
     const sectionId = conversation.project
-      ? `project:${normalizeConversationProjectPath(conversation.project.path)}`
+      ? `project:${normalizeConversationRailProjectPath(conversation.project.path)}`
       : "conversations";
     const items = summarySectionItemsById.get(sectionId) ?? [];
     items.push(conversation);
@@ -3773,7 +3773,7 @@ export function updateConversationSectionsFromSummaries(
   const sectionsWithInsertions = [...nextSections];
   for (const conversation of newConversations) {
     const targetSectionId = conversation.project
-      ? `project:${normalizeConversationProjectPath(conversation.project.path)}`
+      ? `project:${normalizeConversationRailProjectPath(conversation.project.path)}`
       : "conversations";
     const targetIndex = sectionsWithInsertions.findIndex(
       (section) => section.id === targetSectionId
