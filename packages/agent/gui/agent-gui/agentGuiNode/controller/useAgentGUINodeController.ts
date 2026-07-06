@@ -3929,6 +3929,25 @@ export function useAgentGUINodeController({
   const queuedComposerSettingsUpdatesRef = useRef<
     Record<string, QueuedComposerSettingsUpdate>
   >({});
+  // Composer settings changed while a session is still mid-activation (the
+  // optimistic pre-activation window: activeConversationId is set but no
+  // backend session exists yet, so there is nothing to send an
+  // updateSessionSettings RPC to). Held here and flushed once activation
+  // resolves into a real session; dropped if activation fails or is
+  // superseded, since there is then nothing left to apply the patch to.
+  const pendingActivationComposerSettingsPatchRef = useRef<
+    Record<string, AgentSessionComposerSettings>
+  >({});
+  // Indirection so startConversation (declared above
+  // flushQueuedComposerSettingsUpdate in this file) can flush a settings
+  // patch queued during the pre-activation window once the real session
+  // attaches, without reordering the two useCallback declarations.
+  const flushQueuedComposerSettingsUpdateRef = useRef<
+    | ((
+        input: QueuedComposerSettingsUpdate & { agentSessionId: string }
+      ) => void)
+    | null
+  >(null);
   const [pendingDeleteConversation, setPendingDeleteConversation] =
     useState<AgentGUIConversationSummary | null>(null);
   const [
@@ -7276,6 +7295,12 @@ export function useAgentGUINodeController({
           }
           if (activationFailed) {
             failedNewConversationIdsRef.current.add(agentSessionId);
+            // There is no session for a queued pre-activation settings patch
+            // to apply to; drop it rather than leaking it to a future
+            // session that happens to reuse this id.
+            delete pendingActivationComposerSettingsPatchRef.current[
+              agentSessionId
+            ];
             resetAgentSessionViewDetailMessages(sessionViewRef(agentSessionId));
             setAgentSessionViewOverlayMessages(
               sessionViewRef(agentSessionId),
@@ -7335,6 +7360,9 @@ export function useAgentGUINodeController({
             startingConversationIdRef.current === agentSessionId;
           if (!isMountedRef.current) {
             void activation.unactivate(conversation.id);
+            delete pendingActivationComposerSettingsPatchRef.current[
+              conversation.id
+            ];
             if (isPendingCreatedConversation) {
               startingConversationIdRef.current = null;
             }
@@ -7368,12 +7396,31 @@ export function useAgentGUINodeController({
             if (transientConversationRef.current?.id === conversation.id) {
               setTransientConversation(null);
             }
+            delete pendingActivationComposerSettingsPatchRef.current[
+              conversation.id
+            ];
             return;
           }
           if (isPendingCreatedConversation) {
             startingConversationIdRef.current = null;
           }
           activatedConversationIdsRef.current.add(conversation.id);
+          // The real session now exists: flush any composer settings the
+          // user changed while this conversation was still in the
+          // pre-activation window (updateComposerSettings queued them here
+          // instead of sending an RPC the daemon had no session for yet).
+          const pendingComposerSettingsPatch =
+            pendingActivationComposerSettingsPatchRef.current[conversation.id];
+          if (pendingComposerSettingsPatch) {
+            delete pendingActivationComposerSettingsPatchRef.current[
+              conversation.id
+            ];
+            markSessionSettingsRequestState(conversation.id, true);
+            flushQueuedComposerSettingsUpdateRef.current?.({
+              agentSessionId: conversation.id,
+              sessionSettingsPatch: pendingComposerSettingsPatch
+            });
+          }
           setTransientConversation(conversation);
           if (conversationListQuery) {
             upsertLocalCreatedAgentGUIConversation({
@@ -7443,6 +7490,11 @@ export function useAgentGUINodeController({
               conversationId: pendingCreateAgentSessionId ?? agentSessionId
             });
           }
+          // The create failed outright: there is no session for a queued
+          // pre-activation settings patch to apply to.
+          delete pendingActivationComposerSettingsPatchRef.current[
+            agentSessionId
+          ];
           // Surface the failure only on the failed create's own surface —
           // either the user is still on it (the optimistic entry), or
           // they're back at the home composer where the create started. If
@@ -7552,6 +7604,7 @@ export function useAgentGUINodeController({
       conversationListQuery,
       isCurrentConversation,
       agentActivityRuntime,
+      markSessionSettingsRequestState,
       pendingCreateOwnerKey,
       recordLocalMessages,
       unactivateIfStale,
@@ -8752,6 +8805,8 @@ export function useAgentGUINodeController({
       sessionViewRef
     ]
   );
+  flushQueuedComposerSettingsUpdateRef.current =
+    flushQueuedComposerSettingsUpdate;
 
   const updateComposerSettings = useCallback(
     (nextSettings: Partial<AgentSessionComposerSettings>) => {
@@ -8835,6 +8890,15 @@ export function useAgentGUINodeController({
       const activeSessionState =
         getAgentSessionView(sessionViewRef(agentSessionId))?.controlState ??
         null;
+      // The optimistic pre-activation window (see startConversation): the id
+      // is already the active conversation but the backend session has not
+      // attached yet, so there is no control state to read settings from or
+      // send an update RPC against. Composer changes here are still applied
+      // to the local view (so the control reflects the click immediately)
+      // and queued for the flush once activation resolves.
+      const isPreActivationSession =
+        activeSessionState === null &&
+        activation.stateFor(agentSessionId) === "activating";
       const sessionSettings = cloneComposerSettings(
         activeSessionState?.settings ?? null
       );
@@ -8899,7 +8963,7 @@ export function useAgentGUINodeController({
         nextPermission !== undefined &&
         nextPermission &&
         nextPermission !== currentPermission &&
-        activeSessionState !== null
+        (activeSessionState !== null || isPreActivationSession)
       ) {
         sessionSettingsPatch.permissionModeId =
           normalizePermissionModeId(nextPermission);
@@ -8909,8 +8973,9 @@ export function useAgentGUINodeController({
         // turn. Claude Code applies it immediately via query.setPermissionMode
         // even mid-turn, so no such gap exists there. Surface the deferral
         // honestly instead of letting the optimistic UI update imply the
-        // change is already in effect.
-        const turnPhase = activeSessionState.turnLifecycle?.phase;
+        // change is already in effect. There is no turn at all yet during
+        // the pre-activation window, so this deferral notice does not apply.
+        const turnPhase = activeSessionState?.turnLifecycle?.phase;
         const isTurnInFlight =
           turnPhase === "running" || turnPhase === "submitted";
         if (dataRef.current.provider === "codex" && isTurnInFlight) {
@@ -8922,28 +8987,38 @@ export function useAgentGUINodeController({
       }
       if (
         Object.keys(sessionSettingsPatch).length > 0 &&
-        activeSessionState !== null
+        (activeSessionState !== null || isPreActivationSession)
       ) {
         updateAgentSessionViewControlState(
           sessionViewRef(agentSessionId),
-          (existing) =>
-            existing
-              ? {
-                  ...existing,
-                  permissionModeId:
-                    sessionSettingsPatch.permissionModeId ??
-                    existing.permissionModeId,
-                  runtimeContext: mergeRuntimeContextComposerSettings(
-                    dataRef.current.provider,
-                    existing.runtimeContext,
-                    sessionSettingsPatch
-                  ),
-                  settings: {
-                    ...(existing.settings ?? {}),
-                    ...sessionSettingsPatch
-                  }
-                }
-              : existing
+          (existing) => {
+            // Synthesize a minimal control-state entry when none exists yet
+            // (the pre-activation window) so the composer reflects the change
+            // immediately instead of waiting for the real session to attach.
+            const base: AgentSessionState = existing ?? {
+              workspaceId,
+              agentSessionId,
+              provider: dataRef.current.provider,
+              status: "working",
+              updatedAtUnixMs: Date.now(),
+              settings: {}
+            };
+            const nextState = {
+              ...base,
+              permissionModeId:
+                sessionSettingsPatch.permissionModeId ?? base.permissionModeId,
+              runtimeContext: mergeRuntimeContextComposerSettings(
+                dataRef.current.provider,
+                base.runtimeContext,
+                sessionSettingsPatch
+              ),
+              settings: {
+                ...(base.settings ?? {}),
+                ...sessionSettingsPatch
+              }
+            };
+            return nextState;
+          }
         );
         // A switch inside an active session also becomes the remembered
         // default for this agent target. Only the fields the user changed
@@ -8995,7 +9070,22 @@ export function useAgentGUINodeController({
             nodeDataFromComposerSettings(current, nextNodeDefaults)
           );
         }
-        if (updatingSessionSettingsIdsRef.current[agentSessionId]) {
+        if (isPreActivationSession) {
+          // No backend session exists yet: hold the patch until activation
+          // resolves (flushed from startConversation's success handler) or
+          // discard it if activation fails/is superseded, rather than firing
+          // an updateSessionSettings RPC against a session id the daemon
+          // does not know about yet.
+          const pendingPatch =
+            pendingActivationComposerSettingsPatchRef.current[agentSessionId];
+          pendingActivationComposerSettingsPatchRef.current = {
+            ...pendingActivationComposerSettingsPatchRef.current,
+            [agentSessionId]: {
+              ...(pendingPatch ?? {}),
+              ...sessionSettingsPatch
+            }
+          };
+        } else if (updatingSessionSettingsIdsRef.current[agentSessionId]) {
           const queuedUpdate =
             queuedComposerSettingsUpdatesRef.current[agentSessionId];
           queuedComposerSettingsUpdatesRef.current[agentSessionId] = {
@@ -9015,6 +9105,7 @@ export function useAgentGUINodeController({
       }
     },
     [
+      activation,
       defaultReasoningEffort,
       activeTimelineItems,
       flushQueuedComposerSettingsUpdate,
@@ -9785,12 +9876,19 @@ export function useAgentGUINodeController({
     null
   );
   const visibleConversations = useMemo(() => {
-    const source = isLoadingConversations
-      ? mergeVisibleConversations(
-          conversations,
-          transientConversationRef.current
-        )
-      : conversations;
+    // Merge in the transient (optimistic pre-activation, or not-yet-synced)
+    // conversation unconditionally, not just while the initial conversation
+    // list is still loading: activeConversation (see
+    // resolveConversationSummaryById) already falls back to it
+    // unconditionally, and the sidebar must stay in sync with the main pane
+    // so a newly started conversation appears in both at once instead of
+    // only after the real backend record lands in `conversations`.
+    // mergeVisibleConversations already no-ops once the real conversation
+    // with a matching id is present, so this never duplicates an entry.
+    const source = mergeVisibleConversations(
+      conversations,
+      transientConversationRef.current
+    );
     const mapped = source.map((conversation) => {
       const withRuntime = mergeConversationSummaryWithRuntimeSession({
         conversation,
@@ -9821,7 +9919,6 @@ export function useAgentGUINodeController({
   }, [
     agentActivityDisplayStatuses,
     conversations,
-    isLoadingConversations,
     isNoProjectPath,
     stableRuntimeSyncStateBySessionId,
     transientConversation,
