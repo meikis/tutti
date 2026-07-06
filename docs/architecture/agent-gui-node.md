@@ -694,6 +694,13 @@ Inline state patches are fast-path updates; message and session updates may
 require a fetch so the controller snapshot remains authoritative. UI code
 should debug both the event payload and the reconcile fetch before treating a
 missing transcript row as a rendering-only bug.
+Active-conversation control state, including `runtimeContext.usage`, is a
+separate session-state read layered over the transcript stream. Both
+`state_patch` and `message_update` activity events must be treated as signals
+to refresh that state for the active AgentGuiNode, because provider usage can
+advance while assistant text or tool calls are streaming and before a terminal
+session-state patch arrives. Debounce these refreshes, but do not filter out
+message updates just because the transcript projection already consumed them.
 
 When a session status bug mentions "still processing", "queued", or a disabled
 composer after a turn finishes, inspect the full runtime tuple:
@@ -946,6 +953,10 @@ User-visible rules:
 - Active session settings are session state. Opening, restoring, or editing an
   active session must not promote that session's model, permission mode, or
   reasoning setting into user defaults.
+- Claude Code model aliases must stay explicit end to end. Treat `default` as
+  the runtime's mutable default choice, not as an alias for Opus or any other
+  tier; if an Opus selection is submitted, daemon validation, session settings,
+  runtime prepare, and runtime start should all carry `opus`.
 - Workbench node `composerOverrides` are UI-local home/new composer draft state,
   not an authoritative source for desktop preferences.
 - Draft clearing happens only after the submitted content still matches the
@@ -1007,6 +1018,13 @@ with a newer settled/available activity update, and blocking that newer version
 would strand the queued prompt until another unrelated activity event. The
 retry block still prevents immediately re-claiming against the exact same
 pre-send ready state.
+
+AgentGuiNode busy state depends on daemon/runtime control state being internally
+consistent. When a submitted turn finishes, runtime `finishTurn` must clear that
+turn's active-turn submit block unless another tracked foreground turn is still
+active. Do not preserve an untracked synthetic/live lifecycle over the finishing
+turn: that leaves `submitAvailability.blocked(active_turn)` without real work
+and makes the composer stay loading after the provider has completed.
 
 Preview-mode AgentGUI surfaces are read-only for this runtime: they may render an
 existing queue if injected into the same context, but they must not enqueue,

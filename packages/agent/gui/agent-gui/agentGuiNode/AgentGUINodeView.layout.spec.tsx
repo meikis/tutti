@@ -39,6 +39,7 @@ const composerMock = vi.hoisted(() => ({
     backgroundAgentStatusText?: string | null;
     composerFocusRequestSequence?: number | null;
     compactSupported?: boolean | null;
+    hasActiveConversation?: boolean;
     isSendingTurn?: boolean;
     onSubmit?: (
       content: AgentPromptContentBlock[],
@@ -73,6 +74,7 @@ vi.mock("./AgentComposer", () => ({
     backgroundAgentStatusText?: string | null;
     composerFocusRequestSequence?: number | null;
     compactSupported?: boolean | null;
+    hasActiveConversation?: boolean;
     isSendingTurn?: boolean;
     onSubmit?: (
       content: AgentPromptContentBlock[],
@@ -88,6 +90,7 @@ vi.mock("./AgentComposer", () => ({
       backgroundAgentStatusText: props.backgroundAgentStatusText,
       composerFocusRequestSequence: props.composerFocusRequestSequence,
       compactSupported: props.compactSupported,
+      hasActiveConversation: props.hasActiveConversation,
       isSendingTurn: props.isSendingTurn,
       onProviderSelect: props.onProviderSelect,
       providerSelectReadonly: props.providerSelectReadonly,
@@ -612,6 +615,34 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(composerMock.calls.at(-1)).toMatchObject({
       providerSelectReadonly: true,
       providerTargets
+    });
+  });
+
+  it("tells the composer whether there is an active conversation, so it knows when to defer clearing the draft on submit (Feishu UUl2Oc)", () => {
+    renderAgentGUINodeView({
+      viewModel: {
+        ...createViewModel(),
+        activeConversation: null,
+        activeConversationId: null
+      }
+    });
+
+    expect(composerMock.calls.at(-1)).toMatchObject({
+      hasActiveConversation: false
+    });
+
+    const conversation = createConversationSummary("session-1");
+    renderAgentGUINodeView({
+      viewModel: {
+        ...createViewModel(),
+        activeConversation: conversation,
+        activeConversationId: conversation.id,
+        conversations: [conversation]
+      }
+    });
+
+    expect(composerMock.calls.at(-1)).toMatchObject({
+      hasActiveConversation: true
     });
   });
 

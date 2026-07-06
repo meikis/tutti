@@ -1754,6 +1754,42 @@ func TestClaudeCodeSDKAdapterMapsUsageUpdatedIntoRuntimeContext(t *testing.T) {
 	}
 }
 
+func TestClaudeCodeSDKAdapterUsesSonnetContextWindowForStreamUsage(t *testing.T) {
+	adapter := NewClaudeCodeSDKAdapter(nil)
+	session := standardTestSession(ProviderClaudeCode)
+	adapterSession := &claudeSDKAdapterSession{liveState: newClaudeSDKLiveState()}
+	adapter.storeSession(session.AgentSessionID, adapterSession)
+	adapterSession.applyConfigOption("model", "sonnet")
+
+	events, terminal, err := adapter.sidecarTurnEvents(adapterSession, session, "turn-1", claudeSDKSidecarEvent{
+		Type: "usage_updated",
+		Payload: map[string]any{
+			"turnId": "turn-1",
+			"usage": map[string]any{
+				"input_tokens":                2,
+				"output_tokens":               145,
+				"cache_read_input_tokens":     18_622,
+				"cache_creation_input_tokens": 17_688,
+			},
+		},
+	})
+	if err != nil || terminal {
+		t.Fatalf("usage_updated terminal=%v err=%v", terminal, err)
+	}
+	if len(events) != 1 || events[0].Type != activityshared.EventSessionUpdated {
+		t.Fatalf("usage events = %#v, want session.updated", events)
+	}
+	state := adapter.SessionState(session)
+	usage, _ := state.RuntimeContext["usage"].(map[string]any)
+	contextWindow, _ := usage["contextWindow"].(map[string]any)
+	if got, ok := acpInt64Value(contextWindow["usedTokens"]); !ok || got != 36_457 {
+		t.Fatalf("usedTokens = %#v, want 36457", contextWindow["usedTokens"])
+	}
+	if got, ok := acpInt64Value(contextWindow["totalTokens"]); !ok || got != claudeSDKLargeContextWindow {
+		t.Fatalf("totalTokens = %#v, want large context window", contextWindow["totalTokens"])
+	}
+}
+
 func TestClaudeCodeSDKAdapterMapsModelUsageContextWindowMap(t *testing.T) {
 	adapter := NewClaudeCodeSDKAdapter(nil)
 	session := standardTestSession(ProviderClaudeCode)
@@ -2258,6 +2294,49 @@ func TestClaudeCodeSDKAdapterMapsToolLifecycleAndFileMetadata(t *testing.T) {
 	completedMetadata := payloadMap(completed[0].Payload.Metadata, "metadata")
 	if toolResponse := payloadMap(completedMetadata, "claudeToolResponse"); payloadMap(toolResponse, "structuredPatch") == nil {
 		t.Fatalf("completed metadata = %#v, want structuredPatch", completed[0].Payload.Metadata)
+	}
+}
+
+func TestClaudeSDKLineReaderExitErrorIncludesCapturedStderrTail(t *testing.T) {
+	// Regression: previously, any sidecar stderr not matching the
+	// auth-refresh-debug marker was silently discarded (logClaudeSDKSidecarDebugStderr),
+	// so if the sidecar crashed with an uncaught exception, its stack trace
+	// never reached the resulting error or the logs — the exit surfaced as a
+	// bare "claude sdk sidecar exited with code N" black box. The reader must
+	// now quote the captured stderr tail, mirroring acpClient.readLoop's
+	// handling of the Codex ACP transport.
+	exitCode := 1
+	conn := &scriptedClaudeSDKConnection{
+		frames: []ProcessFrame{
+			{Stderr: []byte("TypeError: something went wrong\n    at main (main.ts:1:1)\n")},
+			{ExitCode: &exitCode},
+		},
+	}
+	reader := &claudeSDKLineReader{conn: conn}
+
+	_, err := reader.next(context.Background())
+	if err == nil {
+		t.Fatal("next() err = nil, want exit error")
+	}
+	if !strings.Contains(err.Error(), "exited with code 1") {
+		t.Fatalf("next() err = %q, want it to mention the exit code", err.Error())
+	}
+	if !strings.Contains(err.Error(), "TypeError: something went wrong") {
+		t.Fatalf("next() err = %q, want it to quote the captured stderr tail", err.Error())
+	}
+}
+
+func TestClaudeSDKLineReaderExitErrorOmitsColonWhenNoStderr(t *testing.T) {
+	exitCode := -1
+	conn := &scriptedClaudeSDKConnection{
+		frames: []ProcessFrame{{ExitCode: &exitCode}},
+	}
+	reader := &claudeSDKLineReader{conn: conn}
+
+	_, err := reader.next(context.Background())
+	want := "claude sdk sidecar exited with code -1"
+	if err == nil || err.Error() != want {
+		t.Fatalf("next() err = %v, want %q", err, want)
 	}
 }
 

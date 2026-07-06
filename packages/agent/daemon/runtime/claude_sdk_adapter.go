@@ -31,6 +31,7 @@ const (
 	claudeSDKSidecarAdapterName    = "claude-agent-sdk"
 	claudeSDKSidecarDefaultNodeArg = "--experimental-strip-types"
 	claudeSDKDefaultContextWindow  = int64(200000)
+	claudeSDKLargeContextWindow    = int64(1000000)
 	claudeSDKAuthRefreshLogPrefix  = "CLAUDE_CODE_AUTH_REFRESH_DEBUG"
 )
 
@@ -103,6 +104,15 @@ type claudeSDKSidecarEvent struct {
 type claudeSDKLineReader struct {
 	conn   ProcessConnection
 	buffer string
+	// stderrTail keeps the most recent bytes of the sidecar's stderr, bounded
+	// to acpClientOutputTailLimit. Unlike stdout (a line-delimited event
+	// protocol), stderr from the Node sidecar has no contract at all — it is
+	// whatever the process (or something it imports) happened to write, e.g.
+	// an uncaught exception's stack trace. It exists solely so that when the
+	// sidecar's process exits, the resulting error can quote it instead of a
+	// bare exit code, mirroring acpClient.readLoop's stderrTail handling for
+	// the Codex ACP transport.
+	stderrTail []byte
 }
 
 func NewClaudeCodeSDKAdapter(transport ProcessTransport) *ClaudeCodeSDKAdapter {
@@ -1602,8 +1612,8 @@ func claudeSDKUsageUpdate(payload map[string]any, previous acpUsageState, contex
 	}
 	if contextWindow := payloadMap(payload, "contextWindow"); len(contextWindow) > 0 {
 		if _, ok := firstACPInt64(contextWindow, "totalTokens", "total_tokens", "size", "limit", "max"); !ok {
-			total := int64(0)
-			if claudeSDKCanReusePreviousContextWindow(previous, contextModel) {
+			total := claudeSDKFallbackContextWindowTokens(contextModel)
+			if total <= 0 && claudeSDKCanReusePreviousContextWindow(previous, contextModel) {
 				total = previous.contextWindowTokens
 			}
 			if total <= 0 {
@@ -1632,6 +1642,9 @@ func claudeSDKUsageUpdate(payload map[string]any, previous acpUsageState, contex
 	if total <= 0 {
 		total = claudeSDKContextWindowTokens(usage, contextModel)
 	}
+	if total <= 0 {
+		total = claudeSDKFallbackContextWindowTokens(contextModel)
+	}
 	if total <= 0 && claudeSDKCanReusePreviousContextWindow(previous, contextModel) {
 		total = previous.contextWindowTokens
 	}
@@ -1654,6 +1667,19 @@ func claudeSDKCanReusePreviousContextWindow(previous acpUsageState, contextModel
 	contextModel = claudeSDKCanonicalModel(contextModel)
 	previousModel := claudeSDKCanonicalModel(previous.contextModel)
 	return previousModel == "" || contextModel == "" || previousModel == contextModel
+}
+
+func claudeSDKFallbackContextWindowTokens(contextModel string) int64 {
+	model := strings.ToLower(strings.TrimSpace(claudeSDKCanonicalModel(contextModel)))
+	switch model {
+	case "sonnet", "sonnet[1m]", "opus", "opusplan", "opus[1m]":
+		return claudeSDKLargeContextWindow
+	default:
+		if strings.Contains(model, "sonnet-5") {
+			return claudeSDKLargeContextWindow
+		}
+		return 0
+	}
 }
 
 func claudeSDKUsageTokens(usage map[string]any) int64 {
@@ -1841,15 +1867,40 @@ func (r *claudeSDKLineReader) next(ctx context.Context) (claudeSDKSidecarEvent, 
 		}
 		if len(frame.Stderr) > 0 {
 			logClaudeSDKSidecarDebugStderr(frame.Stderr)
+			r.appendStderrTail(frame.Stderr)
 			continue
 		}
 		if frame.ExitCode != nil {
-			return claudeSDKSidecarEvent{}, fmt.Errorf("claude sdk sidecar exited with code %d", *frame.ExitCode)
+			return claudeSDKSidecarEvent{}, claudeSDKSidecarExitError(*frame.ExitCode, r.stderrTail)
 		}
 		if len(frame.Stdout) > 0 {
 			r.buffer += string(frame.Stdout)
 		}
 	}
+}
+
+// appendStderrTail records a chunk of raw sidecar stderr, bounded to
+// acpClientOutputTailLimit (see acp_client.go), so a subsequent process exit
+// can quote the tail instead of reporting a bare exit code.
+func (r *claudeSDKLineReader) appendStderrTail(content []byte) {
+	r.stderrTail = append(r.stderrTail, content...)
+	if len(r.stderrTail) > acpClientOutputTailLimit {
+		r.stderrTail = r.stderrTail[len(r.stderrTail)-acpClientOutputTailLimit:]
+	}
+}
+
+// claudeSDKSidecarExitError builds the error surfaced when the sidecar
+// process exits mid-session. It quotes the captured stderr tail (if any) so
+// an uncaught exception or crash reason is visible in logs and in the
+// resulting visible-error card instead of being silently discarded — see
+// claudeSDKLineReader.stderrTail and codexExitLooksInterrupted (visible_error.go)
+// for how -1 (Go's os/exec signal-termination convention) is classified once
+// this reaches the GUI.
+func claudeSDKSidecarExitError(exitCode int, stderrTail []byte) error {
+	if tail := strings.TrimSpace(string(stderrTail)); tail != "" {
+		return fmt.Errorf("claude sdk sidecar exited with code %d: %s", exitCode, tail)
+	}
+	return fmt.Errorf("claude sdk sidecar exited with code %d", exitCode)
 }
 
 func logClaudeSDKSidecarDebugStderr(content []byte) {

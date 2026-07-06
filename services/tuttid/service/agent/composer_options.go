@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
@@ -398,10 +399,10 @@ func normalizeComposerModelForProvider(provider string, model string) string {
 		return strings.TrimSpace(model)
 	}
 	switch strings.TrimSpace(model) {
-	case "opus", "opusplan":
-		// Retired Claude Code aliases; Opus tier is exposed as "default" in
-		// newer claude-agent-acp builds.
-		return "default"
+	case "opusplan":
+		// Retired Claude Code alias; keep it on the explicit Opus tier instead
+		// of falling back to the runtime's mutable Default choice.
+		return "opus"
 	default:
 		return strings.TrimSpace(model)
 	}
@@ -631,6 +632,13 @@ func composerModelOptionsFromCatalog(ctx context.Context, catalog AgentModelCata
 	}
 	result, err := catalog.ListModels(ctx, provider)
 	if err != nil {
+		// The model list drives the composer's model selector; when it fails the
+		// selector renders empty. Surface the cause instead of swallowing it so a
+		// "no model options" report is diagnosable from the daemon logs.
+		slog.Warn("composer model catalog lookup failed",
+			"provider", provider,
+			"error", err,
+		)
 		return nil, "", false
 	}
 	options := make([]map[string]string, 0, len(result.Models)+1)
