@@ -4429,7 +4429,8 @@ export function useAgentGUINodeController({
     (
       agentSessionId: string,
       content: AgentPromptContentBlock[],
-      displayPrompt?: string
+      displayPrompt?: string,
+      options?: { guidance?: boolean }
     ) => void
   >(() => {});
   const reloadSelectedConversationRef = useRef<
@@ -8145,7 +8146,8 @@ export function useAgentGUINodeController({
     (
       agentSessionId: string,
       content: AgentPromptContentBlock[],
-      displayPrompt?: string
+      displayPrompt?: string,
+      options?: { guidance?: boolean }
     ) => {
       const normalizedContent = normalizeAgentPromptContentBlocks(content);
       if (!agentSessionId || normalizedContent.length === 0) {
@@ -8275,6 +8277,7 @@ export function useAgentGUINodeController({
             content: normalizedContent,
             displayPrompt:
               displayPrompt && displayPrompt.trim() ? displayPrompt : null,
+            ...(options?.guidance === true ? { guidance: true } : {}),
             metadata: agentSubmitTraceMetadata(submitTrace)
           });
         })
@@ -8519,7 +8522,7 @@ export function useAgentGUINodeController({
       agentSessionId: string,
       normalizedContent: AgentPromptContentBlock[],
       displayPromptText?: string,
-      options?: { bypassLocalQueue?: boolean }
+      options?: { bypassLocalQueue?: boolean; guidance?: boolean }
     ) => {
       if (isSessionMarkedNonResumable(agentSessionId)) {
         setDetailError(
@@ -8555,7 +8558,9 @@ export function useAgentGUINodeController({
         );
         return;
       }
-      executePrompt(agentSessionId, normalizedContent, displayPromptText);
+      executePrompt(agentSessionId, normalizedContent, displayPromptText, {
+        guidance: options?.guidance === true
+      });
     },
     [
       activation,
@@ -8726,7 +8731,7 @@ export function useAgentGUINodeController({
         agentSessionId,
         normalizedContent,
         displayPromptText,
-        { bypassLocalQueue: true }
+        { bypassLocalQueue: true, guidance: true }
       );
     },
     [
