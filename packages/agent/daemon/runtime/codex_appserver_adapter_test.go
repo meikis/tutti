@@ -68,6 +68,7 @@ type scriptedAppServerConnection struct {
 	turnStatus                   string // completed (default) | failed | interrupted
 	turnError                    map[string]any
 	holdTurn                     bool              // do not finish the turn until released
+	steeredTurnStart             bool              // turn/start returns a queued stub turn (input steered into the running turn): no turn/started, no auto-completion
 	ignoreInterrupt              bool              // ack turn/interrupt but never complete the turn (wedged codex)
 	hangInterrupt                bool              // never even acknowledge the turn/interrupt RPC (fully wedged codex)
 	childNicknames               map[string]string // thread/read agentNickname responses by threadId
@@ -312,6 +313,7 @@ func (c *scriptedAppServerConnection) Send(data []byte) error {
 		case appServerMethodTurnStart:
 			c.mu.Lock()
 			hold := c.holdTurn
+			steered := c.steeredTurnStart
 			approval := c.commandApproval
 			userInput := c.userInputRequest
 			emitPlan := c.emitPlanItem
@@ -324,6 +326,23 @@ func (c *scriptedAppServerConnection) Send(data []byte) error {
 			}
 			if turnStartRelease != nil {
 				<-turnStartRelease
+			}
+			if steered {
+				// Mirror real codex steering (live-verified against codex
+				// 0.142.5, TestLiveProtocolTurnStartDuringActiveTurn):
+				// turn/start while a turn is already running responds
+				// immediately with a NEW turn id in status inProgress, but
+				// the input is absorbed by the running turn ("turn-1") — no
+				// turn/started ever fires for the stub id and the only
+				// terminal notification is the running turn's turn/completed
+				// (sent by the test via completePendingTurn).
+				c.sendJSON(map[string]any{
+					"id": message.ID,
+					"result": map[string]any{
+						"turn": map[string]any{"id": "turn-steer-stub", "status": "inProgress", "items": []any{}},
+					},
+				})
+				continue
 			}
 			// Mirror the real app-server: the RPC responds immediately with
 			// the inProgress turn; output streams as notifications.
@@ -1581,6 +1600,65 @@ func TestCodexAppServerAdapterEmitsExactlyOneTurnOutcome(t *testing.T) {
 
 // Pins the client-death terminal transition: when the app-server connection
 // dies mid-turn, the turn settles as failed instead of hanging.
+func TestCodexAppServerAdapterExecSteeredTurnSettlesOnRunningTurnCompletion(t *testing.T) {
+	t.Parallel()
+
+	adapter, transport, session := startedAppServerAdapter(t)
+	transport.conn.steeredTurnStart = true
+
+	execDone := make(chan []activityshared.Event, 1)
+	go func() {
+		events, _ := adapter.Exec(context.Background(), session, []PromptContentBlock{{
+			Type: "text", Text: "stop refactoring, just report",
+		}}, "", "turn-local-2", nil, nil)
+		execDone <- events
+	}()
+	// The steered turn/start result binds the session to the steer stub id.
+	waitForCondition(t, func() bool {
+		return adapter.sessionActiveTurnID(session.AgentSessionID) == "turn-steer-stub"
+	})
+
+	// The running turn ("turn-1") absorbed the steered input and completes;
+	// no other terminal notification will ever arrive for the stub turn.
+	transport.conn.completePendingTurn()
+
+	select {
+	case events := <-execDone:
+		completed := eventsOfType(events, activityshared.EventTurnCompleted)
+		failed := eventsOfType(events, activityshared.EventTurnFailed)
+		canceled := eventsOfType(events, activityshared.EventType(EventTurnCanceled))
+		if len(completed)+len(failed)+len(canceled) != 1 {
+			t.Fatalf("terminal turn outcomes = completed:%d failed:%d canceled:%d, want exactly one",
+				len(completed), len(failed), len(canceled))
+		}
+		if len(completed) != 1 {
+			t.Fatalf("steered turn settled as %#v, want EventTurnCompleted", events)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("Exec never settled: turn/completed for the running turn was dropped by the provider-turn-id guard")
+	}
+}
+
+func TestCodexAppServerAdapterConfirmActiveTurnStartedScopedToBoundID(t *testing.T) {
+	t.Parallel()
+
+	adapter, _, session := startedAppServerAdapter(t)
+	adapter.setSessionActiveTurnID(session.AgentSessionID, "turn-bound")
+
+	// A turn/started for a different turn (e.g. racing with a steered
+	// turn/start rebinding the id in between) must not confirm the current
+	// binding — a stub confirmed by mistake would re-wedge the settle path.
+	adapter.confirmSessionActiveTurnStarted(session.AgentSessionID, "turn-other")
+	if adapter.sessionActiveTurnStartConfirmed(session.AgentSessionID) {
+		t.Fatalf("confirmation with a stale provider turn id must not confirm the bound id")
+	}
+
+	adapter.confirmSessionActiveTurnStarted(session.AgentSessionID, "turn-bound")
+	if !adapter.sessionActiveTurnStartConfirmed(session.AgentSessionID) {
+		t.Fatalf("confirmation with the bound provider turn id should confirm")
+	}
+}
+
 func TestCodexAppServerAdapterClientDeathSettlesTurn(t *testing.T) {
 	t.Parallel()
 
