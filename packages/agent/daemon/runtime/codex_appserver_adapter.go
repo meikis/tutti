@@ -109,6 +109,7 @@ const defaultCodexAppServerGoalContinuationGraceWindow = 1500 * time.Millisecond
 type CodexAppServerAdapter struct {
 	transport   ProcessTransport
 	host        HostMetadata
+	preparer    ProviderLaunchPreparer
 	mu          sync.Mutex
 	sessions    map[string]*codexAppServerSession
 	commandSink CommandSnapshotSink
@@ -336,6 +337,13 @@ func (a *CodexAppServerAdapter) SetConfigOptionsUpdateSink(sink ConfigOptionsUpd
 	a.mu.Lock()
 	a.configSink = sink
 	a.mu.Unlock()
+}
+
+func (a *CodexAppServerAdapter) SetProviderLaunchPreparer(preparer ProviderLaunchPreparer) {
+	if a == nil {
+		return
+	}
+	a.preparer = preparer
 }
 
 func (*CodexAppServerAdapter) ValidatePromptContent(Session, []PromptContentBlock) error {
@@ -668,13 +676,8 @@ func (a *CodexAppServerAdapter) startInitializedClient(
 	if a == nil || a.transport == nil {
 		return nil, nil, errors.New("app-server process transport is unavailable")
 	}
-	trace.Log("process.start.begin", map[string]any{
-		"command": strings.Join([]string{codexAppServerCommand, codexAppServerSubcmd}, " "),
-		"cwd":     a.sessionCWD(session),
-	})
-	processStartedAt := time.Now()
 	spawnEnv := append(codexACPEnv(session, a.host), session.Env...)
-	conn, err := a.transport.Start(ctx, ProcessSpec{
+	spec, cleanup, err := prepareProviderLaunch(ctx, a.preparer, session, ProcessSpec{
 		Provider:       ProviderCodex,
 		AgentSessionID: session.AgentSessionID,
 		RoomID:         session.RoomID,
@@ -683,12 +686,26 @@ func (a *CodexAppServerAdapter) startInitializedClient(
 		Env:            spawnEnv,
 	})
 	if err != nil {
+		trace.Log("process.prepare.failed", map[string]any{
+			"error": err.Error(),
+		})
+		return nil, nil, err
+	}
+	trace.Log("process.start.begin", map[string]any{
+		"command": strings.Join(spec.Command, " "),
+		"cwd":     spec.CWD,
+	})
+	processStartedAt := time.Now()
+	conn, err := a.transport.Start(ctx, spec)
+	if err != nil {
+		cleanupPreparedLaunch(cleanup)
 		trace.Log("process.start.failed", map[string]any{
 			"duration_ms": time.Since(processStartedAt).Milliseconds(),
 			"error":       err.Error(),
 		})
 		return nil, nil, err
 	}
+	conn = wrapProviderLaunchCleanup(conn, cleanup)
 	trace.Log("process.start.succeeded", map[string]any{
 		"duration_ms": time.Since(processStartedAt).Milliseconds(),
 	})
@@ -727,7 +744,7 @@ func (a *CodexAppServerAdapter) startInitializedClient(
 
 	initializeResult, err := trace.TypedCall(acpStartCallTimeout, appServerMethodInitialize, func() (json.RawMessage, error) {
 		return client.Initialize(ctx, acpStartCallTimeout, map[string]any{
-			"clientInfo": codexClientInfoParams(a.host, spawnEnv),
+			"clientInfo": codexClientInfoParams(a.host, spec.Env),
 			"capabilities": map[string]any{
 				"experimentalApi": true,
 			},
@@ -873,7 +890,7 @@ func (*CodexAppServerAdapter) fetchRateLimitsNoHandler(
 // fetchGoal reads the thread's persisted goal. Best effort: any error means
 // the in-memory goal stays as-is. NoHandler: this runs in the background and
 // must not claim the message handler slot away from a streaming turn.
-func (a *CodexAppServerAdapter) fetchGoal(
+func (*CodexAppServerAdapter) fetchGoal(
 	ctx context.Context,
 	client *codexAppServerClient,
 	threadID string,
@@ -1420,6 +1437,11 @@ func (a *CodexAppServerAdapter) execBlocking(
 	}
 	session.ProviderSessionID = appSession.threadID
 	explicitDisplayPrompt, visibleText := explicitAndVisiblePromptText(content, displayPrompt)
+	mentionRoutingApplied, mentionRoutingSkills := tuttiMentionRoutingSkills(visibleText)
+	providerContent := content
+	if mentionRoutingApplied {
+		providerContent = appendTuttiMentionRoutingContent(providerContent, mentionRoutingSkills)
+	}
 
 	if activeTurnID := a.sessionActiveTurnID(session.AgentSessionID); activeTurnID != "" {
 		if command, args := splitSlashCommand(visibleText); command == appServerSlashGoal {
@@ -1428,7 +1450,7 @@ func (a *CodexAppServerAdapter) execBlocking(
 			// instead of executing the RPC.
 			return a.execGoalControlCommand(ctx, appSession, session, args, turnID, content, explicitDisplayPrompt, visibleText, emit)
 		}
-		return a.steerActiveTurn(ctx, appSession, session, content, explicitDisplayPrompt, visibleText, turnID, activeTurnID, emit)
+		return a.steerActiveTurn(ctx, appSession, session, content, providerContent, explicitDisplayPrompt, visibleText, turnID, activeTurnID, emit)
 	}
 
 	normalizer := newACPTurnNormalizer()
@@ -1517,8 +1539,8 @@ func (a *CodexAppServerAdapter) execBlocking(
 	a.markTurnSettleEmits(appTurn)
 
 	trace := newCodexAppServerTurnTrace(session, turnID, execMetadataFromContext(ctx))
-	turnParams := appServerTurnStartParams(session, appSession.threadID, content, appSession.planModeMask, appSession.defaultModeMask, appSession.defaultModel)
-	trace.Log("turn.start.params", codexAppServerTraceTurnStartParams(session, turnParams, content))
+	turnParams := appServerTurnStartParams(session, appSession.threadID, providerContent, appSession.planModeMask, appSession.defaultModeMask, appSession.defaultModel)
+	trace.Log("turn.start.params", codexAppServerTraceTurnStartParams(session, turnParams, providerContent))
 	turnStartedAt := time.Now()
 	result, err := appSession.client.TurnStart(ctx, turnParams,
 		func(ctx context.Context, message acpMessage) error {
@@ -1671,6 +1693,7 @@ func (*CodexAppServerAdapter) steerActiveTurn(
 	appSession *codexAppServerSession,
 	session Session,
 	content []PromptContentBlock,
+	providerContent []PromptContentBlock,
 	explicitDisplayPrompt string,
 	displayPrompt string,
 	turnID string,
@@ -1680,7 +1703,7 @@ func (*CodexAppServerAdapter) steerActiveTurn(
 	_, err := appSession.client.TurnSteerNoHandler(ctx, map[string]any{
 		"threadId":       appSession.threadID,
 		"expectedTurnId": activeTurnID,
-		"input":          appServerUserInput(content),
+		"input":          appServerUserInput(providerContent),
 	})
 	if err != nil {
 		return nil, err
