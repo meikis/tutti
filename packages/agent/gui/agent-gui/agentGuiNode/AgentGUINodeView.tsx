@@ -586,6 +586,7 @@ export interface AgentGUIViewLabels {
   fileMentionEmpty: string;
   fileMentionError: string;
   fileMentionTabHint: string;
+  fileDropHint: string;
   mentionPalette: string;
   removeMention: string;
   addReference: string;
@@ -2445,6 +2446,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       fileMentionEmpty: labels.fileMentionEmpty,
       fileMentionError: labels.fileMentionError,
       fileMentionTabHint: labels.fileMentionTabHint,
+      fileDropHint: labels.fileDropHint,
       mentionPalette: labels.mentionPalette,
       removeMention: labels.removeMention,
       addReference: labels.addReference,
@@ -2471,6 +2473,7 @@ const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       labels.fileMentionLoading,
       labels.fileMentionPalette,
       labels.fileMentionTabHint,
+      labels.fileDropHint,
       labels.handoffConversation,
       labels.handoffConversationMenu,
       labels.inheritedUnavailable,

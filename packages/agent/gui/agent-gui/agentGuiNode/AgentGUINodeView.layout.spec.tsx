@@ -5251,6 +5251,7 @@ function createLabels(): AgentGUIViewLabels {
     fileMentionEmpty: "fileMentionEmpty",
     fileMentionError: "fileMentionError",
     fileMentionTabHint: "fileMentionTabHint",
+    fileDropHint: "fileDropHint",
     mentionPalette: "mentionPalette",
     removeMention: "removeMention",
     addReference: "addReference",
