@@ -4,7 +4,6 @@ import {
   BillingIcon,
   Button,
   CloseIcon,
-  CreditsIcon,
   OpenLinkLinedIcon,
   Popover,
   PopoverContent,
@@ -15,6 +14,7 @@ import {
 import { useTranslation } from "@renderer/i18n";
 import { cn } from "@renderer/lib/format";
 import { useAccountService } from "./useAccountService";
+import { useWorkspaceSettingsService } from "./useWorkspaceSettingsService";
 import { useWorkspaceWorkbenchHostService } from "./useWorkspaceWorkbenchHostService";
 
 const PLAN_ICON_SOURCES = {
@@ -41,6 +41,16 @@ const debugRegistrationCreditsToastID =
 const registrationCreditsToastAutoDismissMs = 120_000;
 
 export function WorkspaceAccountMenu() {
+  const { state: workspaceSettingsState } = useWorkspaceSettingsService();
+
+  if (workspaceSettingsState.tuttiAgentSwitchEnabled !== true) {
+    return null;
+  }
+
+  return <WorkspaceAccountMenuEnabled />;
+}
+
+function WorkspaceAccountMenuEnabled() {
   const accountMenuState = useWorkspaceAccountMenuState();
   const labels = useWorkspaceAccountMenuLabels();
 
@@ -179,13 +189,10 @@ function useWorkspaceAccountMenuState(): WorkspaceAccountMenuState {
 interface WorkspaceAccountMenuLabels {
   title: string;
   member: string;
-  creditsBalance: string;
   accountCenter: string;
   free: string;
   signIn: string;
   signOut: string;
-  loading: string;
-  unavailable: string;
   dataUnavailable: string;
   rewardToastTitle: string;
   rewardToastDescription: string;
@@ -198,13 +205,10 @@ function useWorkspaceAccountMenuLabels(): WorkspaceAccountMenuLabels {
   return {
     title: t("workspace.accountMenu.title"),
     member: t("workspace.accountMenu.member"),
-    creditsBalance: t("workspace.accountMenu.creditsBalance"),
     accountCenter: t("workspace.accountMenu.accountCenter"),
     free: t("workspace.accountMenu.free"),
     signIn: t("workspace.accountMenu.signIn"),
     signOut: t("workspace.accountMenu.signOut"),
-    loading: t("workspace.accountMenu.loading"),
-    unavailable: t("workspace.accountMenu.unavailable"),
     dataUnavailable: t("workspace.accountMenu.dataUnavailable"),
     rewardToastTitle: t("workspace.accountMenu.rewardToastTitle"),
     rewardToastDescription: t("workspace.accountMenu.rewardToastDescription"),
@@ -229,10 +233,6 @@ const WorkspaceAccountMenuView = memo(function WorkspaceAccountMenuView({
     accountMenuState.membershipTierKey,
     membershipLabel
   );
-  const creditsLabel =
-    accountMenuState.loading && !accountMenuState.creditsLabel
-      ? labels.loading
-      : (accountMenuState.creditsLabel ?? labels.unavailable);
   const errorLabel =
     accountMenuState.error ||
     (accountMenuState.partialError ? labels.dataUnavailable : null);
@@ -256,7 +256,7 @@ const WorkspaceAccountMenuView = memo(function WorkspaceAccountMenuView({
           size="sm"
           aria-label={labels.signIn}
           onClick={accountMenuState.onLogin}
-          className="rounded-[4px] px-2.5 text-[12px] font-semibold text-[var(--workbench-chrome-foreground)] [-webkit-app-region:no-drag]"
+          className="rounded-[4px] px-2.5 text-[13px] font-semibold text-[var(--workbench-chrome-foreground)] [-webkit-app-region:no-drag]"
           data-account-signin-trigger="true"
         >
           {labels.signIn}
@@ -278,19 +278,6 @@ const WorkspaceAccountMenuView = memo(function WorkspaceAccountMenuView({
           aria-hidden="true"
           className="h-4 w-px shrink-0 bg-[color-mix(in_srgb,var(--workbench-chrome-foreground)_24%,transparent)]"
         />
-      ) : null}
-      {accountMenuState.user ? (
-        <button
-          type="button"
-          aria-label={`${labels.creditsBalance}: ${creditsLabel}`}
-          title={labels.creditsBalance}
-          onClick={() => openExternal(accountMenuState.links.usageUrl)}
-          className="flex h-7 cursor-pointer items-center gap-1 rounded-full border-none bg-transparent px-1 text-[12px] font-semibold text-[var(--workbench-chrome-foreground)] opacity-90 transition-opacity hover:bg-transparent hover:opacity-100 [-webkit-app-region:no-drag]"
-          data-account-credits-chip="true"
-        >
-          <CreditsIcon aria-hidden="true" className="shrink-0" size={14} />
-          <span className="tabular-nums leading-none">{creditsLabel}</span>
-        </button>
       ) : null}
       <Popover onOpenChange={accountMenuState.onOpenChange}>
         <PopoverTrigger asChild>
@@ -362,23 +349,6 @@ const WorkspaceAccountMenuView = memo(function WorkspaceAccountMenuView({
             />
             {accountMenuState.user ? (
               <>
-                <button
-                  type="button"
-                  className="flex h-8 items-center gap-2 rounded-[6px] px-2 text-[13px] text-[var(--text-primary)] hover:bg-[var(--transparency-hover)] [-webkit-app-region:no-drag]"
-                  onClick={() => openExternal(accountMenuState.links.usageUrl)}
-                >
-                  <CreditsIcon
-                    aria-hidden="true"
-                    className="shrink-0"
-                    size={15}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-left">
-                    {labels.creditsBalance}
-                  </span>
-                  <span className="truncate text-[var(--text-secondary)]">
-                    {creditsLabel}
-                  </span>
-                </button>
                 <button
                   type="button"
                   className="flex h-8 items-center gap-2 rounded-[6px] px-2 text-[13px] text-[var(--text-primary)] hover:bg-[var(--transparency-hover)] [-webkit-app-region:no-drag]"

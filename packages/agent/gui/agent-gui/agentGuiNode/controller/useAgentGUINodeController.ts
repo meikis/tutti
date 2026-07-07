@@ -102,6 +102,7 @@ import type {
 } from "../model/agentGuiNodeTypes";
 import {
   agentComposerDraftHasContent,
+  agentComposerDraftSubmittedText,
   agentPromptContentDisplayText,
   agentPromptContentHasImage,
   agentPromptContentToComposerDraft,
@@ -1020,7 +1021,9 @@ function shouldClearSubmittedDraft(input: {
   const submittedPrompt = agentPromptContentDisplayText(
     input.submittedContent
   ).trim();
-  if (currentDraft.prompt.trim() !== submittedPrompt) {
+  if (
+    agentComposerDraftSubmittedText(currentDraft).trim() !== submittedPrompt
+  ) {
     return false;
   }
   const submittedImages = input.submittedContent.filter(
@@ -3186,6 +3189,8 @@ function areAgentComposerDraftsEqual(
 ): boolean {
   const leftFiles = left.files ?? [];
   const rightFiles = right.files ?? [];
+  const leftLargeTexts = left.largeTexts ?? [];
+  const rightLargeTexts = right.largeTexts ?? [];
   return (
     left.prompt === right.prompt &&
     left.images.length === right.images.length &&
@@ -3221,6 +3226,19 @@ function areAgentComposerDraftsEqual(
         file.sizeBytes === other.sizeBytes &&
         file.uploading === other.uploading &&
         file.uploadError === other.uploadError
+      );
+    }) &&
+    leftLargeTexts.length === rightLargeTexts.length &&
+    leftLargeTexts.every((item, index) => {
+      const other = rightLargeTexts[index];
+      if (!other) {
+        return false;
+      }
+      return (
+        item.id === other.id &&
+        item.name === other.name &&
+        item.text === other.text &&
+        item.sizeBytes === other.sizeBytes
       );
     })
   );
@@ -3861,9 +3879,6 @@ export function useAgentGUINodeController({
   );
   const effectiveSelectedProviderTarget =
     homeComposerTargetOverride ?? selectedProviderTarget;
-  const effectiveSelectedProviderTargetIsExplicit = homeComposerTargetOverride
-    ? homeComposerTargetOverrideIsExplicit
-    : selectedProviderTargetIsExplicit;
   const firstReadyHomeComposerProviderTarget = useMemo(() => {
     if (!providerReadinessGates) {
       return null;
@@ -4419,10 +4434,15 @@ export function useAgentGUINodeController({
   const selectedProviderTargetRef = useRef(effectiveSelectedProviderTarget);
   selectedProviderTargetRef.current = effectiveSelectedProviderTarget;
   const selectedProviderTargetIsExplicitRef = useRef(
-    effectiveSelectedProviderTargetIsExplicit
+    homeComposerTargetOverride
+      ? homeComposerTargetOverrideIsExplicit
+      : selectedProviderTargetIsExplicit
   );
-  selectedProviderTargetIsExplicitRef.current =
-    effectiveSelectedProviderTargetIsExplicit;
+  selectedProviderTargetIsExplicitRef.current = homeComposerTargetOverride
+    ? homeComposerTargetOverrideIsExplicit
+    : selectedProviderTargetIsExplicit;
+  const providerTargetsProvidedRef = useRef(providerTargets !== undefined);
+  providerTargetsProvidedRef.current = providerTargets !== undefined;
   const selectedComposerTargetDataRef = useRef(selectedComposerTargetData);
   selectedComposerTargetDataRef.current = selectedComposerTargetData;
   const draftSettingsBySessionIdRef = useRef(draftSettingsBySessionId);
@@ -7338,7 +7358,11 @@ export function useAgentGUINodeController({
         return;
       }
       const agentTargetId = targetData.agentTargetId ?? "";
-      if (!agentTargetId && selectedProviderTargetIsExplicitRef.current) {
+      if (
+        !agentTargetId ||
+        (providerTargetsProvidedRef.current &&
+          !selectedProviderTargetIsExplicitRef.current)
+      ) {
         setDetailError(translate("agentHost.agentGui.agentTargetRequired"));
         return;
       }
@@ -7571,8 +7595,6 @@ export function useAgentGUINodeController({
           mode: "new",
           agentSessionId,
           agentTargetId: agentTargetId || null,
-          provider,
-          providerTargetRef: targetData.providerTargetRef,
           cwd: selectedProjectPath ?? "",
           initialContent: normalizedInitialContent,
           initialDisplayPrompt,

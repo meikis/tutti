@@ -18,6 +18,7 @@ import type {
   AgentComposerDraft,
   AgentComposerDraftFile,
   AgentComposerDraftImage,
+  AgentComposerDraftLargeText,
   AgentGUIComposerSettingsVM,
   AgentGUIProviderSkillOption,
   AgentGUIQueuedPromptVM
@@ -68,6 +69,7 @@ import {
 } from "./model/agentComposerTriggerQueries";
 import {
   agentComposerDraftHasContent,
+  agentComposerDraftDisplayPrompt,
   agentComposerDraftToPromptContent,
   emptyAgentComposerDraft,
   MAX_AGENT_COMPOSER_DRAFT_IMAGES,
@@ -195,6 +197,14 @@ const DOCK_COMPOSER_INPUT_MAX_HEIGHT =
   DOCK_COMPOSER_TEXT_VIEWPORT_MAX_HEIGHT;
 const DOCK_COMPOSER_INPUT_BORDER_HEIGHT = 2;
 const DOCK_COMPOSER_INPUT_PADDING_BLOCK_HEIGHT = 24;
+const AGENT_COMPOSER_PASTED_TEXT_FILE_PREFIX = "pasted-text";
+
+function agentComposerTextByteLength(text: string): number {
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(text).byteLength;
+  }
+  return text.length;
+}
 
 /**
  * 引用 picker 的确认结果:松散文件按 file mention 插入;mentionItems(如文件夹 bundle)
@@ -391,6 +401,7 @@ export interface AgentComposerProps {
     fileMentionEmpty: string;
     fileMentionError: string;
     fileMentionTabHint: string;
+    fileDropHint: string;
     mentionPalette: string;
     removeMention: string;
     addReference: string;
@@ -855,6 +866,23 @@ function hasInlineOverflow(element: HTMLElement | null): boolean {
   return element.scrollWidth > element.clientWidth + 1;
 }
 
+function isPointInsideElement(
+  element: HTMLElement | null,
+  clientX: number,
+  clientY: number
+): boolean {
+  if (!element) {
+    return false;
+  }
+  const bounds = element.getBoundingClientRect();
+  return (
+    clientX >= bounds.left &&
+    clientX <= bounds.right &&
+    clientY >= bounds.top &&
+    clientY <= bounds.bottom
+  );
+}
+
 function AgentComposerMaskIcon({
   iconUrl,
   marker
@@ -1052,6 +1080,7 @@ export function AgentComposer({
   const isGoalModeActive = goalDraftObjective !== null;
   const draftImages = draftContent.images;
   const draftFiles = draftContent.files ?? [];
+  const draftLargeTexts = draftContent.largeTexts ?? [];
   const agentActivityRuntime = useOptionalAgentActivityRuntime();
   const agentHostApi = useOptionalAgentHostApi();
   const getReferenceForFile = agentHostApi?.workspace.getReferenceForFile;
@@ -1107,6 +1136,9 @@ export function AgentComposer({
   const draftPromptRef = useRef(draftPrompt);
   const draftImagesRef = useRef<AgentComposerDraftImage[]>(draftImages);
   const draftFilesRef = useRef<AgentComposerDraftFile[]>(draftFiles);
+  const draftLargeTextsRef =
+    useRef<AgentComposerDraftLargeText[]>(draftLargeTexts);
+  const nextDraftLargeTextIndexRef = useRef(draftLargeTexts.length);
   const promptTipRef = useRef<HTMLSpanElement | null>(null);
   const mentionControllerRef = useRef<AgentMentionSearchController | null>(
     null
@@ -1416,6 +1448,14 @@ export function AgentComposer({
   }, [draftFiles]);
 
   useEffect(() => {
+    draftLargeTextsRef.current = draftLargeTexts;
+    nextDraftLargeTextIndexRef.current = Math.max(
+      nextDraftLargeTextIndexRef.current,
+      draftLargeTexts.length
+    );
+  }, [draftLargeTexts]);
+
+  useEffect(() => {
     if (
       previousSlashStatusAgentSessionIdRef.current === slashStatusAgentSessionId
     ) {
@@ -1650,6 +1690,7 @@ export function AgentComposer({
       const canSubmitWhileSending = canQueueWhileBusy && isSendingTurn;
       const currentDraftImages = draftImagesRef.current;
       const currentDraftFiles = draftFilesRef.current;
+      const currentDraftLargeTexts = draftLargeTextsRef.current;
       const hasUploadingImages = currentDraftImages.some(
         (image) => image.uploading
       );
@@ -1677,7 +1718,8 @@ export function AgentComposer({
         ...draftContent,
         prompt: nextPrompt,
         images: currentDraftImages,
-        files: currentDraftFiles
+        files: currentDraftFiles,
+        largeTexts: currentDraftLargeTexts
       };
       if (!agentComposerDraftHasContent(nextDraftContent)) {
         return;
@@ -1714,13 +1756,23 @@ export function AgentComposer({
         provider,
         skills: availableSkills
       });
+      const submitDisplayPrompt =
+        agentComposerDraftDisplayPrompt(nextDraftContent);
       if (options?.guidance === true) {
         if (!onSubmitGuidance) {
           return;
         }
-        onSubmitGuidance(submitContent);
+        if (submitDisplayPrompt) {
+          onSubmitGuidance(submitContent, submitDisplayPrompt);
+        } else {
+          onSubmitGuidance(submitContent);
+        }
       } else {
-        onSubmit(submitContent);
+        if (submitDisplayPrompt) {
+          onSubmit(submitContent, submitDisplayPrompt);
+        } else {
+          onSubmit(submitContent);
+        }
       }
       // Starting a brand-new conversation (no active conversation yet) is
       // async — session creation + activation round trip — before the view
@@ -1734,6 +1786,7 @@ export function AgentComposer({
         draftPromptRef.current = "";
         draftImagesRef.current = [];
         draftFilesRef.current = [];
+        draftLargeTextsRef.current = [];
         setPaletteDraftPrompt("");
         onDraftContentChange(emptyAgentComposerDraft());
       }
@@ -2212,7 +2265,8 @@ export function AgentComposer({
       onDraftContentChange({
         prompt: draftPromptRef.current,
         images: nextDraftImages,
-        files: draftFilesRef.current
+        files: draftFilesRef.current,
+        largeTexts: draftLargeTextsRef.current
       });
       if (!uploadPromptContent) {
         return;
@@ -2253,7 +2307,8 @@ export function AgentComposer({
             onDraftContentChange({
               prompt: draftPromptRef.current,
               images: uploadedDraftImages,
-              files: draftFilesRef.current
+              files: draftFilesRef.current,
+              largeTexts: draftLargeTextsRef.current
             });
           })
           .catch((error: unknown) => {
@@ -2272,7 +2327,8 @@ export function AgentComposer({
             onDraftContentChange({
               prompt: draftPromptRef.current,
               images: failedDraftImages,
-              files: draftFilesRef.current
+              files: draftFilesRef.current,
+              largeTexts: draftLargeTextsRef.current
             });
           });
       }
@@ -2295,7 +2351,8 @@ export function AgentComposer({
       onDraftContentChange({
         prompt: draftPromptRef.current,
         images: nextDraftImages,
-        files: draftFilesRef.current
+        files: draftFilesRef.current,
+        largeTexts: draftLargeTextsRef.current
       });
     },
     [onDraftContentChange]
@@ -2310,7 +2367,52 @@ export function AgentComposer({
       onDraftContentChange({
         prompt: draftPromptRef.current,
         images: draftImagesRef.current,
-        files: nextDraftFiles
+        files: nextDraftFiles,
+        largeTexts: draftLargeTextsRef.current
+      });
+    },
+    [onDraftContentChange]
+  );
+
+  const removeDraftLargeText = useCallback(
+    (id: string): void => {
+      const nextDraftLargeTexts = draftLargeTextsRef.current.filter(
+        (item) => item.id !== id
+      );
+      draftLargeTextsRef.current = nextDraftLargeTexts;
+      onDraftContentChange({
+        prompt: draftPromptRef.current,
+        images: draftImagesRef.current,
+        files: draftFilesRef.current,
+        largeTexts: nextDraftLargeTexts
+      });
+    },
+    [onDraftContentChange]
+  );
+
+  const handlePastedLargeText = useCallback(
+    (text: string): void => {
+      const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      if (!normalizedText.trim()) {
+        return;
+      }
+      const nextIndex = nextDraftLargeTextIndexRef.current + 1;
+      nextDraftLargeTextIndexRef.current = nextIndex;
+      const nextDraftLargeTexts = [
+        ...draftLargeTextsRef.current,
+        {
+          id: `${AGENT_COMPOSER_PASTED_TEXT_FILE_PREFIX}-${nextIndex}`,
+          name: `${AGENT_COMPOSER_PASTED_TEXT_FILE_PREFIX}-${nextIndex}.txt`,
+          text: normalizedText,
+          sizeBytes: agentComposerTextByteLength(normalizedText)
+        }
+      ];
+      draftLargeTextsRef.current = nextDraftLargeTexts;
+      onDraftContentChange({
+        prompt: draftPromptRef.current,
+        images: draftImagesRef.current,
+        files: draftFilesRef.current,
+        largeTexts: nextDraftLargeTexts
       });
     },
     [onDraftContentChange]
@@ -2607,6 +2709,9 @@ export function AgentComposer({
     },
     [addDraftImages, scheduleComposerFocus]
   );
+  const [fileDropOverlayHost, setFileDropOverlayHost] =
+    useState<HTMLElement | null>(null);
+  const [fileDropOverlayActive, setFileDropOverlayActive] = useState(false);
   useEffect(() => {
     const composer = composerRef.current;
     const dropTarget = composer?.closest("#agent-gui-detail") ?? composer;
@@ -2614,9 +2719,16 @@ export function AgentComposer({
       return undefined;
     }
     let isDisposed = false;
+    setFileDropOverlayHost(dropTarget as HTMLElement);
 
     const isDragEvent = (event: Event): event is DragEvent =>
       "dataTransfer" in event;
+
+    const clearDropOverlay = (): void => {
+      if (!isDisposed) {
+        setFileDropOverlayActive(false);
+      }
+    };
 
     const containsEventTarget = (event: DragEvent): boolean => {
       const target = event.target;
@@ -2680,10 +2792,14 @@ export function AgentComposer({
         drag.hasImageFiles &&
         !promptImagesSupported
       ) {
+        clearDropOverlay();
         return;
       }
       if (event.dataTransfer) {
         event.dataTransfer.dropEffect = "copy";
+      }
+      if (!isDisposed) {
+        setFileDropOverlayActive(true);
       }
     };
 
@@ -2697,6 +2813,7 @@ export function AgentComposer({
       }
       event.preventDefault();
       event.stopPropagation();
+      clearDropOverlay();
       if (drop.regularFiles.length > 0) {
         editorHandleRef.current?.focusAtEnd();
         void applyDroppedFileReferences(drop.regularFiles).then(() => {
@@ -2721,12 +2838,63 @@ export function AgentComposer({
       });
     };
 
+    // `dragleave` is unreliable across nested children, so mirror the file
+    // manager and clear the overlay from a capture-phase document listener
+    // whenever the pointer leaves the drop target's bounds.
+    const handleDocumentDragOver: EventListener = (event): void => {
+      if (!isDragEvent(event)) {
+        return;
+      }
+      if (
+        isPointInsideElement(
+          dropTarget as HTMLElement,
+          event.clientX,
+          event.clientY
+        )
+      ) {
+        return;
+      }
+      clearDropOverlay();
+    };
+
+    // Once the drag leaves the window entirely, `dragover` stops firing (so the
+    // handler above can never fire) and external file drags never dispatch a
+    // renderer-side `dragend` — leaving the overlay stuck. A `dragleave` whose
+    // pointer sits at/outside the viewport edge (or has no relatedTarget) means
+    // the cursor left the window, so clear the overlay then.
+    const handleDocumentDragLeave: EventListener = (event): void => {
+      if (!isDragEvent(event)) {
+        return;
+      }
+      const leftWindow =
+        event.relatedTarget === null ||
+        event.clientX <= 0 ||
+        event.clientY <= 0 ||
+        event.clientX >= window.innerWidth ||
+        event.clientY >= window.innerHeight;
+      if (leftWindow) {
+        clearDropOverlay();
+      }
+    };
+
     dropTarget.addEventListener("dragover", handleDragOver);
     dropTarget.addEventListener("drop", handleDrop);
+    document.addEventListener("dragover", handleDocumentDragOver, true);
+    document.addEventListener("dragleave", handleDocumentDragLeave, true);
+    window.addEventListener("dragend", clearDropOverlay);
+    window.addEventListener("drop", clearDropOverlay);
+    window.addEventListener("blur", clearDropOverlay);
     return () => {
       isDisposed = true;
+      setFileDropOverlayHost(null);
+      setFileDropOverlayActive(false);
       dropTarget.removeEventListener("dragover", handleDragOver);
       dropTarget.removeEventListener("drop", handleDrop);
+      document.removeEventListener("dragover", handleDocumentDragOver, true);
+      document.removeEventListener("dragleave", handleDocumentDragLeave, true);
+      window.removeEventListener("dragend", clearDropOverlay);
+      window.removeEventListener("drop", clearDropOverlay);
+      window.removeEventListener("blur", clearDropOverlay);
     };
   }, [
     addDraftImages,
@@ -2953,7 +3121,13 @@ export function AgentComposer({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [draftFiles.length, draftImages.length, isHeroLayout, paletteDraftPrompt]);
+  }, [
+    draftFiles.length,
+    draftImages.length,
+    draftLargeTexts.length,
+    isHeroLayout,
+    paletteDraftPrompt
+  ]);
   const inputShellStyle = useMemo<CSSProperties | undefined>(
     () =>
       showFileMentionPalette || showFloatingCommandMenu
@@ -3010,6 +3184,7 @@ export function AgentComposer({
   const disabledReasonText = disabledReason?.trim() ?? "";
   const effectivePlaceholder = disabledReasonText || placeholder;
   const visibleDraftFiles = draftFiles;
+  const visibleDraftLargeTexts = draftLargeTexts;
   useEffect(() => {
     if (previousSelectedProjectPathRef.current === selectedProjectPath) {
       return;
@@ -3129,6 +3304,26 @@ export function AgentComposer({
     </span>
   ) : null;
 
+  const fileDropOverlay =
+    fileDropOverlayHost !== null
+      ? createPortal(
+          <div
+            aria-hidden="true"
+            data-testid="agent-gui-composer-file-drop-overlay"
+            data-active={fileDropOverlayActive ? "true" : "false"}
+            className={cn(
+              styles.composerFileDropOverlay,
+              fileDropOverlayActive && styles.composerFileDropOverlayActive
+            )}
+          >
+            <span className={styles.composerFileDropOverlayCard}>
+              {labels.fileDropHint}
+            </span>
+          </div>,
+          fileDropOverlayHost
+        )
+      : null;
+
   return (
     <form
       ref={composerRef}
@@ -3136,6 +3331,7 @@ export function AgentComposer({
       data-layout={layoutMode}
       onSubmit={submit}
     >
+      {fileDropOverlay}
       {visibleActivePrompt ? (
         <div
           className={styles.composerFloatingPrompt}
@@ -3272,11 +3468,37 @@ export function AgentComposer({
                     ))}
                   </div>
                 ) : null}
-                {visibleDraftFiles.length > 0 ? (
+                {visibleDraftFiles.length > 0 ||
+                visibleDraftLargeTexts.length > 0 ? (
                   <div
                     className="mb-2 flex max-w-[520px] flex-wrap gap-2"
                     data-testid="agent-gui-composer-file-drafts"
                   >
+                    {visibleDraftLargeTexts.map((item) => (
+                      <div
+                        key={item.id}
+                        className="group inline-flex max-w-full items-center gap-2 rounded-[6px] border border-[var(--line-1)] bg-[var(--background-fronted)] px-2 py-1 text-xs text-[var(--text-primary)]"
+                        data-testid="agent-gui-composer-large-text-draft"
+                        title={item.name}
+                      >
+                        <span
+                          className="size-2 shrink-0 rounded-full bg-[var(--text-tertiary)]"
+                          aria-hidden
+                        />
+                        <span className="min-w-0 max-w-[220px] truncate">
+                          {item.name}
+                        </span>
+                        <button
+                          type="button"
+                          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition hover:bg-[var(--transparency-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--text-primary)_34%,transparent)]"
+                          aria-label={labels.removeMention}
+                          title={labels.removeMention}
+                          onClick={() => removeDraftLargeText(item.id)}
+                        >
+                          <X size={12} strokeWidth={2.4} aria-hidden />
+                        </button>
+                      </div>
+                    ))}
                     {visibleDraftFiles.map((file) => (
                       <div
                         key={file.id}
@@ -3351,6 +3573,7 @@ export function AgentComposer({
                     promptImagesSupported={promptImagesSupported}
                     onPromptImagesUnsupported={onPromptImagesUnsupported}
                     onPasteImages={handlePastedImages}
+                    onPasteLargeText={handlePastedLargeText}
                     getReferenceForFile={getReferenceForFile}
                     onDropFiles={
                       promptFilesSupported

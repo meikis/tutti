@@ -98,7 +98,7 @@ There are also real architectural debts:
   migrated path name. Treat its stores as package-owned AgentGUI UI stores, not
   desktop renderer ownership.
 - `packages/agent/gui/agent-gui/**` still contains more than AgentGuiNode
-  (`RoomIssueNode`, `terminalNode`, `workspaceDesktop`, batch runner). Treat
+  (`RoomIssueNode`, `terminalNode`, `workspaceDesktop`). Treat
   that folder as the legacy workspace-node area. Do not infer that all code
   inside it belongs to the conversation node.
 - Some Host API compatibility types still exist for tests, projection, and old
@@ -253,6 +253,11 @@ remaining providers in the background. When the empty-home rail is still on
 is still gated, AgentGUI may move the home composer to that first ready target
 so the user can start typing without waiting for every provider to finish
 detection.
+Progressive detection snapshots are partial by design. A provider missing from
+the current snapshot means "not checked yet", not "install or login required".
+Desktop AgentGUI hosts that project managed-agent readiness for an already-open
+provider panel must wait until that provider appears in the status snapshot
+before replacing the composer with setup UI or disabling active-session sends.
 Auth-required local providers should remain selectable; product surfaces may
 label the setup affordance as `Connect`, but the host action should still
 dispatch the provider's `login` operation when that is the daemon-reported
@@ -1305,7 +1310,7 @@ activity data source:
 ### Provider Targets
 
 AgentGUI distinguishes launch authority, real provider identity, and legacy
-provider-target compatibility. `agentTargetId` is the authority for new
+provider-target state recovery. `agentTargetId` is required authority for new
 session launches, workbench target selection, and AgentGUI node state. The
 daemon resolves that id against `agent_targets` and derives the execution
 provider and runtime `providerTargetRef` from the trusted target `launchRef`.
@@ -1321,14 +1326,22 @@ telemetry, and provider execution policy.
 AgentGUI owns only target display and passthrough:
 
 - show `target.label` for new-session surfaces
+- render optional `target.badge` as target presentation metadata on provider
+  rail tiles; product ownership, sharing, avatar, or availability semantics
+  stay in the host-projected target data
 - keep provider behavior keyed by `target.provider`
 - persist `agentTargetId` in new workbench node state when the host target has
   one
 - read legacy `providerTargetId` / `providerTargetRef` from old workbench node
   state to recover the selected target
 - pass `agentTargetId` through `AgentActivityRuntime.activateSession`
-- pass `providerTargetRef` only as a legacy opaque compatibility hint for
-  provider-only launches
+- pass `providerTargetRef` only as legacy opaque state for selection recovery;
+  it must not authorize or replace `agentTargetId` for new launches
+
+New-session surfaces, including the composer, batch runner, App Center, and
+issue-manager launchers, must fail or disable launch when no `agentTargetId` is
+available. They must not synthesize `local:<provider>` from a provider-only
+selection as a compatibility fallback.
 
 `providerTargetId` and `providerTargetRef` are transition fields, not daemon
 authority. AgentGUI must not interpret `ref.kind`, mint invocation-control

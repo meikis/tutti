@@ -38,6 +38,7 @@ import {
   type WorkbenchHostNodeBodyContext
 } from "@tutti-os/workbench-surface";
 import { useTranslation } from "@renderer/i18n";
+import type { WorkspaceAgentProvider } from "@tutti-os/client-tuttid-ts";
 import type {
   AgentProviderStatusSnapshot,
   IAgentProviderStatusService
@@ -354,9 +355,11 @@ function DesktopAgentGUIWorkbenchBodyImpl({
     contextMentionProviders,
     workspaceAppMentionProvider
   ]);
+  const provider = desktopAgentGUIProviderFromInstanceId(context.instanceId);
+  const requiredProviders = useMemo(() => [provider], [provider]);
   const managedAgentsState = useDesktopManagedAgentsState(
     agentProviderStatusService,
-    { ensureLoaded: !previewMode && !providerStatusBootstrapSnapshot }
+    { ensureLoaded: !previewMode, requiredProviders }
   );
   const providerStatusSnapshot = useSyncExternalStore(
     agentProviderStatusService && !previewMode
@@ -384,7 +387,6 @@ function DesktopAgentGUIWorkbenchBodyImpl({
       providerStatusSnapshot
     ]
   );
-  const provider = desktopAgentGUIProviderFromInstanceId(context.instanceId);
   // Activation funnel stage ③ "saw a chattable surface": the agent workbench
   // body is mounted (not a dock preview) and the active provider is ready, so
   // the composer is interactive. reportProviderReady (stage ②) can fire while
@@ -1167,6 +1169,16 @@ function DesktopAgentGUIWorkbenchBodyImpl({
     }),
     [computerUseStatus, desktopPreferencesState.browserUseConnectionMode]
   );
+  const providerAuthAccountLabels = useMemo(() => {
+    const labels: Partial<Record<WorkspaceAgentProvider, string>> = {};
+    for (const status of providerStatusSnapshot.statuses) {
+      const accountLabel = status.auth.accountLabel?.trim();
+      if (accountLabel) {
+        labels[status.provider] = accountLabel;
+      }
+    }
+    return labels;
+  }, [providerStatusSnapshot.statuses]);
 
   return (
     <>
@@ -1198,6 +1210,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
         providerReadinessGates={providerReadinessGates}
         defaultProviderTargetId={defaultProviderTargetId}
         workspaceAgentProbes={workspaceAgentProbes}
+        providerAuthAccountLabels={providerAuthAccountLabels}
         onAgentProbeDemandChange={
           previewMode ? undefined : handleAgentProbeDemandChange
         }
