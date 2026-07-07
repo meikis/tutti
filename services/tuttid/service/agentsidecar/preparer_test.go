@@ -988,6 +988,10 @@ func TestDefaultPreparerClaudeCodeSetsClaudeCodeExecutableFromPath(t *testing.T)
 func TestDefaultPreparerCursorUsesRuntimePluginDir(t *testing.T) {
 	stateDir := t.TempDir()
 	cwd := t.TempDir()
+	agentsPath := filepath.Join(cwd, "AGENTS.md")
+	if err := os.WriteFile(agentsPath, []byte("user cursor guidance\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(filepath.Join(cwd, ".cursor", "skills"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1016,6 +1020,13 @@ func TestDefaultPreparerCursorUsesRuntimePluginDir(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(cwd, ".cursor", "skills", "user-skill")); err != nil {
 		t.Fatalf("cursor user skill was modified or removed: %v", err)
+	}
+	agentsContent, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("cursor AGENTS.md missing after prepare: %v", err)
+	}
+	if string(agentsContent) != "user cursor guidance\n" {
+		t.Fatalf("cursor AGENTS.md content = %q, want user guidance unchanged", string(agentsContent))
 	}
 
 	pluginDir := envValue(prepared.Env, cursorPluginDirEnv)

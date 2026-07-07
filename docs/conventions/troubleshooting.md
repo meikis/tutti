@@ -1201,36 +1201,43 @@ delimited by ---`, and the composer skill picker may show partial or
   [codex.go](../../services/tuttid/service/agentsidecar/codex.go)
   [preparer_test.go](../../services/tuttid/service/agentsidecar/preparer_test.go)
 
-### Cursor sessions create project `.cursor/skills`
+### Cursor sessions create project `.cursor/skills` or `AGENTS.md` changes
 
 - Symptom:
   Starting a Cursor Agent session through Tutti leaves new Tutti-managed skill
   directories under the repository, such as `.cursor/skills/tutti-cli` or
-  `.cursor/skills/tutti-cli-tutti-6`. The directories may accumulate across
-  runs and appear as untracked working tree changes.
+  `.cursor/skills/tutti-cli-tutti-6`, or appends a `BEGIN TUTTI-RUNTIME`
+  managed block to the tracked project `AGENTS.md`. The directories may
+  accumulate across runs and the managed block can appear as a tracked working
+  tree change.
 - Quick checks:
   Inspect the session sidecar manifest for `provider-skill` entries pointing
   inside the workspace cwd. For current sessions, `TUTTI_CURSOR_PLUGIN_DIR`
   should point under the session runtime root, for example
   `~/.tutti-dev/agent/runs/<session>/cursor-plugin/tutti-cli`, and the Cursor
-  ACP command should include `--plugin-dir <that-dir>` before `acp`.
+  ACP command should include `--plugin-dir <that-dir>` before `acp`. The
+  project `AGENTS.md` should not receive a `TUTTI-RUNTIME` managed block for
+  Cursor sessions.
 - Root cause:
   Cursor supports local plugins via `cursor-agent --plugin-dir`, but the
   previous sidecar path reused project-local native skill installation and wrote
   Tutti injected skills to `cwd/.cursor/skills`. Repeated runs then allocated
-  suffixed names instead of overwriting the session-owned materialization.
+  suffixed names instead of overwriting the session-owned materialization. The
+  same Cursor preparation path also wrote provider instructions into
+  `cwd/AGENTS.md`, which dirtied tracked repositories.
 - Fix:
   Materialize Tutti Cursor skills as a session-scoped Cursor plugin with
   `.cursor-plugin/plugin.json` and `skills/*/SKILL.md`, expose it through
   `TUTTI_CURSOR_PLUGIN_DIR`, and start Cursor ACP as
   `cursor-agent --plugin-dir <plugin-dir> acp`. Keep user/project
   `.cursor/skills` discoverable for composer options, but never write Tutti
-  injected skills there.
+  injected skills or Tutti runtime instructions into the workspace cwd for
+  Cursor sessions.
 - Validation:
   Add `agentsidecar` coverage that Cursor prepare creates the runtime plugin
-  and leaves project `.cursor/skills` untouched, runtime coverage that Cursor
-  ACP includes `--plugin-dir`, and agent service coverage that Cursor composer
-  skill discovery includes plugin skills. Then run
+  while leaving project `.cursor/skills` and `AGENTS.md` untouched, runtime
+  coverage that Cursor ACP includes `--plugin-dir`, and agent service coverage
+  that Cursor composer skill discovery includes plugin skills. Then run
   `cd services/tuttid && go test ./service/agentsidecar ./service/agent` and
   `go test ./packages/agent/daemon/runtime`.
 - References:

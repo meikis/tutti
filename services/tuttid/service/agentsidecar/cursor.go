@@ -17,15 +17,6 @@ func (CursorPreparer) Provider() string {
 }
 
 func (CursorPreparer) Prepare(_ context.Context, input ProviderPrepareInput) (ProviderPrepareResult, error) {
-	instructionPath := filepath.Join(input.Cwd, "AGENTS.md")
-	writeResult, err := input.Store.WriteManagedBlock(instructionPath, tuttiCLIPolicy(input.PrepareInput))
-	if err != nil {
-		return ProviderPrepareResult{}, err
-	}
-	if input.Manifest != nil {
-		input.Manifest.RecordManagedFile(instructionPath, "provider-instructions", writeResult.Created)
-	}
-
 	pluginDir := filepath.Join(input.RuntimeRoot, "cursor-plugin", "tutti-cli")
 	if err := installCursorTuttiPlugin(pluginDir, input.PrepareInput); err != nil {
 		return ProviderPrepareResult{}, err
