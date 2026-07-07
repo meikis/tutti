@@ -14,6 +14,7 @@ export const desktopManagedAgentProviders = [
   "codex",
   "tutti-agent",
   "cursor",
+  "opencode",
   "gemini",
   "hermes",
   "openclaw"

@@ -47,16 +47,30 @@ test("projectDesktopManagedAgentsState derives AgentGUI managed state from provi
         cliInstalled: true,
         provider: "codex",
         reasonCode: "auth_required"
+      }),
+      createProviderStatus({
+        adapterInstalled: true,
+        availability: "ready",
+        cliInstalled: true,
+        provider: "opencode"
       })
     ]
   });
 
-  assert.deepEqual(state.readyAgentIds, ["claude-code"]);
-  assert.deepEqual(state.configSyncedAgentIds, ["claude-code", "codex"]);
+  assert.deepEqual(state.readyAgentIds, ["claude-code", "opencode"]);
+  assert.deepEqual(state.configSyncedAgentIds, [
+    "claude-code",
+    "codex",
+    "opencode"
+  ]);
   assert.equal(state.metadataSynced, true);
   assert.equal(state.items[0]?.agentId, "claude-code");
   assert.equal(state.items[1]?.agentId, "codex");
   assert.equal(state.items[1]?.decisionReason, "auth_required");
+  assert.equal(
+    state.items.find((item) => item.agentId === "opencode")?.decisionReason,
+    "ready"
+  );
 });
 
 test("projectDesktopManagedAgentsStateForAgentGUI keeps provider readiness unknown before first snapshot", () => {
@@ -94,6 +108,7 @@ test("projectDesktopManagedAgentsStateForAgentGUI projects captured provider sta
 
 test("isDesktopManagedAgentProvider accepts only desktop managed providers", () => {
   assert.equal(isDesktopManagedAgentProvider("claude-code"), true);
+  assert.equal(isDesktopManagedAgentProvider("opencode"), true);
   assert.equal(isDesktopManagedAgentProvider("not-a-provider"), false);
 });
 
