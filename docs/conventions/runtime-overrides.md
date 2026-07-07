@@ -118,6 +118,12 @@ be passed through OpenCode config; Tutti injects `OPENCODE_CONFIG_CONTENT` with
 custom-provider environment allowlist for OpenCode includes `OPENCODE_CONFIG`,
 `OPENCODE_CONFIG_DIR`, `OPENCODE_CONFIG_CONTENT`, and `OPENCODE_PERMISSION`
 so operator-supplied OpenCode config stays explicit and provider-owned.
+OpenCode composer model options come from `opencode models` and are cached by
+the daemon model catalog. The provider auth/config watcher invalidates that
+cache when OpenCode's auth marker (`~/.local/share/opencode/auth.json`) or
+configured OpenCode config files change, so local model-list updates refresh
+through the same `agent.model.catalog.invalidated` event path used by Codex and
+Claude Code.
 
 ## Desktop Renderer Diagnostics
 
