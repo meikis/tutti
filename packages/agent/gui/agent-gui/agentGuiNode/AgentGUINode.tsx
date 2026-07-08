@@ -1306,6 +1306,7 @@ export const AgentGUINode = memo(function AgentGUINode({
       deleteSession: t("agentHost.agentGui.deleteSession"),
       pinSession: t("agentHost.agentGui.pinSession"),
       unpinSession: t("agentHost.agentGui.unpinSession"),
+      markSessionUnread: t("agentHost.agentGui.markSessionUnread"),
       deleteSessionTitle: t("agentHost.agentGui.deleteSessionTitle"),
       deleteSessionBody: t("agentHost.agentGui.deleteSessionBody"),
       deleteSessionConfirm: t("agentHost.agentGui.deleteSessionConfirm"),

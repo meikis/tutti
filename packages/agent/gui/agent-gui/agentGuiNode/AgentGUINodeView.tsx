@@ -67,6 +67,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -499,6 +503,7 @@ export interface AgentGUIViewLabels {
   deleteSession: string;
   pinSession: string;
   unpinSession: string;
+  markSessionUnread: string;
   deleteSessionTitle: string;
   deleteSessionBody: string;
   deleteSessionConfirm: string;
@@ -702,6 +707,7 @@ interface AgentGUINodeViewProps {
     continueInNewConversation: () => void;
     retryOpenclawGateway: () => void;
     toggleConversationPinned: (agentSessionId: string, pinned: boolean) => void;
+    markConversationUnread: (agentSessionId: string) => void;
     removeProject: (path: string) => void;
     confirmDeleteProjectConversations: (path?: string) => void;
     confirmDeleteConversations: (agentSessionIds: string[]) => void;
@@ -1610,6 +1616,7 @@ export function AgentGUINodeView({
         onRetryOpenclawGateway: retryOpenclawGateway,
         onSelectConversation: selectConversation,
         onToggleConversationPinned: toggleConversationPinned,
+        onMarkConversationUnread: actions.markConversationUnread,
         onRemoveProject: removeProject,
         onConfirmDeleteProjectConversations: confirmDeleteProjectConversations,
         onConfirmDeleteConversations: confirmDeleteConversations,
@@ -1631,6 +1638,7 @@ export function AgentGUINodeView({
         openConversationWindow,
         openProjectFiles,
         openclawGateway,
+        actions.markConversationUnread,
         actions.updateConversationFilter,
         previewMode,
         removeProject,
@@ -4224,6 +4232,7 @@ interface AgentGUIConversationRailPaneProps {
   onRetryOpenclawGateway: () => void;
   onSelectConversation: (agentSessionId: string) => void;
   onToggleConversationPinned: (agentSessionId: string, pinned: boolean) => void;
+  onMarkConversationUnread: (agentSessionId: string) => void;
   onOpenProjectFiles?: ((action: WorkspaceLinkAction) => void) | null;
   onOpenConversationWindow?: (agentSessionId: string) => void;
   selectProjectDirectory?: () => Promise<{ path: string } | null>;
@@ -4319,6 +4328,7 @@ function agentGUIConversationRailStoreSnapshotsEqual(
     current.onRetryOpenclawGateway === next.onRetryOpenclawGateway &&
     current.onSelectConversation === next.onSelectConversation &&
     current.onToggleConversationPinned === next.onToggleConversationPinned &&
+    current.onMarkConversationUnread === next.onMarkConversationUnread &&
     current.onOpenProjectFiles === next.onOpenProjectFiles &&
     current.onOpenConversationWindow === next.onOpenConversationWindow &&
     current.selectProjectDirectory === next.selectProjectDirectory &&
@@ -6264,6 +6274,7 @@ const AgentGUIConversationRailPane = memo(
     onRetryOpenclawGateway,
     onSelectConversation,
     onToggleConversationPinned,
+    onMarkConversationUnread,
     onOpenProjectFiles,
     onOpenConversationWindow,
     selectProjectDirectory,
@@ -6581,6 +6592,7 @@ const AgentGUIConversationRailPane = memo(
                     onSelectConversation={onSelectConversation}
                     setPendingProjectAction={setPendingProjectAction}
                     onToggleConversationPinned={onToggleConversationPinned}
+                    onMarkConversationUnread={onMarkConversationUnread}
                     onOpenProjectFiles={onOpenProjectFiles}
                     onOpenConversationWindow={onOpenConversationWindow}
                     onToggleProjectSectionCollapsed={
@@ -6688,6 +6700,7 @@ interface AgentGUIConversationRailSectionProps {
   onSelectConversation: (agentSessionId: string) => void;
   onLoadMoreConversations: (section: ConversationSection) => void;
   onToggleConversationPinned: (agentSessionId: string, pinned: boolean) => void;
+  onMarkConversationUnread: (agentSessionId: string) => void;
   onOpenProjectFiles?: ((action: WorkspaceLinkAction) => void) | null;
   onOpenConversationWindow?: (agentSessionId: string) => void;
   onRequestDeleteConversation: (agentSessionId: string) => void;
@@ -6719,6 +6732,7 @@ const AgentGUIConversationRailSection = memo(
     onLoadMoreConversations,
     setPendingProjectAction,
     onToggleConversationPinned,
+    onMarkConversationUnread,
     onOpenProjectFiles,
     onOpenConversationWindow,
     onRequestDeleteConversation,
@@ -7075,6 +7089,7 @@ const AgentGUIConversationRailSection = memo(
                 onRequestDeleteConversation={onRequestDeleteConversation}
                 onSelectConversation={onSelectConversation}
                 onToggleConversationPinned={onToggleConversationPinned}
+                onMarkConversationUnread={onMarkConversationUnread}
                 onOpenConversationWindow={onOpenConversationWindow}
               />
             ))}
@@ -7120,6 +7135,7 @@ interface AgentGUIConversationRailItemProps {
   registerItemElement: (itemId: string, element: HTMLDivElement | null) => void;
   onSelectConversation: (agentSessionId: string) => void;
   onToggleConversationPinned: (agentSessionId: string, pinned: boolean) => void;
+  onMarkConversationUnread: (agentSessionId: string) => void;
   onOpenConversationWindow?: (agentSessionId: string) => void;
   onRequestDeleteConversation: (agentSessionId: string) => void;
   onCancelDeleteConversation: () => void;
@@ -7139,6 +7155,7 @@ const AgentGUIConversationRailItem = memo(
     registerItemElement,
     onSelectConversation,
     onToggleConversationPinned,
+    onMarkConversationUnread,
     onOpenConversationWindow,
     onRequestDeleteConversation,
     onCancelDeleteConversation,
@@ -7164,13 +7181,27 @@ const AgentGUIConversationRailItem = memo(
     const handleTogglePinned = useCallback(() => {
       onToggleConversationPinned(item.id, !pinned);
     }, [item.id, onToggleConversationPinned, pinned]);
+    const canMarkUnread = Boolean(
+      !previewMode &&
+      !item.hasUnreadCompletion &&
+      item.isImported !== true &&
+      (item.unreadCompletionKey ||
+        item.status === "completed" ||
+        item.status === "ready")
+    );
+    const handleMarkUnread = useCallback(() => {
+      if (!canMarkUnread) {
+        return;
+      }
+      onMarkConversationUnread(item.id);
+    }, [canMarkUnread, item.id, onMarkConversationUnread]);
     const handleOpenConversationWindow = useCallback(() => {
       onOpenConversationWindow?.(item.id);
     }, [item.id, onOpenConversationWindow]);
     const handleRequestDelete = useCallback(() => {
       onRequestDeleteConversation(item.id);
     }, [item.id, onRequestDeleteConversation]);
-    return (
+    const row = (
       <div
         ref={setItemElement}
         className={styles.conversationItem}
@@ -7288,6 +7319,25 @@ const AgentGUIConversationRailItem = memo(
           </div>
         )}
       </div>
+    );
+    if (previewMode) {
+      return row;
+    }
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+        <ContextMenuContent
+          className={`${styles.composerMenuContent} nodrag [-webkit-app-region:no-drag]`}
+        >
+          <ContextMenuItem
+            className={`${styles.composerMenuItem} nodrag [-webkit-app-region:no-drag]`}
+            disabled={!canMarkUnread}
+            onSelect={handleMarkUnread}
+          >
+            <span>{labels.markSessionUnread}</span>
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     );
   }
 );

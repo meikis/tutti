@@ -880,6 +880,7 @@ export const en = {
       deleteSession: "Delete session",
       pinSession: "Pin session",
       unpinSession: "Unpin session",
+      markSessionUnread: "Mark as unread",
       deleteSessionTitle: "Delete session?",
       deleteSessionBody:
         "This session cannot be recovered after deletion. It will no longer appear in the session list, session timeline, room timeline, or room status.",

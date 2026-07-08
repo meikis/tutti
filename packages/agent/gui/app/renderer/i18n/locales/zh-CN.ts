@@ -815,6 +815,7 @@ export const zhCN = {
       deleteSession: "删除会话",
       pinSession: "置顶会话",
       unpinSession: "取消置顶",
+      markSessionUnread: "标记为未读",
       deleteSessionTitle: "删除会话？",
       deleteSessionBody:
         "删除后无法恢复。该会话将不再出现在会话列表、会话时间线、房间时间线或房间状态中。",

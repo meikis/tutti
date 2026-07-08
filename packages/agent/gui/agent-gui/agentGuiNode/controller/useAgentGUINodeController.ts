@@ -163,6 +163,7 @@ import {
   markAgentGUIConversationCompletionObserved,
   markAgentGUIConversationCreatePending,
   markAgentGUIConversationSubmitPending,
+  markAgentGUIConversationUnreadCompletion,
   markLocalDeletedAgentGUIConversation,
   patchAgentGUIConversationSummary,
   removeAgentGUIConversationSummaries,
@@ -3069,6 +3070,31 @@ function conversationBusyStatus(
   return status === "working" || status === "waiting";
 }
 
+function resolveUnreadCompletionAfterStatusPatch(input: {
+  status: AgentGUIConversationSummary["status"];
+  hasUnreadCompletion: boolean | undefined;
+}): boolean {
+  if (input.status === "completed" || input.status === "ready") {
+    return input.hasUnreadCompletion ?? false;
+  }
+  return false;
+}
+
+function resolveUnreadCompletionKeyAfterStatusPatch(input: {
+  status: AgentGUIConversationSummary["status"];
+  currentKey: string | null | undefined;
+  nextKey: string | null | undefined;
+  hasUnreadCompletion: boolean | undefined;
+}): string | null {
+  if (input.status === "completed" || input.nextKey) {
+    return input.currentKey ?? input.nextKey ?? null;
+  }
+  if (input.status === "ready" && input.hasUnreadCompletion === true) {
+    return input.currentKey ?? null;
+  }
+  return null;
+}
+
 function stringArraysEqual(
   first: string[] | null | undefined,
   second: string[] | null | undefined
@@ -5748,14 +5774,16 @@ export function useAgentGUINodeController({
               : undefined,
             source: cause?.source
           }),
-          hasUnreadCompletion:
-            status === "completed"
-              ? (conversation.hasUnreadCompletion ?? false)
-              : false,
-          unreadCompletionKey:
-            status === "completed"
-              ? (conversation.unreadCompletionKey ?? completionKey)
-              : null
+          hasUnreadCompletion: resolveUnreadCompletionAfterStatusPatch({
+            status,
+            hasUnreadCompletion: conversation.hasUnreadCompletion
+          }),
+          unreadCompletionKey: resolveUnreadCompletionKeyAfterStatusPatch({
+            status,
+            currentKey: conversation.unreadCompletionKey,
+            nextKey: completionKey,
+            hasUnreadCompletion: conversation.hasUnreadCompletion
+          })
         };
       });
       if (completionKey && conversationListQuery) {
@@ -5804,12 +5832,20 @@ export function useAgentGUINodeController({
             source: cause?.source
           }),
           hasUnreadCompletion:
-            transientStatus === "completed" &&
-            activeConversationIdRef.current !== agentSessionId,
-          unreadCompletionKey:
-            transientStatus === "completed"
-              ? (transient.unreadCompletionKey ?? completionKey)
-              : null
+            activeConversationIdRef.current === agentSessionId
+              ? false
+              : completionKey
+                ? true
+                : resolveUnreadCompletionAfterStatusPatch({
+                    status: transientStatus,
+                    hasUnreadCompletion: transient.hasUnreadCompletion
+                  }),
+          unreadCompletionKey: resolveUnreadCompletionKeyAfterStatusPatch({
+            status: transientStatus,
+            currentKey: transient.unreadCompletionKey,
+            nextKey: completionKey,
+            hasUnreadCompletion: transient.hasUnreadCompletion
+          })
         });
       }
     },
@@ -6777,7 +6813,10 @@ export function useAgentGUINodeController({
         return {
           status,
           updatedAtUnixMs: nextUpdatedAtUnixMs,
-          hasUnreadCompletion: false
+          hasUnreadCompletion: resolveUnreadCompletionAfterStatusPatch({
+            status,
+            hasUnreadCompletion: conversation.hasUnreadCompletion
+          })
         };
       });
       const transient = transientConversationRef.current;
@@ -6786,7 +6825,10 @@ export function useAgentGUINodeController({
           ...transient,
           status: incomingStatus,
           updatedAtUnixMs: Math.max(transient.updatedAtUnixMs, updatedAtUnixMs),
-          hasUnreadCompletion: false
+          hasUnreadCompletion: resolveUnreadCompletionAfterStatusPatch({
+            status: incomingStatus,
+            hasUnreadCompletion: transient.hasUnreadCompletion
+          })
         });
       }
     },
@@ -7085,10 +7127,10 @@ export function useAgentGUINodeController({
               status: nextStatus ?? conversation.status,
               timelineItems
             });
-        const hasUnreadCompletion =
-          status === "completed"
-            ? (conversation.hasUnreadCompletion ?? false)
-            : false;
+        const hasUnreadCompletion = resolveUnreadCompletionAfterStatusPatch({
+          status,
+          hasUnreadCompletion: conversation.hasUnreadCompletion
+        });
         if (
           titleFields.title === conversation.title &&
           titleFields.titleFallback === conversation.titleFallback &&
@@ -7104,10 +7146,12 @@ export function useAgentGUINodeController({
           ...titleFields,
           status,
           hasUnreadCompletion,
-          unreadCompletionKey:
-            status === "completed" || completionKey
-              ? (conversation.unreadCompletionKey ?? completionKey)
-              : null
+          unreadCompletionKey: resolveUnreadCompletionKeyAfterStatusPatch({
+            status,
+            currentKey: conversation.unreadCompletionKey,
+            nextKey: completionKey,
+            hasUnreadCompletion
+          })
         };
       });
       if (completionKey && conversationListQuery) {
@@ -7138,12 +7182,20 @@ export function useAgentGUINodeController({
           ...transientTitleFields,
           status: transientStatus,
           hasUnreadCompletion:
-            Boolean(completionKey) &&
-            activeConversationIdRef.current !== agentSessionId,
-          unreadCompletionKey:
-            transientStatus === "completed" || completionKey
-              ? (transient.unreadCompletionKey ?? completionKey)
-              : null
+            activeConversationIdRef.current === agentSessionId
+              ? false
+              : completionKey
+                ? true
+                : resolveUnreadCompletionAfterStatusPatch({
+                    status: transientStatus,
+                    hasUnreadCompletion: transient.hasUnreadCompletion
+                  }),
+          unreadCompletionKey: resolveUnreadCompletionKeyAfterStatusPatch({
+            status: transientStatus,
+            currentKey: transient.unreadCompletionKey,
+            nextKey: completionKey,
+            hasUnreadCompletion: transient.hasUnreadCompletion
+          })
         });
       }
     },
@@ -10345,6 +10397,33 @@ export function useAgentGUINodeController({
     [agentActivityRuntime, agentHostApi.toast, patchConversation, workspaceId]
   );
 
+  const markConversationUnread = useCallback(
+    (agentSessionId: string) => {
+      const normalizedAgentSessionId = agentSessionId.trim();
+      if (!normalizedAgentSessionId || !conversationListQuery) {
+        return;
+      }
+      markAgentGUIConversationUnreadCompletion({
+        query: conversationListQuery,
+        conversationId: normalizedAgentSessionId
+      });
+      setTransientConversation((current) =>
+        current?.id === normalizedAgentSessionId
+          ? {
+              ...current,
+              hasUnreadCompletion: true,
+              unreadCompletionKey:
+                current.unreadCompletionKey ??
+                (current.status === "completed"
+                  ? `session:${current.id}:completed`
+                  : null)
+            }
+          : current
+      );
+    },
+    [conversationListQuery, setTransientConversation]
+  );
+
   const activeConversation = useMemo(() => {
     const resolved = resolveConversationSummaryById(
       conversations,
@@ -11808,6 +11887,9 @@ export function useAgentGUINodeController({
   const stableToggleConversationPinned = useStableControllerEventCallback(
     toggleConversationPinned
   );
+  const stableMarkConversationUnread = useStableControllerEventCallback(
+    markConversationUnread
+  );
   const stableRequestDeleteConversation = useStableControllerEventCallback(
     requestDeleteConversation
   );
@@ -11867,6 +11949,7 @@ export function useAgentGUINodeController({
         stableConfirmDeleteProjectConversations,
       confirmDeleteConversations: stableConfirmDeleteConversations,
       toggleConversationPinned: stableToggleConversationPinned,
+      markConversationUnread: stableMarkConversationUnread,
       requestDeleteConversation: stableRequestDeleteConversation,
       retryActivation: stableRetryActivation,
       continueInNewConversation: stableContinueInNewConversation,
@@ -11885,6 +11968,7 @@ export function useAgentGUINodeController({
       stableEditQueuedPrompt,
       stableInterruptCurrentTurn,
       stableLoadOlderConversationMessages,
+      stableMarkConversationUnread,
       stableRemoveProject,
       stableRemoveQueuedPrompt,
       stableRequestDeleteConversation,
