@@ -198,6 +198,33 @@ describe("AgentQueuedPromptPanel", () => {
     expect(screen.queryByText(/mention:\/\/workspace-app/)).toBeNull();
   });
 
+  it("renders queued local file links with spaced paths as file tokens", () => {
+    const { container } = render(
+      <AgentQueuedPromptPanel
+        queuedPrompts={[
+          textQueuedPrompt(
+            "queued-1",
+            "[@user](/Users/Sun/Documents/tutti/emoji 你好/user/) [@auth_api.py](/Users/Sun/Documents/tutti/emoji 你好/auth_api.py)"
+          )
+        ]}
+        drainingQueuedPromptId={null}
+        labels={labels}
+        onSendQueuedPromptNext={vi.fn()}
+        onRemoveQueuedPrompt={vi.fn()}
+        onEditQueuedPrompt={vi.fn()}
+      />
+    );
+
+    const mentions = container.querySelectorAll(
+      '[data-agent-file-mention="true"]'
+    );
+    expect(mentions).toHaveLength(2);
+    expect(mentions[0]).toHaveClass("tsh-agent-object-token--file");
+    expect(mentions[0]).toHaveTextContent("user");
+    expect(mentions[1]).toHaveTextContent("auth_api.py");
+    expect(screen.queryByText(/\]\(\/Users\/Sun\/Documents/)).toBeNull();
+  });
+
   it("renders queued image prompt previews and routes edit", async () => {
     const onEditQueuedPrompt = vi.fn();
     const { container } = render(

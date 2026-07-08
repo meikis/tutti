@@ -148,6 +148,17 @@ Workspace Launchpad is a broad launcher surface, not a mirror of the dock
 entry list; it should show one generic Agent tile that resolves to the default
 or first ready provider instead of duplicating provider-specific Agent dock
 entries.
+Agent launches from Launchpad/All must still use the unified Agent dock entry
+identity (`agent-gui:unified`) so the resulting AgentGUI node appears under the
+same Dock icon as direct Dock launches.
+Empty launches from the unified Agent dock entry should set dock-entry reuse so
+the second dock click restores/focuses the existing AgentGUI node; draft
+prefill launches and explicit session launches keep their narrower reuse rules
+so generated drafts and session navigation do not overwrite an unrelated
+window.
+The Dock popup's New window card is a distinct launch source and must bypass
+dock-entry reuse for AgentGUI, otherwise it collapses into the normal
+restore/focus behavior instead of opening a fresh Agent window.
 Unified dock and launchpad chrome should keep the generic Agent title and
 generic Agent artwork instead of provider-branded entries. Agent window headers
 show the generic Agent title while the conversation rail is expanded. When the

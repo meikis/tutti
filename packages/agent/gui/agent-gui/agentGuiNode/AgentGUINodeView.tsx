@@ -169,6 +169,7 @@ import {
 } from "../../agentActivityRuntime";
 import {
   ConversationMeta,
+  filterConversationSectionsBySearchMatches,
   groupConversations,
   normalizeConversationProjectPath,
   type ConversationSection
@@ -6913,19 +6914,10 @@ const AgentGUIConversationRailPane = memo(
           ? runtimeRailSections
             ? !query
               ? runtimeRailSections
-              : runtimeRailSections
-                  .map((section) => ({
-                    ...section,
-                    items: section.items.filter((item) =>
-                      filteredConversations.some(
-                        (conversation) => conversation.id === item.id
-                      )
-                    )
-                  }))
-                  .filter(
-                    (section) =>
-                      section.kind !== "pinned" || section.items.length > 0
-                  )
+              : filterConversationSectionsBySearchMatches(
+                  runtimeRailSections,
+                  filteredConversations
+                )
             : []
           : groupConversations(filteredConversations, labels, userProjects, {
               includeEmptyConversations: !query
