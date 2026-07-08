@@ -112,7 +112,6 @@ const CURSOR_FALLBACK_COMMANDS: readonly AgentSessionCommand[] = [
 ];
 const OPENCODE_FALLBACK_COMMANDS: readonly AgentSessionCommand[] = [
   { name: "compact" },
-  { name: "goal" },
   { name: REVIEW_COMMAND }
 ];
 const CLAUDE_CODE_SLASH_PALETTE_COMMANDS = new Set([
