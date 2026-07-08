@@ -40,6 +40,15 @@ func TestStandardACPCapabilitiesByProvider(t *testing.T) {
 		}
 	}
 
+	opencode := standardACPCapabilities(ProviderOpenCode, true, acpLiveStateSnapshot{})
+	for _, want := range []string{
+		CapabilityImageInput, CapabilityPlanMode, CapabilityInterrupt,
+	} {
+		if !containsString(opencode, want) {
+			t.Fatalf("opencode capabilities = %v, missing %q", opencode, want)
+		}
+	}
+
 	// 其他 ACP provider：保守派生——interrupt 恆有；imageInput 跟隨 promptImage；
 	// compact 僅在 availableCommands 出現 compact 時亮起；無 skills/planMode。
 	gemini := standardACPCapabilities(ProviderGemini, false, acpLiveStateSnapshot{})

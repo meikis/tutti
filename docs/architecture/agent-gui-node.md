@@ -1032,6 +1032,10 @@ User-visible rules:
 - Model, permission, plan mode, reasoning, speed, project, branch, prompt image,
   file mention, and skill/capability controls must read from composer settings
   and provider options. They should not be reconstructed from transcript rows.
+- Shift+Tab plan mode is a provider capability, not a frontend allowlist. The
+  daemon's pre-session composer options and the live runtime
+  `runtimeContext.capabilities` must both advertise `planMode` before AgentGUI
+  enables the toggle for a provider.
 - Browser/computer capability controls come from daemon composer options and
   live runtime capabilities. `computerUse` must not be advertised or injected
   unless the daemon can reach the local `cua-driver` and its read-only
