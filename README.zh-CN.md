@@ -29,8 +29,6 @@
 
 ## 快速开始
 
-### 下载
-
 [下载 Tutti · Local macOS 版](https://tutti.sh/desktop/download?platform=macos&arch=universal&format=dmg)
 
 Windows 版本即将推出。
