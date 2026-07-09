@@ -284,6 +284,11 @@ func reverseSessionMessages(messages []SessionMessage) {
 
 func waitReasonForSession(session Session) (WaitReason, bool) {
 	if session.TurnLifecycle != nil {
+		if strings.TrimSpace(session.TurnLifecycle.Phase) == "settled" {
+			if reason, ok := waitReasonForOutcome(session.TurnLifecycle.Outcome); ok {
+				return reason, true
+			}
+		}
 		if reason, ok := waitReasonForPhase(session.TurnLifecycle.Phase); ok {
 			return reason, true
 		}
@@ -298,6 +303,22 @@ func waitReasonForSession(session Session) (WaitReason, bool) {
 	case "failed":
 		return WaitReasonFailed, true
 	case "canceled":
+		return WaitReasonCanceled, true
+	default:
+		return "", false
+	}
+}
+
+func waitReasonForOutcome(outcome *string) (WaitReason, bool) {
+	if outcome == nil {
+		return "", false
+	}
+	switch strings.TrimSpace(*outcome) {
+	case "completed", "done", "success", "succeeded":
+		return WaitReasonCompleted, true
+	case "failed", "error":
+		return WaitReasonFailed, true
+	case "canceled", "cancelled", "interrupted":
 		return WaitReasonCanceled, true
 	default:
 		return "", false
