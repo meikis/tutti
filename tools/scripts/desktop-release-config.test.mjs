@@ -347,7 +347,10 @@ test("desktop release workflow refreshes the stable alias without taking Latest"
   assert.match(stableAliasStep, /--exclude-drafts/);
   assert.match(stableAliasStep, /--exclude-pre-releases/);
   assert.match(stableAliasStep, /\.tagName != "stable"/);
-  assert.match(stableAliasStep, /\^v\[0-9\]\+\\\\\.\[0-9\]\+\\\\\.\[0-9\]\+\$/);
+  assert.match(
+    stableAliasStep,
+    /select\(\.tagName != "stable" and \(\.tagName \| test\("\^v\[0-9\]\+\\\\\.\[0-9\]\+\\\\\.\[0-9\]\+\$"\)\)\)\]/
+  );
   assert.match(
     stableAliasStep,
     /apps\/desktop\/scripts\/build-stable-release-alias-body\.mjs/

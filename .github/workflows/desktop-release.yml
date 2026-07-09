@@ -629,7 +629,7 @@ jobs:
               --exclude-pre-releases \
               --limit 200 \
               --json tagName,isLatest,publishedAt \
-              --jq '[.[] | select(.tagName != "stable" and (.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | (map(select(.isLatest)) | first) // first | .tagName // ""')"
+              --jq '[.[] | select(.tagName != "stable" and (.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")))] | (map(select(.isLatest)) | first) // first | .tagName // ""')"
           fi
 
           if [[ -z "${stable_tag}" ]]; then
