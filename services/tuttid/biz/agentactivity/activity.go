@@ -32,10 +32,26 @@ type ListSessionSectionInput = agentstore.ListSessionSectionInput
 type SessionSectionPage = agentstore.SessionSectionPage
 
 type Session = agentstore.Session
+type SessionMetadata = agentstore.SessionMetadata
+type SessionBackgroundAgents = agentstore.SessionBackgroundAgents
+type SessionBackgroundAgentItem = agentstore.SessionBackgroundAgentItem
+type SessionGoal = agentstore.SessionGoal
+
+func JoinSessionRuntimeContext(metadata SessionMetadata, internal map[string]any) map[string]any {
+	return agentstore.JoinSessionRuntimeContext(metadata, internal)
+}
+
+func SplitSessionRuntimeContext(runtimeContext map[string]any) (SessionMetadata, map[string]any, error) {
+	return agentstore.SplitSessionRuntimeContext(runtimeContext)
+}
 
 type SessionStateReport = agentstore.SessionStateReport
 
 type StateReportResult = agentstore.StateReportResult
+
+type ActivityStateReport = agentstore.ActivityStateReport
+
+type ActivityStateReportResult = agentstore.ActivityStateReportResult
 
 type SessionMessageReport = agentstore.SessionMessageReport
 
@@ -59,6 +75,27 @@ type ListSessionInteractionsInput = agentstore.ListSessionInteractionsInput
 
 type StaleTurnSettlement = agentstore.StaleTurnSettlement
 
+type RuntimeOperation = agentstore.RuntimeOperation
+type RuntimeOperationPrepare = agentstore.RuntimeOperationPrepare
+type ListClaimableRuntimeOperationsInput = agentstore.ListClaimableRuntimeOperationsInput
+type ClaimRuntimeOperationLeaseInput = agentstore.ClaimRuntimeOperationLeaseInput
+type ReleaseOrFailRuntimeOperationInput = agentstore.ReleaseOrFailRuntimeOperationInput
+type CheckpointRuntimeOperationInput = agentstore.CheckpointRuntimeOperationInput
+type CompleteInteractiveRuntimeOperationInput = agentstore.CompleteInteractiveRuntimeOperationInput
+type CompleteCancelRuntimeOperationInput = agentstore.CompleteCancelRuntimeOperationInput
+type CompletePlanDecisionRuntimeOperationInput = agentstore.CompletePlanDecisionRuntimeOperationInput
+type RuntimeOperationEvent = agentstore.RuntimeOperationEvent
+type RuntimeOperationCompletion = agentstore.RuntimeOperationCompletion
+type SubmitClaim = agentstore.SubmitClaim
+type SubmitClaimPrepare = agentstore.SubmitClaimPrepare
+
+var (
+	ErrRuntimeOperationConflict     = agentstore.ErrRuntimeOperationConflict
+	ErrRuntimeOperationNotClaimable = agentstore.ErrRuntimeOperationNotClaimable
+	ErrRuntimeOperationLeaseLost    = agentstore.ErrRuntimeOperationLeaseLost
+	ErrRuntimeOperationSubjectState = agentstore.ErrRuntimeOperationSubjectState
+)
+
 const (
 	TurnPhaseSubmitted = agentstore.TurnPhaseSubmitted
 	TurnPhaseRunning   = agentstore.TurnPhaseRunning
@@ -78,4 +115,22 @@ const (
 	InteractionStatusPending    = agentstore.InteractionStatusPending
 	InteractionStatusAnswered   = agentstore.InteractionStatusAnswered
 	InteractionStatusSuperseded = agentstore.InteractionStatusSuperseded
+
+	RuntimeOperationKindInteractiveResponse    = agentstore.RuntimeOperationKindInteractiveResponse
+	RuntimeOperationKindCancelTurn             = agentstore.RuntimeOperationKindCancelTurn
+	RuntimeOperationKindPlanDecision           = agentstore.RuntimeOperationKindPlanDecision
+	RuntimeOperationStatusPrepared             = agentstore.RuntimeOperationStatusPrepared
+	RuntimeOperationStatusLeased               = agentstore.RuntimeOperationStatusLeased
+	RuntimeOperationStatusCompleted            = agentstore.RuntimeOperationStatusCompleted
+	RuntimeOperationStatusFailed               = agentstore.RuntimeOperationStatusFailed
+	RuntimeOperationResultAnswered             = agentstore.RuntimeOperationResultAnswered
+	RuntimeOperationResultSuperseded           = agentstore.RuntimeOperationResultSuperseded
+	RuntimeOperationResultCanceled             = agentstore.RuntimeOperationResultCanceled
+	RuntimeOperationResultAlreadySettled       = agentstore.RuntimeOperationResultAlreadySettled
+	RuntimeOperationResultApplied              = agentstore.RuntimeOperationResultApplied
+	RuntimeOperationResultFailed               = agentstore.RuntimeOperationResultFailed
+	RuntimeOperationEventInteractiveCompleted  = agentstore.RuntimeOperationEventInteractiveCompleted
+	RuntimeOperationEventTurnCanceled          = agentstore.RuntimeOperationEventTurnCanceled
+	RuntimeOperationEventPlanDecisionPending   = agentstore.RuntimeOperationEventPlanDecisionPending
+	RuntimeOperationEventPlanDecisionCompleted = agentstore.RuntimeOperationEventPlanDecisionCompleted
 )

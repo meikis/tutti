@@ -83,7 +83,7 @@ func (s *Service) availableComposerModelsForValidationProfile(
 	profile composerProfile,
 ) ([]string, bool, error) {
 	switch profile.ModelCatalog {
-	case "", providerregistry.ModelCatalogKindCodexCLI:
+	case "", providerregistry.ModelCatalogKindCodexCLI, providerregistry.ModelCatalogKindOpenCodeCLI, providerregistry.ModelCatalogKindTuttiCLI:
 	default:
 		return nil, false, fmt.Errorf(
 			"provider %q model catalog kind %q is unsupported: %w",

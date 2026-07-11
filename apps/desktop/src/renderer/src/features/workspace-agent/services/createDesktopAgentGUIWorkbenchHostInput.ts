@@ -47,7 +47,7 @@ export interface DesktopAgentGUIWorkbenchHostInput {
   agentActivityRuntime: AgentActivityRuntime;
   agentHostApi: AgentHostInputApi;
   contextMentionProviders: NonNullable<
-    AgentGUIProps["contextMentionProviders"]
+    AgentGUIProps["hostCapabilities"]["contextMentionProviders"]
   >;
   trackAgentProviderChatReady: (input: { provider: string }) => Promise<void>;
   trackWorkspaceFileReferences: (input: {
@@ -55,21 +55,23 @@ export interface DesktopAgentGUIWorkbenchHostInput {
     references: readonly WorkspaceFileReference[];
   }) => Promise<void>;
   workspaceFileReferenceAdapter: NonNullable<
-    AgentGUIProps["workspaceFileReferenceAdapter"]
+    AgentGUIProps["workspace"]["fileReferenceAdapter"]
   >;
   resolveDroppedFileReferences: NonNullable<
-    AgentGUIProps["resolveDroppedFileReferences"]
+    AgentGUIProps["workspace"]["resolveDroppedFileReferences"]
   >;
-  onRequestGitBranches: NonNullable<AgentGUIProps["onRequestGitBranches"]>;
+  onRequestGitBranches: NonNullable<
+    AgentGUIProps["workspace"]["onRequestGitBranches"]
+  >;
   referenceSourceAggregator: ReferenceSourceAggregator;
   resolveWorkspaceReferenceEntryIconUrl: NonNullable<
-    AgentGUIProps["resolveWorkspaceReferenceEntryIconUrl"]
+    AgentGUIProps["workspace"]["resolveReferenceEntryIconUrl"]
   >;
   resolveMentionReferenceTarget: NonNullable<
-    AgentGUIProps["resolveMentionReferenceTarget"]
+    AgentGUIProps["workspace"]["resolveMentionReferenceTarget"]
   >;
   resolveWorkspaceReferenceInitialTarget: NonNullable<
-    AgentGUIProps["resolveWorkspaceReferenceInitialTarget"]
+    AgentGUIProps["workspace"]["resolveReferenceInitialTarget"]
   >;
 }
 
@@ -119,25 +121,11 @@ export function createDesktopAgentGUIWorkbenchHostInput({
       workspaceUserProjectService,
       workspaceId
     });
-  const warmupOpenclawGateway = resolvedAgentHostApi.runtime
-    ?.warmupOpenclawGateway
-    ? (
-        input?: Parameters<
-          NonNullable<AgentActivityRuntime["warmupOpenclawGateway"]>
-        >[0]
-      ) =>
-        resolvedAgentHostApi.runtime?.warmupOpenclawGateway?.(
-          input
-        ) as ReturnType<
-          NonNullable<AgentActivityRuntime["warmupOpenclawGateway"]>
-        >
-    : undefined;
   const { agentActivityRuntime } = getDesktopAgentActivityRuntimeServices({
     hostFilesApi,
     reporterNow,
     reporterService,
     runtimeApi,
-    warmupOpenclawGateway,
     workspaceAgentActivityService,
     workspaceId,
     workspaceUserProjectService
@@ -198,7 +186,7 @@ export function createDesktopAgentGUIWorkbenchHostInput({
     ])
   );
   const resolveDroppedFileReferences: NonNullable<
-    AgentGUIProps["resolveDroppedFileReferences"]
+    AgentGUIProps["workspace"]["resolveDroppedFileReferences"]
   > = (files) => {
     const droppedPaths = platformApi.resolveDroppedPaths([...files]);
     return files.flatMap((file, index): WorkspaceFileReference[] => {
@@ -267,7 +255,7 @@ export function createDesktopAgentGUIWorkbenchHostInput({
 }
 
 const resolveWorkspaceReferenceInitialTarget: NonNullable<
-  AgentGUIProps["resolveWorkspaceReferenceInitialTarget"]
+  AgentGUIProps["workspace"]["resolveReferenceInitialTarget"]
 > = ({ activeConversation, composerSelectedProjectPath, userProjects }) => {
   const activeConversationProject = findUserProjectByIdentity(
     userProjects,

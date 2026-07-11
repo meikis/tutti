@@ -108,7 +108,7 @@ function settleReconcile(
     errorMessage:
       intent.outcome === "succeeded"
         ? null
-        : intent.errorMessage?.trim() || "Session reconcile failed.",
+        : intent.errorMessage?.trim() || null,
     inFlightCommandId: null
   };
   const next = replaceRecord(state, settled);

@@ -89,6 +89,9 @@ export interface WorkspaceAgentMessageCenterPanelProps {
     provider: string;
   }) => void;
   onOpenChat: (input: { agentSessionId: string; provider: string }) => void;
+  promptStatus?: (
+    item: WorkspaceAgentMessageCenterItem
+  ) => "idle" | "responding" | "unknown" | "failed";
   onSubmitPrompt: (input: {
     action?: string;
     agentSessionId: string;
@@ -112,6 +115,7 @@ export const WorkspaceAgentMessageCenterPanel = memo(
     onLinkAction,
     onNotificationActioned,
     onOpenChat,
+    promptStatus = () => "idle",
     onSubmitPrompt
   }: WorkspaceAgentMessageCenterPanelProps): JSX.Element | null {
     "use memo";
@@ -130,6 +134,7 @@ export const WorkspaceAgentMessageCenterPanel = memo(
           onLinkAction={onLinkAction}
           onNotificationActioned={onNotificationActioned}
           onOpenChat={onOpenChat}
+          promptStatus={promptStatus}
           onSubmitPrompt={onSubmitPrompt}
         />
       </AgentGuiI18nProvider>
@@ -147,6 +152,7 @@ function WorkspaceAgentMessageCenterPanelContent({
   onLinkAction,
   onNotificationActioned,
   onOpenChat,
+  promptStatus = () => "idle",
   onSubmitPrompt
 }: Omit<
   WorkspaceAgentMessageCenterPanelProps,
@@ -174,9 +180,6 @@ function WorkspaceAgentMessageCenterPanelContent({
   }, [groupBy, statusFilters, providerFilters]);
   const [expandedStackIds, setExpandedStackIds] = useState<Set<string>>(
     () => new Set()
-  );
-  const [submittingPromptKey, setSubmittingPromptKey] = useState<string | null>(
-    null
   );
   const itemNodesRef = useRef<Map<string, HTMLElement>>(new Map());
   const lastScrolledHighlightedItemIdRef = useRef<string | null>(null);
@@ -289,29 +292,21 @@ function WorkspaceAgentMessageCenterPanelContent({
         requestId: string;
       }
     ) => {
-      const promptKey = `${item.agentSessionId}:${input.requestId}`;
-      setSubmittingPromptKey(promptKey);
-      try {
-        const notificationAction = resolveMessageCenterNotificationAction(
-          item,
-          input
-        );
-        if (notificationAction) {
-          onNotificationActioned?.({
-            action: notificationAction,
-            provider: item.provider
-          });
-        }
-        await onSubmitPrompt({
-          ...input,
-          agentSessionId: item.agentSessionId,
-          promptKind: item.pendingPrompt?.kind
+      const notificationAction = resolveMessageCenterNotificationAction(
+        item,
+        input
+      );
+      if (notificationAction) {
+        onNotificationActioned?.({
+          action: notificationAction,
+          provider: item.provider
         });
-      } finally {
-        setSubmittingPromptKey((current) =>
-          current === promptKey ? null : current
-        );
       }
+      await onSubmitPrompt({
+        ...input,
+        agentSessionId: item.agentSessionId,
+        promptKind: item.pendingPrompt?.kind
+      });
     },
     [onNotificationActioned, onSubmitPrompt]
   );
@@ -480,8 +475,8 @@ function WorkspaceAgentMessageCenterPanelContent({
           highlighted={highlighted}
           item={item}
           isSubmitting={
-            submittingPromptKey ===
-            `${item.agentSessionId}:${item.pendingPrompt?.requestId}`
+            promptStatus(item) === "responding" ||
+            promptStatus(item) === "unknown"
           }
           lazySummary={
             stackedIndex !== undefined &&
@@ -514,9 +509,9 @@ function WorkspaceAgentMessageCenterPanelContent({
       highlightedItemId,
       onLinkAction,
       onOpenChat,
+      promptStatus,
       setItemNode,
-      submitPrompt,
-      submittingPromptKey
+      submitPrompt
     ]
   );
 
@@ -579,7 +574,10 @@ function WorkspaceAgentMessageCenterPanelContent({
                   <WorkspaceAgentMessageCenterAttentionDeck
                     items={deckItems}
                     highlightedItemId={highlightedItemId}
-                    submittingPromptKey={submittingPromptKey}
+                    isPromptSubmitting={(item) =>
+                      promptStatus(item) === "responding" ||
+                      promptStatus(item) === "unknown"
+                    }
                     registerNode={setItemNode}
                     onLinkAction={onLinkAction}
                     onOpenChat={onOpenChat}

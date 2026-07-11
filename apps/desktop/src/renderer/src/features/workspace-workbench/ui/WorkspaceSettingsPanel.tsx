@@ -74,7 +74,6 @@ import {
   type DesktopLocale
 } from "../../../../../shared/i18n/index.ts";
 import {
-  type DesktopAgentProvider,
   type DesktopDefaultAgentProvider,
   desktopAgentConversationDetailModes,
   desktopAppCatalogChannels,
@@ -115,6 +114,10 @@ import {
 import { useWorkspaceSettingsService } from "./useWorkspaceSettingsService";
 import { useWorkspaceWorkbenchHostService } from "./useWorkspaceWorkbenchHostService";
 import { useAccountService } from "./useAccountService";
+import {
+  normalizeWorkspaceSettingsDefaultAgentProvider,
+  workspaceSettingsDefaultAgentProviders
+} from "./workspaceSettingsDefaultAgentProviders";
 import {
   WorkspaceSettingsActionButton,
   workspaceSettingsControlColumnClass
@@ -158,17 +161,6 @@ const cuaDriverToggleDemoUrl = new URL(
   "../../../assets/cua-driver-toggle-demo.gif",
   import.meta.url
 ).href;
-const workspaceSettingsDefaultAgentProviders = [
-  "codex",
-  "claude-code"
-] as const satisfies readonly DesktopDefaultAgentProvider[];
-
-function isWorkspaceSettingsDefaultAgentProvider(
-  provider: DesktopAgentProvider
-): provider is DesktopDefaultAgentProvider {
-  return provider === "codex" || provider === "claude-code";
-}
-
 export function WorkspaceSettingsPanel({
   onOpenExternalAgentImport,
   onSelectWallpaper,
@@ -3657,11 +3649,10 @@ function WorkspaceAgentSettingsSection({
   const isUpdatingDefaultAgentProvider = changingDefaultAgentProvider !== null;
   const rawPendingDefaultAgentProvider =
     changingDefaultAgentProvider ?? defaultAgentProvider;
-  const pendingDefaultAgentProvider = isWorkspaceSettingsDefaultAgentProvider(
-    rawPendingDefaultAgentProvider
-  )
-    ? rawPendingDefaultAgentProvider
-    : "codex";
+  const pendingDefaultAgentProvider =
+    normalizeWorkspaceSettingsDefaultAgentProvider(
+      rawPendingDefaultAgentProvider
+    );
   const isUpdatingBrowserUseConnectionMode =
     changingBrowserUseConnectionMode !== null;
   const pendingBrowserUseConnectionMode =

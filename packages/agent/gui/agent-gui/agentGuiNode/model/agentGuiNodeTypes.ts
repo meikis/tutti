@@ -1,4 +1,7 @@
-import type { AgentActivityUsage } from "@tutti-os/agent-activity-core";
+import type {
+  AgentActivityUsage,
+  CanonicalAgentSession
+} from "@tutti-os/agent-activity-core";
 import type {
   AgentGUINodeData,
   AgentGUIProvider,
@@ -18,8 +21,7 @@ import type {
   AgentSessionComposerSettings,
   AgentSessionPermissionConfig,
   AgentSessionReasoningEffort,
-  AgentSessionSpeed,
-  AgentSessionState
+  AgentSessionSpeed
 } from "../../../shared/agentSessionTypes";
 import type { AgentSlashCommandPolicy } from "./agentSlashCommandProviderPolicy";
 import type { AgentConversationVM } from "../../../shared/agentConversation/contracts/agentConversationVM";
@@ -37,12 +39,7 @@ export interface AgentGUISessionChrome {
     canRetry?: boolean;
     followupAction?: "continue-in-new-conversation";
   } | null;
-  rawState: AgentSessionState | null;
-}
-
-export interface OpenclawGatewayViewState {
-  status: "starting" | "ready" | "failed";
-  error: string | null;
+  rawState: CanonicalAgentSession | null;
 }
 
 export interface AgentGUIInlineNotice {
@@ -242,7 +239,7 @@ export interface AgentGUIComposerSettingsVM {
   // Collapse the model list to the latest version per model family (providers
   // whose live lists span many vendors and versions, e.g. Cursor). The
   // currently selected model always stays visible even if older.
-  modelListCollapsedToLatest?: boolean;
+  collapseModelOptionsToLatest?: boolean;
   availableModels: AgentGUIComposerSettingOption[];
   availableReasoningEfforts: AgentGUIComposerSettingOption[];
   availableSpeeds: AgentGUIComposerSettingOption[];
@@ -257,14 +254,16 @@ export interface AgentGUIQueuedPromptVM {
   createdAtUnixMs: number;
 }
 
-export interface AgentGUINodeViewModel {
+export interface AgentGUIShellViewModel {
   workspaceId: string;
   workspacePath?: string | null;
   currentUserId?: string | null;
   data: AgentGUINodeData;
+}
+
+export interface AgentGUIRailViewModel {
   selectedProviderTarget: AgentGUIProviderTarget;
   providerTargets: readonly AgentGUIProviderTarget[];
-  handoffProviderTargets: readonly AgentGUIProviderTarget[];
   providerTargetsLoading: boolean;
   /** How the rail composes its list — "exact" renders targets verbatim with no static injection. */
   providerRailMode: AgentGUIProviderRailMode;
@@ -275,47 +274,71 @@ export interface AgentGUINodeViewModel {
   userProjects: AgentGUIConversationUserProject[];
   activeConversation: AgentGUIConversationSummary | null;
   activeConversationId: string | null;
+  isLoadingConversations: boolean;
+  listError: string | null;
+}
+
+export interface AgentGUIDetailViewModel {
+  isLoadingMessages: boolean;
+  isLoadingOlderMessages: boolean;
+  hasOlderMessages: boolean;
+  usage: AgentActivityUsage | null;
+  backgroundAgentCount: number;
+  hasSentUserMessage: boolean;
+  avoidGroupingEdits: boolean;
+  conversation?: AgentConversationVM | null;
+  conversationDetail: WorkspaceAgentSessionDetailViewModel | null;
+}
+
+export interface AgentGUIComposerViewModel {
+  handoffProviderTargets: readonly AgentGUIProviderTarget[];
   availableCommands: AgentSessionCommand[];
   availableSkills: AgentGUIProviderSkillOption[];
   draftPrompt: string;
   draftContent: AgentComposerDraft;
-  isLoadingConversations: boolean;
-  isLoadingMessages: boolean;
-  isLoadingOlderMessages: boolean;
-  hasOlderMessages: boolean;
   isCreatingConversation: boolean;
   isSubmitting: boolean;
   isInterrupting: boolean;
   isCancelPending: boolean;
-  isRespondingApproval: boolean;
   promptImagesSupported: boolean;
   compactSupported: boolean | null;
   /** Provider goal exposes a real paused state and pause/resume controls. */
   goalPauseSupported: boolean;
-  usage: AgentActivityUsage | null;
-  backgroundAgentCount: number;
-  /** Error returned while loading conversation or project lists. */
-  listError: string | null;
-  isDeletingConversation: boolean;
-  isDeletingProjectConversations: boolean;
-  pendingDeleteConversation: AgentGUIConversationSummary | null;
-  pendingDeleteProjectConversations: AgentGUIProjectConversationDeleteTarget | null;
-  pendingApproval: AgentGUIApprovalRequest | null;
-  pendingInteractivePrompt: AgentGUIInteractivePrompt | null;
-  activeLiveState: "inactive" | "activating" | "active" | "failed";
-  activationError: string | null;
-  openclawGateway: OpenclawGatewayViewState | null;
-  activeConversationBusy: boolean;
   canSubmit: boolean;
   composerSettings: AgentGUIComposerSettingsVM;
   queuedPrompts: AgentGUIQueuedPromptVM[];
   drainingQueuedPromptId: string | null;
   canQueueWhileBusy: boolean;
-  hasSentUserMessage: boolean;
-  avoidGroupingEdits: boolean;
-  conversation?: AgentConversationVM | null;
-  conversationDetail: WorkspaceAgentSessionDetailViewModel | null;
+}
+
+export interface AgentGUIInteractionViewModel {
+  isRespondingApproval: boolean;
+  pendingApproval: AgentGUIApprovalRequest | null;
+  pendingInteractivePrompt: AgentGUIInteractivePrompt | null;
   sessionChrome: AgentGUISessionChrome;
   inlineNotice: AgentGUIInlineNotice | null;
+}
+
+export interface AgentGUIReadinessViewModel {
+  activeLiveState: "inactive" | "activating" | "active" | "failed";
+  activationError: string | null;
+  activeConversationBusy: boolean;
   providerReadinessGate: AgentGUIProviderReadinessGate | null;
+}
+
+export interface AgentGUIOperationsViewModel {
+  isDeletingConversation: boolean;
+  isDeletingProjectConversations: boolean;
+  pendingDeleteConversation: AgentGUIConversationSummary | null;
+  pendingDeleteProjectConversations: AgentGUIProjectConversationDeleteTarget | null;
+}
+
+export interface AgentGUINodeViewModel {
+  shell: AgentGUIShellViewModel;
+  rail: AgentGUIRailViewModel;
+  detail: AgentGUIDetailViewModel;
+  composer: AgentGUIComposerViewModel;
+  interaction: AgentGUIInteractionViewModel;
+  readiness: AgentGUIReadinessViewModel;
+  operations: AgentGUIOperationsViewModel;
 }

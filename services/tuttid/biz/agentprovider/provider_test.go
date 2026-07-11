@@ -10,13 +10,21 @@ func TestAllReturnsUniqueProviders(t *testing.T) {
 		}
 		seen[provider] = struct{}{}
 	}
-	if _, ok := seen[Codex]; !ok {
-		t.Fatalf("All() does not contain migrated provider %q", Codex)
+	for _, provider := range []string{Codex, OpenCode} {
+		if _, ok := seen[provider]; !ok {
+			t.Fatalf("All() does not contain migrated provider %q", provider)
+		}
 	}
 }
 
 func TestNormalizeUsesMigratedProviderIdentity(t *testing.T) {
-	if got := Normalize(" CODEX "); got != Codex {
-		t.Fatalf("Normalize(CODEX) = %q, want %q", got, Codex)
+	tests := map[string]string{
+		" CODEX ":       Codex,
+		" opencode-ai ": OpenCode,
+	}
+	for input, want := range tests {
+		if got := Normalize(input); got != want {
+			t.Fatalf("Normalize(%q) = %q, want %q", input, got, want)
+		}
 	}
 }

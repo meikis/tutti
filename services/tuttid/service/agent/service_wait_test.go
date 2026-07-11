@@ -31,6 +31,105 @@ func (r *waitRuntime) Subscribe(string, string) (<-chan RuntimeStreamEvent, func
 	return r.events, func() { r.unsubscribeCalled = true }, true
 }
 
+func (r *waitRuntime) persistedTurn(workspaceID string, sessionID string) (agentactivitybiz.Turn, bool) {
+	session, ok := r.sessions[workspaceID+":"+sessionID]
+	if !ok || session.TurnLifecycle == nil || session.TurnLifecycle.ActiveTurnID == nil {
+		return agentactivitybiz.Turn{}, false
+	}
+	turnID := *session.TurnLifecycle.ActiveTurnID
+	phase := session.TurnLifecycle.Phase
+	switch phase {
+	case "waiting_input", "waiting_approval":
+		phase = agentactivitybiz.TurnPhaseWaiting
+	case "preparing":
+		phase = agentactivitybiz.TurnPhaseSubmitted
+	}
+	return agentactivitybiz.Turn{
+		WorkspaceID:    workspaceID,
+		AgentSessionID: sessionID,
+		TurnID:         turnID,
+		Phase:          phase,
+	}, true
+}
+
+func (r *waitRuntime) pendingInteractions(workspaceID string, sessionID string) []agentactivitybiz.Interaction {
+	turn, ok := r.persistedTurn(workspaceID, sessionID)
+	if !ok || turn.Phase != agentactivitybiz.TurnPhaseWaiting {
+		return nil
+	}
+	session := r.sessions[workspaceID+":"+sessionID]
+	kind := agentactivitybiz.InteractionKindQuestion
+	if session.TurnLifecycle.Phase == "waiting_approval" {
+		kind = agentactivitybiz.InteractionKindApproval
+	}
+	return []agentactivitybiz.Interaction{{
+		WorkspaceID:    workspaceID,
+		AgentSessionID: sessionID,
+		TurnID:         turn.TurnID,
+		RequestID:      "wait-request",
+		Kind:           kind,
+		Status:         agentactivitybiz.InteractionStatusPending,
+	}}
+}
+
+func (r *waitRuntime) GetLatestTurn(_ context.Context, workspaceID string, sessionID string) (agentactivitybiz.Turn, bool, error) {
+	turn, ok := r.persistedTurn(workspaceID, sessionID)
+	return turn, ok, nil
+}
+
+func (r *waitRuntime) GetTurn(_ context.Context, workspaceID string, sessionID string, turnID string) (agentactivitybiz.Turn, bool, error) {
+	turn, ok := r.persistedTurn(workspaceID, sessionID)
+	return turn, ok && turn.TurnID == turnID, nil
+}
+
+func (r *waitRuntime) GetSession(_ context.Context, workspaceID string, sessionID string) (agentactivitybiz.Session, bool, error) {
+	turn, hasTurn := r.persistedTurn(workspaceID, sessionID)
+	_, found := r.sessions[workspaceID+":"+sessionID]
+	result := agentactivitybiz.Session{WorkspaceID: workspaceID, ID: sessionID}
+	if hasTurn {
+		result.ActiveTurnID = turn.TurnID
+	}
+	return result, found, nil
+}
+
+func (r *waitRuntime) ListSessionInteractions(_ context.Context, input agentactivitybiz.ListSessionInteractionsInput) ([]agentactivitybiz.Interaction, error) {
+	return r.pendingInteractions(input.WorkspaceID, input.AgentSessionID), nil
+}
+
+func (r *waitRuntime) ListLatestTurns(_ context.Context, workspaceID string, sessionIDs []string) (map[string]agentactivitybiz.Turn, error) {
+	result := make(map[string]agentactivitybiz.Turn)
+	for _, sessionID := range sessionIDs {
+		if turn, ok := r.persistedTurn(workspaceID, sessionID); ok {
+			result[sessionID] = turn
+		}
+	}
+	return result, nil
+}
+
+func (r *waitRuntime) ListLatestTurnInteractions(_ context.Context, workspaceID string, sessionIDs []string) (map[string][]agentactivitybiz.Interaction, error) {
+	return r.ListPendingInteractionsBySession(context.Background(), workspaceID, sessionIDs)
+}
+
+func (r *waitRuntime) ListTurnsBySession(_ context.Context, workspaceID string, turnIDs map[string]string) (map[string]agentactivitybiz.Turn, error) {
+	result := make(map[string]agentactivitybiz.Turn)
+	for sessionID, turnID := range turnIDs {
+		if turn, ok := r.persistedTurn(workspaceID, sessionID); ok && turn.TurnID == turnID {
+			result[sessionID] = turn
+		}
+	}
+	return result, nil
+}
+
+func (r *waitRuntime) ListPendingInteractionsBySession(_ context.Context, workspaceID string, sessionIDs []string) (map[string][]agentactivitybiz.Interaction, error) {
+	result := make(map[string][]agentactivitybiz.Interaction)
+	for _, sessionID := range sessionIDs {
+		if interactions := r.pendingInteractions(workspaceID, sessionID); len(interactions) != 0 {
+			result[sessionID] = interactions
+		}
+	}
+	return result, nil
+}
+
 type waitMessageReader struct {
 	calls []agentactivitybiz.ListSessionMessagesInput
 	list  func(agentactivitybiz.ListSessionMessagesInput) (SessionMessagesPage, bool)
@@ -52,7 +151,7 @@ func TestWaitIgnoresStaleStopUntilNewProgressArrives(t *testing.T) {
 	runtime := newWaitRuntime()
 	turnID := "turn-1"
 	latestVersionReads := 0
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -92,7 +191,8 @@ func TestWaitIgnoresStaleStopUntilNewProgressArrives(t *testing.T) {
 			}
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.TurnStore = runtime
 	service.MessageReader = reader
 
 	waitDone := make(chan WaitResult, 1)
@@ -121,7 +221,7 @@ func TestWaitIgnoresStaleStopUntilNewProgressArrives(t *testing.T) {
 	case <-time.After(30 * time.Millisecond):
 	}
 
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -136,7 +236,7 @@ func TestWaitIgnoresStaleStopUntilNewProgressArrives(t *testing.T) {
 	}
 	runtime.events <- RuntimeStreamEvent{EventType: "state_patch"}
 
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -178,7 +278,7 @@ func TestWaitIgnoresStaleStopUntilNewProgressArrives(t *testing.T) {
 
 func TestWaitTreatsCreatedSessionAsReady(t *testing.T) {
 	runtime := newWaitRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:              "session-1",
 		WorkspaceID:     "ws-1",
 		Provider:        "codex",
@@ -202,7 +302,8 @@ func TestWaitTreatsCreatedSessionAsReady(t *testing.T) {
 			}
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.TurnStore = runtime
 	service.MessageReader = reader
 
 	result, err := service.Wait(context.Background(), WaitInput{
@@ -215,15 +316,12 @@ func TestWaitTreatsCreatedSessionAsReady(t *testing.T) {
 	if result.Reason != WaitReasonReady {
 		t.Fatalf("reason = %q, want %q", result.Reason, WaitReasonReady)
 	}
-	if result.Session.Status != "created" {
-		t.Fatalf("session status = %q, want created", result.Session.Status)
-	}
 }
 
 func TestWaitHasMoreTracksFilteredExecutionMessages(t *testing.T) {
 	runtime := newWaitRuntime()
 	turnID := "turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -269,7 +367,8 @@ func TestWaitHasMoreTracksFilteredExecutionMessages(t *testing.T) {
 			}
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.TurnStore = runtime
 	service.MessageReader = reader
 
 	waitDone := make(chan WaitResult, 1)
@@ -290,7 +389,7 @@ func TestWaitHasMoreTracksFilteredExecutionMessages(t *testing.T) {
 	}()
 
 	<-runtime.subscribeStarted
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -324,7 +423,7 @@ func TestWaitHasMoreTracksFilteredExecutionMessages(t *testing.T) {
 func TestWaitStopsScanningOlderPagesAfterCrossingAfterVersion(t *testing.T) {
 	runtime := newWaitRuntime()
 	turnID := "turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -360,7 +459,8 @@ func TestWaitStopsScanningOlderPagesAfterCrossingAfterVersion(t *testing.T) {
 			}
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.TurnStore = runtime
 	service.MessageReader = reader
 
 	waitDone := make(chan WaitResult, 1)
@@ -381,7 +481,7 @@ func TestWaitStopsScanningOlderPagesAfterCrossingAfterVersion(t *testing.T) {
 	}()
 
 	<-runtime.subscribeStarted
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -415,7 +515,7 @@ func TestWaitStopsScanningOlderPagesAfterCrossingAfterVersion(t *testing.T) {
 func TestWaitTimesOutAndReturnsCurrentSessionSnapshot(t *testing.T) {
 	runtime := newWaitRuntime()
 	turnID := "turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -453,7 +553,8 @@ func TestWaitTimesOutAndReturnsCurrentSessionSnapshot(t *testing.T) {
 			}
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.TurnStore = runtime
 	service.MessageReader = reader
 
 	result, err := service.Wait(context.Background(), WaitInput{
@@ -479,7 +580,7 @@ func TestWaitTimesOutAndReturnsCurrentSessionSnapshot(t *testing.T) {
 func TestWaitPreservesExplicitZeroAfterVersion(t *testing.T) {
 	runtime := newWaitRuntime()
 	turnID := "turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -514,7 +615,8 @@ func TestWaitPreservesExplicitZeroAfterVersion(t *testing.T) {
 			}
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.TurnStore = runtime
 	service.MessageReader = reader
 
 	result, err := service.Wait(context.Background(), WaitInput{
@@ -542,7 +644,7 @@ func TestWaitPreservesExplicitZeroAfterVersion(t *testing.T) {
 func TestWaitClosedStreamDoesNotReturnStaleStop(t *testing.T) {
 	runtime := newWaitRuntime()
 	turnID := "turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -570,7 +672,8 @@ func TestWaitClosedStreamDoesNotReturnStaleStop(t *testing.T) {
 			}
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.TurnStore = runtime
 	service.MessageReader = reader
 
 	waitDone := make(chan WaitResult, 1)

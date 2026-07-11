@@ -21,7 +21,6 @@ func generatedAgentSessionMessages(messages []agentservice.SessionMessage) ([]tu
 			AgentSessionId:    strings.TrimSpace(message.AgentSessionID),
 			CompletedAtUnixMs: int64Pointer(message.CompletedAtUnixMS),
 			CreatedAtUnixMs:   int64Pointer(message.CreatedAtUnixMS),
-			Id:                int64(message.ID),
 			Kind:              strings.TrimSpace(message.Kind),
 			MessageId:         strings.TrimSpace(message.MessageID),
 			OccurredAtUnixMs:  normalizedGeneratedMessageOccurredAtUnixMS(message),
@@ -73,7 +72,6 @@ func normalizedGeneratedMessageOccurredAtUnixMS(message agentservice.SessionMess
 		message.CreatedAtUnixMS,
 		message.UpdatedAtUnixMS,
 		int64(message.Version),
-		int64(message.ID),
 		1,
 	)
 }

@@ -158,9 +158,15 @@ func TestProviderAuthWatchEntryUsesDescriptorMetadata(t *testing.T) {
 	root := t.TempDir()
 	descriptor.Identity.ID = "poison-provider"
 	descriptor.Status.AuthWatch = providerregistry.AuthWatchDescriptor{
-		RootEnvVar:  "POISON_PROVIDER_HOME",
-		DefaultRoot: "~/unused",
-		Paths:       []string{"credential.json", "settings.toml"},
+		Sources: []providerregistry.AuthWatchSourceDescriptor{
+			{
+				RootCandidates: []providerregistry.AuthWatchRootCandidateDescriptor{
+					{EnvVar: "POISON_PROVIDER_HOME"},
+				},
+				DefaultRoot: "~/unused",
+				Paths:       []string{"credential.json", "settings.toml"},
+			},
+		},
 	}
 	t.Setenv("POISON_PROVIDER_HOME", root)
 	entry, ok := providerAuthWatchEntryFromDescriptor(descriptor, "/unused-home")

@@ -1322,8 +1322,8 @@ func ptrReportActivityReply(reply agentsessionstore.ReportActivityReply) *agents
 	return &reply
 }
 
-func TestExplicitTurnLifecycleProjectionUsesDescriptorAndLegacyFallback(t *testing.T) {
-	for _, provider := range []string{" CODEX ", ProviderClaudeCode, ProviderTuttiAgent} {
+func TestExplicitTurnLifecycleProjectionUsesDescriptorCatalog(t *testing.T) {
+	for _, provider := range []string{" CODEX ", ProviderClaudeCode, ProviderOpenCode, ProviderTuttiAgent} {
 		if !providerUsesExplicitTurnLifecyclePatch(provider) {
 			t.Fatalf("provider %q did not enable explicit turn lifecycle projection", provider)
 		}

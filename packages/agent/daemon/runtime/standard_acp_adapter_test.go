@@ -15,6 +15,7 @@ import (
 
 	agentsessionstore "github.com/tutti-os/tutti/packages/agent/daemon/activity"
 	activityshared "github.com/tutti-os/tutti/packages/agent/daemon/activity/events"
+	"github.com/tutti-os/tutti/packages/agent/daemon/providerregistry"
 )
 
 func TestStandardACPAdapterProviderLaunchPrepareMutatesSpecAndCleansUpOnClose(t *testing.T) {
@@ -494,13 +495,17 @@ func TestCursorACPModeID(t *testing.T) {
 
 func TestCursorPlanModeFromACPModeID(t *testing.T) {
 	t.Parallel()
+	descriptor, ok := providerregistry.Find(ProviderCursor)
+	if !ok {
+		t.Fatal("cursor descriptor missing")
+	}
 
 	for modeID, wantPlanMode := range map[string]bool{
 		"plan":  true,
 		"agent": false,
 		"ask":   false,
 	} {
-		got, ok := cursorPlanModeFromACPModeID(modeID)
+		got, ok := projectCurrentPlanModeFromACPModeID(descriptor.Runtime.StandardACP, modeID)
 		if !ok {
 			t.Fatalf("cursorPlanModeFromACPModeID(%q) ok=false, want true", modeID)
 		}
@@ -508,7 +513,7 @@ func TestCursorPlanModeFromACPModeID(t *testing.T) {
 			t.Fatalf("cursorPlanModeFromACPModeID(%q) = %v, want %v", modeID, got, wantPlanMode)
 		}
 	}
-	if _, ok := cursorPlanModeFromACPModeID("auto"); ok {
+	if _, ok := projectCurrentPlanModeFromACPModeID(descriptor.Runtime.StandardACP, "auto"); ok {
 		t.Fatal("cursorPlanModeFromACPModeID(auto) ok=true, want false")
 	}
 }
@@ -722,19 +727,9 @@ func TestStandardACPProvidersResumeClassifyMissingProviderSession(t *testing.T) 
 			},
 		},
 		{
-			name:     "hermes",
-			provider: ProviderHermes,
-			build:    NewHermesAdapter,
-			session: func() Session {
-				session := standardTestSession(ProviderHermes)
-				session.ProviderSessionID = "persisted-hermes-session-id"
-				return session
-			},
-		},
-		{
 			name:     "opencode",
 			provider: ProviderOpenCode,
-			build:    NewOpenCodeAdapter,
+			build:    newOpenCodeTestAdapter,
 			session: func() Session {
 				session := standardTestSession(ProviderOpenCode)
 				session.ProviderSessionID = "persisted-opencode-session-id"
@@ -843,7 +838,7 @@ func TestOpenCodeAdapterAllowsImagePromptWithoutInitializeCapability(t *testing.
 	t.Parallel()
 
 	transport := newStandardACPTransport("OpenCode", "opencode-session-1")
-	adapter := NewOpenCodeAdapter(transport)
+	adapter := newOpenCodeTestAdapter(transport)
 	session := standardTestSession(ProviderOpenCode)
 	if _, err := adapter.Start(context.Background(), session); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1514,7 +1509,7 @@ func TestStandardACPIgnoresForeignProviderSessionUpdateDuringTurn(t *testing.T) 
 	t.Parallel()
 
 	transport := newStandardACPTransport("OpenCode", "opencode-session-current")
-	adapter := NewOpenCodeAdapter(transport)
+	adapter := newOpenCodeTestAdapter(transport)
 	session := standardTestSession(ProviderOpenCode)
 	if _, err := adapter.Start(context.Background(), session); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1603,7 +1598,7 @@ func TestStandardACPAcceptsMatchingProviderSessionUpdate(t *testing.T) {
 	t.Parallel()
 
 	transport := newStandardACPTransport("OpenCode", "opencode-session-current")
-	adapter := NewOpenCodeAdapter(transport)
+	adapter := newOpenCodeTestAdapter(transport)
 	session := standardTestSession(ProviderOpenCode)
 	if _, err := adapter.Start(context.Background(), session); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1785,7 +1780,7 @@ func TestControllerPublishesIdleStandardACPCommandUpdatesAfterStart(t *testing.T
 	t.Parallel()
 
 	transport := newStandardACPTransport("OpenCode", "opencode-session-idle-commands")
-	adapter := NewOpenCodeAdapter(transport)
+	adapter := newOpenCodeTestAdapter(transport)
 	controller := NewController([]Adapter{adapter}, nil)
 	session := standardTestSession(ProviderOpenCode)
 
@@ -1832,7 +1827,7 @@ func TestControllerPublishesIdleStandardACPGoalUpdatesAfterStart(t *testing.T) {
 	t.Parallel()
 
 	transport := newStandardACPTransport("OpenCode", "opencode-session-idle-goal")
-	adapter := NewOpenCodeAdapter(transport)
+	adapter := newOpenCodeTestAdapter(transport)
 	controller := NewController([]Adapter{adapter}, nil)
 	session := standardTestSession(ProviderOpenCode)
 
@@ -1963,7 +1958,7 @@ func TestControllerPublishesIdleStandardACPConfigOptionsUpdatesAfterStart(t *tes
 	t.Parallel()
 
 	transport := newStandardACPTransport("OpenCode", "opencode-session-idle-config-options")
-	adapter := NewOpenCodeAdapter(transport)
+	adapter := newOpenCodeTestAdapter(transport)
 	controller := NewController([]Adapter{adapter}, nil)
 	session := standardTestSession(ProviderOpenCode)
 

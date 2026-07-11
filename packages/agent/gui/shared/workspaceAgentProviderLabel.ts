@@ -10,22 +10,7 @@ export function workspaceAgentProviderLabel(provider: string): string {
   if (migratedIdentity) {
     return agentGUIProviderIdentityDisplayName(migratedIdentity, translate);
   }
-  switch (normalized) {
-    case "claude-code":
-      return "Claude Code";
-    case "openclaw":
-      return "OpenClaw";
-    case "opencode":
-      return "OpenCode";
-    case "hermes":
-      return "Hermes";
-    case "nexight":
-      return "Nexight";
-    case "unknown":
-      return "Unknown";
-    default:
-      return titleCase(provider);
-  }
+  return titleCase(provider);
 }
 
 function titleCase(value: string): string {

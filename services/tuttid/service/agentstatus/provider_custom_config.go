@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/tutti-os/tutti/packages/agent/daemon/providerregistry"
-	"github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
 )
 
 // A provider CLI can diverge from its default Console/OAuth login in two
@@ -84,17 +83,7 @@ func providerCustomConfigEnvVars(provider string) []string {
 	if status, ok := migratedProviderStatus(provider); ok {
 		return append([]string(nil), status.CustomConfigEnvVars...)
 	}
-	switch provider {
-	case agentprovider.OpenCode:
-		return []string{
-			"OPENCODE_CONFIG",
-			"OPENCODE_CONFIG_DIR",
-			"OPENCODE_CONFIG_CONTENT",
-			"OPENCODE_PERMISSION",
-		}
-	default:
-		return nil
-	}
+	return nil
 }
 
 // providerCredentialEnvVars lists env vars that signal a user-provided API

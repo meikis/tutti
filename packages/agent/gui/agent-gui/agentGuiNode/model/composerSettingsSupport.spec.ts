@@ -20,11 +20,17 @@ function optionsFixture(input: {
       defaultValue: null,
       modes: []
     },
-    runtimeContext: input.capabilities
-      ? { capabilities: input.capabilities }
-      : {},
+    capabilityCatalog: (input.capabilities ?? []).map((id) => ({
+      id,
+      invocation: "none",
+      kind: "plugin",
+      label: id,
+      name: id,
+      status: "available"
+    })),
     skills: [],
     behavior: {
+      collapseModelOptionsToLatest: false,
       modelOptionsAuthoritative: false,
       refreshModelOptionsAfterSettings: false,
       prewarmDraftSession: false,
@@ -151,7 +157,7 @@ describe("composerSettingsSupportFromOptions", () => {
         permission: true,
         capabilities: []
       }),
-      { capabilities: ["planMode"] }
+      { planMode: true }
     );
     expect(support.plan).toBe(true);
   });

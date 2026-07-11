@@ -143,8 +143,6 @@ const styles = {
   unavailableChatEmpty: "agent-gui-node__unavailable-chat-empty",
   unavailableChatEmptyIcon: "agent-gui-node__unavailable-chat-empty-icon",
   unavailableChatEmptyText: "agent-gui-node__unavailable-chat-empty-text",
-  gatewayRetryButton: "agent-gui-node__gateway-retry-button",
-  gatewayStatus: "agent-gui-node__gateway-status",
   layout: "agent-gui-node__layout",
   messageBubble: "agent-gui-node__message-bubble",
   newConversationIconButton: "agent-gui-node__new-conversation-icon-button",

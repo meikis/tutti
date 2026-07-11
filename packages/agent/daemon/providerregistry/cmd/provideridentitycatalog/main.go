@@ -17,6 +17,7 @@ type catalogEntry struct {
 	LocaleKey   string   `json:"localeKey"`
 	Aliases     []string `json:"aliases"`
 	Target      target   `json:"target"`
+	Desktop     desktop  `json:"desktop"`
 }
 
 type target struct {
@@ -24,6 +25,21 @@ type target struct {
 	LaunchRefType string `json:"launchRefType"`
 	Enabled       bool   `json:"enabled"`
 	SortOrder     int    `json:"sortOrder"`
+}
+
+type desktop struct {
+	Managed                    bool   `json:"managed"`
+	ManagedOrder               int    `json:"managedOrder"`
+	StatusProbePriority        int    `json:"statusProbePriority"`
+	UsageProbeKind             string `json:"usageProbeKind"`
+	VisibilityGate             string `json:"visibilityGate"`
+	RuntimeProbeFallback       string `json:"runtimeProbeFallback"`
+	InstallBootstrap           bool   `json:"installBootstrap"`
+	RefreshOnAccountChange     bool   `json:"refreshOnAccountChange"`
+	UnavailableDockOrderOffset int    `json:"unavailableDockOrderOffset"`
+	DeveloperLogs              bool   `json:"developerLogs"`
+	DefaultProviderEligible    bool   `json:"defaultProviderEligible"`
+	DefaultProviderPriority    int    `json:"defaultProviderPriority"`
 }
 
 func main() {
@@ -45,6 +61,20 @@ func main() {
 				LaunchRefType: descriptor.Target.LaunchRefType,
 				Enabled:       descriptor.Target.Enabled,
 				SortOrder:     descriptor.Target.SortOrder,
+			},
+			Desktop: desktop{
+				Managed:                    descriptor.Desktop.Managed,
+				ManagedOrder:               descriptor.Desktop.ManagedOrder,
+				StatusProbePriority:        descriptor.Desktop.StatusProbePriority,
+				UsageProbeKind:             string(descriptor.Desktop.UsageProbeKind),
+				VisibilityGate:             string(descriptor.Desktop.VisibilityGate),
+				RuntimeProbeFallback:       string(descriptor.Desktop.RuntimeProbeFallback),
+				InstallBootstrap:           descriptor.Desktop.InstallBootstrap,
+				RefreshOnAccountChange:     descriptor.Desktop.RefreshOnAccountChange,
+				UnavailableDockOrderOffset: descriptor.Desktop.UnavailableDockOrderOffset,
+				DeveloperLogs:              descriptor.Desktop.DeveloperLogs,
+				DefaultProviderEligible:    descriptor.Desktop.DefaultProviderEligible,
+				DefaultProviderPriority:    descriptor.Desktop.DefaultProviderPriority,
 			},
 		})
 	}

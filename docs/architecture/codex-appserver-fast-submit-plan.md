@@ -249,7 +249,8 @@ Primary files:
 - `packages/agent/activity-core/src/controller.ts`
 - `packages/agent/activity-core/src/adapter.ts`
 - `packages/agent/daemon/activity/types.go`
-- `packages/agent/daemon/runtime/controller.go`
+- `packages/agent/daemon/runtime/controller_exec.go`
+- `packages/agent/daemon/runtime/controller_turn_state.go`
 - `packages/agent/daemon/runtime/codex_appserver_adapter.go`
 - `packages/agent/daemon/runtime/codex_appserver_events.go`
 - `services/tuttid/service/agent/session_types.go`

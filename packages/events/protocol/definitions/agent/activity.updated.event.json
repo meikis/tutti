@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/core/event-definition.schema.json",
   "topic": "agent.activity.updated",
-  "version": 1,
+  "version": 2,
   "direction": "server->client",
   "owner": "agent",
   "scope": "workspace",
@@ -24,7 +24,7 @@
             "minLength": 1
           },
           "eventType": {
-            "const": "session_update"
+            "const": "session_reconcile_required"
           },
           "data": {
             "type": "object",
@@ -47,7 +47,7 @@
                 "type": "string"
               },
               "eventType": {
-                "const": "session_update"
+                "const": "session_reconcile_required"
               },
               "lastEventUnixMs": {
                 "type": "integer",
@@ -153,7 +153,6 @@
                   "type": "object",
                   "required": [
                     "agentSessionId",
-                    "id",
                     "kind",
                     "messageId",
                     "occurredAtUnixMs",
@@ -166,10 +165,6 @@
                     "agentSessionId": {
                       "type": "string",
                       "minLength": 1
-                    },
-                    "id": {
-                      "type": "integer",
-                      "minimum": 0
                     },
                     "kind": {
                       "type": "string",
@@ -238,143 +233,6 @@
             "minLength": 1
           },
           "eventType": {
-            "const": "state_patch"
-          },
-          "data": {
-            "type": "object",
-            "required": [
-              "workspaceId",
-              "agentSessionId",
-              "eventType",
-              "lastEventUnixMs"
-            ],
-            "properties": {
-              "workspaceId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "agentSessionId": {
-                "type": "string",
-                "minLength": 1
-              },
-              "eventType": {
-                "const": "state_patch"
-              },
-              "lastEventUnixMs": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "occurredAtUnixMs": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "provider": {
-                "type": "string"
-              },
-              "agentTargetId": {
-                "type": "string"
-              },
-              "providerSessionId": {
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              },
-              "cwd": {
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              },
-              "lifecycleStatus": {
-                "type": "string"
-              },
-              "currentPhase": {
-                "type": "string"
-              },
-              "lastError": {
-                "type": "string"
-              },
-              "startedAtUnixMs": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "endedAtUnixMs": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "runtimeContext": {
-                "type": "object"
-              },
-              "submitAvailability": {
-                "type": "object",
-                "required": ["state"],
-                "properties": {
-                  "state": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "reason": {
-                    "type": "string"
-                  }
-                }
-              },
-              "turn": {
-                "type": "object",
-                "required": ["turnId"],
-                "properties": {
-                  "turnId": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "phase": {
-                    "type": "string"
-                  },
-                  "outcome": {
-                    "type": "string"
-                  },
-                  "fileChanges": true,
-                  "startedAtUnixMs": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "completedAtUnixMs": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "submitAvailability": {
-                    "type": "object",
-                    "required": ["state"],
-                    "properties": {
-                      "state": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "reason": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["workspaceId", "agentSessionId", "eventType", "data"],
-        "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "agentSessionId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "eventType": {
             "const": "turn_update"
           },
           "data": {
@@ -413,7 +271,12 @@
                   "turnId",
                   "agentSessionId",
                   "phase",
+                  "outcome",
+                  "error",
+                  "fileChanges",
+                  "completedCommand",
                   "startedAtUnixMs",
+                  "settledAtUnixMs",
                   "updatedAtUnixMs"
                 ],
                 "properties": {
@@ -436,11 +299,11 @@
                     ]
                   },
                   "outcome": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "enum": ["completed", "failed", "canceled", "interrupted"]
                   },
                   "error": {
-                    "type": "object",
+                    "type": ["object", "null"],
                     "required": ["message"],
                     "properties": {
                       "message": {
@@ -454,7 +317,7 @@
                   },
                   "fileChanges": true,
                   "completedCommand": {
-                    "type": "object",
+                    "type": ["object", "null"],
                     "required": ["kind", "status"],
                     "properties": {
                       "kind": {
@@ -472,7 +335,7 @@
                     "minimum": 0
                   },
                   "settledAtUnixMs": {
-                    "type": "integer",
+                    "type": ["integer", "null"],
                     "minimum": 0
                   },
                   "updatedAtUnixMs": {
@@ -534,6 +397,10 @@
                   "turnId",
                   "kind",
                   "status",
+                  "toolName",
+                  "input",
+                  "output",
+                  "metadata",
                   "createdAtUnixMs",
                   "updatedAtUnixMs"
                 ],
@@ -559,16 +426,16 @@
                     "enum": ["pending", "answered", "superseded"]
                   },
                   "toolName": {
-                    "type": "string"
+                    "type": ["string", "null"]
                   },
                   "input": {
-                    "type": "object"
+                    "type": ["object", "null"]
                   },
                   "output": {
-                    "type": "object"
+                    "type": ["object", "null"]
                   },
                   "metadata": {
-                    "type": "object"
+                    "type": ["object", "null"]
                   },
                   "createdAtUnixMs": {
                     "type": "integer",
@@ -600,10 +467,9 @@
       "eventType": {
         "type": "string",
         "enum": [
-          "session_update",
+          "session_reconcile_required",
           "session_deleted",
           "message_update",
-          "state_patch",
           "turn_update",
           "interaction_update"
         ]

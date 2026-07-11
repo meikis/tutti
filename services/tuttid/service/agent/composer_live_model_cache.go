@@ -123,7 +123,7 @@ func (s *Service) liveModelCacheTTL(provider string) time.Duration {
 	}
 	// Cursor cannot start a hidden probe, so expiry would only discard its
 	// last-known-good list. Claude can safely re-discover after the TTL.
-	if agentprovider.Normalize(provider) == agentprovider.Cursor {
+	if composerProfileFor(provider).Behavior.PreserveLiveModelCache {
 		return 0
 	}
 	return defaultLiveModelCacheTTL

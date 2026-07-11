@@ -13,8 +13,21 @@ export interface AgentGUIProviderIdentityCatalogEntry {
     enabled: boolean;
     sortOrder: number;
   };
-  targetDisplayName?: string;
-  source: "generated" | "legacy";
+  desktop: {
+    managed: boolean;
+    managedOrder: number;
+    statusProbePriority: number;
+    usageProbeKind: string;
+    visibilityGate: string;
+    runtimeProbeFallback: "" | "direct";
+    installBootstrap: boolean;
+    refreshOnAccountChange: boolean;
+    unavailableDockOrderOffset: number;
+    developerLogs: boolean;
+    defaultProviderEligible: boolean;
+    defaultProviderPriority: number;
+  };
+  source: "generated";
 }
 
 export const migratedAgentGUIProviderIdentityCatalog: readonly AgentGUIProviderIdentityCatalogEntry[] =
@@ -23,31 +36,8 @@ export const migratedAgentGUIProviderIdentityCatalog: readonly AgentGUIProviderI
     source: "generated" as const
   }));
 
-/**
- * Explicit compatibility catalog for providers that have not migrated to
- * providerregistry.Migrated(). Delete entries as their descriptors land.
- */
-const legacyAgentGUIProviderIdentityFallbacks: readonly AgentGUIProviderIdentityCatalogEntry[] =
-  [
-    legacyIdentity("cursor", "Cursor", "cursor", [
-      "cursor-agent",
-      "cursor agent"
-    ]),
-    legacyIdentity("tutti-agent", "Tutti Agent", "tutti", ["tutti agent"]),
-    legacyIdentity("nexight", "Nexight", "tutti", ["tutti"], "Tutti Agent"),
-    legacyIdentity("opencode", "OpenCode", "opencode", [
-      "open-code",
-      "opencode-ai"
-    ]),
-    legacyIdentity("hermes", "Hermes Agent", "hermes", [], "Hermes"),
-    legacyIdentity("openclaw", "OpenClaw", "openclaw", [])
-  ];
-
 const migratedIdentityByKey = indexIdentities(
   migratedAgentGUIProviderIdentityCatalog
-);
-const legacyIdentityByKey = indexIdentities(
-  legacyAgentGUIProviderIdentityFallbacks
 );
 
 export function resolveMigratedAgentGUIProviderIdentity(
@@ -59,8 +49,7 @@ export function resolveMigratedAgentGUIProviderIdentity(
 export function resolveAgentGUIProviderCatalogIdentity(
   value: string | null | undefined
 ): AgentGUIProviderIdentityCatalogEntry | null {
-  const key = normalizeIdentityKey(value);
-  return migratedIdentityByKey.get(key) ?? legacyIdentityByKey.get(key) ?? null;
+  return resolveMigratedAgentGUIProviderIdentity(value);
 }
 
 export function agentGUIProviderIdentityDisplayName(
@@ -70,30 +59,6 @@ export function agentGUIProviderIdentityDisplayName(
   const localeKey = identity.localeKey;
   const localized = t(localeKey);
   return localized === localeKey ? identity.displayName : localized;
-}
-
-function legacyIdentity(
-  providerId: string,
-  displayName: string,
-  iconKey: string,
-  aliases: readonly string[],
-  targetDisplayName?: string
-): AgentGUIProviderIdentityCatalogEntry {
-  return {
-    providerId,
-    displayName,
-    iconKey,
-    localeKey: providerId,
-    aliases,
-    target: {
-      id: `local:${providerId}`,
-      launchRefType: "local_cli",
-      enabled: true,
-      sortOrder: 1_000
-    },
-    ...(targetDisplayName ? { targetDisplayName } : {}),
-    source: "legacy"
-  };
 }
 
 function indexIdentities(

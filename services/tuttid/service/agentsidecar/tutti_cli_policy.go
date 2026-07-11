@@ -3,6 +3,8 @@ package agentsidecar
 import (
 	"sort"
 	"strings"
+
+	"github.com/tutti-os/tutti/packages/agent/daemon/providerregistry"
 )
 
 func tuttiCLIPolicy(input PrepareInput) string {
@@ -58,8 +60,12 @@ func computerUseHandoffPolicyLines(input PrepareInput) string {
 }
 
 func providerSpecificMentionRouting(provider string) string {
-	switch strings.TrimSpace(provider) {
-	case "claude", "claude-code":
+	descriptor, ok := providerregistry.Find(provider)
+	if !ok {
+		return ""
+	}
+	switch descriptor.Sidecar.MentionRouting {
+	case providerregistry.SidecarMentionRoutingClaudeNamespaced:
 		return strings.TrimSpace(`
 ## Provider Notes
 
@@ -80,12 +86,16 @@ Claude Code mention routing:
 }
 
 func providerSpecificExecutionEnvironment(provider string) string {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "codex":
+	descriptor, ok := providerregistry.Find(provider)
+	if !ok {
+		return ""
+	}
+	switch descriptor.Sidecar.ExecutionEnvironment {
+	case providerregistry.SidecarExecutionEnvironmentCodexSandbox:
 		return "- Codex: `tutti-dev` needs localhost/IPC. When running `tutti-dev` from a sandboxed exec tool, set `sandbox_permissions=require_escalated`. If `tutti-dev` reports `daemon is not reachable from this agent execution environment`, rerun once with `sandbox_permissions=require_escalated`.\n"
-	case "claude", "claude-code":
+	case providerregistry.SidecarExecutionEnvironmentClaudeIPC:
 		return "- Claude Code `Monitor` tool is disabled. Poll async Tutti jobs with one bounded shell/script.\n- Claude Code: run `tutti-dev` only from a shell environment that can reach localhost/IPC. If the provider runtime cannot reach the local Tutti daemon, report that limitation; do not invent Codex `sandbox_permissions`.\n"
-	case "cursor", "cursor-agent", "hermes", "hermes-agent", "nexight", "tutti", "openclaw", "open-claw", "opencode", "open-code":
+	case providerregistry.SidecarExecutionEnvironmentLocalIPC:
 		return "- This provider must run `tutti-dev` from an execution environment with localhost/IPC access. If the daemon is unreachable from the provider runtime, report that limitation instead of retrying with provider-specific sandbox flags.\n"
 	default:
 		return ""
@@ -181,6 +191,8 @@ func commandGuideScopeSummaries(guide string, cliName string) []commandScopeSumm
 }
 
 func commandScopeDescription(scope string, info *commandScopeInfo) string {
+	const codexCommandScope = "codex"
+
 	switch strings.TrimSpace(scope) {
 	case "agent":
 		return "agent sessions, waits, summaries, turn resources, active peers."
@@ -190,7 +202,7 @@ func commandScopeDescription(scope string, info *commandScopeInfo) string {
 		return "daemon-owned browser automation."
 	case "claude":
 		return "start/manage Claude Code agent sessions."
-	case "codex":
+	case codexCommandScope:
 		return "start/manage Codex agent sessions."
 	case "computer":
 		return "daemon-owned macOS desktop automation."

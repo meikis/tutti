@@ -36,8 +36,8 @@ import {
   workspaceAgentActivityStatusLabel
 } from "@tutti-os/agent-gui/agent-message-center";
 import { resolveProviderIconAsset } from "@tutti-os/agent-gui/provider-icons";
+import { resolveAgentGUIProviderCatalogIdentity } from "@tutti-os/agent-gui/provider-catalog";
 import { normalizeAgentActivityDisplayStatus } from "@tutti-os/agent-activity-core";
-import { tuttiAgentAssetUrls } from "../../../../../shared/tuttiAssetProtocol.ts";
 import { translate } from "../../../i18n";
 import { getActiveLocale } from "../../../i18n/runtime";
 import { INotificationService } from "@tutti-os/ui-notifications";
@@ -135,11 +135,18 @@ export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult
   // Preview agents are feature-gated behind Developer-panel preferences
   // preference: gated providers render as coming-soon placeholders in the
   // AgentGUI rail (like hermes) and stay hidden from dock/mention/manage.
-  const isAgentProviderGated = (provider: string): boolean =>
-    (provider === "cursor" &&
-      !desktopPreferencesService.store.enableCursorAgent) ||
-    (provider === "opencode" &&
-      !desktopPreferencesService.store.enableOpenCodeAgent);
+  const isAgentProviderGated = (provider: string): boolean => {
+    const gate =
+      resolveAgentGUIProviderCatalogIdentity(provider)?.desktop.visibilityGate;
+    switch (gate) {
+      case "cursor_preview":
+        return !desktopPreferencesService.store.enableCursorAgent;
+      case "opencode_preview":
+        return !desktopPreferencesService.store.enableOpenCodeAgent;
+      default:
+        return false;
+    }
+  };
   const subscribeAgentProviderVisibility = (
     listener: () => void
   ): (() => void) => subscribe(desktopPreferencesService.store, listener);
@@ -282,16 +289,11 @@ export function createWorkspaceWindowContainer(): WorkspaceWindowContainerResult
 }
 
 function resolveWorkspaceRichTextAgentIconUrl(provider: string | undefined) {
-  switch (normalizeWorkspaceRichTextAgentProvider(provider)) {
-    case "claude-code":
-      return tuttiAgentAssetUrls.claudeCode;
-    case "codex":
-      return tuttiAgentAssetUrls.codex;
-    case "tutti-agent":
-      return tuttiAgentAssetUrls.tuttiAgent;
-    default:
-      return managedAgentRoundedIconUrl(provider);
-  }
+  const identity = resolveAgentGUIProviderCatalogIdentity(provider);
+  return (
+    resolveProviderIconAsset(identity?.iconKey, "rounded") ??
+    managedAgentRoundedIconUrl(provider)
+  );
 }
 
 function resolveWorkspaceAgentTargetIconUrl(identity: {
@@ -305,21 +307,4 @@ function resolveWorkspaceAgentTargetIconUrl(identity: {
     );
   }
   return resolveWorkspaceRichTextAgentIconUrl(identity.provider);
-}
-
-function normalizeWorkspaceRichTextAgentProvider(
-  provider: string | undefined
-): string {
-  const normalized =
-    provider
-      ?.trim()
-      .toLowerCase()
-      .replace(/[_\s]+/gu, "-") ?? "";
-  switch (normalized) {
-    case "claude":
-    case "claude-code":
-      return "claude-code";
-    default:
-      return normalized;
-  }
 }

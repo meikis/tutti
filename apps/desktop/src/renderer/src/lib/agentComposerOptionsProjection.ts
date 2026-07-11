@@ -75,7 +75,9 @@ export function agentActivityComposerOptionsFromTuttidResult(
         speedsFromLiveConfig.length > 0),
     effectiveSettings,
     permissionConfig: permissionConfigFromValue(result.permissionConfig),
-    runtimeContext,
+    draftAgentSessionId: normalizeText(runtimeContext.draftAgentSessionId),
+    modelOptionsLoading:
+      recordValue(runtimeContext.appServerStartup).models === "loading",
     skills:
       skillsFromResult.length > 0 ? skillsFromResult : skillsFromRuntimeContext,
     capabilityCatalog,
@@ -90,6 +92,8 @@ function composerBehaviorFromValue(
 ): AgentActivityComposerOptions["behavior"] {
   const behavior = recordValue(value);
   return {
+    collapseModelOptionsToLatest:
+      behavior.collapseModelOptionsToLatest === true,
     modelOptionsAuthoritative: behavior.modelOptionsAuthoritative === true,
     refreshModelOptionsAfterSettings:
       behavior.refreshModelOptionsAfterSettings === true,

@@ -656,15 +656,7 @@ func composerSelectedModelOptions(model string) []ComposerConfigOptionValue {
 }
 
 func reasoningConfigOptionID(provider string) string {
-	if id := strings.TrimSpace(composerProfileFor(provider).ReasoningConfigOptionID); id != "" {
-		return id
-	}
-	switch agentprovider.Normalize(provider) {
-	case agentprovider.TuttiAgent:
-		return "reasoning_effort"
-	default:
-		return "effort"
-	}
+	return strings.TrimSpace(composerProfileFor(provider).ReasoningConfigOptionID)
 }
 
 const (
@@ -686,15 +678,7 @@ func speedProviderSupportsSpeed(provider string) bool {
 // the tier onto the app-server `service_tier` config; Claude Code sets a `fast`
 // ACP config option when the agent advertises it.
 func speedConfigOptionID(provider string) string {
-	if id := strings.TrimSpace(composerProfileFor(provider).SpeedConfigOptionID); id != "" {
-		return id
-	}
-	switch agentprovider.Normalize(provider) {
-	case agentprovider.TuttiAgent:
-		return "service_tier"
-	default:
-		return "fast"
-	}
+	return strings.TrimSpace(composerProfileFor(provider).SpeedConfigOptionID)
 }
 
 func speedTierValuesForProvider(provider string) []string {
@@ -775,13 +759,7 @@ func reasoningEffortOptions(provider string, selected string) []map[string]strin
 
 func reasoningEffortValuesForProvider(provider string) []string {
 	profile := composerProfileFor(provider)
-	if len(profile.ReasoningEffortValues) > 0 {
-		return append([]string(nil), profile.ReasoningEffortValues...)
-	}
-	if provider == agentprovider.OpenCode {
-		return []string{"low", "medium", "high", "xhigh"}
-	}
-	return []string{"minimal", "low", "medium", "high", "xhigh"}
+	return append([]string(nil), profile.ReasoningEffortValues...)
 }
 
 func normalizeReasoningEffortForProvider(provider string, value string) string {

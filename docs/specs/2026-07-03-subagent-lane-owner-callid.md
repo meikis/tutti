@@ -30,7 +30,7 @@ the true edge (`codexAppServerThreadContext.parentItemID`) and never emitted it.
 - `runtime/codex_appserver_reducer.go`: stamps both fields from the route.
 - `runtime/codex_appserver_adapter.go`: nickname markers and cancel-all
   lifecycle markers stamp `OwnerCallID` from the registry.
-- `runtime/reporter.go`: `withOwnerThreadID` also persists
+- `runtime/reporter_entity.go`: `withOwnerThreadID` also persists
   `payload["ownerCallId"]`.
 
 ### GUI (`packages/agent/gui`)

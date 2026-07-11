@@ -34,6 +34,12 @@ const CLAUDE_POLICY = {
   ]
 } as const;
 
+const CURSOR_POLICY = {
+  fallbackCommands: ["plan"],
+  commandCatalogAuthoritative: true,
+  commandEffects: [{ command: "plan", effect: "togglePlanMode" }]
+} as const;
+
 describe("agentSlashCommandProviderPolicy", () => {
   const reviewPickerProviders = ["codex", "claude-code"] as const;
 
@@ -423,6 +429,7 @@ describe("agentSlashCommandProviderPolicy", () => {
     expect(
       resolveSlashCommandsForProvider({
         provider: "cursor",
+        policy: CURSOR_POLICY,
         commands: [
           { name: "compact" },
           { name: "goal" },
@@ -435,8 +442,35 @@ describe("agentSlashCommandProviderPolicy", () => {
     expect(
       resolveSlashCommandsForProvider({
         provider: "cursor",
+        policy: CURSOR_POLICY,
         commands: [{ name: "plan", description: "provider plan" }],
         planSupported: false
+      })
+    ).toEqual([]);
+  });
+
+  it("returns no Cursor slash behavior when its descriptor policy is missing", () => {
+    expect(
+      resolveSlashCommandsForProvider({
+        provider: "cursor",
+        commands: [{ name: "plan" }, { name: "compact" }],
+        planSupported: true
+      })
+    ).toEqual([]);
+    expect(
+      resolveSlashCommandSelectionEffect({
+        provider: "cursor",
+        command: { name: "plan" },
+        currentDraft: "/"
+      })
+    ).toBeNull();
+  });
+
+  it("returns no unknown-provider slash behavior without a descriptor policy", () => {
+    expect(
+      resolveSlashCommandsForProvider({
+        provider: "other-provider",
+        commands: [{ name: "compact" }]
       })
     ).toEqual([]);
   });
@@ -558,6 +592,6 @@ describe("agentSlashCommandProviderPolicy", () => {
         command: { name: "review", description: "Review" },
         currentDraft: "/rev"
       })
-    ).toEqual({ kind: "fillDraft", draft: "/review " });
+    ).toBeNull();
   });
 });

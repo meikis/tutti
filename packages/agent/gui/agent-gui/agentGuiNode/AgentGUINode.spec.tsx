@@ -17,10 +17,16 @@ import type {
 } from "@tutti-os/workspace-file-reference/contracts";
 import type { ReferenceSourceAggregator } from "@tutti-os/workspace-file-reference/core";
 import type { WorkspaceLinkAction } from "../../actions/workspaceLinkActions";
-import type { AgentActivitySnapshot } from "@tutti-os/agent-activity-core";
+import {
+  normalizeAgentActivitySession,
+  type AgentActivitySnapshot
+} from "@tutti-os/agent-activity-core";
 import { MANAGED_AGENT_ICON_URLS } from "../../shared/managedAgentIcons";
 import { AgentActivityHostProvider } from "../../agentActivityHost";
-import type { AgentActivityRuntime } from "../../agentActivityRuntime";
+import {
+  AgentActivityRuntimeProvider,
+  type AgentActivityRuntime
+} from "../../agentActivityRuntime";
 import { AgentGUINode } from "./AgentGUINode";
 import { getAgentEnvPanelStore } from "../../shared/agentEnv/agentEnvPanelStore";
 import { getWorkspaceSettingsPanelStore } from "../../shared/workspaceSettingsPanel/workspaceSettingsPanelStore";
@@ -35,6 +41,12 @@ import type {
   AgentGUIQueuedPromptVM,
   AgentGUINodeViewModel
 } from "./model/agentGuiNodeTypes";
+import {
+  flattenAgentGUINodeViewModelFixture,
+  groupAgentGUINodeViewModelFixture,
+  type AgentGUINodeViewModelFixtureOverrides,
+  type FlatAgentGUINodeViewModelFixture
+} from "./model/AgentGUINodeViewModel.fixture";
 import type { AgentGUINodeData } from "../../types";
 import { createLocalAgentGUIProviderTarget } from "../../providerTargets";
 import { writeWorkspaceFileDropData } from "../terminalNode/workspaceFileDrop";
@@ -57,7 +69,6 @@ const mockConfirmDeleteProjectConversations = vi.fn();
 const mockRequestDeleteConversation = vi.fn();
 const mockRetryActivation = vi.fn();
 const mockContinueInNewConversation = vi.fn();
-const mockRetryOpenclawGateway = vi.fn();
 const mockCancelDeleteConversation = vi.fn();
 const mockConfirmDeleteConversation = vi.fn();
 const mockRenameConversation = vi.fn<() => Promise<void>>();
@@ -292,8 +303,7 @@ function createAgentGUITestContextMentionProviders(): readonly AgentContextMenti
         const workspaceId = String(context.metadata?.workspaceId ?? "");
         const currentUserId = String(context.metadata?.currentUserId ?? "");
         const snapshot = await mockListWorkspaceAgents({
-          workspaceId: workspaceId,
-          sessionOrigin: "WORKSPACE_AGENT_SESSION_ORIGIN_RUNTIME"
+          workspaceId: workspaceId
         });
         const sessions = (snapshot.sessions ?? []).slice(0, maxResults);
         const userIds = [
@@ -719,7 +729,6 @@ vi.mock("./controller/useAgentGUINodeController", () => ({
       requestDeleteConversation: mockRequestDeleteConversation,
       retryActivation: mockRetryActivation,
       continueInNewConversation: mockContinueInNewConversation,
-      retryOpenclawGateway: mockRetryOpenclawGateway,
       cancelDeleteConversation: mockCancelDeleteConversation,
       confirmDeleteConversation: mockConfirmDeleteConversation,
       renameConversation: mockRenameConversation
@@ -758,7 +767,6 @@ describe("AgentGUINode", () => {
     mockRequestDeleteConversation.mockClear();
     mockRetryActivation.mockClear();
     mockContinueInNewConversation.mockClear();
-    mockRetryOpenclawGateway.mockClear();
     mockCancelDeleteConversation.mockClear();
     mockConfirmDeleteConversation.mockClear();
     mockRenameConversation.mockClear();
@@ -830,11 +838,6 @@ describe("AgentGUINode", () => {
           selectFiles: mockSelectFiles,
           selectDirectory: mockSelectDirectory,
           ensureDirectory: mockEnsureDirectory
-        },
-        workspaceAgents: {
-          list: mockListWorkspaceAgents,
-          listSessionMessages: mockListWorkspaceAgentSessionMessages,
-          getSessionSummary: mockGetWorkspaceAgentSessionSummary
         }
       }
     });
@@ -1223,9 +1226,10 @@ describe("AgentGUINode", () => {
   });
 
   it("updates slash status limits when the selected Codex model changes", () => {
+    const agentActivityRuntime = createNoopAgentActivityRuntime();
     const workspaceAgentProbes: React.ComponentProps<
       typeof AgentGUINode
-    >["workspaceAgentProbes"] = {
+    >["runtimeRequests"]["agentProbes"] = {
       isLoadingAvailability: false,
       isLoadingUsage: false,
       snapshot: {
@@ -1260,32 +1264,43 @@ describe("AgentGUINode", () => {
         ]
       }
     };
-    const renderNode = () => (
+    const renderNode = (width = 720) => (
       <AgentGUINode
-        nodeId="agent-gui-1"
-        workspaceId="room-1"
-        currentUserId="user-1"
-        workspacePath="/workspace"
-        workspaceFileReferenceAdapter={createWorkspaceFileReferenceAdapter()}
-        agentSettings={{ avoidGroupingEdits: false }}
-        title="Codex"
+        identity={{
+          nodeId: "agent-gui-1",
+          workspaceId: "room-1",
+          currentUserId: "user-1",
+          title: "Codex"
+        }}
+        workspace={{
+          path: "/workspace",
+          fileReferenceAdapter: createWorkspaceFileReferenceAdapter(),
+          agentSettings: { avoidGroupingEdits: false }
+        }}
+        frame={{
+          position: { x: 0, y: 0 },
+          width,
+          height: 560,
+          desktopSize: { width: 1200, height: 800 },
+          isActive: true
+        }}
         state={{
           provider: "codex",
           lastActiveAgentSessionId: null,
           conversationRailWidthPx: null
         }}
-        position={{ x: 0, y: 0 }}
-        width={720}
-        height={560}
-        desktopSize={{ width: 1200, height: 800 }}
-        onClose={vi.fn()}
-        onResize={vi.fn()}
-        onUpdateNode={vi.fn()}
-        onShowMessage={vi.fn()}
-        workspaceAgentProbes={workspaceAgentProbes}
-        managedAgentsState={createManagedAgentsState()}
-        contextMentionProviders={createAgentGUITestContextMentionProviders()}
-        isActive
+        runtimeRequests={{ agentProbes: workspaceAgentProbes }}
+        hostCapabilities={{
+          managedAgentsState: createManagedAgentsState(),
+          contextMentionProviders: createAgentGUITestContextMentionProviders()
+        }}
+        hostActions={{
+          onClose: vi.fn(),
+          onResize: vi.fn(),
+          onUpdateNode: vi.fn(),
+          onShowMessage: vi.fn()
+        }}
+        renderSlots={{}}
       />
     );
     mockViewModel = createViewModel({
@@ -1295,25 +1310,21 @@ describe("AgentGUINode", () => {
         auth: null,
         approval: null,
         recovery: null,
-        rawState: {
+        rawState: normalizeAgentActivitySession({
           workspaceId: "room-1",
           agentSessionId: "session-1",
           provider: "codex",
-          status: "ready",
-          updatedAtUnixMs: 1,
-          runtimeContext: {
-            usage: {
-              contextWindow: {
-                usedTokens: 1000,
-                totalTokens: 2000
-              }
-            }
-          }
-        }
+          cwd: "/workspace",
+          title: "Codex",
+          activeTurnId: null,
+          updatedAtUnixMs: 1
+        })
       }
     });
 
-    const { container, rerender } = render(renderNode());
+    const { container, rerender } = render(
+      wrapAgentGUINodeWithRuntime(renderNode(), agentActivityRuntime)
+    );
     fireEvent.submit(container.querySelector("form")!);
 
     const panel = screen.getByTestId("agent-gui-slash-status-panel");
@@ -1327,28 +1338,32 @@ describe("AgentGUINode", () => {
     ).toHaveLength(2);
 
     mockViewModel = createViewModel({
-      ...mockViewModel,
+      ...flattenAgentGUINodeViewModelFixture(mockViewModel),
       composerSettings: {
-        ...mockViewModel.composerSettings,
+        ...mockViewModel.composer.composerSettings,
         draftSettings: {
-          ...mockViewModel.composerSettings.draftSettings,
+          ...mockViewModel.composer.composerSettings.draftSettings,
           model: "gpt-5.3-codex-spark"
         },
         selectedModelValue: "gpt-5.3-codex-spark"
       }
     });
-    rerender(renderNode());
+    rerender(
+      wrapAgentGUINodeWithRuntime(renderNode(721), agentActivityRuntime)
+    );
+    fireEvent.submit(container.querySelector("form")!);
 
-    expect(panel).toHaveTextContent("GPT-5.3-Codex-Spark");
-    expect(panel).toHaveTextContent("100% left");
-    expect(panel).toHaveTextContent("5h limit");
-    expect(panel).toHaveTextContent("7d limit");
+    const updatedPanel = screen.getByTestId("agent-gui-slash-status-panel");
+    expect(updatedPanel).toHaveTextContent("GPT-5.3-Codex-Spark");
+    expect(updatedPanel).toHaveTextContent("100% left");
+    expect(updatedPanel).toHaveTextContent("5h limit");
+    expect(updatedPanel).toHaveTextContent("7d limit");
     expect(
-      panel.querySelectorAll(".agent-gui-node__slash-status-limit-meter")
+      updatedPanel.querySelectorAll(".agent-gui-node__slash-status-limit-meter")
     ).toHaveLength(3);
   });
 
-  it("shows Claude Code slash status limits from SDK runtime usage", () => {
+  it("shows Claude Code slash status limits from provider probes", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
       draftPrompt: "/status",
@@ -1356,36 +1371,15 @@ describe("AgentGUINode", () => {
         auth: null,
         approval: null,
         recovery: null,
-        rawState: {
+        rawState: normalizeAgentActivitySession({
           workspaceId: "room-1",
           agentSessionId: "session-1",
           provider: "claude-code",
-          status: "ready",
-          updatedAtUnixMs: 1,
-          runtimeContext: {
-            providerConfig: {
-              baseUrl: "https://anthropic.proxy.test"
-            },
-            usage: {
-              contextWindow: {
-                usedTokens: 50_000,
-                totalTokens: 200_000
-              },
-              quotas: [
-                {
-                  quotaType: "session",
-                  percentRemaining: 79,
-                  resetText: "5h reset"
-                },
-                {
-                  quotaType: "weekly",
-                  percentRemaining: 91,
-                  resetText: "weekly reset"
-                }
-              ]
-            }
-          }
-        }
+          cwd: "/workspace",
+          title: "Claude Code",
+          activeTurnId: null,
+          updatedAtUnixMs: 1
+        })
       }
     });
 
@@ -1395,14 +1389,40 @@ describe("AgentGUINode", () => {
         provider: "claude-code",
         lastActiveAgentSessionId: null,
         conversationRailWidthPx: null
+      },
+      workspaceAgentProbes: {
+        isLoadingAvailability: false,
+        isLoadingUsage: false,
+        snapshot: {
+          workspaceId: "room-1",
+          capturedAtUnixMs: 1,
+          providers: [
+            {
+              provider: "claude-code",
+              availability: { status: "available", detailsVisible: false },
+              usage: {
+                capturedAtUnixMs: 1,
+                quotas: [
+                  {
+                    quotaType: "session",
+                    percentRemaining: 79,
+                    resetText: "5h reset"
+                  },
+                  {
+                    quotaType: "weekly",
+                    percentRemaining: 91,
+                    resetText: "weekly reset"
+                  }
+                ]
+              }
+            }
+          ]
+        }
       }
     });
     fireEvent.submit(container.querySelector("form")!);
 
     const panel = screen.getByTestId("agent-gui-slash-status-panel");
-    expect(panel).toHaveTextContent("75% left (50,000 used / 200,000)");
-    expect(panel).toHaveTextContent("Base URL");
-    expect(panel).toHaveTextContent("https://anthropic.proxy.test");
     expect(panel).toHaveTextContent("5h limit");
     expect(panel).toHaveTextContent("79% left");
     expect(panel).toHaveTextContent("7d limit");
@@ -1417,19 +1437,19 @@ describe("AgentGUINode", () => {
         auth: null,
         approval: null,
         recovery: null,
-        rawState: {
+        rawState: normalizeAgentActivitySession({
           workspaceId: "room-1",
           agentSessionId: "session-1",
           provider: "claude-code",
-          status: "working",
+          cwd: "/workspace",
+          title: "Claude Code",
+          activeTurnId: null,
           updatedAtUnixMs: 1,
-          runtimeContext: {
-            goal: {
-              objective: "帮我赚一个亿",
-              status: "active"
-            }
+          goal: {
+            objective: "帮我赚一个亿",
+            status: "active"
           }
-        }
+        })
       }
     });
 
@@ -1526,7 +1546,6 @@ describe("AgentGUINode", () => {
       state: {
         provider: "codex",
         lastActiveAgentSessionId: "session-1",
-        lastActiveConversationTitle: "Fresh dock title",
         conversationRailWidthPx: null,
         conversationRailCollapsed: true
       }
@@ -1559,7 +1578,6 @@ describe("AgentGUINode", () => {
       state: {
         provider: "codex",
         lastActiveAgentSessionId: "session-1",
-        lastActiveConversationTitle: null,
         conversationRailWidthPx: null,
         conversationRailCollapsed: true
       }
@@ -1568,180 +1586,6 @@ describe("AgentGUINode", () => {
     expect(
       container.querySelector('[data-workspace-node-window-title="true"]')
     ).toHaveTextContent("Agent");
-  });
-
-  it("does not clear the dock conversation title while the active conversation is unavailable", () => {
-    const onUpdateNode =
-      vi.fn<
-        (updater: (current: AgentGUINodeData) => AgentGUINodeData) => void
-      >();
-    mockViewModel = createViewModel({
-      activeConversation: null,
-      activeConversationId: "session-1"
-    });
-
-    renderAgentGUINode({
-      onUpdateNode,
-      state: {
-        provider: "codex",
-        lastActiveAgentSessionId: "session-1",
-        lastActiveConversationTitle: "Existing dock title",
-        conversationRailWidthPx: null
-      }
-    });
-
-    expect(onUpdateNode).not.toHaveBeenCalled();
-  });
-
-  it("does not clear the dock conversation title while the active conversation title is hydrating", () => {
-    const onUpdateNode =
-      vi.fn<
-        (updater: (current: AgentGUINodeData) => AgentGUINodeData) => void
-      >();
-    mockViewModel = createViewModel({
-      activeConversation: {
-        id: "session-1",
-        provider: "codex",
-        title: "",
-        status: "ready",
-        cwd: "/workspace",
-        updatedAtUnixMs: 1
-      },
-      activeConversationId: "session-1"
-    });
-
-    renderAgentGUINode({
-      onUpdateNode,
-      state: {
-        provider: "codex",
-        lastActiveAgentSessionId: "session-1",
-        lastActiveConversationTitle: "Existing dock title",
-        conversationRailWidthPx: null
-      }
-    });
-
-    expect(onUpdateNode).not.toHaveBeenCalled();
-  });
-
-  it("syncs the dock conversation title when the active conversation has a title", () => {
-    const onUpdateNode =
-      vi.fn<
-        (updater: (current: AgentGUINodeData) => AgentGUINodeData) => void
-      >();
-    const state: AgentGUINodeData = {
-      provider: "codex",
-      lastActiveAgentSessionId: "session-1",
-      lastActiveConversationTitle: "Existing dock title",
-      conversationRailWidthPx: null
-    };
-    mockViewModel = createViewModel({
-      activeConversation: {
-        id: "session-1",
-        provider: "codex",
-        title: "Fresh dock title",
-        status: "ready",
-        cwd: "/workspace",
-        updatedAtUnixMs: 1
-      },
-      activeConversationId: "session-1"
-    });
-
-    renderAgentGUINode({ onUpdateNode, state });
-
-    expect(onUpdateNode).toHaveBeenCalledTimes(1);
-    expect(onUpdateNode.mock.calls[0]?.[0](state)).toEqual({
-      ...state,
-      lastActiveConversationTitle: "Fresh dock title"
-    });
-  });
-
-  it("does not sync the dock conversation title in preview mode", () => {
-    const onUpdateNode =
-      vi.fn<
-        (updater: (current: AgentGUINodeData) => AgentGUINodeData) => void
-      >();
-    mockViewModel = createViewModel({
-      activeConversation: {
-        id: "session-1",
-        provider: "codex",
-        title: "Fresh dock title",
-        status: "ready",
-        cwd: "/workspace",
-        updatedAtUnixMs: 1
-      },
-      activeConversationId: "session-1"
-    });
-
-    renderAgentGUINode({
-      onUpdateNode,
-      previewMode: true,
-      state: {
-        provider: "codex",
-        lastActiveAgentSessionId: "session-1",
-        lastActiveConversationTitle: null,
-        conversationRailWidthPx: null
-      }
-    });
-
-    expect(onUpdateNode).not.toHaveBeenCalled();
-  });
-
-  it("does not repeatedly sync the dock conversation title after parent state updates", () => {
-    const onUpdateNode =
-      vi.fn<
-        (updater: (current: AgentGUINodeData) => AgentGUINodeData) => void
-      >();
-    const initialState: AgentGUINodeData = {
-      provider: "codex",
-      lastActiveAgentSessionId: "session-1",
-      lastActiveConversationTitle: "Existing dock title",
-      conversationRailWidthPx: null
-    };
-    mockViewModel = createViewModel({
-      activeConversation: {
-        id: "session-1",
-        provider: "codex",
-        title: "Fresh dock title",
-        status: "ready",
-        cwd: "/workspace",
-        updatedAtUnixMs: 1
-      },
-      activeConversationId: "session-1"
-    });
-
-    const rendered = renderAgentGUINode({ onUpdateNode, state: initialState });
-    const nextState = onUpdateNode.mock.calls[0]?.[0](initialState);
-    expect(nextState).toEqual({
-      ...initialState,
-      lastActiveConversationTitle: "Fresh dock title"
-    });
-    onUpdateNode.mockClear();
-
-    rendered.rerender(
-      <AgentGUINode
-        nodeId="agent-gui-1"
-        workspaceId="room-1"
-        currentUserId="user-1"
-        workspacePath="/workspace"
-        workspaceFileReferenceAdapter={createWorkspaceFileReferenceAdapter()}
-        agentSettings={{ avoidGroupingEdits: false }}
-        title="Codex"
-        state={nextState as AgentGUINodeData}
-        position={{ x: 0, y: 0 }}
-        width={720}
-        height={560}
-        desktopSize={{ width: 1200, height: 800 }}
-        onClose={vi.fn()}
-        onResize={vi.fn()}
-        onUpdateNode={onUpdateNode}
-        onShowMessage={vi.fn()}
-        managedAgentsState={createManagedAgentsState()}
-        contextMentionProviders={createAgentGUITestContextMentionProviders()}
-        isActive
-      />
-    );
-
-    expect(onUpdateNode).not.toHaveBeenCalled();
   });
 
   it("unregisters agent probe demand when the Agent GUI closes", () => {
@@ -1800,33 +1644,6 @@ describe("AgentGUINode", () => {
     expect(getComposerEditor()).toBeTruthy();
   });
 
-  it("hides OpenClaw gateway startup while disabling new sessions until ready", () => {
-    mockViewModel = createViewModel({
-      data: {
-        provider: "openclaw",
-        lastActiveAgentSessionId: null,
-        conversationRailWidthPx: null
-      },
-      openclawGateway: { status: "starting", error: null }
-    });
-
-    renderAgentGUINode({ workbenchWindowZIndex: 41 });
-
-    expect(
-      screen.queryByText("agentHost.agentGui.openclawGatewayStarting")
-    ).toBeNull();
-    const newConversationButton = getChromeNewConversationButton();
-    fireEvent.click(newConversationButton);
-
-    expect(
-      screen.queryByRole("button", {
-        name: "agentHost.agentGui.startConversation"
-      })
-    ).toBeNull();
-    expect(newConversationButton).toBeDisabled();
-    expect(mockCreateConversation).not.toHaveBeenCalled();
-  });
-
   it("lets the header new-conversation button receive clicks inside the node window", () => {
     renderAgentGUINode();
 
@@ -1842,7 +1659,6 @@ describe("AgentGUINode", () => {
     const state: AgentGUINodeData = {
       provider: "codex",
       lastActiveAgentSessionId: "session-1",
-      lastActiveConversationTitle: "Existing session",
       conversationRailWidthPx: null
     };
     const onUpdateNode =
@@ -1857,8 +1673,7 @@ describe("AgentGUINode", () => {
     expect(onUpdateNode).toHaveBeenCalledTimes(1);
     expect(onUpdateNode.mock.calls[0]?.[0](state)).toEqual({
       ...state,
-      lastActiveAgentSessionId: null,
-      lastActiveConversationTitle: null
+      lastActiveAgentSessionId: null
     });
   });
   it("renders the Agent GUI window header controls without a maximize button", () => {
@@ -2417,7 +2232,9 @@ describe("AgentGUINode", () => {
     const onOpenConversationWindow =
       vi.fn<
         NonNullable<
-          React.ComponentProps<typeof AgentGUINode>["onOpenConversationWindow"]
+          React.ComponentProps<
+            typeof AgentGUINode
+          >["hostActions"]["onOpenConversationWindow"]
         >
       >();
     mockViewModel = createViewModel({
@@ -2449,7 +2266,9 @@ describe("AgentGUINode", () => {
     const onOpenConversationWindow =
       vi.fn<
         NonNullable<
-          React.ComponentProps<typeof AgentGUINode>["onOpenConversationWindow"]
+          React.ComponentProps<
+            typeof AgentGUINode
+          >["hostActions"]["onOpenConversationWindow"]
         >
       >();
     mockViewModel = createViewModel({
@@ -2909,115 +2728,6 @@ describe("AgentGUINode", () => {
     expect(screen.getByText("3 个月")).toBeTruthy();
     expect(screen.getByText("2 年")).toBeTruthy();
     vi.useRealTimers();
-  });
-
-  it("shows the pending sync status indicator while cloud sync is still in flight", () => {
-    const conversation = {
-      id: "session-1",
-      provider: "codex" as const,
-      title: "Session 1",
-      status: "working" as const,
-      cwd: "/workspace",
-      updatedAtUnixMs: 1,
-      syncState: { agentSessionId: "session-1", status: "pending" }
-    };
-    mockViewModel = createViewModel({
-      conversations: [conversation],
-      activeConversation: conversation,
-      activeConversationId: "session-1"
-    });
-    renderAgentGUINode();
-
-    expect(
-      screen.getByLabelText("agentHost.agentGui.syncPending")
-    ).toBeTruthy();
-  });
-
-  it("keeps the sync status indicator visible after cloud sync settles", () => {
-    const conversation = {
-      id: "session-1",
-      provider: "codex" as const,
-      title: "Session 1",
-      status: "ready" as const,
-      cwd: "/workspace",
-      updatedAtUnixMs: 1,
-      syncState: { agentSessionId: "session-1", status: "synced" }
-    };
-    mockViewModel = createViewModel({
-      conversations: [conversation],
-      activeConversation: conversation,
-      activeConversationId: "session-1"
-    });
-    renderAgentGUINode();
-
-    expect(screen.getByLabelText("agentHost.agentGui.syncSynced")).toBeTruthy();
-  });
-
-  it("shows a failed sync status indicator when cloud sync reports an error", () => {
-    const conversation = {
-      id: "session-1",
-      provider: "codex" as const,
-      title: "Session 1",
-      status: "ready" as const,
-      cwd: "/workspace",
-      updatedAtUnixMs: 1,
-      syncState: { agentSessionId: "session-1", status: "failed" }
-    };
-    mockViewModel = createViewModel({
-      conversations: [conversation],
-      activeConversation: conversation,
-      activeConversationId: "session-1"
-    });
-    renderAgentGUINode();
-
-    expect(screen.getByLabelText("agentHost.agentGui.syncFailed")).toBeTruthy();
-    expect(screen.getByText("agentHost.agentGui.syncFailed")).toBeTruthy();
-  });
-
-  it("shows the sync hint on hover for the session status group", () => {
-    const conversation = {
-      id: "session-1",
-      provider: "codex" as const,
-      title: "Session 1",
-      status: "working" as const,
-      cwd: "/workspace",
-      updatedAtUnixMs: 1,
-      syncState: { agentSessionId: "session-1", status: "failed" }
-    };
-    mockViewModel = createViewModel({
-      conversations: [conversation],
-      activeConversation: conversation,
-      activeConversationId: "session-1",
-      conversationDetail: detailViewModel()
-    });
-    renderAgentGUINode();
-
-    // The session status group surfaces the failed-sync hint: the label is shown
-    // and its containing group carries the hint as a hover title.
-    const syncHint = screen.getByText("agentHost.agentGui.syncFailed");
-    expect(syncHint.parentElement).toHaveAttribute(
-      "title",
-      "agentHost.agentGui.syncFailed"
-    );
-  });
-
-  it("does not show a sync indicator for active conversations without sync metadata", () => {
-    const conversation = {
-      id: "session-1",
-      provider: "codex" as const,
-      title: "Session 1",
-      status: "ready" as const,
-      cwd: "/workspace",
-      updatedAtUnixMs: 1
-    };
-    mockViewModel = createViewModel({
-      conversations: [conversation],
-      activeConversation: conversation,
-      activeConversationId: "session-1"
-    });
-    renderAgentGUINode();
-
-    expect(screen.queryByLabelText("agentHost.agentGui.syncSynced")).toBeNull();
   });
 
   it("lets the composer editor and send button receive input inside the node window", async () => {
@@ -3884,7 +3594,7 @@ describe("AgentGUINode", () => {
     });
     renderAgentGUINode({
       onLinkAction,
-      state: { ...createViewModel().data, provider: "codex" }
+      state: { ...createViewModel().shell.data, provider: "codex" }
     });
 
     const editor = getComposerEditor();
@@ -4114,10 +3824,7 @@ describe("AgentGUINode", () => {
         status: "completed" as const
       },
       session: {
-        ...detailViewModel().session,
-        lifecycleStatus: "ended",
-        turnPhase: "idle",
-        effectiveStatus: "completed"
+        ...detailViewModel().session
       }
     });
     mockViewModel = createViewModel({
@@ -4426,7 +4133,7 @@ describe("AgentGUINode", () => {
         conversationRailWidthPx: null
       },
       composerSettings: {
-        ...baseViewModel.composerSettings,
+        ...baseViewModel.composer.composerSettings,
         slashCommandPolicy: {
           fallbackCommands: [],
           commandEffects: [{ command: "plan", effect: "togglePlanMode" }]
@@ -4592,7 +4299,7 @@ describe("AgentGUINode", () => {
     });
 
     expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/web query"));
-    expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft(""));
+    expect(mockUpdateDraftContent).not.toHaveBeenCalled();
   });
 
   it("does not match slash commands after non-command text", () => {
@@ -4628,7 +4335,7 @@ describe("AgentGUINode", () => {
     fireEvent.keyDown(editor, { key: "Enter" });
 
     expect(mockSubmitPrompt).toHaveBeenCalledWith(promptBlocks("/"));
-    expect(mockUpdateDraftContent).toHaveBeenCalledWith(createDraft(""));
+    expect(mockUpdateDraftContent).not.toHaveBeenCalled();
   });
 
   it("filters slash commands and closes the palette after the command token", () => {
@@ -5339,7 +5046,7 @@ describe("AgentGUINode", () => {
       activeConversationId: "session-1",
       draftPrompt: "",
       composerSettings: {
-        ...baseViewModel.composerSettings,
+        ...baseViewModel.composer.composerSettings,
         selectedProjectPath: "/Users/example/demo"
       }
     });
@@ -5820,7 +5527,7 @@ describe("AgentGUINode", () => {
           userId: "user-1",
           provider: "codex",
           title: "",
-          effectiveStatus: "idle",
+          status: "idle",
           createdAtUnixMs: 1,
           updatedAtUnixMs: 20
         }
@@ -5868,8 +5575,7 @@ describe("AgentGUINode", () => {
     pasteComposerText("@");
     await waitFor(() =>
       expect(mockListWorkspaceAgents).toHaveBeenCalledWith({
-        workspaceId: "room-1",
-        sessionOrigin: "WORKSPACE_AGENT_SESSION_ORIGIN_RUNTIME"
+        workspaceId: "room-1"
       })
     );
 
@@ -6036,6 +5742,7 @@ describe("AgentGUINode", () => {
   });
 
   it("preserves manual timeline scroll while the active conversation streams output", () => {
+    const agentActivityRuntime = createNoopAgentActivityRuntime();
     const originalClientHeight = Object.getOwnPropertyDescriptor(
       HTMLElement.prototype,
       "clientHeight"
@@ -6088,25 +5795,36 @@ describe("AgentGUINode", () => {
 
     const renderNode = (): React.ReactElement => (
       <AgentGUINode
-        nodeId="agent-gui-1"
-        workspaceId="room-1"
-        currentUserId="user-1"
-        workspacePath="/workspace"
-        agentSettings={{ avoidGroupingEdits: false }}
-        title="Codex"
+        identity={{
+          nodeId: "agent-gui-1",
+          workspaceId: "room-1",
+          currentUserId: "user-1",
+          title: "Codex"
+        }}
+        workspace={{
+          path: "/workspace",
+          agentSettings: { avoidGroupingEdits: false }
+        }}
+        frame={{
+          position: { x: 0, y: 0 },
+          width: 720,
+          height: 560,
+          desktopSize: { width: 1200, height: 800 },
+          isActive: true
+        }}
         state={{
           provider: "codex",
           lastActiveAgentSessionId: null,
           conversationRailWidthPx: null
         }}
-        position={{ x: 0, y: 0 }}
-        width={720}
-        height={560}
-        desktopSize={{ width: 1200, height: 800 }}
-        isActive={true}
-        onClose={vi.fn()}
-        onResize={vi.fn()}
-        onUpdateNode={vi.fn()}
+        runtimeRequests={{}}
+        hostCapabilities={{}}
+        hostActions={{
+          onClose: vi.fn(),
+          onResize: vi.fn(),
+          onUpdateNode: vi.fn()
+        }}
+        renderSlots={{}}
       />
     );
 
@@ -6117,7 +5835,9 @@ describe("AgentGUINode", () => {
         conversationDetail: detail
       });
 
-      const renderResult = render(renderNode());
+      const renderResult = render(
+        wrapAgentGUINodeWithRuntime(renderNode(), agentActivityRuntime)
+      );
       const timeline = screen.getByTestId("agent-gui-timeline");
       expect(timelineScrollTop).toBe(400);
 
@@ -6149,7 +5869,9 @@ describe("AgentGUINode", () => {
         }
       });
 
-      renderResult.rerender(renderNode());
+      renderResult.rerender(
+        wrapAgentGUINodeWithRuntime(renderNode(), agentActivityRuntime)
+      );
 
       expect(screen.getByText("Streaming update")).toBeTruthy();
       expect(timelineScrollTop).toBe(40);
@@ -6284,27 +6006,41 @@ describe("AgentGUINode", () => {
       });
 
       renderResult.rerender(
-        <AgentGUINode
-          nodeId="agent-gui-1"
-          workspaceId="room-1"
-          currentUserId="user-1"
-          workspacePath="/workspace"
-          agentSettings={{ avoidGroupingEdits: false }}
-          title="Codex"
-          state={{
-            provider: "codex",
-            lastActiveAgentSessionId: null,
-            conversationRailWidthPx: null
-          }}
-          position={{ x: 0, y: 0 }}
-          width={720}
-          height={560}
-          desktopSize={{ width: 1200, height: 800 }}
-          isActive={true}
-          onClose={vi.fn()}
-          onResize={vi.fn()}
-          onUpdateNode={vi.fn()}
-        />
+        wrapAgentGUINodeWithRuntime(
+          <AgentGUINode
+            identity={{
+              nodeId: "agent-gui-1",
+              workspaceId: "room-1",
+              currentUserId: "user-1",
+              title: "Codex"
+            }}
+            workspace={{
+              path: "/workspace",
+              agentSettings: { avoidGroupingEdits: false }
+            }}
+            frame={{
+              position: { x: 0, y: 0 },
+              width: 720,
+              height: 560,
+              desktopSize: { width: 1200, height: 800 },
+              isActive: true
+            }}
+            state={{
+              provider: "codex",
+              lastActiveAgentSessionId: null,
+              conversationRailWidthPx: null
+            }}
+            runtimeRequests={{}}
+            hostCapabilities={{}}
+            hostActions={{
+              onClose: vi.fn(),
+              onResize: vi.fn(),
+              onUpdateNode: vi.fn()
+            }}
+            renderSlots={{}}
+          />,
+          createNoopAgentActivityRuntime()
+        )
       );
 
       expect(screen.getByText("Streaming update")).toBeTruthy();
@@ -7107,6 +6843,17 @@ async function openSharedWorkspaceReferencePicker(): Promise<void> {
   );
 }
 
+function wrapAgentGUINodeWithRuntime(
+  node: React.ReactElement,
+  agentActivityRuntime: AgentActivityRuntime
+): React.ReactElement {
+  return (
+    <AgentActivityRuntimeProvider runtime={agentActivityRuntime}>
+      {node}
+    </AgentActivityRuntimeProvider>
+  );
+}
+
 function renderAgentGUINode({
   onLinkAction,
   onAgentProviderLogin,
@@ -7145,86 +6892,103 @@ function renderAgentGUINode({
   onLinkAction?: (action: WorkspaceLinkAction) => void;
   onAgentProviderLogin?: React.ComponentProps<
     typeof AgentGUINode
-  >["onAgentProviderLogin"];
+  >["hostActions"]["onAgentProviderLogin"];
   onWorkspaceFileReferencesAdded?: React.ComponentProps<
     typeof AgentGUINode
-  >["onWorkspaceFileReferencesAdded"];
+  >["workspace"]["onFileReferencesAdded"];
   onOpenConversationWindow?: React.ComponentProps<
     typeof AgentGUINode
-  >["onOpenConversationWindow"];
+  >["hostActions"]["onOpenConversationWindow"];
   state?: AgentGUINodeData;
   onUpdateNode?: (
     updater: (current: AgentGUINodeData) => AgentGUINodeData
   ) => void;
-  onResize?: React.ComponentProps<typeof AgentGUINode>["onResize"];
+  onResize?: React.ComponentProps<
+    typeof AgentGUINode
+  >["hostActions"]["onResize"];
   workspaceFileReferenceAdapter?: WorkspaceFileReferenceAdapter | null;
   resolveDroppedFileReferences?: React.ComponentProps<
     typeof AgentGUINode
-  >["resolveDroppedFileReferences"];
+  >["workspace"]["resolveDroppedFileReferences"];
   referenceSourceAggregator?: ReferenceSourceAggregator | null;
   agentActivityRuntime?: AgentActivityRuntime | null;
-  onShowMessage?: React.ComponentProps<typeof AgentGUINode>["onShowMessage"];
+  onShowMessage?: React.ComponentProps<
+    typeof AgentGUINode
+  >["hostActions"]["onShowMessage"];
   onMinimize?: () => void;
   onToggleMaximize?: () => void;
   workspaceAgentProbes?: React.ComponentProps<
     typeof AgentGUINode
-  >["workspaceAgentProbes"];
+  >["runtimeRequests"]["agentProbes"];
   onAgentProbeDemandChange?: React.ComponentProps<
     typeof AgentGUINode
-  >["onAgentProbeDemandChange"];
+  >["runtimeRequests"]["onProbeDemandChange"];
   onAgentProbeRefreshRequest?: React.ComponentProps<
     typeof AgentGUINode
-  >["onAgentProbeRefreshRequest"];
+  >["runtimeRequests"]["onProbeRefreshRequest"];
   managedAgentsState?: React.ComponentProps<
     typeof AgentGUINode
-  >["managedAgentsState"];
+  >["hostCapabilities"]["managedAgentsState"];
   workspaceAppIcons?: React.ComponentProps<
     typeof AgentGUINode
-  >["workspaceAppIcons"];
+  >["hostCapabilities"]["workspaceAppIcons"];
   strictMode?: boolean;
   title?: string;
   width?: number;
   height?: number;
   embedded?: boolean;
   previewMode?: boolean;
-  isActive?: React.ComponentProps<typeof AgentGUINode>["isActive"];
+  isActive?: React.ComponentProps<typeof AgentGUINode>["frame"]["isActive"];
   workbenchWindowZIndex?: number;
 } = {}): ReturnType<typeof render> {
   const node = (
     <AgentGUINode
-      nodeId="agent-gui-1"
-      workspaceId="room-1"
-      currentUserId="user-1"
-      workspacePath="/workspace"
-      workspaceFileReferenceAdapter={workspaceFileReferenceAdapter}
-      resolveDroppedFileReferences={resolveDroppedFileReferences}
-      referenceSourceAggregator={referenceSourceAggregator}
-      agentSettings={{ avoidGroupingEdits: false }}
-      title={title}
+      identity={{
+        nodeId: "agent-gui-1",
+        workspaceId: "room-1",
+        currentUserId: "user-1",
+        title
+      }}
+      workspace={{
+        path: "/workspace",
+        fileReferenceAdapter: workspaceFileReferenceAdapter,
+        resolveDroppedFileReferences,
+        referenceSourceAggregator,
+        onFileReferencesAdded: onWorkspaceFileReferencesAdded,
+        agentSettings: { avoidGroupingEdits: false }
+      }}
+      frame={{
+        position: { x: 0, y: 0 },
+        width,
+        height,
+        desktopSize: { width: 1200, height: 800 },
+        embedded,
+        previewMode,
+        isActive
+      }}
       state={state}
-      position={{ x: 0, y: 0 }}
-      width={width}
-      height={height}
-      desktopSize={{ width: 1200, height: 800 }}
-      onLinkAction={onLinkAction}
-      onAgentProviderLogin={onAgentProviderLogin}
-      onWorkspaceFileReferencesAdded={onWorkspaceFileReferencesAdded}
-      onOpenConversationWindow={onOpenConversationWindow}
-      onClose={vi.fn()}
-      onResize={onResize}
-      onUpdateNode={onUpdateNode}
-      onMinimize={onMinimize}
-      onToggleMaximize={onToggleMaximize}
-      onShowMessage={onShowMessage}
-      workspaceAgentProbes={workspaceAgentProbes}
-      onAgentProbeDemandChange={onAgentProbeDemandChange}
-      onAgentProbeRefreshRequest={onAgentProbeRefreshRequest}
-      managedAgentsState={managedAgentsState}
-      workspaceAppIcons={workspaceAppIcons}
-      contextMentionProviders={createAgentGUITestContextMentionProviders()}
-      embedded={embedded}
-      previewMode={previewMode}
-      isActive={isActive}
+      runtimeRequests={{
+        agentProbes: workspaceAgentProbes,
+        onProbeDemandChange: onAgentProbeDemandChange,
+        onProbeRefreshRequest: onAgentProbeRefreshRequest
+      }}
+      hostCapabilities={{
+        managedAgentsState,
+        workspaceAppIcons,
+        contextMentionProviders: createAgentGUITestContextMentionProviders()
+      }}
+      hostActions={{
+        onLinkAction,
+        onAgentProviderLogin,
+        onOpenConversationWindow,
+        onClose: vi.fn(),
+        onResize,
+        onUpdateNode,
+        onMinimize,
+        onToggleMaximize,
+        onShowMessage
+      }}
+      renderSlots={{}}
     />
   );
   const wrappedNode =
@@ -7277,33 +7041,34 @@ function createAgentActivitySnapshotFromViewModel(
   const empty = createEmptyAgentActivitySnapshot(workspaceId);
   return {
     ...empty,
-    sessions: mockViewModel.conversations.map((conversation) => ({
-      workspaceId,
-      agentSessionId: conversation.id,
-      agentTargetId: conversation.agentTargetId,
-      provider: String(conversation.provider),
-      userId: conversation.userId,
-      cwd: conversation.cwd,
-      title: conversation.title,
-      status: conversation.status,
-      visible: true,
-      resumable: conversation.resumable,
-      pinnedAtUnixMs: conversation.pinnedAtUnixMs,
-      updatedAtUnixMs: conversation.updatedAtUnixMs,
-      lastEventUnixMs: conversation.updatedAtUnixMs
-    }))
+    sessions: mockViewModel.rail.conversations.map((conversation) =>
+      normalizeAgentActivitySession({
+        workspaceId,
+        agentSessionId: conversation.id,
+        agentTargetId: conversation.agentTargetId,
+        provider: String(conversation.provider),
+        userId: conversation.userId,
+        cwd: conversation.cwd,
+        title: conversation.title,
+        visible: true,
+        resumable: conversation.resumable,
+        pinnedAtUnixMs: conversation.pinnedAtUnixMs,
+        updatedAtUnixMs: conversation.updatedAtUnixMs,
+        lastEventUnixMs: conversation.updatedAtUnixMs
+      })
+    )
   };
 }
 
 function createNoopAgentActivityRuntime(): AgentActivityRuntime {
-  const createSession = (workspaceId: string, agentSessionId: string) => ({
-    workspaceId,
-    agentSessionId,
-    provider: "codex",
-    cwd: "/workspace",
-    title: "",
-    status: "ready"
-  });
+  const createSession = (workspaceId: string, agentSessionId: string) =>
+    normalizeAgentActivitySession({
+      workspaceId,
+      agentSessionId,
+      provider: "codex",
+      cwd: "/workspace",
+      title: ""
+    });
   const sessionEngine = createTestAgentSessionEngine();
   return {
     promptContentUploadSupport: { file: true, image: true },
@@ -7314,13 +7079,6 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
       return {
         session: createSession(input.workspaceId, input.agentSessionId),
         goal: null
-      };
-    },
-    async cancelSession(input) {
-      return {
-        session: createSession(input.workspaceId, input.agentSessionId),
-        canceled: false,
-        reason: "no_active_turn"
       };
     },
     async createSession(input) {
@@ -7348,16 +7106,9 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
     async updateSessionSettings(input) {
       return {
         agentSessionId: input.agentSessionId,
-        settings: input.settings
+        settings: input.settings,
+        session: createSession(input.workspaceId, input.agentSessionId)
       };
-    },
-    async warmupOpenclawGateway() {
-      return { accepted: true, ready: true };
-    },
-    async getSessionControlState() {
-      return { status: "ready" } as Awaited<
-        ReturnType<AgentActivityRuntime["getSessionControlState"]>
-      >;
     },
     getSnapshot(workspaceId) {
       return createAgentActivitySnapshotFromViewModel(workspaceId);
@@ -7374,14 +7125,18 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
     ensureSessionSynchronized() {
       return () => undefined;
     },
-    retainSessionEvents() {
-      return () => undefined;
-    },
     async sendInput(input) {
       const session = createSession(input.workspaceId, input.agentSessionId);
       return {
         session,
         turnId: "turn-1",
+        turn: {
+          agentSessionId: input.agentSessionId,
+          phase: "submitted",
+          startedAtUnixMs: 1,
+          turnId: "turn-1",
+          updatedAtUnixMs: 1
+        },
         turnLifecycle: { activeTurnId: "turn-1", phase: "submitted" },
         submitAvailability: { state: "ready" }
       };
@@ -7424,7 +7179,7 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
       };
     },
     async submitInteractive() {
-      return {};
+      return { session: createSession("workspace-1", "session-1") };
     },
     subscribeSessionEvents() {
       return () => undefined;
@@ -7477,14 +7232,7 @@ function createManagedAgentsState(
     toolCatalogRevision: "catalog-1",
     agentProfileRevision: "profile-1",
     totalCount: 6,
-    readyAgentIds: [
-      "codex",
-      "claude-code",
-      "hermes",
-      "hermes",
-      "openclaw",
-      "nexight"
-    ],
+    readyAgentIds: ["codex", "claude-code", "hermes", "openclaw", "nexight"],
     configSyncedAgentIds: [],
     items: [],
     ...overrides
@@ -7509,12 +7257,12 @@ function createManagedAgentsStateItem(
 }
 
 function createViewModel(
-  overrides: Partial<AgentGUINodeViewModel> = {}
+  overrides: AgentGUINodeViewModelFixtureOverrides = {}
 ): AgentGUINodeViewModel {
   const draftContent =
     overrides.draftContent ?? createDraft(overrides.draftPrompt ?? "");
   const draftPrompt = overrides.draftPrompt ?? draftContent.prompt;
-  return {
+  const flat: FlatAgentGUINodeViewModelFixture = {
     workspaceId: "room-1",
     data: {
       provider: "codex",
@@ -7557,7 +7305,6 @@ function createViewModel(
     pendingInteractivePrompt: null,
     activeLiveState: "active",
     activationError: null,
-    openclawGateway: null,
     activeConversationBusy: false,
     canSubmit: true,
     canQueueWhileBusy: false,
@@ -7617,6 +7364,7 @@ function createViewModel(
     providerReadinessGate: overrides.providerReadinessGate ?? null,
     listError: overrides.listError ?? null
   };
+  return groupAgentGUINodeViewModelFixture(flat);
 }
 
 function approvalRequest(
@@ -7662,22 +7410,17 @@ function detailViewModel(
       changedFiles: [],
       sortTimeUnixMs: 1
     },
-    session: {
-      id: 1,
+    session: normalizeAgentActivitySession({
+      workspaceId: "workspace-1",
       agentSessionId: "session-1",
-      presenceId: 0,
       userId: "user-1",
       provider: "codex",
       providerSessionId: "provider-session-1",
-      sessionOrigin: "WORKSPACE_AGENT_SESSION_ORIGIN_RUNTIME",
       cwd: "/workspace",
-      lifecycleStatus: "active",
-      turnPhase: "working",
-      effectiveStatus: "working",
       title: "Codex",
       createdAtUnixMs: 1,
       updatedAtUnixMs: 1
-    },
+    }),
     cwd: "/workspace",
     workspaceRoot: "/workspace",
     turns: [

@@ -1,5 +1,6 @@
 import type { WorkbenchHostDockEntryStateSource } from "@tutti-os/workbench-surface";
 import type { AgentGUIProviderTarget } from "@tutti-os/agent-gui";
+import { resolveAgentGUIProviderCatalogIdentity } from "@tutti-os/agent-gui/provider-catalog";
 import type { AgentProviderStatus } from "@tutti-os/client-tuttid-ts";
 import type {
   AgentProviderStatusService,
@@ -22,7 +23,6 @@ import {
 
 const installedDockOrderOffset = 0;
 const pendingInstallDockOrderOffset = 100;
-const openClawSetupRequiredDockOrderOffset = 200;
 
 const agentProviderDockBaseOrder = new Map<WorkspaceAgentGuiProvider, number>(
   workspaceAgentGuiProviders.map((provider, index) => [provider, index])
@@ -179,7 +179,10 @@ function isAgentProviderHiddenByTargets(
   provider: WorkspaceAgentGuiProvider,
   providerTargets: readonly AgentGUIProviderTarget[] | null | undefined
 ): boolean {
-  if (provider !== "tutti-agent") {
+  if (
+    resolveAgentGUIProviderCatalogIdentity(provider)?.desktop.visibilityGate !==
+    "tutti_agent"
+  ) {
     return false;
   }
   return !providerTargets?.some(
@@ -192,8 +195,11 @@ function resolveAgentProviderDockOrder(
   status: AgentProviderStatus | null
 ): number {
   const baseOrder = agentProviderDockBaseOrder.get(provider) ?? 0;
-  if (provider === "openclaw" && status?.availability.status !== "ready") {
-    return openClawSetupRequiredDockOrderOffset + baseOrder;
+  const unavailableOffset =
+    resolveAgentGUIProviderCatalogIdentity(provider)?.desktop
+      .unavailableDockOrderOffset ?? 0;
+  if (unavailableOffset > 0 && status?.availability.status !== "ready") {
+    return unavailableOffset + baseOrder;
   }
   const statusOffset =
     status &&

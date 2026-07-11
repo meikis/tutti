@@ -17,7 +17,13 @@ export function createInitialEngineRuntimeState(): EngineRuntimeState {
     connection: "unknown",
     lastCommandResult: null,
     lastExpiredIntentId: null,
-    processedIntentCount: 0
+    processedIntentCount: 0,
+    workspaceReconcile: {
+      commandId: null,
+      errorCode: null,
+      errorMessage: null,
+      status: "idle"
+    }
   };
 }
 
@@ -30,22 +36,23 @@ export function engineRuntimeReducer(
     processedIntentCount: state.processedIntentCount + 1
   };
   switch (intent.type) {
+    case "workspace/reconcileRequested":
+      return requestWorkspaceReconcile(
+        counted,
+        intent.workspaceId,
+        intent.retry === true
+      );
     case "engine/connectionChanged":
       if (
         intent.status === "connected" &&
         state.connection !== "connected" &&
         intent.workspaceId?.trim()
       ) {
-        return {
-          commands: [
-            {
-              commandId: `engine:reconcile:${intent.workspaceId}:${counted.processedIntentCount}`,
-              type: "engine/reconcileWorkspace",
-              workspaceId: intent.workspaceId
-            }
-          ],
-          state: { ...counted, connection: intent.status }
-        };
+        return requestWorkspaceReconcile(
+          { ...counted, connection: intent.status },
+          intent.workspaceId,
+          true
+        );
       }
       return {
         commands: NO_COMMANDS,
@@ -81,17 +88,38 @@ export function engineRuntimeReducer(
         state: counted
       };
     case "engine/commandResult":
+      if (
+        intent.commandType === "engine/reconcileWorkspace" &&
+        intent.commandId === state.workspaceReconcile.commandId
+      ) {
+        return {
+          commands: NO_COMMANDS,
+          state: {
+            ...counted,
+            lastCommandResult: commandResultRecord(intent),
+            workspaceReconcile: {
+              commandId: null,
+              errorCode:
+                intent.outcome === "failed" ? (intent.errorCode ?? null) : null,
+              errorMessage:
+                intent.outcome === "failed"
+                  ? intent.errorMessage?.trim() || null
+                  : null,
+              status:
+                intent.outcome === "succeeded"
+                  ? "ready"
+                  : intent.outcome === "failed"
+                    ? "failed"
+                    : "unknown"
+            }
+          }
+        };
+      }
       return {
         commands: NO_COMMANDS,
         state: {
           ...counted,
-          lastCommandResult: {
-            commandId: intent.commandId,
-            outcome: intent.outcome,
-            ...(intent.errorMessage === undefined
-              ? {}
-              : { errorMessage: intent.errorMessage })
-          }
+          lastCommandResult: commandResultRecord(intent)
         }
       };
     case "engine/intentExpired":
@@ -102,4 +130,47 @@ export function engineRuntimeReducer(
     default:
       return { commands: NO_COMMANDS, state: counted };
   }
+}
+
+function requestWorkspaceReconcile(
+  state: EngineRuntimeState,
+  workspaceId: string,
+  retry: boolean
+): EngineReducerResult<EngineRuntimeState> {
+  const normalized = workspaceId.trim();
+  if (
+    !normalized ||
+    state.workspaceReconcile.status === "loading" ||
+    ((state.workspaceReconcile.status === "failed" ||
+      state.workspaceReconcile.status === "unknown") &&
+      !retry)
+  )
+    return { commands: NO_COMMANDS, state };
+  const commandId = `engine:reconcile:${normalized}:${state.processedIntentCount}`;
+  return {
+    commands: [
+      { commandId, type: "engine/reconcileWorkspace", workspaceId: normalized }
+    ],
+    state: {
+      ...state,
+      workspaceReconcile: {
+        commandId,
+        errorCode: null,
+        errorMessage: null,
+        status: "loading"
+      }
+    }
+  };
+}
+
+function commandResultRecord(
+  intent: Extract<EngineIntent, { type: "engine/commandResult" }>
+) {
+  return {
+    commandId: intent.commandId,
+    outcome: intent.outcome,
+    ...(intent.errorMessage === undefined
+      ? {}
+      : { errorMessage: intent.errorMessage })
+  };
 }

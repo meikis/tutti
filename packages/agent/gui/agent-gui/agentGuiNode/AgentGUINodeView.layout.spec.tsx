@@ -8,10 +8,19 @@ import {
 } from "@testing-library/react";
 import { createDefaultWorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AgentActivitySnapshot } from "@tutti-os/agent-activity-core";
+import {
+  normalizeAgentActivitySession,
+  type AgentActivitySnapshot
+} from "@tutti-os/agent-activity-core";
 import type { WorkspaceAgentSessionDetailViewModel } from "../../shared/workspaceAgentSessionDetailViewModel";
 import type { AgentPromptContentBlock } from "../../shared/contracts/dto";
 import type { AgentGUINodeViewModel } from "./model/agentGuiNodeTypes";
+import {
+  flattenAgentGUINodeViewModelFixture,
+  groupAgentGUINodeViewModelFixture,
+  type AgentGUINodeViewModelFixtureOverrides,
+  type FlatAgentGUINodeViewModelFixture
+} from "./model/AgentGUINodeViewModel.fixture";
 import {
   AgentGUINodeView,
   updateConversationSectionsFromSummaries,
@@ -44,11 +53,11 @@ const conversationMetaMock = vi.hoisted(() => ({
 }));
 
 const composerMock = vi.hoisted(() => ({
+  commits: 0,
   calls: [] as Array<{
     backgroundAgentStatusText?: string | null;
     composerFocusRequestSequence?: number | null;
     compactSupported?: boolean | null;
-    hasActiveConversation?: boolean;
     isSendingTurn?: boolean;
     onSubmit?: (
       content: AgentPromptContentBlock[],
@@ -56,8 +65,13 @@ const composerMock = vi.hoisted(() => ({
     ) => void;
     provider?: string;
     showStopButton?: boolean;
-    usage?: AgentGUINodeViewModel["usage"];
+    usage?: AgentGUINodeViewModel["detail"]["usage"];
   }>
+}));
+
+const verticalPaneRenderMock = vi.hoisted(() => ({
+  railCommits: 0,
+  timelineCommits: 0
 }));
 
 const workspaceUserProjectI18n = createDefaultWorkspaceUserProjectI18nRuntime();
@@ -129,37 +143,94 @@ vi.mock("./AgentSessionChrome", () => ({
   AgentSessionChrome: () => <div data-testid="agent-session-chrome" />
 }));
 
-vi.mock("./AgentComposer", () => ({
-  AgentComposer: (props: {
-    backgroundAgentStatusText?: string | null;
-    composerFocusRequestSequence?: number | null;
-    compactSupported?: boolean | null;
-    hasActiveConversation?: boolean;
-    isSendingTurn?: boolean;
-    onSubmit?: (
-      content: AgentPromptContentBlock[],
-      displayPrompt?: string
-    ) => void;
-    provider?: string;
-    showStopButton?: boolean;
-    usage?: AgentGUINodeViewModel["usage"];
-  }) => {
-    composerMock.calls.push({
-      backgroundAgentStatusText: props.backgroundAgentStatusText,
-      composerFocusRequestSequence: props.composerFocusRequestSequence,
-      compactSupported: props.compactSupported,
-      hasActiveConversation: props.hasActiveConversation,
-      isSendingTurn: props.isSendingTurn,
-      provider: props.provider,
-      onSubmit: props.onSubmit,
-      showStopButton: props.showStopButton,
-      usage: props.usage
-    });
-    return <div data-testid="agent-composer" />;
-  },
-  formatSlashStatusTokenCount: (value: number | null | undefined) =>
-    typeof value === "number" ? value.toLocaleString("en-US") : ""
-}));
+vi.mock("./AgentComposer", async () => {
+  const { memo, Profiler } =
+    await vi.importActual<typeof import("react")>("react");
+  return {
+    AgentComposer: memo(
+      (props: {
+        backgroundAgentStatusText?: string | null;
+        composerFocusRequestSequence?: number | null;
+        compactSupported?: boolean | null;
+        isSendingTurn?: boolean;
+        onSubmit?: (
+          content: AgentPromptContentBlock[],
+          displayPrompt?: string
+        ) => void;
+        provider?: string;
+        showStopButton?: boolean;
+        usage?: AgentGUINodeViewModel["detail"]["usage"];
+      }) => {
+        composerMock.calls.push({
+          backgroundAgentStatusText: props.backgroundAgentStatusText,
+          composerFocusRequestSequence: props.composerFocusRequestSequence,
+          compactSupported: props.compactSupported,
+          isSendingTurn: props.isSendingTurn,
+          provider: props.provider,
+          onSubmit: props.onSubmit,
+          showStopButton: props.showStopButton,
+          usage: props.usage
+        });
+        return (
+          <Profiler
+            id="agent-composer-render-budget"
+            onRender={() => composerMock.commits++}
+          >
+            <div data-testid="agent-composer" />
+          </Profiler>
+        );
+      }
+    ),
+    formatSlashStatusTokenCount: (value: number | null | undefined) =>
+      typeof value === "number" ? value.toLocaleString("en-US") : ""
+  };
+});
+
+vi.mock("./view/AgentGUIConversationRailPane", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("./view/AgentGUIConversationRailPane")
+    >();
+  const { createElement, memo, Profiler } =
+    await vi.importActual<typeof import("react")>("react");
+  return {
+    ...actual,
+    AgentGUIConversationRailPane: memo(
+      (props: Parameters<typeof actual.AgentGUIConversationRailPane>[0]) => (
+        <Profiler
+          id="agent-gui-rail-render-budget"
+          onRender={() => verticalPaneRenderMock.railCommits++}
+        >
+          {createElement(actual.AgentGUIConversationRailPane, props)}
+        </Profiler>
+      )
+    )
+  };
+});
+
+vi.mock("./view/AgentGUIConversationTimelinePane", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("./view/AgentGUIConversationTimelinePane")
+    >();
+  const { createElement, memo, Profiler } =
+    await vi.importActual<typeof import("react")>("react");
+  return {
+    ...actual,
+    AgentGUIConversationTimelinePane: memo(
+      (
+        props: Parameters<typeof actual.AgentGUIConversationTimelinePane>[0]
+      ) => (
+        <Profiler
+          id="agent-gui-timeline-render-budget"
+          onRender={() => verticalPaneRenderMock.timelineCommits++}
+        >
+          {createElement(actual.AgentGUIConversationTimelinePane, props)}
+        </Profiler>
+      )
+    )
+  };
+});
 
 vi.mock(
   "../../shared/agentConversation/components/AgentConversationFlow",
@@ -212,10 +283,110 @@ describe("AgentGUINodeView layout persistence", () => {
   afterEach(() => {
     conversationFlowMock.calls = [];
     conversationMetaMock.calls = [];
+    composerMock.commits = 0;
     composerMock.calls = [];
+    verticalPaneRenderMock.railCommits = 0;
+    verticalPaneRenderMock.timelineCommits = 0;
     statusDotMock.calls = [];
     globalThis.localStorage.clear();
     vi.useRealTimers();
+  });
+
+  it("keeps composer and rail vertical boundaries idle for a detail update", () => {
+    const initial = createActiveRenderBudgetViewModel();
+    const stableOptions = {
+      actions: createActions(),
+      labels: createLabels()
+    };
+    const rendered = renderAgentGUINodeView({
+      ...stableOptions,
+      viewModel: initial
+    });
+    expect(composerMock.commits).toBeGreaterThan(0);
+    expect(verticalPaneRenderMock.railCommits).toBeGreaterThan(0);
+    composerMock.commits = 0;
+    verticalPaneRenderMock.railCommits = 0;
+
+    rendered.rerender(
+      buildAgentGUINodeViewElement({
+        ...stableOptions,
+        viewModel: {
+          ...initial,
+          detail: {
+            ...initial.detail,
+            isLoadingMessages: true
+          }
+        }
+      })
+    );
+
+    expect(composerMock.commits).toBe(0);
+    expect(verticalPaneRenderMock.railCommits).toBe(0);
+  });
+
+  it("keeps composer and timeline vertical boundaries idle for a rail update", () => {
+    const initial = createActiveRenderBudgetViewModel();
+    const stableOptions = {
+      actions: createActions(),
+      labels: createLabels()
+    };
+    const rendered = renderAgentGUINodeView({
+      ...stableOptions,
+      viewModel: initial
+    });
+    expect(composerMock.commits).toBeGreaterThan(0);
+    expect(verticalPaneRenderMock.timelineCommits).toBeGreaterThan(0);
+    composerMock.commits = 0;
+    verticalPaneRenderMock.timelineCommits = 0;
+
+    rendered.rerender(
+      buildAgentGUINodeViewElement({
+        ...stableOptions,
+        viewModel: {
+          ...initial,
+          rail: {
+            ...initial.rail,
+            isLoadingConversations: true
+          }
+        }
+      })
+    );
+
+    expect(composerMock.commits).toBe(0);
+    expect(verticalPaneRenderMock.timelineCommits).toBe(0);
+  });
+
+  it("keeps rail and timeline vertical boundaries idle while typing", () => {
+    const initial = createActiveRenderBudgetViewModel();
+    const stableOptions = {
+      actions: createActions(),
+      labels: createLabels()
+    };
+    const rendered = renderAgentGUINodeView({
+      ...stableOptions,
+      viewModel: initial
+    });
+    expect(verticalPaneRenderMock.railCommits).toBeGreaterThan(0);
+    expect(verticalPaneRenderMock.timelineCommits).toBeGreaterThan(0);
+    verticalPaneRenderMock.railCommits = 0;
+    verticalPaneRenderMock.timelineCommits = 0;
+
+    rendered.rerender(
+      buildAgentGUINodeViewElement({
+        ...stableOptions,
+        viewModel: {
+          ...initial,
+          composer: {
+            ...initial.composer,
+            draftContent: { prompt: "x", images: [] },
+            draftPrompt: "x"
+          }
+        }
+      })
+    );
+
+    expect(verticalPaneRenderMock.railCommits).toBe(0);
+    expect(verticalPaneRenderMock.timelineCommits).toBe(0);
   });
 
   it("does not persist the initial layout callback on mount", () => {
@@ -768,8 +939,8 @@ describe("AgentGUINodeView layout persistence", () => {
       }
     });
 
-    const tuttiTile = screen.getByRole("tab", { name: "Tutti" });
-    const hermesTile = screen.getByRole("tab", { name: "Hermes" });
+    const tuttiTile = screen.getByRole("tab", { name: "Nexight" });
+    const hermesTile = screen.getByRole("tab", { name: "Hermes Agent" });
     const openclawTile = screen.getByRole("tab", { name: "OpenClaw" });
 
     expect(tuttiTile).toHaveAttribute("data-disabled", "true");
@@ -800,7 +971,7 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(actions.selectHomeComposerAgentTarget).not.toHaveBeenCalled();
   });
 
-  it("hides the legacy disabled Tutti rail target when Tutti Agent is available", () => {
+  it("keeps every canonical provider descriptor visible", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
@@ -815,12 +986,13 @@ describe("AgentGUINodeView layout persistence", () => {
     });
 
     expect(screen.getAllByRole("tab", { name: "Tutti Agent" })).toHaveLength(1);
-    expect(
-      screen.queryByRole("tab", { name: "Tutti" })
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Nexight" })).toHaveAttribute(
+      "data-disabled",
+      "true"
+    );
   });
 
-  it("orders provider rail tiles as Codex, Claude Code, Cursor, Tutti, Hermes, OpenClaw without visible provider labels", () => {
+  it("orders all canonical provider rail tiles without visible provider labels", () => {
     renderAgentGUINodeView({
       viewModel: {
         ...createViewModel(),
@@ -852,8 +1024,10 @@ describe("AgentGUINodeView layout persistence", () => {
       "Codex",
       "Claude Code",
       "Cursor",
-      "Tutti",
-      "Hermes",
+      "Tutti Agent",
+      "OpenCode",
+      "Nexight",
+      "Hermes Agent",
       "OpenClaw"
     ]);
     expect(screen.getByRole("tab", { name: "All" })).toHaveTextContent("All");
@@ -861,8 +1035,12 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(screen.getByRole("tab", { name: "Claude Code" })).toHaveTextContent(
       ""
     );
-    expect(screen.getByRole("tab", { name: "Tutti" })).toHaveTextContent("");
-    expect(screen.getByRole("tab", { name: "Hermes" })).toHaveTextContent("");
+    expect(screen.getByRole("tab", { name: "Tutti Agent" })).toHaveTextContent(
+      ""
+    );
+    expect(screen.getByRole("tab", { name: "Hermes Agent" })).toHaveTextContent(
+      ""
+    );
     expect(screen.getByRole("tab", { name: "OpenClaw" })).toHaveTextContent("");
 
     expect(
@@ -879,7 +1057,7 @@ describe("AgentGUINodeView layout persistence", () => {
     ).toBe(MANAGED_AGENT_PROVIDER_RAIL_ICON_URLS.cursor);
     expect(
       screen
-        .getByRole("tab", { name: "Tutti" })
+        .getByRole("tab", { name: "Nexight" })
         .querySelector("img")
         ?.getAttribute("src")
     ).toBe(MANAGED_AGENT_PROVIDER_RAIL_ICON_URLS.tutti);
@@ -906,7 +1084,10 @@ describe("AgentGUINodeView layout persistence", () => {
       "Codex",
       "Claude Code",
       "Cursor",
-      "Hermes",
+      "Tutti Agent",
+      "OpenCode",
+      "Nexight",
+      "Hermes Agent",
       "OpenClaw"
     ]);
 
@@ -946,7 +1127,10 @@ describe("AgentGUINodeView layout persistence", () => {
       "Cursor",
       "Codex",
       "Claude Code",
-      "Hermes",
+      "Tutti Agent",
+      "OpenCode",
+      "Nexight",
+      "Hermes Agent",
       "OpenClaw"
     ]);
     expect(
@@ -954,7 +1138,7 @@ describe("AgentGUINodeView layout persistence", () => {
         agentGUIProviderRailOrderStorageKey("room-1")
       )
     ).toBe(
-      '["local:cursor","local:codex","local:claude-code","local:hermes","local:openclaw"]'
+      '["local:cursor","local:codex","local:claude-code","local:tutti-agent","local:opencode","local:nexight","local:hermes","local:openclaw"]'
     );
 
     rerender(
@@ -972,7 +1156,10 @@ describe("AgentGUINodeView layout persistence", () => {
         "Cursor",
         "Codex",
         "Claude Code",
-        "Hermes",
+        "Tutti Agent",
+        "OpenCode",
+        "Nexight",
+        "Hermes Agent",
         "OpenClaw"
       ]);
     });
@@ -1412,13 +1599,32 @@ describe("AgentGUINodeView layout persistence", () => {
       screen.getByRole("tab", { name: "Claude Code" })
     ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Cursor" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Hermes" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Tutti Agent" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "OpenCode" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Nexight" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Hermes Agent" })
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "OpenClaw" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Hermes" })).not.toBeDisabled();
+    expect(
+      screen.getByRole("tab", { name: "Hermes Agent" })
+    ).not.toBeDisabled();
     expect(screen.getByRole("tab", { name: "OpenClaw" })).not.toBeDisabled();
     expect(
       screen.getAllByRole("tab").map((tab) => tab.getAttribute("aria-label"))
-    ).toEqual(["All", "Codex", "Claude Code", "Cursor", "Hermes", "OpenClaw"]);
+    ).toEqual([
+      "All",
+      "Codex",
+      "Claude Code",
+      "Cursor",
+      "Tutti Agent",
+      "OpenCode",
+      "Nexight",
+      "Hermes Agent",
+      "OpenClaw"
+    ]);
   });
 
   it("renders exactly the provided targets in exact rail mode", () => {
@@ -1576,7 +1782,8 @@ describe("AgentGUINodeView layout persistence", () => {
       "Cursor",
       "Tutti Agent",
       "OpenCode",
-      "Hermes",
+      "Nexight",
+      "Hermes Agent",
       "OpenClaw"
     ]);
   });
@@ -1798,34 +2005,6 @@ describe("AgentGUINodeView layout persistence", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("tells the composer whether there is an active conversation, so it knows when to defer clearing the draft on submit (Feishu UUl2Oc)", () => {
-    renderAgentGUINodeView({
-      viewModel: {
-        ...createViewModel(),
-        activeConversation: null,
-        activeConversationId: null
-      }
-    });
-
-    expect(composerMock.calls.at(-1)).toMatchObject({
-      hasActiveConversation: false
-    });
-
-    const conversation = createConversationSummary("session-1");
-    renderAgentGUINodeView({
-      viewModel: {
-        ...createViewModel(),
-        activeConversation: conversation,
-        activeConversationId: conversation.id,
-        conversations: [conversation]
-      }
-    });
-
-    expect(composerMock.calls.at(-1)).toMatchObject({
-      hasActiveConversation: true
-    });
-  });
-
   it("opens a new conversation draft for the selected project section", () => {
     const actions = createActions();
     renderAgentGUINodeView({
@@ -1911,7 +2090,7 @@ describe("AgentGUINodeView layout persistence", () => {
           }
         ],
         composerSettings: {
-          ...viewModel.composerSettings,
+          ...viewModel.composer.composerSettings,
           selectedProjectPath: "/workspace/app"
         }
       },
@@ -1953,7 +2132,7 @@ describe("AgentGUINodeView layout persistence", () => {
           }
         ],
         composerSettings: {
-          ...viewModel.composerSettings,
+          ...viewModel.composer.composerSettings,
           selectedProjectPath: "/workspace/app"
         }
       }
@@ -2678,6 +2857,14 @@ describe("AgentGUINodeView layout persistence", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+
+    expect(
+      screen.getByTestId("agent-gui-conversation-item-session-10")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-gui-conversation-item-session-11")
+    ).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Show more" }));
 
     expect(
@@ -2916,15 +3103,14 @@ describe("AgentGUINodeView layout persistence", () => {
       updatedAtUnixMs: 100
     };
     const baseViewModel = createViewModel();
-    const viewModel = {
-      ...baseViewModel,
+    const viewModel = createViewModel({
       data: {
-        ...baseViewModel.data,
+        ...baseViewModel.shell.data,
         provider: "claude-code" as const
       },
       selectedProviderTarget: createLocalAgentGUIProviderTarget("claude-code"),
       conversations: [initialConversation]
-    };
+    });
     const labels = createLabels();
     const rendered = renderAgentGUINodeView({
       activityRuntime,
@@ -2975,7 +3161,7 @@ describe("AgentGUINodeView layout persistence", () => {
         viewModel: {
           ...viewModel,
           data: {
-            ...viewModel.data,
+            ...viewModel.shell.data,
             provider: "codex" as const
           },
           selectedProviderTarget: createLocalAgentGUIProviderTarget("codex"),
@@ -4353,7 +4539,7 @@ describe("AgentGUINodeView usage", () => {
   });
 
   function renderWithUsage(
-    usage: AgentGUINodeViewModel["usage"],
+    usage: AgentGUINodeViewModel["detail"]["usage"],
     slashStatusLimits: AgentGUINodeViewProps["slashStatusLimits"] = []
   ) {
     const activeConversation = createConversationSummary("session-1");
@@ -4449,7 +4635,7 @@ describe("AgentGUINodeView detail header actions", () => {
     statusDotMock.calls = [];
   });
 
-  const usageWithWindow: AgentGUINodeViewModel["usage"] = {
+  const usageWithWindow: AgentGUINodeViewModel["detail"]["usage"] = {
     usedTokens: 170_000,
     totalTokens: 200_000,
     percentUsed: 85,
@@ -4462,22 +4648,19 @@ describe("AgentGUINodeView detail header actions", () => {
       status: "working" as const
     };
     const conversationDetail = createConversationDetail();
-    return {
-      ...createViewModel(),
+    return createViewModel({
       conversations: [activeConversation],
       activeConversation,
       activeConversationId: activeConversation.id,
       conversationDetail: {
         ...conversationDetail,
         session: {
-          ...conversationDetail.session,
-          effectiveStatus: "working",
-          turnPhase: "working"
+          ...conversationDetail.session
         }
       },
       usage: usageWithWindow,
       compactSupported: true
-    };
+    });
   }
 
   it("does not render compact or working status controls in the detail header", () => {
@@ -4798,7 +4981,7 @@ interface RenderAgentGUINodeViewOptions {
   isAgentProviderReady?: boolean;
   onConversationRailWidthChanged?: (widthPx: number) => void;
   onLinkAction?: AgentGUINodeViewProps["onLinkAction"];
-  viewModel?: AgentGUINodeViewModel;
+  viewModel?: AgentGUINodeViewModel | AgentGUINodeViewModelFixtureOverrides;
   actions?: AgentGUINodeViewProps["actions"];
   accountMenuState?: AgentGUINodeViewProps["accountMenuState"];
   labels?: AgentGUIViewLabels;
@@ -4829,10 +5012,11 @@ function buildAgentGUINodeViewElement({
   providerRailAllPresentation,
   slashStatusLimits = []
 }: RenderAgentGUINodeViewOptions = {}) {
+  const groupedViewModel = normalizeViewModelFixture(viewModel);
   return (
     <AgentActivityRuntimeProvider runtime={activityRuntime}>
       <AgentGUINodeView
-        viewModel={viewModel}
+        viewModel={groupedViewModel}
         renderSidebarFooter={renderSidebarFooter}
         renderProviderRailEmpty={renderProviderRailEmpty}
         renderProviderUnavailableState={renderProviderUnavailableState}
@@ -4858,6 +5042,36 @@ function buildAgentGUINodeViewElement({
   );
 }
 
+function normalizeViewModelFixture(
+  input: AgentGUINodeViewModel | AgentGUINodeViewModelFixtureOverrides
+): AgentGUINodeViewModel {
+  if (!("shell" in input)) {
+    return createViewModel(input);
+  }
+  const grouped = input as AgentGUINodeViewModel;
+  const mixed = input as AgentGUINodeViewModel &
+    AgentGUINodeViewModelFixtureOverrides;
+  const flatOverrides = { ...mixed } as Record<string, unknown>;
+  for (const key of [
+    "shell",
+    "rail",
+    "detail",
+    "composer",
+    "interaction",
+    "readiness",
+    "operations"
+  ]) {
+    delete flatOverrides[key];
+  }
+  if (Object.keys(flatOverrides).length === 0) {
+    return grouped;
+  }
+  return groupAgentGUINodeViewModelFixture({
+    ...flattenAgentGUINodeViewModelFixture(grouped),
+    ...flatOverrides
+  } as FlatAgentGUINodeViewModelFixture);
+}
+
 function renderAgentGUINodeView(options: RenderAgentGUINodeViewOptions = {}) {
   return render(buildAgentGUINodeViewElement(options));
 }
@@ -4878,13 +5092,6 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
         goal: null
       };
     },
-    async cancelSession(input) {
-      return {
-        session: createRuntimeSession(input.workspaceId, input.agentSessionId),
-        canceled: false,
-        reason: "no_active_turn"
-      };
-    },
     async createSession(input) {
       return createRuntimeSession(
         input.workspaceId,
@@ -4900,11 +5107,13 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
     },
     async activateSession(input) {
       return {
-        session: createRuntimeSession(
-          input.workspaceId,
-          input.agentSessionId,
-          input.cwd ?? "/workspace"
-        ),
+        session: {
+          ...createRuntimeSession(
+            input.workspaceId,
+            input.agentSessionId,
+            input.cwd ?? "/workspace"
+          )
+        },
         activation: { mode: input.mode, status: "attached" }
       };
     },
@@ -4917,16 +5126,9 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
     async updateSessionSettings(input) {
       return {
         agentSessionId: input.agentSessionId,
-        settings: input.settings
+        settings: input.settings,
+        session: createRuntimeSession(input.workspaceId, input.agentSessionId)
       };
-    },
-    async warmupOpenclawGateway() {
-      return { accepted: true, ready: true };
-    },
-    async getSessionControlState() {
-      return { status: "ready" } as Awaited<
-        ReturnType<AgentActivityRuntime["getSessionControlState"]>
-      >;
     },
     getSnapshot() {
       return snapshot;
@@ -4943,13 +5145,17 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
     ensureSessionSynchronized() {
       return () => undefined;
     },
-    retainSessionEvents() {
-      return () => undefined;
-    },
     async sendInput(input) {
       return {
         session: createRuntimeSession(input.workspaceId, input.agentSessionId),
         turnId: "turn-1",
+        turn: {
+          agentSessionId: input.agentSessionId,
+          phase: "submitted",
+          startedAtUnixMs: 1,
+          turnId: "turn-1",
+          updatedAtUnixMs: 1
+        },
         turnLifecycle: { activeTurnId: "turn-1", phase: "submitted" },
         submitAvailability: { state: "ready" }
       };
@@ -4985,7 +5191,9 @@ function createNoopAgentActivityRuntime(): AgentActivityRuntime {
       };
     },
     async submitInteractive() {
-      return {};
+      return {
+        session: createRuntimeSession("workspace-1", "session-1")
+      };
     },
     subscribeSessionEvents() {
       return () => undefined;
@@ -5005,7 +5213,7 @@ function createRuntimeSession(
     provider?: "codex" | "claude-code";
   } = {}
 ) {
-  return {
+  return normalizeAgentActivitySession({
     workspaceId,
     agentSessionId,
     ...(options.agentTargetId ? { agentTargetId: options.agentTargetId } : {}),
@@ -5013,10 +5221,9 @@ function createRuntimeSession(
     providerSessionId: `provider-${agentSessionId}`,
     cwd,
     title: "",
-    status: "ready",
     createdAtUnixMs: 1,
     updatedAtUnixMs: 1
-  };
+  });
 }
 
 function createRuntimeUserProject(project: {
@@ -5098,7 +5305,6 @@ function createActions(): AgentGUINodeViewProps["actions"] {
     editQueuedPrompt: vi.fn(),
     retryActivation: vi.fn(),
     continueInNewConversation: vi.fn(),
-    retryOpenclawGateway: vi.fn(),
     toggleConversationPinned: vi.fn(),
     markConversationUnread: vi.fn(),
     removeProject: vi.fn(),
@@ -5112,9 +5318,9 @@ function createActions(): AgentGUINodeViewProps["actions"] {
 }
 
 function createViewModel(
-  overrides: Partial<AgentGUINodeViewModel> = {}
+  overrides: AgentGUINodeViewModelFixtureOverrides = {}
 ): AgentGUINodeViewModel {
-  return {
+  const flat: FlatAgentGUINodeViewModelFixture = {
     workspaceId: "room-1",
     data: {
       provider: "codex",
@@ -5159,7 +5365,6 @@ function createViewModel(
     pendingInteractivePrompt: null,
     activeLiveState: "inactive",
     activationError: null,
-    openclawGateway: null,
     activeConversationBusy: false,
     canSubmit: true,
     hasSentUserMessage: false,
@@ -5201,12 +5406,34 @@ function createViewModel(
     ...overrides,
     providerReadinessGate: overrides.providerReadinessGate ?? null
   };
+  return groupAgentGUINodeViewModelFixture(flat);
+}
+
+function createActiveRenderBudgetViewModel(): AgentGUINodeViewModel {
+  const activeConversation = createConversationSummary("session-1");
+  const conversationDetail = createConversationDetail();
+  return createViewModel({
+    activeConversation,
+    activeConversationId: activeConversation.id,
+    conversations: [activeConversation],
+    conversationDetail,
+    conversation: {
+      activity: conversationDetail.activity,
+      workspaceRoot: "/workspace",
+      sourceDetail: conversationDetail,
+      rows: [],
+      pendingApproval: null,
+      pendingInteractivePrompt: null
+    }
+  });
 }
 
 function createConversationSummary(
   id: string,
-  overrides: Partial<AgentGUINodeViewModel["conversations"][number]> = {}
-): AgentGUINodeViewModel["conversations"][number] {
+  overrides: Partial<
+    AgentGUINodeViewModel["rail"]["conversations"][number]
+  > = {}
+): AgentGUINodeViewModel["rail"]["conversations"][number] {
   return {
     id,
     provider: "codex",
@@ -5234,15 +5461,21 @@ function createConversationDetail(): WorkspaceAgentSessionDetailViewModel {
       userName: "Taylor",
       userAvatarUrl: ""
     },
-    session: {
-      id: 1,
-      presenceId: 1,
+    session: normalizeAgentActivitySession({
+      workspaceId: "workspace-1",
       agentSessionId: "session-1",
+      provider: "codex",
       providerSessionId: "provider-session-1",
       cwd: "/workspace/demo",
-      effectiveStatus: "working",
-      turnPhase: "working"
-    },
+      title: "Codex",
+      activeTurn: {
+        agentSessionId: "session-1",
+        phase: "running",
+        startedAtUnixMs: 1,
+        turnId: "turn-1",
+        updatedAtUnixMs: 1
+      }
+    }),
     cwd: "/workspace/demo",
     workspaceRoot: "/workspace",
     turns: [
@@ -5350,9 +5583,6 @@ function createLabels(): AgentGUIViewLabels {
       ultraFastCoding: "ultraFastCoding",
       professionalLongRunning: "professionalLongRunning"
     },
-    openclawGatewayStarting: "openclawGatewayStarting",
-    openclawGatewayFailed: "openclawGatewayFailed",
-    openclawGatewayRetry: "openclawGatewayRetry",
     planModeLabel: "planMode",
     planModeOnLabel: "on",
     planModeOffLabel: "off",

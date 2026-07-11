@@ -1,6 +1,7 @@
 import {
   resolveAgentActivityCapability,
-  type AgentActivityComposerOptions
+  type AgentActivityComposerOptions,
+  type AgentActivitySessionCapabilities
 } from "@tutti-os/agent-activity-core";
 
 export interface AgentComposerSettingsSupport {
@@ -25,7 +26,7 @@ export interface AgentComposerSettingsSupport {
  */
 export function composerSettingsSupportFromOptions(
   composerOptions: AgentActivityComposerOptions | null,
-  sessionRuntimeContext: Record<string, unknown> | null
+  sessionCapabilities: Partial<AgentActivitySessionCapabilities> | null
 ): AgentComposerSettingsSupport {
   return {
     model: composerOptions?.modelConfigurable ?? false,
@@ -35,32 +36,32 @@ export function composerSettingsSupportFromOptions(
     plan:
       resolveAgentActivityCapability("planMode", {
         composerOptions,
-        sessionRuntimeContext
+        sessionCapabilities
       }) === true,
     browser:
       resolveAgentActivityCapability("browserUse", {
         composerOptions,
-        sessionRuntimeContext
+        sessionCapabilities
       }) === true,
     computer:
       resolveAgentActivityCapability("computerUse", {
         composerOptions,
-        sessionRuntimeContext
+        sessionCapabilities
       }) === true,
     planImplementation:
       resolveAgentActivityCapability("planImplementation", {
         composerOptions,
-        sessionRuntimeContext
+        sessionCapabilities
       }) === true,
     permissionModeChangeDuringTurn:
       resolveAgentActivityCapability("permissionModeChangeDuringTurn", {
         composerOptions,
-        sessionRuntimeContext
+        sessionCapabilities
       }) === true,
     permissionModeChangeDeferred:
       resolveAgentActivityCapability("permissionModeChangeDeferred", {
         composerOptions,
-        sessionRuntimeContext
+        sessionCapabilities
       }) === true
   };
 }

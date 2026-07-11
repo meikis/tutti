@@ -14,9 +14,6 @@ export interface GetDesktopAgentActivityRuntimeServicesInput {
   reporterNow?: () => number;
   reporterService?: Pick<IReporterService, "trackEvents">;
   runtimeApi: DesktopRuntimeApi;
-  warmupOpenclawGateway?: NonNullable<
-    AgentActivityRuntime["warmupOpenclawGateway"]
-  >;
   workspaceAgentActivityService: IWorkspaceAgentActivityService;
   workspaceId: string;
   workspaceUserProjectService?: IWorkspaceUserProjectService;
@@ -52,7 +49,6 @@ export function getDesktopAgentActivityRuntimeServices(
       reporterService: input.reporterService,
       hostFilesApi: input.hostFilesApi,
       runtimeApi: input.runtimeApi,
-      warmupOpenclawGateway: input.warmupOpenclawGateway,
       workspaceUserProjectService: input.workspaceUserProjectService
     }
   );

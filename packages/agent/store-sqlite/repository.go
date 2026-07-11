@@ -14,20 +14,34 @@ type Repository interface {
 	ClearSessions(context.Context, string) (ClearSessionsResult, error)
 	DeleteSession(context.Context, string, string) (bool, error)
 	GetSession(context.Context, string, string) (Session, bool, error)
+	GetLatestTurn(context.Context, string, string) (Turn, bool, error)
 	GetTurn(context.Context, string, string, string) (Turn, bool, error)
 	ListSessionInteractions(context.Context, ListSessionInteractionsInput) ([]Interaction, error)
+	ListLatestTurns(context.Context, string, []string) (map[string]Turn, error)
+	ListLatestTurnInteractions(context.Context, string, []string) (map[string][]Interaction, error)
+	ListTurnsBySession(context.Context, string, map[string]string) (map[string]Turn, error)
+	ListPendingInteractionsBySession(context.Context, string, []string) (map[string][]Interaction, error)
 	ListSessionSection(context.Context, ListSessionSectionInput) (SessionSectionPage, bool, error)
 	ListSessionTurns(context.Context, string, string) ([]Turn, error)
 	ListSessions(context.Context, string) ([]Session, bool, error)
 	ListWorkspaceGeneratedFiles(context.Context, ListWorkspaceGeneratedFilesInput) (GeneratedFileList, bool, error)
 	ListSessionMessages(context.Context, ListSessionMessagesInput) (MessagePage, bool, error)
-	RecordTurnTransition(context.Context, TurnTransition) (Turn, bool, error)
+	ReportActivityState(context.Context, ActivityStateReport) (ActivityStateReportResult, error)
 	ReportSessionMessages(context.Context, SessionMessageReport) (MessageReportResult, error)
 	ReportSessionState(context.Context, SessionStateReport) (StateReportResult, error)
+	PrepareRuntimeOperation(context.Context, RuntimeOperationPrepare) (RuntimeOperation, bool, error)
+	GetRuntimeOperation(context.Context, string, string) (RuntimeOperation, bool, error)
+	ListClaimableRuntimeOperations(context.Context, ListClaimableRuntimeOperationsInput) ([]RuntimeOperation, error)
+	ClaimRuntimeOperationLease(context.Context, ClaimRuntimeOperationLeaseInput) (RuntimeOperation, bool, error)
+	ReleaseOrFailRuntimeOperation(context.Context, ReleaseOrFailRuntimeOperationInput) (RuntimeOperation, bool, error)
+	RequeueLeasedRuntimeOperationsOnStartup(context.Context, int64) (int64, error)
+	CompleteInteractiveRuntimeOperation(context.Context, CompleteInteractiveRuntimeOperationInput) (RuntimeOperationCompletion, bool, error)
+	CompleteCancelRuntimeOperation(context.Context, CompleteCancelRuntimeOperationInput) (RuntimeOperationCompletion, bool, error)
+	ListPendingRuntimeOperationEvents(context.Context, string, int) ([]RuntimeOperationEvent, error)
+	MarkRuntimeOperationEventPublished(context.Context, string, int64, int64) (bool, error)
 	SettleStaleTurns(context.Context) ([]StaleTurnSettlement, error)
 	UpdateSessionPinned(context.Context, string, string, bool) (Session, bool, error)
 	UpdateSessionTitle(context.Context, string, string, string) (Session, bool, error)
-	UpsertInteraction(context.Context, InteractionUpsert) (Interaction, bool, error)
 }
 
 type ClearSessionsResult struct {
@@ -91,21 +105,19 @@ type SessionSectionPage struct {
 }
 
 type Session struct {
-	ID                string
-	WorkspaceID       string
-	Origin            string
-	UserID            string
-	AgentTargetID     string
-	Provider          string
-	ProviderSessionID string
-	Model             string
-	Settings          map[string]any
-	RuntimeContext    map[string]any
-	Cwd               string
-	Status            string
-	CurrentPhase      string
-	Title             string
-	LastError         string
+	ID                     string
+	WorkspaceID            string
+	Origin                 string
+	UserID                 string
+	AgentTargetID          string
+	Provider               string
+	ProviderSessionID      string
+	Model                  string
+	Settings               map[string]any
+	Metadata               SessionMetadata
+	InternalRuntimeContext map[string]any
+	Cwd                    string
+	Title                  string
 	// ActiveTurnID is the protocol v2 turn reference: the id of the turn
 	// currently in flight, empty when the session is idle.
 	ActiveTurnID    string
@@ -116,6 +128,23 @@ type Session struct {
 	PinnedAtUnixMS  int64
 	CreatedAtUnixMS int64
 	UpdatedAtUnixMS int64
+}
+
+// ActivityStateReport persists the session projection and its optional v2
+// turn/interaction entities as one atomic unit. Child entities must identify
+// the same workspace and session as Session.
+type ActivityStateReport struct {
+	Session     SessionStateReport
+	Turn        *TurnTransition
+	Interaction *InteractionUpsert
+}
+
+type ActivityStateReportResult struct {
+	State               StateReportResult
+	Turn                Turn
+	TurnAccepted        bool
+	Interaction         Interaction
+	InteractionAccepted bool
 }
 
 // Closed protocol v2 turn phase vocabulary. The storage CHECK constraints

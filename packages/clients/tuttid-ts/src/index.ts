@@ -14,6 +14,7 @@ export {
   type TuttidEventStreamSubscribeOptions
 } from "./eventStreamClient.ts";
 export type {
+  AgentActivityUpdatedPayloadV1,
   AgentActivityUpdatedEventV1,
   WorkspaceWorkbenchNodeLaunchRequestedEventV1,
   WorkspaceIssueUpdatedEventV1

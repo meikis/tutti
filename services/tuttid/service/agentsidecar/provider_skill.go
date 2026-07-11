@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/tutti-os/tutti/packages/agent/daemon/providerregistry"
 )
 
 const tuttiSkillName = "tutti-cli"
@@ -309,14 +311,9 @@ func allocateSkillName(root string, baseName string) (string, error) {
 }
 
 func providerSkillRoot(cwd string, provider string) string {
-	switch strings.TrimSpace(provider) {
-	case "openclaw":
-		return filepath.Join(cwd, ".openclaw", "skills")
-	case "nexight":
-		return filepath.Join(cwd, ".nexight", "skills")
-	case "hermes":
-		return filepath.Join(cwd, ".agent_context", "skills")
-	default:
+	descriptor, ok := providerregistry.Find(provider)
+	if !ok || strings.TrimSpace(descriptor.Sidecar.SkillRoot) == "" {
 		return ""
 	}
+	return filepath.Join(cwd, filepath.FromSlash(descriptor.Sidecar.SkillRoot))
 }

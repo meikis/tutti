@@ -43,6 +43,25 @@ func TestClaudeCodeComposerProfileComesFromProviderDescriptor(t *testing.T) {
 	}
 }
 
+func TestCursorSkillDiscoveryComesFromProviderDescriptor(t *testing.T) {
+	profile := composerProfileFor(agentprovider.Cursor)
+	if profile.SkillKind != string(providerregistry.SkillKindCursor) || profile.SkillInvocation != string(providerregistry.SkillInvocationTextTrigger) {
+		t.Fatalf("cursor skill profile = %#v", profile)
+	}
+}
+
+func TestUnknownProviderHasNoComposerProtocolFallbacks(t *testing.T) {
+	if got := reasoningConfigOptionID("unknown-provider"); got != "" {
+		t.Fatalf("reasoning config option = %q, want empty", got)
+	}
+	if got := speedConfigOptionID("unknown-provider"); got != "" {
+		t.Fatalf("speed config option = %q, want empty", got)
+	}
+	if got := reasoningEffortValuesForProvider("unknown-provider"); len(got) != 0 {
+		t.Fatalf("reasoning effort values = %#v, want none", got)
+	}
+}
+
 func TestCodexModelCatalogSpecComesFromProviderDescriptor(t *testing.T) {
 	spec, ok := agentModelCatalogSpecs[agentprovider.Codex]
 	if !ok {
@@ -53,6 +72,44 @@ func TestCodexModelCatalogSpecComesFromProviderDescriptor(t *testing.T) {
 	}
 	if spec.lister == nil || spec.configuredDefaultModel == nil {
 		t.Fatalf("catalog spec incomplete: %#v", spec)
+	}
+}
+
+func TestOpenCodeComposerProfileComesFromProviderDescriptor(t *testing.T) {
+	profile := composerProfileFor(agentprovider.OpenCode)
+	if !profile.ModelSelection || !profile.UsesModelCatalog || profile.ModelCatalog != "opencode-cli" ||
+		!profile.ReasoningEffort || profile.DefaultReasoningEffort != "high" {
+		t.Fatalf("opencode profile = %#v", profile)
+	}
+	if !reflect.DeepEqual(profile.ReasoningEffortValues, []string{"low", "medium", "high", "xhigh"}) {
+		t.Fatalf("opencode reasoning values = %#v", profile.ReasoningEffortValues)
+	}
+	if reasoningConfigOptionID(agentprovider.OpenCode) != "effort" {
+		t.Fatalf("opencode reasoning config option = %q", reasoningConfigOptionID(agentprovider.OpenCode))
+	}
+	for _, capability := range []string{"imageInput", "modelImageInputRequired", "planMode", "interrupt"} {
+		if !composerProfileHasCapability(agentprovider.OpenCode, capability) {
+			t.Fatalf("opencode capability %q missing from %#v", capability, profile.Capabilities)
+		}
+	}
+}
+
+func TestOpenCodeModelCatalogListerUsesDescriptorRuntimeCommand(t *testing.T) {
+	descriptor, ok := providerregistry.Find(agentprovider.OpenCode)
+	if !ok {
+		t.Fatal("opencode descriptor missing")
+	}
+	descriptor.Runtime.Command = []string{"poison-opencode", "acp"}
+	spec, registered, err := agentModelCatalogSpecFromDescriptor(descriptor)
+	if err != nil || !registered {
+		t.Fatalf("agentModelCatalogSpecFromDescriptor() = (_, %v, %v)", registered, err)
+	}
+	lister, ok := spec.lister(&CachedAgentModelCatalog{}).(OpenCodeCLIModelLister)
+	if !ok {
+		t.Fatalf("lister = %T, want OpenCodeCLIModelLister", spec.lister(&CachedAgentModelCatalog{}))
+	}
+	if lister.Command != "poison-opencode" || !reflect.DeepEqual(lister.Args, []string{"models"}) {
+		t.Fatalf("lister command = %q %#v", lister.Command, lister.Args)
 	}
 }
 

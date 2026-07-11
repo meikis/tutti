@@ -5,7 +5,7 @@ import type { DesktopRuntimeApi } from "@preload/types";
 import { mergeDesktopAgentProbeSnapshots } from "./desktopAgentProbeSnapshot.ts";
 
 type DesktopAgentProbeState = NonNullable<
-  AgentGUIProps["workspaceAgentProbes"]
+  AgentGUIProps["runtimeRequests"]["agentProbes"]
 >;
 
 interface UseDesktopAgentProbesInput {

@@ -7,19 +7,13 @@ import type {
   AgentSessionSpeed
 } from "../../../shared/agentSessionTypes";
 import type { AgentGUINodeData, AgentGUIProvider } from "../../../types";
-import { agentGUIProviderTargetRefsEqual } from "../../../providerTargets";
 import type { ACPConfigOptionSelection } from "./agentGuiController.types";
-import {
-  normalizeOptionalText,
-  recordValue
-} from "./agentGuiController.promptHelpers";
+import { normalizeOptionalText } from "./agentGuiController.promptHelpers";
 
 export interface AgentGUIComposerTargetData {
   agentTargetId: string | null;
   data: AgentGUINodeData;
   provider: AgentGUIProvider;
-  providerTargetId: string | null;
-  providerTargetRef: AgentGUINodeData["providerTargetRef"];
   targetId: string;
 }
 
@@ -28,17 +22,25 @@ export interface OptimisticComposerTarget {
   target: AgentGUIComposerTargetData;
 }
 
+export function isConversationCreateActive(input: {
+  activeConversationId: string | null;
+  pendingConversationId: string | null;
+}): boolean {
+  return (
+    input.pendingConversationId !== null &&
+    (input.activeConversationId === null ||
+      input.activeConversationId === input.pendingConversationId)
+  );
+}
+
 export function composerTargetDataFromNodeData(
   data: AgentGUINodeData
 ): AgentGUIComposerTargetData {
   const agentTargetId = normalizeOptionalText(data.agentTargetId);
-  const providerTargetId = data.providerTargetId ?? null;
   return {
     agentTargetId,
     provider: data.provider,
-    providerTargetId,
-    providerTargetRef: data.providerTargetRef ?? null,
-    targetId: agentTargetId ?? providerTargetId ?? `local:${data.provider}`,
+    targetId: agentTargetId ?? `local:${data.provider}`,
     data
   };
 }
@@ -83,50 +85,20 @@ export function nodeDataMatchesComposerTarget(
 ): boolean {
   return (
     data.provider === target.provider &&
-    normalizeOptionalText(data.agentTargetId) === target.agentTargetId &&
-    normalizeOptionalText(data.providerTargetId) ===
-      normalizeOptionalText(target.providerTargetId) &&
-    agentGUIProviderTargetRefsEqual(
-      data.providerTargetRef,
-      target.providerTargetRef
-    )
+    normalizeOptionalText(data.agentTargetId) === target.agentTargetId
   );
 }
 
 export function isForegroundModelOptionsLoading(input: {
-  runtimeContext: Record<string, unknown> | null | undefined;
+  modelOptionsLoading: boolean | undefined;
   selection: ACPConfigOptionSelection | null;
   supportsModel: boolean;
 }): boolean {
   return (
     input.supportsModel &&
-    recordValue(input.runtimeContext?.appServerStartup)?.models === "loading" &&
+    input.modelOptionsLoading === true &&
     (input.selection === null || input.selection.options.length === 0)
   );
-}
-
-export function configOptionCurrentValue(
-  runtimeContext: Record<string, unknown> | null | undefined,
-  ids: readonly string[]
-): string | null {
-  const rawConfigOptions = Array.isArray(runtimeContext?.configOptions)
-    ? runtimeContext.configOptions
-    : [];
-  const idSet = new Set(ids);
-  for (const rawOption of rawConfigOptions) {
-    const option = recordValue(rawOption);
-    const id = normalizeOptionalText(option?.id as string | null | undefined);
-    if (!id || !idSet.has(id)) {
-      continue;
-    }
-    return normalizeOptionalText(
-      (option?.currentValue ?? option?.current_value) as
-        | string
-        | null
-        | undefined
-    );
-  }
-  return null;
 }
 
 export function effectiveComposerSettingsFromOptions(

@@ -1,14 +1,12 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useSyncExternalStore,
   type JSX,
   type PropsWithChildren
 } from "react";
 import type {
-  AgentActivityCancelSessionInput,
-  AgentActivityCancelSessionResult,
+  AgentActivityActivateSessionResult,
   AgentActivityGoalControlInput,
   AgentActivityGoalControlResult,
   AgentActivityCreateSessionInput,
@@ -20,20 +18,23 @@ import type {
   AgentActivitySendInput,
   AgentActivitySendInputResult,
   AgentActivitySession,
+  AgentActivitySessionSettings,
   AgentActivitySnapshot,
   AgentActivitySnapshotListener,
   AgentActivitySubmitInteractiveInput,
+  AgentActivitySubmitInteractiveResult,
   AgentSessionEngine
 } from "@tutti-os/agent-activity-core";
 import type {
   AgentHostAgentSessionComposerSettings,
-  AgentHostActivateAgentSessionResult,
-  AgentHostRuntimeOpenclawGatewayWarmupResult,
-  AgentHostUpdateAgentSessionSettingsResult,
-  AgentHostUnactivateAgentSessionResult,
-  AgentHostAgentSessionState
+  AgentHostUnactivateAgentSessionResult
 } from "./shared/contracts/dto";
-import { WORKSPACE_AGENT_ACTIVITY_RUNTIME_SESSION_ORIGIN } from "./shared/workspaceAgentActivityTypes";
+
+export interface AgentActivityRuntimeUpdateSessionSettingsResult {
+  agentSessionId: string;
+  settings: AgentHostAgentSessionComposerSettings;
+  session: AgentActivitySession;
+}
 
 export interface AgentActivityRuntimeListSessionMessagesInput {
   afterVersion?: number;
@@ -140,9 +141,6 @@ export interface AgentActivityRuntimeEnsureSessionSynchronizedInput {
   workspaceId: string;
 }
 
-export type AgentActivityRuntimeRetainSessionEventsInput =
-  AgentActivityRuntimeEnsureSessionSynchronizedInput;
-
 export interface AgentActivityRuntimeSetSessionPinnedInput {
   agentSessionId: string;
   pinned: boolean;
@@ -153,11 +151,6 @@ export interface AgentActivityRuntimeTrackSettingsProjectChangeInput {
   action: "clear" | "create_new" | "select_existing";
   agentSessionId: string;
   provider?: string | null;
-  workspaceId: string;
-}
-
-export interface AgentActivityRuntimeGetSessionControlStateInput {
-  agentSessionId: string;
   workspaceId: string;
 }
 
@@ -183,10 +176,6 @@ export interface AgentActivityRuntimeTrackDraftComposerSettingsChangeInput {
   workspaceId: string;
 }
 
-export interface AgentActivityRuntimeWarmupOpenclawGatewayInput {
-  workspaceId?: string | null;
-}
-
 export interface AgentActivityRuntimeDiagnosticInput {
   details?: Record<string, unknown>;
   event: string;
@@ -201,21 +190,23 @@ interface AgentActivityRuntimeActivateSessionInputBase {
   initialContent?: AgentActivitySendInput["content"];
   /** 仅展示用首轮文本(bundle 折叠成一个 chip);initialContent 仍带展开后的文件。 */
   initialDisplayPrompt?: string | null;
-  metadata?: Record<string, unknown>;
-  openclawGatewayReady?: boolean;
-  settings?: AgentHostAgentSessionComposerSettings;
+  submitDiagnostics?: AgentActivitySendInput["submitDiagnostics"];
+  settings?: AgentActivitySessionSettings;
   title?: string;
   visible?: boolean;
   workspaceId: string;
+  signal?: AbortSignal;
 }
 
 export type AgentActivityRuntimeActivateSessionInput =
   | (AgentActivityRuntimeActivateSessionInputBase & {
       agentTargetId: string;
+      clientSubmitId: string;
       mode: "new";
     })
   | (AgentActivityRuntimeActivateSessionInputBase & {
       agentTargetId?: string | null;
+      clientSubmitId?: never;
       mode: "existing";
     });
 
@@ -286,11 +277,11 @@ export interface AgentActivityRuntimePromptAsset {
 export interface AgentActivityRuntime {
   /**
    * Stable identity of this runtime instance (e.g. a local origin vs a
-   * shared/room origin). When present, the conversation-list and session-view
-   * stores key their query state, runtime resolution, and subscriptions by this
-   * value, so multiple runtimes can coexist for the same workspace without
-   * fighting over a single module-global slot. Absent => legacy single-runtime
-   * behaviour resolved via the module-global.
+   * shared/room origin). The runtime owns one session engine per workspace and
+   * that engine verifies this origin as part of its injected identity. Runtime
+   * consumers resolve only through the nearest React provider; module-global
+   * runtime lookup and last-mounted fallback are forbidden. An absent origin
+   * means the canonical local origin.
    */
   origin?: string;
   /**
@@ -305,9 +296,6 @@ export interface AgentActivityRuntime {
     file?: boolean;
     image?: boolean;
   };
-  cancelSession(
-    input: AgentActivityCancelSessionInput
-  ): Promise<AgentActivityCancelSessionResult>;
   goalControl(
     input: AgentActivityGoalControlInput
   ): Promise<AgentActivityGoalControlResult>;
@@ -319,7 +307,7 @@ export interface AgentActivityRuntime {
   ): Promise<AgentActivityDeleteSessionResult>;
   activateSession(
     input: AgentActivityRuntimeActivateSessionInput
-  ): Promise<AgentHostActivateAgentSessionResult>;
+  ): Promise<AgentActivityActivateSessionResult>;
   getSession(
     workspaceId: string,
     agentSessionId: string
@@ -329,13 +317,7 @@ export interface AgentActivityRuntime {
   ): Promise<unknown>;
   updateSessionSettings(
     input: AgentActivityRuntimeUpdateSessionSettingsInput
-  ): Promise<AgentHostUpdateAgentSessionSettingsResult>;
-  warmupOpenclawGateway?(
-    input?: AgentActivityRuntimeWarmupOpenclawGatewayInput
-  ): Promise<AgentHostRuntimeOpenclawGatewayWarmupResult>;
-  getSessionControlState(
-    input: AgentActivityRuntimeGetSessionControlStateInput
-  ): Promise<AgentHostAgentSessionState>;
+  ): Promise<AgentActivityRuntimeUpdateSessionSettingsResult>;
   getSnapshot(workspaceId: string): AgentActivitySnapshot;
   getSessionEngine(workspaceId: string): AgentSessionEngine;
   listSessionMessages(
@@ -362,10 +344,6 @@ export interface AgentActivityRuntime {
   ): Promise<AgentActivitySnapshot>;
   ensureSessionSynchronized?(
     input: AgentActivityRuntimeEnsureSessionSynchronizedInput
-  ): () => void;
-  /** @deprecated Use ensureSessionSynchronized. */
-  retainSessionEvents(
-    input: AgentActivityRuntimeRetainSessionEventsInput
   ): () => void;
   sendInput(
     input: AgentActivitySendInput
@@ -399,7 +377,7 @@ export interface AgentActivityRuntime {
   ): Promise<AgentHostUnactivateAgentSessionResult>;
   submitInteractive(
     input: AgentActivitySubmitInteractiveInput
-  ): Promise<unknown>;
+  ): Promise<AgentActivitySubmitInteractiveResult>;
   subscribeSessionEvents(
     workspaceId: string,
     listener: (event: unknown) => void
@@ -414,23 +392,20 @@ const AgentActivityRuntimeContext = createContext<AgentActivityRuntime | null>(
   null
 );
 
-let currentAgentActivityRuntime: AgentActivityRuntime | null = null;
-
-// Registry of runtimes indexed by their stable `origin`. Non-React module
-// singletons (the conversation-list and session-view stores) resolve the
-// correct runtime for a query's origin from here instead of reading the
-// last-mounted module-global — the single slot two runtimes used to fight over.
-const runtimesByOrigin = new Map<string, AgentActivityRuntime>();
-
-// A runtime without an explicit origin is the default (local) runtime. It
-// registers under this canonical origin — the same value the conversation-list
-// query and session-view refs fall back to — so the local window resolves to it
-// by origin instead of depending on the last-mounted module-global. A shared/
-// room runtime opts in by setting a distinct `origin`; no host wiring needed for
-// the local case.
-function normalizeRuntimeOrigin(origin: string | null | undefined): string {
-  return origin?.trim() || WORKSPACE_AGENT_ACTIVITY_RUNTIME_SESSION_ORIGIN;
+function createTestAgentActivityRuntimeHolder(): {
+  get: () => AgentActivityRuntime | null;
+  set: (runtime: AgentActivityRuntime | null) => void;
+} {
+  let runtime: AgentActivityRuntime | null = null;
+  return {
+    get: () => runtime,
+    set: (nextRuntime) => {
+      runtime = nextRuntime;
+    }
+  };
 }
+
+const testAgentActivityRuntimeHolder = createTestAgentActivityRuntimeHolder();
 
 export interface AgentActivityRuntimeProviderProps extends PropsWithChildren {
   runtime?: AgentActivityRuntime | null;
@@ -440,25 +415,6 @@ export function AgentActivityRuntimeProvider({
   children,
   runtime
 }: AgentActivityRuntimeProviderProps): JSX.Element {
-  currentAgentActivityRuntime = runtime ?? null;
-  const origin = normalizeRuntimeOrigin(runtime?.origin);
-  // Register during render to close the gap before the effect runs (parity with
-  // the module-global write above); the effect owns cleanup on unmount.
-  if (origin && runtime) {
-    runtimesByOrigin.set(origin, runtime);
-  }
-  useEffect(() => {
-    if (!origin || !runtime) {
-      return;
-    }
-    runtimesByOrigin.set(origin, runtime);
-    return () => {
-      // Only clear if a newer provider hasn't already re-registered this origin.
-      if (runtimesByOrigin.get(origin) === runtime) {
-        runtimesByOrigin.delete(origin);
-      }
-    };
-  }, [origin, runtime]);
   return (
     <AgentActivityRuntimeContext.Provider value={runtime ?? null}>
       {children}
@@ -495,54 +451,9 @@ export function useAgentActivitySnapshot(
   );
 }
 
-export function getAgentActivityRuntime(): AgentActivityRuntime {
-  const runtime =
-    getExplicitWindowTestAgentActivityRuntime() ??
-    currentAgentActivityRuntime ??
-    getTestAgentActivityRuntime();
-  if (!runtime) {
-    throw new Error(
-      "AgentActivityRuntimeProvider is missing an AgentActivityRuntime instance."
-    );
-  }
-  return runtime;
-}
-
-export function getOptionalAgentActivityRuntime(): AgentActivityRuntime | null {
-  return (
-    getExplicitWindowTestAgentActivityRuntime() ??
-    currentAgentActivityRuntime ??
-    getTestAgentActivityRuntime()
-  );
-}
-
-/**
- * Resolve the runtime for a given origin. When the origin is registered (two
- * runtimes coexisting for one workspace), returns that exact instance.
- *
- * Only the default (local) origin falls back to legacy single-runtime
- * resolution. An explicit non-default origin that is not registered returns null
- * rather than cross-routing to a different runtime via the module-global slot —
- * e.g. a shared query must never silently load from the local runtime.
- */
-export function getAgentActivityRuntimeByOrigin(
-  origin: string | null | undefined
-): AgentActivityRuntime | null {
-  const normalizedOrigin = normalizeRuntimeOrigin(origin);
-  const runtime = runtimesByOrigin.get(normalizedOrigin);
-  if (runtime) {
-    return runtime;
-  }
-  if (normalizedOrigin === WORKSPACE_AGENT_ACTIVITY_RUNTIME_SESSION_ORIGIN) {
-    return getOptionalAgentActivityRuntime();
-  }
-  return null;
-}
-
 export function resetAgentActivityRuntimeForTests(): void {
   if (process.env.NODE_ENV === "test") {
-    currentAgentActivityRuntime = null;
-    runtimesByOrigin.clear();
+    testAgentActivityRuntimeHolder.set(null);
   }
 }
 
@@ -550,7 +461,7 @@ export function setAgentActivityRuntimeForTests(
   runtime: AgentActivityRuntime | null
 ): void {
   if (process.env.NODE_ENV === "test") {
-    currentAgentActivityRuntime = runtime;
+    testAgentActivityRuntimeHolder.set(runtime);
   }
 }
 
@@ -565,8 +476,9 @@ function getTestAgentActivityRuntime(): AgentActivityRuntime | null {
   if (explicitRuntime) {
     return explicitRuntime;
   }
-  if (currentAgentActivityRuntime) {
-    return currentAgentActivityRuntime;
+  const testRuntimeOverride = testAgentActivityRuntimeHolder.get();
+  if (testRuntimeOverride) {
+    return testRuntimeOverride;
   }
   const testRuntime = (
     window as unknown as Window & {

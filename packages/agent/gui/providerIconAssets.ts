@@ -69,11 +69,16 @@ export const PROVIDER_ICON_ASSETS_BY_ICON_KEY: Readonly<
     manage: manageAgentHermesUrl,
     providerRail: providerRailHermesColorfulUrl,
     rounded: hermesRoundedUrl,
+    sessionColorful: hermesRoundedUrl,
+    sessionFlat: hermesRoundedUrl,
     dock: hermesRoundedUrl
   },
   openclaw: {
     manage: manageAgentOpenclawUrl,
+    providerRail: openclawRoundedUrl,
     rounded: openclawRoundedUrl,
+    sessionColorful: openclawRoundedUrl,
+    sessionFlat: openclawRoundedUrl,
     dock: openclawRoundedUrl
   },
   opencode: {
@@ -104,14 +109,14 @@ export function resolveProviderIconAsset(
 
 export function createProviderIconUrlMap(
   variant: ProviderIconAssetVariant,
-  legacyProviderIconKeys: Readonly<Record<string, string>>,
+  presentationIconAliases: Readonly<Record<string, string>>,
   migratedProviderIdentities: readonly {
     providerId: string;
     iconKey: string;
   }[]
 ): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const [providerId, iconKey] of Object.entries(legacyProviderIconKeys)) {
+  for (const [providerId, iconKey] of Object.entries(presentationIconAliases)) {
     const iconUrl = resolveProviderIconAsset(iconKey, variant);
     if (iconUrl) {
       result[providerId] = iconUrl;

@@ -18,10 +18,7 @@ import type {
   AgentGUIProviderSkillOption
 } from "../model/agentGuiNodeTypes";
 import type { ACPConfigOptionSelection } from "./agentGuiController.types";
-import {
-  normalizeOptionalText,
-  recordValue
-} from "./agentGuiController.promptHelpers";
+import { normalizeOptionalText } from "./agentGuiController.promptHelpers";
 
 export function normalizeConfigOptionValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -37,46 +34,6 @@ export function composerSettingOptionsFromActivity(
 // live ACP session advertises through its runtime-context config options
 // (configOptions[id="model"].options[].value). Providers such as Cursor only
 // expose their model list this way — there is no static catalog.
-export function liveModelOptionValuesFromRuntimeContext(
-  runtimeContext: Record<string, unknown> | null | undefined
-): string[] {
-  const configOptions = runtimeContext?.configOptions;
-  if (!Array.isArray(configOptions)) {
-    return [];
-  }
-  for (const optionRaw of configOptions) {
-    if (!optionRaw || typeof optionRaw !== "object") {
-      continue;
-    }
-    const option = optionRaw as Record<string, unknown>;
-    if (normalizeConfigOptionValue(option.id) !== "model") {
-      continue;
-    }
-    const entries = option.options;
-    if (!Array.isArray(entries)) {
-      return [];
-    }
-    const values: string[] = [];
-    for (const entryRaw of entries) {
-      if (!entryRaw || typeof entryRaw !== "object") {
-        continue;
-      }
-      const value = normalizeConfigOptionValue(
-        (entryRaw as Record<string, unknown>).value
-      );
-      if (value) {
-        values.push(value);
-      }
-    }
-    return values;
-  }
-  return [];
-}
-
-// composerOptionsMissingLiveModelValues reports whether the loaded composer
-// options lack model values the live session advertises — the signal that the
-// daemon fetched composer options before the session's model list existed and
-// a forced refetch (which merges the live list server-side) is needed.
 export function composerOptionsMissingLiveModelValues(
   options: AgentActivityComposerOptions | null,
   liveValues: readonly string[]
@@ -305,137 +262,6 @@ export function resolveEffectiveComposerSettings(input: {
     computerUse: input.settings.computerUse ?? true,
     permissionModeId: normalizePermissionModeId(input.settings.permissionModeId)
   };
-}
-
-export function runtimeConfigKeyForSetting(
-  runtimeContext: Record<string, unknown>,
-  setting: "model" | "reasoningEffort" | "speed" | "permissionModeId"
-): string | null {
-  const configOptions = runtimeContext.configOptions;
-  if (Array.isArray(configOptions)) {
-    for (const option of configOptions) {
-      const id = normalizeConfigOptionValue(recordValue(option)?.id);
-      if (shouldUpdateRuntimeConfigOption(id, setting)) {
-        return id as string;
-      }
-    }
-  }
-  return null;
-}
-
-export function shouldUpdateRuntimeConfigOption(
-  id: string | null,
-  setting: "model" | "reasoningEffort" | "speed" | "permissionModeId"
-): boolean {
-  if (setting === "model") {
-    return id === "model";
-  }
-  if (setting === "permissionModeId") {
-    return id === "mode";
-  }
-  if (setting === "speed") {
-    return id === "service_tier" || id === "speed" || id === "fast";
-  }
-  return (
-    id === "model_reasoning_effort" ||
-    id === "reasoning_effort" ||
-    id === "effort"
-  );
-}
-
-export function mergeRuntimeContextComposerSettings(
-  runtimeContext: Record<string, unknown> | undefined,
-  settings: AgentSessionComposerSettings
-): Record<string, unknown> | undefined {
-  if (!runtimeContext) {
-    return runtimeContext;
-  }
-  const nextRuntimeContext: Record<string, unknown> = { ...runtimeContext };
-  const runtimeConfigPatch: Record<string, unknown> = {};
-  const optionPatches: Array<{
-    setting: "model" | "reasoningEffort" | "speed" | "permissionModeId";
-    value: string | null;
-  }> = [];
-
-  if (settings.model !== undefined) {
-    const value = normalizeOptionalText(settings.model);
-    appendRuntimeConfigPatch(
-      runtimeConfigPatch,
-      runtimeContext,
-      "model",
-      value
-    );
-    optionPatches.push({ setting: "model", value });
-  }
-  if (settings.reasoningEffort !== undefined) {
-    const value = normalizeOptionalText(settings.reasoningEffort);
-    appendRuntimeConfigPatch(
-      runtimeConfigPatch,
-      runtimeContext,
-      "reasoningEffort",
-      value
-    );
-    optionPatches.push({ setting: "reasoningEffort", value });
-  }
-  if (settings.speed !== undefined) {
-    const value = normalizeOptionalText(settings.speed);
-    appendRuntimeConfigPatch(
-      runtimeConfigPatch,
-      runtimeContext,
-      "speed",
-      value
-    );
-    optionPatches.push({ setting: "speed", value });
-  }
-  if (settings.permissionModeId !== undefined) {
-    const value = normalizeOptionalText(settings.permissionModeId);
-    appendRuntimeConfigPatch(
-      runtimeConfigPatch,
-      runtimeContext,
-      "permissionModeId",
-      value
-    );
-    optionPatches.push({ setting: "permissionModeId", value });
-  }
-
-  if (Object.keys(runtimeConfigPatch).length > 0) {
-    const currentConfig = recordValue(nextRuntimeContext.config);
-    nextRuntimeContext.config = {
-      ...(currentConfig ?? {}),
-      ...runtimeConfigPatch
-    };
-  }
-  if (
-    optionPatches.length > 0 &&
-    Array.isArray(nextRuntimeContext.configOptions)
-  ) {
-    nextRuntimeContext.configOptions = nextRuntimeContext.configOptions.map(
-      (option) => {
-        const optionRecord = recordValue(option);
-        if (!optionRecord) {
-          return option;
-        }
-        const id = normalizeConfigOptionValue(optionRecord.id);
-        const patch = optionPatches.find((item) =>
-          shouldUpdateRuntimeConfigOption(id, item.setting)
-        );
-        return patch ? { ...optionRecord, currentValue: patch.value } : option;
-      }
-    );
-  }
-  return nextRuntimeContext;
-}
-
-function appendRuntimeConfigPatch(
-  patch: Record<string, unknown>,
-  runtimeContext: Record<string, unknown>,
-  setting: "model" | "reasoningEffort" | "speed" | "permissionModeId",
-  value: string | null
-): void {
-  const configKey = runtimeConfigKeyForSetting(runtimeContext, setting);
-  if (configKey) {
-    patch[configKey] = value;
-  }
 }
 
 export function normalizePermissionModeId(

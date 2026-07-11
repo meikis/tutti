@@ -18,15 +18,16 @@ const (
 )
 
 type InstallerSpec struct {
-	Kind           InstallerKind
-	DisplayCommand string
-	ShellCommand   string
-	ScriptURL      string
-	ScriptShell    string
-	ReleaseBinary  *ReleaseBinaryInstallerSpec
-	RegistryNPM    *ExternalAgentRegistryNPMInstallerSpec
-	CodexCLI       *CodexCLILatestInstallerSpec
-	ManagedNPM     *ManagedNPMPackageInstallerSpec
+	Kind                 InstallerKind
+	DisplayCommand       string
+	ShellCommand         string
+	ScriptURL            string
+	ScriptShell          string
+	ReleaseBinary        *ReleaseBinaryInstallerSpec
+	RegistryNPM          *ExternalAgentRegistryNPMInstallerSpec
+	CodexCLI             *CodexCLILatestInstallerSpec
+	ManagedNPM           *ManagedNPMPackageInstallerSpec
+	FailureReasonMarkers map[string][]string
 }
 
 type ExternalAgentRegistryNPMInstallerSpec struct {

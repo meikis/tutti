@@ -3,12 +3,20 @@ import type { UiLanguage } from "../contexts/settings/domain/agentSettings.ts";
 import { translateInUiLanguage } from "../i18n/runtime.ts";
 import { resolveAgentGUIProviderCatalogIdentity } from "../providerIdentityCatalog.ts";
 import type { AgentGUIProvider } from "../types.ts";
-import type { WorkspaceAgentActivityTimelineItem } from "./workspaceAgentActivityTypes.ts";
+import type { WorkspaceAgentActivityTimelineItem } from "./workspaceAgentTimelineTypes.ts";
 import { formatAgentSessionMentionText } from "./utils/agentSessionMentionText.ts";
 import { normalizeAgentTitleText } from "./utils/agentTitleText.ts";
 
 export type AgentGUIResolvedProvider = AgentGUIProvider | "unknown";
 export type AgentGUIConversationTitleFallback = "generic-agent" | null;
+
+const AGENT_GUI_UNRESOLVED_PROVIDER: AgentGUIResolvedProvider = "unknown";
+
+export function isAgentGUIProviderUnresolved(
+  value: AgentGUIResolvedProvider
+): value is "unknown" {
+  return value === AGENT_GUI_UNRESOLVED_PROVIDER;
+}
 
 export interface AgentGUIConversationPlainTitleOptions {
   fallbackAgentLabel?: string;

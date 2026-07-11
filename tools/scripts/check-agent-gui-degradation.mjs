@@ -357,11 +357,11 @@ export function measureFileMetrics(relativePath, source, identityExemptFiles) {
 
 export function aggregateMetrics(fileMetricsByPath) {
   const metrics = {
-    effectCount: {},
+    effectCount: 0,
     fileLines: {},
     goFileLengthExemptions: 0,
     identityProviderBranches: 0,
-    memoCount: {},
+    memoCount: 0,
     moduleMutableGlobals: 0,
     overlayStores: 0,
     providerBranches: 0,
@@ -375,12 +375,12 @@ export function aggregateMetrics(fileMetricsByPath) {
     if (file.lineCount > businessFileLineLimit) {
       metrics.fileLines[path] = file.lineCount;
     }
-    if (file.effectCount > 0) {
-      metrics.effectCount[path] = file.effectCount;
-    }
-    if (file.memoCount > 0) {
-      metrics.memoCount[path] = file.memoCount;
-    }
+    // Effects and memoization move with a vertical module when a monolith is
+    // decomposed. Track their package-wide totals so moving an existing hook
+    // into a focused file is neutral while adding more orchestration still
+    // fails the ratchet. File length remains a per-file map below.
+    metrics.effectCount += file.effectCount;
+    metrics.memoCount += file.memoCount;
     metrics.identityProviderBranches += file.identityProviderBranches;
     metrics.moduleMutableGlobals += file.moduleMutableGlobals;
     metrics.overlayStores += file.storeCreations;

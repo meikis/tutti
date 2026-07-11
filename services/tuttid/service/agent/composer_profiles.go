@@ -7,10 +7,9 @@ import (
 	"github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
 )
 
-// composerProfile declares, per provider, which composer dimensions the
-// backend supports and their defaults. It is the single source the composer
-// option helpers derive from — adding a provider means adding one entry here
-// instead of extending half a dozen switch statements.
+// composerProfile is the service projection of the registry-owned provider
+// composer descriptor. Option helpers consume this internal shape; provider
+// registrations must be added to providerregistry, not to this package.
 //
 // The zero value is the safe default: no configurable settings, no
 // capabilities, no permission modes. A provider absent from
@@ -71,86 +70,14 @@ type composerProfile struct {
 	PermissionConfigOptionID string
 	// SkillKind selects the provider-local discovery implementation while
 	// SkillInvocation controls how discovered skills are invoked in the GUI.
-	SkillKind       string
-	SkillInvocation string
-	Behavior        providerregistry.ComposerBehaviorDescriptor
-}
-
-var composerFullCapabilities = []string{
-	"imageInput", "skills", "compact", "tokenUsage", "rateLimits", "planMode", "interrupt",
+	SkillKind               string
+	SkillInvocation         string
+	Behavior                providerregistry.ComposerBehaviorDescriptor
+	ModelCapabilityRuleKind providerregistry.ModelCapabilityRuleKind
 }
 
 func defaultComposerProfiles() map[string]composerProfile {
-	profiles := map[string]composerProfile{
-		agentprovider.TuttiAgent: {
-			ModelSelection:         true,
-			UsesModelCatalog:       true,
-			ReasoningEffort:        true,
-			DefaultReasoningEffort: "high",
-			Speed:                  true,
-			// Tutti Agent is a Codex CLI fork and supports the same conservative
-			// pre-session capability set.
-			Capabilities:            composerFullCapabilities,
-			PermissionConfigurable:  true,
-			DefaultPermissionModeID: "auto",
-			PermissionModes: []PermissionModeOption{
-				{ID: "read-only", Semantic: PermissionModeSemanticAskBeforeWrite},
-				{ID: "auto", Semantic: PermissionModeSemanticAuto},
-				{ID: "full-access", Semantic: PermissionModeSemanticFullAccess},
-			},
-		},
-		agentprovider.Cursor: {
-			// Cursor advertises a live `model` config option over ACP
-			// (session/new configOptions, parameterized ids); the runtime adapter
-			// surfaces those options and applies changes via
-			// session/set_config_option, so no static catalog is used. The
-			// `agent models` CLI list uses a different (flat) id namespace that
-			// ACP rejects — never feed it into the composer. No probe session:
-			// the model list is reused from running Cursor conversations only.
-			ModelSelection:         true,
-			LiveModelDiscovery:     true,
-			Capabilities:           []string{"imageInput", "interrupt", "planMode"},
-			PermissionConfigurable: true,
-			// Approval tiers matching the Codex/Claude Code experience instead of
-			// Cursor's raw agent/plan/ask execution modes: read-only maps to
-			// Cursor's plan mode, agent (default) prompts per risky action, and
-			// full-access spawns with `--force`. See the runtime adapter
-			// (acp_provider_cursor.go) for the live-probed flag behavior.
-			DefaultPermissionModeID: "agent",
-			PermissionModes: []PermissionModeOption{
-				{ID: "read-only", Semantic: PermissionModeSemanticAskBeforeWrite},
-				{ID: "agent", Semantic: PermissionModeSemanticAuto},
-				{ID: "full-access", Semantic: PermissionModeSemanticFullAccess},
-			},
-		},
-		agentprovider.Hermes: {
-			Capabilities:            []string{"interrupt"},
-			DefaultPermissionModeID: "yolo",
-			PermissionModes: []PermissionModeOption{
-				{ID: "yolo", Semantic: PermissionModeSemanticUnconfigurable},
-			},
-		},
-		agentprovider.Nexight: {
-			Capabilities:            []string{"interrupt"},
-			PermissionConfigurable:  true,
-			DefaultPermissionModeID: "auto",
-			PermissionModes: []PermissionModeOption{
-				{ID: "read-only", Semantic: PermissionModeSemanticAskBeforeWrite},
-				{ID: "auto", Semantic: PermissionModeSemanticAuto},
-				{ID: "full-access", Semantic: PermissionModeSemanticFullAccess},
-			},
-		},
-		agentprovider.OpenClaw: {
-			Capabilities: []string{"interrupt"},
-		},
-		agentprovider.OpenCode: {
-			ModelSelection:         true,
-			UsesModelCatalog:       true,
-			ReasoningEffort:        true,
-			DefaultReasoningEffort: "high",
-			Capabilities:           []string{"imageInput", "planMode", "interrupt"},
-		},
-	}
+	profiles := make(map[string]composerProfile, len(providerregistry.Migrated()))
 	for _, descriptor := range providerregistry.Migrated() {
 		profiles[descriptor.Identity.ID] = composerProfileFromDescriptor(descriptor)
 	}
@@ -197,6 +124,7 @@ func composerProfileFromDescriptor(provider providerregistry.ProviderDescriptor)
 		SkillKind:                strings.TrimSpace(string(descriptor.Skills.Kind)),
 		SkillInvocation:          strings.TrimSpace(string(descriptor.Skills.Invocation)),
 		Behavior:                 descriptor.Behavior,
+		ModelCapabilityRuleKind:  descriptor.ModelCapabilityRuleKind,
 	}
 }
 
@@ -219,4 +147,13 @@ func composerProfileFor(provider string) composerProfile {
 func composerProfileKnown(provider string) bool {
 	_, ok := composerProfiles[agentprovider.Normalize(provider)]
 	return ok
+}
+
+func composerProfileHasCapability(provider string, capability string) bool {
+	for _, candidate := range composerProfileFor(provider).Capabilities {
+		if candidate == capability {
+			return true
+		}
+	}
+	return false
 }

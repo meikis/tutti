@@ -16,7 +16,7 @@ func (a *ClaudeCodeSDKAdapter) SubmitInteractive(ctx context.Context, session Se
 	}
 	pending := a.getClaudeSDKPendingRequest(session.AgentSessionID, requestID)
 	if pending == nil {
-		return SubmitInteractiveResult{}, fmt.Errorf("interactive request %q is no longer live", requestID)
+		return SubmitInteractiveResult{}, fmt.Errorf("%w: %q", ErrInteractiveRequestNotLive, requestID)
 	}
 	adapterSession := a.getSession(session.AgentSessionID)
 	if adapterSession == nil {

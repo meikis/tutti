@@ -1401,6 +1401,7 @@ test("WorkspaceAppCenterService normalizes provider configuration", async () => 
           runtimeContext: {},
           skills: [],
           behavior: {
+            collapseModelOptionsToLatest: false,
             modelOptionsAuthoritative: false,
             refreshModelOptionsAfterSettings: false,
             prewarmDraftSession: false,
@@ -1472,6 +1473,7 @@ test("WorkspaceAppCenterService makes effective permission default visible", asy
           runtimeContext: {},
           skills: [],
           behavior: {
+            collapseModelOptionsToLatest: false,
             modelOptionsAuthoritative: false,
             refreshModelOptionsAfterSettings: false,
             prewarmDraftSession: false,
@@ -1558,6 +1560,7 @@ test("WorkspaceAppCenterService passes workspace id and prefers live composer mo
           },
           skills: [],
           behavior: {
+            collapseModelOptionsToLatest: false,
             modelOptionsAuthoritative: false,
             refreshModelOptionsAfterSettings: false,
             prewarmDraftSession: false,
@@ -1883,6 +1886,7 @@ function createTuttidClient(
         runtimeContext: {},
         skills: [],
         behavior: {
+          collapseModelOptionsToLatest: false,
           modelOptionsAuthoritative: false,
           refreshModelOptionsAfterSettings: false,
           prewarmDraftSession: false,

@@ -45,12 +45,7 @@ export interface AgentNodeData {
 export interface AgentGUINodeData {
   provider: AgentGUIProvider;
   agentTargetId?: string | null;
-  /** @deprecated Use agentTargetId for selection restore. */
-  providerTargetId?: string | null;
-  /** @deprecated Provider target refs are resolved from the current target list. */
-  providerTargetRef?: AgentGUIProviderTargetRef | null;
   lastActiveAgentSessionId: string | null;
-  lastActiveConversationTitle?: string | null;
   conversationCount?: number | null;
   conversationRailWidthPx?: number | null;
   conversationRailCollapsed?: boolean | null;

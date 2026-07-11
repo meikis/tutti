@@ -64,6 +64,99 @@ func TestMigratedCodexDescriptorIsComplete(t *testing.T) {
 	}
 }
 
+func TestMigratedProviderSetIsComplete(t *testing.T) {
+	want := map[string]bool{
+		ClaudeCodeProviderID: true,
+		CodexProviderID:      true,
+		CursorProviderID:     true,
+		HermesProviderID:     true,
+		NexightProviderID:    true,
+		OpenClawProviderID:   true,
+		OpenCodeProviderID:   true,
+		TuttiAgentProviderID: true,
+	}
+	for _, descriptor := range Migrated() {
+		if !want[descriptor.Identity.ID] {
+			t.Fatalf("unexpected migrated provider %q", descriptor.Identity.ID)
+		}
+		delete(want, descriptor.Identity.ID)
+	}
+	if len(want) != 0 {
+		t.Fatalf("providers missing from migrated registry: %#v", want)
+	}
+}
+
+func TestMigratedProviderSidecarPoliciesAreDescriptorOwned(t *testing.T) {
+	want := map[string]SidecarDescriptor{
+		CodexProviderID:      {ExecutionEnvironment: SidecarExecutionEnvironmentCodexSandbox},
+		ClaudeCodeProviderID: {MentionRouting: SidecarMentionRoutingClaudeNamespaced, ExecutionEnvironment: SidecarExecutionEnvironmentClaudeIPC},
+		CursorProviderID:     {ExecutionEnvironment: SidecarExecutionEnvironmentLocalIPC},
+		TuttiAgentProviderID: {ExecutionEnvironment: SidecarExecutionEnvironmentLocalIPC},
+		OpenCodeProviderID:   {ExecutionEnvironment: SidecarExecutionEnvironmentLocalIPC},
+		NexightProviderID:    {ExecutionEnvironment: SidecarExecutionEnvironmentLocalIPC, SkillRoot: ".nexight/skills"},
+		HermesProviderID:     {ExecutionEnvironment: SidecarExecutionEnvironmentLocalIPC, SkillRoot: ".agent_context/skills"},
+		OpenClawProviderID:   {ExecutionEnvironment: SidecarExecutionEnvironmentLocalIPC, SkillRoot: ".openclaw/skills"},
+	}
+	for _, descriptor := range Migrated() {
+		if descriptor.Sidecar != want[descriptor.Identity.ID] {
+			t.Fatalf("provider %q sidecar = %#v, want %#v", descriptor.Identity.ID, descriptor.Sidecar, want[descriptor.Identity.ID])
+		}
+		delete(want, descriptor.Identity.ID)
+	}
+	if len(want) != 0 {
+		t.Fatalf("provider sidecar policies missing: %#v", want)
+	}
+}
+
+func TestMigratedProviderDesktopIntegrationIsDescriptorOwned(t *testing.T) {
+	want := map[string]DesktopIntegrationDescriptor{
+		CodexProviderID:      {Managed: true, ManagedOrder: 2, StatusProbePriority: 1, UsageProbeKind: DesktopUsageProbeCodex, DeveloperLogs: true, DefaultProviderEligible: true, DefaultProviderPriority: 1},
+		ClaudeCodeProviderID: {Managed: true, ManagedOrder: 1, StatusProbePriority: 2, UsageProbeKind: DesktopUsageProbeClaudeCode, DeveloperLogs: true, DefaultProviderEligible: true, DefaultProviderPriority: 2},
+		CursorProviderID:     {Managed: true, ManagedOrder: 3, StatusProbePriority: 3, VisibilityGate: DesktopVisibilityGateCursorPreview, RuntimeProbeFallback: DesktopRuntimeProbeFallbackDirect, DeveloperLogs: true},
+		TuttiAgentProviderID: {Managed: true, ManagedOrder: 4, StatusProbePriority: 4, VisibilityGate: DesktopVisibilityGateTuttiAgent, InstallBootstrap: true, RefreshOnAccountChange: true},
+		OpenCodeProviderID:   {Managed: true, ManagedOrder: 5, StatusProbePriority: 5, VisibilityGate: DesktopVisibilityGateOpenCodePreview},
+		NexightProviderID:    {},
+		HermesProviderID:     {Managed: true, ManagedOrder: 6, StatusProbePriority: 6},
+		OpenClawProviderID:   {Managed: true, ManagedOrder: 7, StatusProbePriority: 7, UnavailableDockOrderOffset: 200},
+	}
+	for _, descriptor := range Migrated() {
+		if descriptor.Desktop != want[descriptor.Identity.ID] {
+			t.Fatalf("provider %q desktop = %#v, want %#v", descriptor.Identity.ID, descriptor.Desktop, want[descriptor.Identity.ID])
+		}
+		delete(want, descriptor.Identity.ID)
+	}
+	if len(want) != 0 {
+		t.Fatalf("provider desktop integrations missing: %#v", want)
+	}
+}
+
+func TestMigratedOpenCodeDescriptorIsComplete(t *testing.T) {
+	if err := ValidateMigrated(); err != nil {
+		t.Fatalf("ValidateMigrated() error = %v", err)
+	}
+	descriptor, ok := Find(" OPEN-CODE ")
+	if !ok {
+		t.Fatal("Find(open-code) ok = false")
+	}
+	if err := Validate(descriptor); err != nil {
+		t.Fatalf("Validate(opencode) error = %v", err)
+	}
+	if descriptor.Runtime.Kind != RuntimeKindStandardACP || descriptor.Runtime.Name != "opencode-acp" {
+		t.Fatalf("Runtime = %#v", descriptor.Runtime)
+	}
+	if descriptor.Status.Kind != StatusKindOpenCodeCLI || descriptor.Status.Install.Kind != InstallerKindOfficialScript {
+		t.Fatalf("Status = %#v", descriptor.Status)
+	}
+	if descriptor.ComposerProfile.ModelCatalog != ModelCatalogKindOpenCodeCLI ||
+		descriptor.ComposerProfile.ConfigOptionIDs.Model != "model" ||
+		descriptor.ComposerProfile.ConfigOptionIDs.Reasoning != "effort" {
+		t.Fatalf("ComposerProfile = %#v", descriptor.ComposerProfile)
+	}
+	if descriptor.Target.ID != OpenCodeTargetID || descriptor.Events.TurnLifecycleProjection != TurnLifecycleProjectionExplicit {
+		t.Fatalf("target/events = %#v %#v", descriptor.Target, descriptor.Events)
+	}
+}
+
 func TestMigratedClaudeCodeDescriptorIsComplete(t *testing.T) {
 	descriptor, ok := Find("Claude Code")
 	if !ok {
@@ -94,11 +187,11 @@ func TestMigratedReturnsClones(t *testing.T) {
 	first := Migrated()
 	first[0].Runtime.Command[0] = "mutated"
 	first[0].Runtime.Endpoint.BaseURLEnvVars[0] = "mutated"
-	first[0].Status.AuthWatch.Paths[0] = "mutated"
+	first[0].Status.AuthWatch.Sources[0].Paths[0] = "mutated"
 	first[0].ComposerProfile.Capabilities[0] = "mutated"
 	first[0].ComposerProfile.SlashCommandPolicy.FallbackCommands[0] = "mutated"
 	first[0].ComposerProfile.SlashCommandPolicy.CommandEffects[0].Command = "mutated"
-	first[1].Status.AuthWatch.HomePaths[0] = "mutated"
+	first[1].Status.AuthWatch.Sources[0].Paths[0] = "mutated"
 
 	second := Migrated()
 	if second[0].Runtime.Command[0] != "codex" {
@@ -107,8 +200,8 @@ func TestMigratedReturnsClones(t *testing.T) {
 	if second[0].Runtime.Endpoint.BaseURLEnvVars[0] != "OPENAI_BASE_URL" {
 		t.Fatalf("Runtime.Endpoint.BaseURLEnvVars leaked mutation: %#v", second[0].Runtime.Endpoint.BaseURLEnvVars)
 	}
-	if second[0].Status.AuthWatch.Paths[0] != "auth.json" {
-		t.Fatalf("Status.AuthWatch.Paths leaked mutation: %#v", second[0].Status.AuthWatch.Paths)
+	if second[0].Status.AuthWatch.Sources[0].Paths[0] != "auth.json" {
+		t.Fatalf("Status.AuthWatch.Sources leaked mutation: %#v", second[0].Status.AuthWatch.Sources)
 	}
 	if second[0].ComposerProfile.Capabilities[0] != "imageInput" {
 		t.Fatalf("Capabilities leaked mutation: %#v", second[0].ComposerProfile.Capabilities)
@@ -117,8 +210,34 @@ func TestMigratedReturnsClones(t *testing.T) {
 		second[0].ComposerProfile.SlashCommandPolicy.CommandEffects[0].Command != "init" {
 		t.Fatalf("SlashCommandPolicy leaked mutation: %#v", second[0].ComposerProfile.SlashCommandPolicy)
 	}
-	if second[1].Status.AuthWatch.HomePaths[0] != ".claude.json" {
-		t.Fatalf("Status.AuthWatch.HomePaths leaked mutation: %#v", second[1].Status.AuthWatch.HomePaths)
+	if second[1].Status.AuthWatch.Sources[0].Paths[0] != "settings.json" {
+		t.Fatalf("Claude Status.AuthWatch.Sources leaked mutation: %#v", second[1].Status.AuthWatch.Sources)
+	}
+}
+
+func TestMigratedReturnsOpenCodeNestedClones(t *testing.T) {
+	first, ok := Find(OpenCodeProviderID)
+	if !ok {
+		t.Fatal("opencode descriptor missing")
+	}
+	first.Runtime.StandardACP.PermissionModes[0].RuntimeID = "mutated"
+	first.Runtime.StandardACP.SettingsEnvironment.JSONFields[0].JSONKey = "mutated"
+	first.Status.AuthWatch.Sources[0].PathEnvVars[0] = "MUTATED"
+	first.Status.AuthWatch.Sources[1].RootCandidates[0].EnvVar = "MUTATED"
+	first.Status.AuthWatch.Sources[1].Paths[0] = "mutated"
+
+	second, ok := Find(OpenCodeProviderID)
+	if !ok {
+		t.Fatal("opencode descriptor missing after mutation")
+	}
+	if second.Runtime.StandardACP.PermissionModes[0].RuntimeID != "build" ||
+		second.Runtime.StandardACP.SettingsEnvironment.JSONFields[0].JSONKey != "model" {
+		t.Fatalf("Runtime.StandardACP leaked mutation: %#v", second.Runtime.StandardACP)
+	}
+	if second.Status.AuthWatch.Sources[0].PathEnvVars[0] != "OPENCODE_CONFIG" ||
+		second.Status.AuthWatch.Sources[1].RootCandidates[0].EnvVar != "OPENCODE_CONFIG_DIR" ||
+		second.Status.AuthWatch.Sources[1].Paths[0] != "opencode.json" {
+		t.Fatalf("Status.AuthWatch leaked mutation: %#v", second.Status.AuthWatch)
 	}
 }
 
@@ -137,6 +256,10 @@ func TestResolveProviderProjectionsDoNotExposeDescriptors(t *testing.T) {
 	}
 	if _, ok := ResolveEventProvider("unknown"); ok {
 		t.Fatal("ResolveEventProvider(unknown) ok = true")
+	}
+	providerID, ok = ResolveProviderID("opencode-ai")
+	if !ok || providerID != OpenCodeProviderID {
+		t.Fatalf("ResolveProviderID(opencode-ai) = %q, %v", providerID, ok)
 	}
 }
 
@@ -197,6 +320,51 @@ func TestValidateRejectsInvalidSlashCommandPolicy(t *testing.T) {
 			test.mutate(&descriptor.ComposerProfile.SlashCommandPolicy)
 			if err := Validate(descriptor); err == nil {
 				t.Fatal("Validate() error = nil")
+			}
+		})
+	}
+}
+
+func TestValidateRejectsInvalidStandardACPDescriptorStrategies(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*ProviderDescriptor)
+	}{
+		{name: "blank runtime mode", mutate: func(value *ProviderDescriptor) {
+			value.Runtime.StandardACP.PermissionModes[0].RuntimeID = " "
+		}},
+		{name: "duplicate input mode", mutate: func(value *ProviderDescriptor) {
+			value.Runtime.StandardACP.PermissionModes[1].InputID = ""
+		}},
+		{name: "missing settings environment variable", mutate: func(value *ProviderDescriptor) {
+			value.Runtime.StandardACP.SettingsEnvironment.Variable = ""
+		}},
+		{name: "unsupported settings field", mutate: func(value *ProviderDescriptor) {
+			value.Runtime.StandardACP.SettingsEnvironment.JSONFields[0].Setting = "poison"
+		}},
+		{name: "blank capability", mutate: func(value *ProviderDescriptor) {
+			value.ComposerProfile.Capabilities[0] = " "
+		}},
+		{name: "unknown capability", mutate: func(value *ProviderDescriptor) {
+			value.ComposerProfile.Capabilities[0] = "imageInputTypo"
+		}},
+		{name: "missing official installer URL", mutate: func(value *ProviderDescriptor) {
+			value.Status.Install.ScriptURL = ""
+		}},
+		{name: "auth watch paths without root", mutate: func(value *ProviderDescriptor) {
+			value.Status.AuthWatch.Sources[1].RootCandidates = nil
+			value.Status.AuthWatch.Sources[1].DefaultRoot = ""
+		}},
+		{name: "unsupported auth fingerprint", mutate: func(value *ProviderDescriptor) {
+			value.Status.AuthWatch.ContentFingerprint = "poison"
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			descriptor := openCodeDescriptor()
+			test.mutate(&descriptor)
+			if err := Validate(descriptor); err == nil {
+				t.Fatalf("Validate() error = nil for %#v", descriptor)
 			}
 		})
 	}

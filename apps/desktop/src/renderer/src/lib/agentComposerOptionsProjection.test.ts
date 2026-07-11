@@ -5,6 +5,7 @@ import { agentActivityComposerOptionsFromTuttidResult } from "./agentComposerOpt
 test("agent composer options keep SDK fast speed configurable after reload", () => {
   const options = agentActivityComposerOptionsFromTuttidResult("claude-code", {
     behavior: {
+      collapseModelOptionsToLatest: false,
       modelOptionsAuthoritative: true,
       refreshModelOptionsAfterSettings: true,
       prewarmDraftSession: true,
@@ -26,6 +27,7 @@ test("agent composer options keep SDK fast speed configurable after reload", () 
 
   assert.equal(options.speedConfigurable, true);
   assert.deepEqual(options.behavior, {
+    collapseModelOptionsToLatest: false,
     modelOptionsAuthoritative: true,
     refreshModelOptionsAfterSettings: true,
     prewarmDraftSession: true,
@@ -35,13 +37,7 @@ test("agent composer options keep SDK fast speed configurable after reload", () 
     { label: "Standard", value: "standard" },
     { label: "Fast", value: "fast" }
   ]);
-  const runtimeContext = options.runtimeContext;
-  assert.ok(runtimeContext);
-  assert.equal(
-    (runtimeContext.configOptions as Array<Record<string, unknown>>)[0]
-      ?.currentValue,
-    "fast"
-  );
+  assert.equal("runtimeContext" in options, false);
 });
 
 test("agent composer options project the typed slash command policy", () => {

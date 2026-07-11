@@ -142,9 +142,6 @@ type ServerInterface interface {
 	// Read one workspace agent session attachment
 	// (GET /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/attachments/{attachmentID})
 	ReadWorkspaceAgentSessionAttachment(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID, attachmentID AgentSessionAttachmentID)
-	// Cancel one workspace agent session
-	// (POST /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/cancel)
-	CancelWorkspaceAgentSession(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID)
 	// List git branches for the agent session working directory
 	// (GET /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/git-branches)
 	ListWorkspaceAgentSessionGitBranches(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID)
@@ -172,6 +169,9 @@ type ServerInterface interface {
 	// Cancel one workspace agent turn
 	// (POST /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/turns/{turnID}/cancel)
 	CancelWorkspaceAgentTurn(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID, turnID AgentTurnID)
+	// Submit one durable workspace agent plan decision
+	// (POST /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/turns/{turnID}/plan-decisions/{requestID})
+	SubmitWorkspaceAgentPlanDecision(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID, turnID AgentTurnID, requestID AgentPermissionRequestID)
 	// Update one workspace agent session visibility
 	// (POST /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/visibility)
 	UpdateWorkspaceAgentSessionVisibility(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID)
@@ -1845,47 +1845,6 @@ func (siw *ServerInterfaceWrapper) ReadWorkspaceAgentSessionAttachment(w http.Re
 	handler.ServeHTTP(w, r)
 }
 
-// CancelWorkspaceAgentSession operation middleware
-func (siw *ServerInterfaceWrapper) CancelWorkspaceAgentSession(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "workspaceID" -------------
-	var workspaceID WorkspaceID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "workspaceID", r.PathValue("workspaceID"), &workspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspaceID", Err: err})
-		return
-	}
-
-	// ------------- Path parameter "agentSessionID" -------------
-	var agentSessionID AgentSessionID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "agentSessionID", r.PathValue("agentSessionID"), &agentSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentSessionID", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CancelWorkspaceAgentSession(w, r, workspaceID, agentSessionID)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
 // ListWorkspaceAgentSessionGitBranches operation middleware
 func (siw *ServerInterfaceWrapper) ListWorkspaceAgentSessionGitBranches(w http.ResponseWriter, r *http.Request) {
 
@@ -2319,6 +2278,65 @@ func (siw *ServerInterfaceWrapper) CancelWorkspaceAgentTurn(w http.ResponseWrite
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CancelWorkspaceAgentTurn(w, r, workspaceID, agentSessionID, turnID)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SubmitWorkspaceAgentPlanDecision operation middleware
+func (siw *ServerInterfaceWrapper) SubmitWorkspaceAgentPlanDecision(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "workspaceID" -------------
+	var workspaceID WorkspaceID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "workspaceID", r.PathValue("workspaceID"), &workspaceID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "workspaceID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "agentSessionID" -------------
+	var agentSessionID AgentSessionID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "agentSessionID", r.PathValue("agentSessionID"), &agentSessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agentSessionID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "turnID" -------------
+	var turnID AgentTurnID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "turnID", r.PathValue("turnID"), &turnID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "turnID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "requestID" -------------
+	var requestID AgentPermissionRequestID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "requestID", r.PathValue("requestID"), &requestID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "requestID", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SubmitWorkspaceAgentPlanDecision(w, r, workspaceID, agentSessionID, turnID, requestID)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6312,7 +6330,6 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}", wrapper.DeleteWorkspaceAgentSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}", wrapper.GetWorkspaceAgentSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/attachments/{attachmentID}", wrapper.ReadWorkspaceAgentSessionAttachment)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/cancel", wrapper.CancelWorkspaceAgentSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/git-branches", wrapper.ListWorkspaceAgentSessionGitBranches)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/goal", wrapper.GoalControlWorkspaceAgentSession)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/input", wrapper.SendWorkspaceAgentSessionInput)
@@ -6322,6 +6339,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/settings", wrapper.UpdateWorkspaceAgentSessionSettings)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/title", wrapper.UpdateWorkspaceAgentSessionTitle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/turns/{turnID}/cancel", wrapper.CancelWorkspaceAgentTurn)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/turns/{turnID}/plan-decisions/{requestID}", wrapper.SubmitWorkspaceAgentPlanDecision)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/visibility", wrapper.UpdateWorkspaceAgentSessionVisibility)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/app-factory/agent-targets/{agentTargetID}/composer-options", wrapper.GetWorkspaceAppFactoryAgentTargetComposerOptions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/workspaces/{workspaceID}/app-factory/jobs", wrapper.ListWorkspaceAppFactoryJobs)
@@ -10415,123 +10433,6 @@ func (response ReadWorkspaceAgentSessionAttachment503JSONResponse) VisitReadWork
 	return err
 }
 
-type CancelWorkspaceAgentSessionRequestObject struct {
-	WorkspaceID    WorkspaceID    `json:"workspaceID"`
-	AgentSessionID AgentSessionID `json:"agentSessionID"`
-}
-
-type CancelWorkspaceAgentSessionResponseObject interface {
-	VisitCancelWorkspaceAgentSessionResponse(w http.ResponseWriter) error
-}
-
-type CancelWorkspaceAgentSession200JSONResponse WorkspaceAgentSessionCancelResponse
-
-func (response CancelWorkspaceAgentSession200JSONResponse) VisitCancelWorkspaceAgentSessionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CancelWorkspaceAgentSession400JSONResponse struct {
-	InvalidRequestErrorJSONResponse
-}
-
-func (response CancelWorkspaceAgentSession400JSONResponse) VisitCancelWorkspaceAgentSessionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CancelWorkspaceAgentSession401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response CancelWorkspaceAgentSession401JSONResponse) VisitCancelWorkspaceAgentSessionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CancelWorkspaceAgentSession404JSONResponse struct {
-	WorkspaceNotFoundErrorJSONResponse
-}
-
-func (response CancelWorkspaceAgentSession404JSONResponse) VisitCancelWorkspaceAgentSessionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CancelWorkspaceAgentSession405JSONResponse struct {
-	MethodNotAllowedErrorJSONResponse
-}
-
-func (response CancelWorkspaceAgentSession405JSONResponse) VisitCancelWorkspaceAgentSessionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(405)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CancelWorkspaceAgentSession502JSONResponse struct {
-	WorkspaceOperationErrorJSONResponse
-}
-
-func (response CancelWorkspaceAgentSession502JSONResponse) VisitCancelWorkspaceAgentSessionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(502)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CancelWorkspaceAgentSession503JSONResponse struct {
-	ServiceUnavailableErrorJSONResponse
-}
-
-func (response CancelWorkspaceAgentSession503JSONResponse) VisitCancelWorkspaceAgentSessionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(503)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type ListWorkspaceAgentSessionGitBranchesRequestObject struct {
 	WorkspaceID    WorkspaceID    `json:"workspaceID"`
 	AgentSessionID AgentSessionID `json:"agentSessionID"`
@@ -11583,6 +11484,140 @@ type CancelWorkspaceAgentTurn503JSONResponse struct {
 }
 
 func (response CancelWorkspaceAgentTurn503JSONResponse) VisitCancelWorkspaceAgentTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitWorkspaceAgentPlanDecisionRequestObject struct {
+	WorkspaceID    WorkspaceID              `json:"workspaceID"`
+	AgentSessionID AgentSessionID           `json:"agentSessionID"`
+	TurnID         AgentTurnID              `json:"turnID"`
+	RequestID      AgentPermissionRequestID `json:"requestID"`
+	Body           *SubmitWorkspaceAgentPlanDecisionJSONRequestBody
+}
+
+type SubmitWorkspaceAgentPlanDecisionResponseObject interface {
+	VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error
+}
+
+type SubmitWorkspaceAgentPlanDecision200JSONResponse WorkspaceAgentPlanDecisionResponse
+
+func (response SubmitWorkspaceAgentPlanDecision200JSONResponse) VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitWorkspaceAgentPlanDecision400JSONResponse struct {
+	InvalidRequestErrorJSONResponse
+}
+
+func (response SubmitWorkspaceAgentPlanDecision400JSONResponse) VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitWorkspaceAgentPlanDecision401JSONResponse struct{ UnauthorizedErrorJSONResponse }
+
+func (response SubmitWorkspaceAgentPlanDecision401JSONResponse) VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitWorkspaceAgentPlanDecision404JSONResponse struct {
+	WorkspaceNotFoundErrorJSONResponse
+}
+
+func (response SubmitWorkspaceAgentPlanDecision404JSONResponse) VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitWorkspaceAgentPlanDecision405JSONResponse struct {
+	MethodNotAllowedErrorJSONResponse
+}
+
+func (response SubmitWorkspaceAgentPlanDecision405JSONResponse) VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitWorkspaceAgentPlanDecision409JSONResponse ApiErrorResponse
+
+func (response SubmitWorkspaceAgentPlanDecision409JSONResponse) VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitWorkspaceAgentPlanDecision502JSONResponse struct {
+	WorkspaceOperationErrorJSONResponse
+}
+
+func (response SubmitWorkspaceAgentPlanDecision502JSONResponse) VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitWorkspaceAgentPlanDecision503JSONResponse struct {
+	ServiceUnavailableErrorJSONResponse
+}
+
+func (response SubmitWorkspaceAgentPlanDecision503JSONResponse) VisitSubmitWorkspaceAgentPlanDecisionResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -22176,9 +22211,6 @@ type StrictServerInterface interface {
 	// Read one workspace agent session attachment
 	// (GET /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/attachments/{attachmentID})
 	ReadWorkspaceAgentSessionAttachment(ctx context.Context, request ReadWorkspaceAgentSessionAttachmentRequestObject) (ReadWorkspaceAgentSessionAttachmentResponseObject, error)
-	// Cancel one workspace agent session
-	// (POST /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/cancel)
-	CancelWorkspaceAgentSession(ctx context.Context, request CancelWorkspaceAgentSessionRequestObject) (CancelWorkspaceAgentSessionResponseObject, error)
 	// List git branches for the agent session working directory
 	// (GET /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/git-branches)
 	ListWorkspaceAgentSessionGitBranches(ctx context.Context, request ListWorkspaceAgentSessionGitBranchesRequestObject) (ListWorkspaceAgentSessionGitBranchesResponseObject, error)
@@ -22206,6 +22238,9 @@ type StrictServerInterface interface {
 	// Cancel one workspace agent turn
 	// (POST /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/turns/{turnID}/cancel)
 	CancelWorkspaceAgentTurn(ctx context.Context, request CancelWorkspaceAgentTurnRequestObject) (CancelWorkspaceAgentTurnResponseObject, error)
+	// Submit one durable workspace agent plan decision
+	// (POST /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/turns/{turnID}/plan-decisions/{requestID})
+	SubmitWorkspaceAgentPlanDecision(ctx context.Context, request SubmitWorkspaceAgentPlanDecisionRequestObject) (SubmitWorkspaceAgentPlanDecisionResponseObject, error)
 	// Update one workspace agent session visibility
 	// (POST /v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/visibility)
 	UpdateWorkspaceAgentSessionVisibility(ctx context.Context, request UpdateWorkspaceAgentSessionVisibilityRequestObject) (UpdateWorkspaceAgentSessionVisibilityResponseObject, error)
@@ -23664,33 +23699,6 @@ func (sh *strictHandler) ReadWorkspaceAgentSessionAttachment(w http.ResponseWrit
 	}
 }
 
-// CancelWorkspaceAgentSession operation middleware
-func (sh *strictHandler) CancelWorkspaceAgentSession(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID) {
-	var request CancelWorkspaceAgentSessionRequestObject
-
-	request.WorkspaceID = workspaceID
-	request.AgentSessionID = agentSessionID
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.CancelWorkspaceAgentSession(ctx, request.(CancelWorkspaceAgentSessionRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CancelWorkspaceAgentSession")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(CancelWorkspaceAgentSessionResponseObject); ok {
-		if err := validResponse.VisitCancelWorkspaceAgentSessionResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // ListWorkspaceAgentSessionGitBranches operation middleware
 func (sh *strictHandler) ListWorkspaceAgentSessionGitBranches(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID) {
 	var request ListWorkspaceAgentSessionGitBranchesRequestObject
@@ -23984,6 +23992,44 @@ func (sh *strictHandler) CancelWorkspaceAgentTurn(w http.ResponseWriter, r *http
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CancelWorkspaceAgentTurnResponseObject); ok {
 		if err := validResponse.VisitCancelWorkspaceAgentTurnResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SubmitWorkspaceAgentPlanDecision operation middleware
+func (sh *strictHandler) SubmitWorkspaceAgentPlanDecision(w http.ResponseWriter, r *http.Request, workspaceID WorkspaceID, agentSessionID AgentSessionID, turnID AgentTurnID, requestID AgentPermissionRequestID) {
+	var request SubmitWorkspaceAgentPlanDecisionRequestObject
+
+	request.WorkspaceID = workspaceID
+	request.AgentSessionID = agentSessionID
+	request.TurnID = turnID
+	request.RequestID = requestID
+
+	var body SubmitWorkspaceAgentPlanDecisionJSONRequestBody
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SubmitWorkspaceAgentPlanDecision(ctx, request.(SubmitWorkspaceAgentPlanDecisionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SubmitWorkspaceAgentPlanDecision")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SubmitWorkspaceAgentPlanDecisionResponseObject); ok {
+		if err := validResponse.VisitSubmitWorkspaceAgentPlanDecisionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

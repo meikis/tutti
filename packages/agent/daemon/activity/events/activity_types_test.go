@@ -30,12 +30,18 @@ func TestNormalizeProviderMapsSupportedAgentsToServerValues(t *testing.T) {
 	}
 }
 
-func TestNormalizeProviderUsesMigratedCodexCanonicalIdentity(t *testing.T) {
+func TestNormalizeProviderUsesMigratedProviderIdentities(t *testing.T) {
 	t.Parallel()
 
-	provider, ok := NormalizeProvider(" CODEX ")
-	if !ok || provider != ProviderCodex {
-		t.Fatalf("NormalizeProvider(CODEX) = %q, %v", provider, ok)
+	tests := map[string]Provider{
+		" CODEX ":       ProviderCodex,
+		" opencode-ai ": ProviderOpenCode,
+	}
+	for input, want := range tests {
+		provider, ok := NormalizeProvider(input)
+		if !ok || provider != want {
+			t.Fatalf("NormalizeProvider(%q) = %q, %v; want %q, true", input, provider, ok, want)
+		}
 	}
 }
 

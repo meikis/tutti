@@ -20,6 +20,34 @@ describe("provider identity catalog", () => {
         enabled: true,
         sortOrder: 10
       },
+      desktop: {
+        runtimeProbeFallback: ""
+      },
+      source: "generated"
+    });
+  });
+
+  it("reads desktop runtime probe fallback strategy from the generated catalog", () => {
+    expect(
+      resolveMigratedAgentGUIProviderIdentity("cursor")?.desktop
+    ).toMatchObject({
+      runtimeProbeFallback: "direct"
+    });
+  });
+
+  it("reads OpenCode aliases, identity, and target only from the generated catalog", () => {
+    expect(resolveMigratedAgentGUIProviderIdentity("open-code")).toMatchObject({
+      providerId: "opencode",
+      displayName: "OpenCode",
+      iconKey: "opencode",
+      localeKey: "agentHost.agentGui.conversationFilterOpenCode",
+      aliases: ["open-code", "open code", "opencode-ai", "opencode_ai"],
+      target: {
+        id: "local:opencode",
+        launchRefType: "local_cli",
+        enabled: true,
+        sortOrder: 50
+      },
       source: "generated"
     });
   });

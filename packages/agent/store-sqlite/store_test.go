@@ -103,7 +103,7 @@ func openTestStore(t testing.TB, opts Options) *Store {
 	return store
 }
 
-func TestStoreFreshMigrateCreatesTablesWithoutHostForeignKeys(t *testing.T) {
+func TestStoreFreshMigrateCreatesSessionTurnReferenceWithoutHostForeignKey(t *testing.T) {
 	t.Parallel()
 
 	store := openTestStore(t, testOptions(&staticProjectPaths{}))
@@ -114,11 +114,22 @@ func TestStoreFreshMigrateCreatesTablesWithoutHostForeignKeys(t *testing.T) {
 		t.Fatalf("foreign_key_list error = %v", err)
 	}
 	defer rows.Close()
-	if rows.Next() {
-		t.Fatal("workspace_agent_sessions has foreign keys, want none")
+	hasTurnsFK := false
+	hasHostFK := false
+	for rows.Next() {
+		var id, seq int
+		var table, from, to, onUpdate, onDelete, match string
+		if err := rows.Scan(&id, &seq, &table, &from, &to, &onUpdate, &onDelete, &match); err != nil {
+			t.Fatalf("scan foreign_key_list: %v", err)
+		}
+		hasTurnsFK = hasTurnsFK || table == "workspace_agent_turns"
+		hasHostFK = hasHostFK || table == "workspaces"
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate foreign_key_list: %v", err)
+	}
+	if !hasTurnsFK || hasHostFK {
+		t.Fatalf("session foreign keys turns=%v host=%v, want exact turn reference without host coupling", hasTurnsFK, hasHostFK)
 	}
 
 	targets, err := store.ListAgentTargets(ctx)
@@ -222,6 +233,12 @@ func TestStoreReportAndListSessionLifecycle(t *testing.T) {
 	}
 	if state.Session.UserID != "user-1" {
 		t.Fatalf("state session user id = %q", state.Session.UserID)
+	}
+	if _, accepted, err := store.RecordTurnTransition(ctx, TurnTransition{
+		WorkspaceID: "ws-1", AgentSessionID: "session-1", TurnID: "turn-1",
+		Phase: TurnPhaseRunning, OccurredAtUnixMS: 105,
+	}); err != nil || !accepted {
+		t.Fatalf("RecordTurnTransition accepted=%v error=%v", accepted, err)
 	}
 
 	first, err := store.ReportSessionMessages(ctx, SessionMessageReport{

@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
+	"github.com/tutti-os/tutti/packages/agent/daemon/providerregistry"
 	"github.com/tutti-os/tutti/services/tuttid/biz/agentgui"
 	agentproviderbiz "github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
-	agenttargetbiz "github.com/tutti-os/tutti/services/tuttid/biz/agenttarget"
 	preferencesbiz "github.com/tutti-os/tutti/services/tuttid/biz/preferences"
 	agentservice "github.com/tutti-os/tutti/services/tuttid/service/agent"
 	cliservice "github.com/tutti-os/tutti/services/tuttid/service/cli"
@@ -20,7 +20,7 @@ const (
 )
 
 type AgentSessions interface {
-	Cancel(context.Context, string, string) (agentservice.CancelSessionResult, error)
+	CancelTurn(context.Context, string, string, string) (agentservice.CancelTurnResult, error)
 	Create(context.Context, string, agentservice.CreateSessionInput) (agentservice.Session, error)
 	Get(context.Context, string, string) (agentservice.Session, error)
 	GetComposerOptions(context.Context, agentservice.ComposerOptionsInput) (agentservice.ComposerOptions, error)
@@ -72,30 +72,28 @@ func (Provider) AppID() string {
 }
 
 func (p Provider) Commands() []cliservice.Command {
-	return []cliservice.Command{
+	commands := []cliservice.Command{
 		p.newProvidersCommand(),
 		p.newComposerOptionsCommand(),
 		p.newSkillBundleCommand(),
-		p.newProviderStartCommand(providerStartCommandSpec{
-			AppID:         codexAgentAppID,
-			AppName:       "Codex",
-			CommandID:     appID + ".codex.start",
-			Description:   "Start a Codex agent session in the current workspace. Use --show to request AgentGUI activation.",
-			Path:          []string{"codex", "start"},
-			Provider:      agentproviderbiz.Codex,
-			AgentTargetID: agenttargetbiz.IDLocalCodex,
-			Summary:       "Start a Codex agent session",
-		}),
-		p.newProviderStartCommand(providerStartCommandSpec{
-			AppID:         claudeCodeAgentAppID,
-			AppName:       "Claude Code",
-			CommandID:     appID + ".claude.start",
-			Description:   "Start a Claude Code agent session in the current workspace. Use --show to request AgentGUI activation.",
-			Path:          []string{"claude", "start"},
-			Provider:      agentproviderbiz.ClaudeCode,
-			AgentTargetID: agenttargetbiz.IDLocalClaudeCode,
-			Summary:       "Start a Claude Code agent session",
-		}),
+	}
+	for _, descriptor := range providerregistry.Migrated() {
+		alias := descriptor.CLI.StartAlias
+		if alias.AppID == "" {
+			continue
+		}
+		commands = append(commands, p.newProviderStartCommand(providerStartCommandSpec{
+			AppID:         alias.AppID,
+			AppName:       descriptor.Identity.DisplayName,
+			CommandID:     appID + "." + alias.CommandName + ".start",
+			Description:   alias.Description,
+			Path:          []string{alias.CommandName, "start"},
+			Provider:      descriptor.Identity.ID,
+			AgentTargetID: descriptor.Target.ID,
+			Summary:       alias.Summary,
+		}))
+	}
+	return append(commands,
 		p.newStartCommand(),
 		p.newGetCommand(),
 		p.newOpenCommand(),
@@ -106,7 +104,7 @@ func (p Provider) Commands() []cliservice.Command {
 		p.newSessionSummaryCommand(),
 		p.newTurnResourcesCommand(),
 		p.newActivePeersCommand(),
-	}
+	)
 }
 
 func (p Provider) FilterCapabilities(ctx context.Context, _ cliservice.InvokeContext, capabilities []cliservice.Capability) []cliservice.Capability {
@@ -137,14 +135,13 @@ func providerAgentAppCapabilityProvider(capability cliservice.Capability) (strin
 	if capability.Source.Kind != cliservice.CapabilitySourceApp {
 		return "", false
 	}
-	switch strings.TrimSpace(capability.Source.AppID) {
-	case codexAgentAppID:
-		return agentproviderbiz.Codex, true
-	case claudeCodeAgentAppID:
-		return agentproviderbiz.ClaudeCode, true
-	default:
-		return "", false
+	appID := strings.TrimSpace(capability.Source.AppID)
+	for _, descriptor := range providerregistry.Migrated() {
+		if descriptor.CLI.StartAlias.AppID == appID {
+			return descriptor.Identity.ID, true
+		}
 	}
+	return "", false
 }
 
 func (p Provider) availableProviders(ctx context.Context) map[string]bool {

@@ -27,6 +27,10 @@ func claudeCodeDescriptor() ProviderDescriptor {
 		},
 		Status: StatusDescriptor{
 			Kind:                            StatusKindClaudeCLI,
+			AuthOutputParserKind:            AuthOutputParserKindClaude,
+			AuthMarkerParserKind:            AuthMarkerParserKindClaude,
+			AuthCommandRunnerKind:           AuthCommandRunnerKindClaudeGate,
+			StaticSpecResolverKind:          StaticSpecResolverKindGeneric,
 			BinaryNames:                     []string{"claude"},
 			AuthStatusCommand:               []string{"auth", "status"},
 			AuthStatusCommandTimeoutSeconds: 600,
@@ -44,14 +48,21 @@ func claudeCodeDescriptor() ProviderDescriptor {
 				DisplayCommand: "curl -fsSL https://claude.ai/install.sh | bash",
 				ScriptURL:      "https://claude.ai/install.sh",
 				ScriptShell:    "bash",
+				FailureReasonMarkers: map[string][]string{
+					"install_unavailable_in_region": {"app-unavailable-in-region", "app unavailable in region", "claude isn't available here", "claude isn&#x27;t available here", "claude isn&apos;t available here"},
+				},
 			},
 			LoginArgs: []string{"auth", "login"},
 			AuthWatch: AuthWatchDescriptor{
-				RootEnvVar:      "CLAUDE_CONFIG_DIR",
-				DefaultRoot:     "~/.claude",
-				Paths:           []string{"settings.json", "auth.json", ".credentials.json"},
-				HomePaths:       []string{".claude.json"},
-				FingerprintKind: AuthWatchFingerprintClaudeState,
+				Sources: []AuthWatchSourceDescriptor{
+					{
+						RootCandidates: []AuthWatchRootCandidateDescriptor{{EnvVar: "CLAUDE_CONFIG_DIR"}},
+						DefaultRoot:    "~/.claude",
+						Paths:          []string{"settings.json", "auth.json", ".credentials.json"},
+					},
+					{DefaultRoot: "~", Paths: []string{".claude.json"}},
+				},
+				ContentFingerprint: AuthWatchContentFingerprintClaudeState,
 			},
 		},
 		ComposerProfile: ComposerProfileDescriptor{
@@ -73,8 +84,6 @@ func claudeCodeDescriptor() ProviderDescriptor {
 				"planMode",
 				"interrupt",
 				"permissionModeChangeDuringTurn",
-				"review",
-				"goal",
 			},
 			PermissionConfigurable:  true,
 			DefaultPermissionModeID: "default",
@@ -125,6 +134,22 @@ func claudeCodeDescriptor() ProviderDescriptor {
 			Enabled:                 true,
 			Aliases:                 []string{"claude", "claude_code"},
 			TurnLifecycleProjection: TurnLifecycleProjectionExplicit,
+		},
+		Sidecar: SidecarDescriptor{MentionRouting: SidecarMentionRoutingClaudeNamespaced, ExecutionEnvironment: SidecarExecutionEnvironmentClaudeIPC},
+		Desktop: DesktopIntegrationDescriptor{Managed: true, ManagedOrder: 1, StatusProbePriority: 2, UsageProbeKind: DesktopUsageProbeClaudeCode, DeveloperLogs: true, DefaultProviderEligible: true, DefaultProviderPriority: 2},
+		CLI: CLIIntegrationDescriptor{StartAlias: CLIStartAliasDescriptor{
+			AppID: "agent-claude-code", CommandName: "claude",
+			Description: "Start a Claude Code agent session in the current workspace. Use --show to request AgentGUI activation.",
+			Summary:     "Start a Claude Code agent session",
+		}},
+		ExternalImport: ExternalImportDescriptor{
+			Enabled:               true,
+			RootEnvVar:            "CLAUDE_CONFIG_DIR",
+			DefaultRoot:           "~/.claude",
+			ScanDirectories:       []string{"projects"},
+			SkipDirectoryPrefixes: []string{"agent-"},
+			ParserKind:            ExternalImportParserKindClaudeJSONL,
+			UserTextCleanerKind:   ExternalImportUserTextCleanerKindClaude,
 		},
 	}
 }

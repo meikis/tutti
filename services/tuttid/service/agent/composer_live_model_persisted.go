@@ -29,13 +29,14 @@ func (s *Service) liveModelOptionsFromPersistedSessions(workspaceID string, prov
 	var best []ComposerConfigOptionValue
 	bestUnixMS := int64(-1)
 	for _, session := range sessions {
+		runtimeContext := persistedSessionRuntimeContext(session)
 		if agentprovider.Normalize(session.Provider) != provider {
 			continue
 		}
 		if agentTargetID != "" && session.AgentTargetID != agentTargetID {
 			continue
 		}
-		if isHiddenLiveModelDiscoveryRuntimeContext(session.RuntimeContext) {
+		if isHiddenLiveModelDiscoveryRuntimeContext(runtimeContext) {
 			continue
 		}
 		sessionUnixMS := firstNonZeroInt64(session.UpdatedAtUnixMS, session.CreatedAtUnixMS)
@@ -45,7 +46,7 @@ func (s *Service) liveModelOptionsFromPersistedSessions(workspaceID string, prov
 		if sessionUnixMS <= bestUnixMS {
 			continue
 		}
-		options := extractModelOptionsFromRuntimeContext(session.RuntimeContext)
+		options := extractModelOptionsFromRuntimeContext(runtimeContext)
 		if len(options) == 0 {
 			continue
 		}

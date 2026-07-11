@@ -443,7 +443,7 @@ func (s Service) runInstallAction(ctx context.Context, spec ProviderSpec, result
 	summary, updatedRuntime, err := s.installMissingProviderRuntime(installCtx, spec, runtimeResolution)
 	result = applyInstallerExecutionSummary(result, summary)
 	if err != nil {
-		return installActionErrorResult(result, err, s.installTimeout()), nil
+		return installActionErrorResult(result, err, s.installTimeout(), spec.Install), nil
 	}
 	if len(summary.Commands) == 0 {
 		probeStartedAt := s.now()
@@ -467,7 +467,7 @@ func (s Service) runInstallAction(ctx context.Context, spec ProviderSpec, result
 				result = applyInstallerExecutionSummary(result, summary)
 				result.Probe = nil
 				if err != nil {
-					return installActionErrorResult(result, err, s.installTimeout()), nil
+					return installActionErrorResult(result, err, s.installTimeout(), spec.Install), nil
 				}
 				if len(summary.Commands) > 0 {
 					goto postInstallProbe
@@ -495,8 +495,8 @@ func (s Service) runInstallAction(ctx context.Context, spec ProviderSpec, result
 	}
 	if summary.ExitCode != nil && *summary.ExitCode != 0 {
 		result.Status = RunActionFailed
-		result.ReasonCode = "install_command_failed"
 		result.Message = firstNonBlank(result.Stderr, result.Stdout, "Install command failed")
+		result.ReasonCode = installerFailureReasonCode(spec.Install, result.Message, "install_command_failed")
 		return result, nil
 	}
 
@@ -547,7 +547,7 @@ func applyInstallerExecutionSummary(result RunActionResult, summary installerExe
 	return result
 }
 
-func installActionErrorResult(result RunActionResult, err error, timeout time.Duration) RunActionResult {
+func installActionErrorResult(result RunActionResult, err error, timeout time.Duration, installer InstallerSpec) RunActionResult {
 	result.Status = RunActionFailed
 	if errors.Is(err, context.DeadlineExceeded) {
 		result.ReasonCode = "install_timed_out"
@@ -559,9 +559,21 @@ func installActionErrorResult(result RunActionResult, err error, timeout time.Du
 		result.Message = err.Error()
 		return result
 	}
-	result.ReasonCode = "install_start_failed"
 	result.Message = err.Error()
+	result.ReasonCode = installerFailureReasonCode(installer, result.Message, "install_start_failed")
 	return result
+}
+
+func installerFailureReasonCode(installer InstallerSpec, message string, fallback string) string {
+	normalized := strings.ToLower(message)
+	for reasonCode, markers := range installer.FailureReasonMarkers {
+		for _, marker := range markers {
+			if normalizedMarker := strings.ToLower(strings.TrimSpace(marker)); normalizedMarker != "" && strings.Contains(normalized, normalizedMarker) {
+				return reasonCode
+			}
+		}
+	}
+	return fallback
 }
 
 func (s Service) statusForSpec(ctx context.Context, spec ProviderSpec, now time.Time) ProviderStatus {
@@ -620,7 +632,11 @@ func (s Service) statusForSpec(ctx context.Context, spec ProviderSpec, now time.
 		availability.ReasonCode = codexReasonCodeFromErrorCode(string(CodexErrVersionTooOld))
 		actions = append(actions, daemonAction(ActionInstall))
 	} else {
-		actions = append(actions, terminalAction(ActionLogin, loginCommandForRuntime(spec, runtimeResolution)))
+		if spec.LoginActionKind == ActionKindDaemonAction {
+			actions = append(actions, daemonAction(ActionLogin))
+		} else {
+			actions = append(actions, terminalAction(ActionLogin, loginCommandForRuntime(spec, runtimeResolution)))
+		}
 
 		// Claude Code can run in API Usage Billing mode — an API key, an auth
 		// token, or an apiKeyHelper — which bills usage to an API account and

@@ -1,7 +1,14 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { AgentGUI } from "./AgentGUI";
+import { AgentGUI, type AgentGUIProps } from "./AgentGUI";
+
+function createAgentGUIProps(locale: AgentGUIProps["locale"]): AgentGUIProps {
+  return {
+    locale,
+    frame: { previewMode: false }
+  } as AgentGUIProps;
+}
 
 vi.mock("./agent-gui/agentGuiNode/AgentGUINode", async () => {
   const { useTranslation } =
@@ -32,17 +39,13 @@ vi.mock("./agent-gui/agentGuiNode/AgentGUINode", async () => {
 
 describe("AgentGUI i18n", () => {
   it("rerenders agent copy when the host locale changes", () => {
-    const { rerender } = render(
-      <AgentGUI {...({ locale: "en" } as Parameters<typeof AgentGUI>[0])} />
-    );
+    const { rerender } = render(<AgentGUI {...createAgentGUIProps("en")} />);
 
     expect(screen.getByTestId("agent-gui-language-probe")).toHaveTextContent(
       "New session"
     );
 
-    rerender(
-      <AgentGUI {...({ locale: "zh-CN" } as Parameters<typeof AgentGUI>[0])} />
-    );
+    rerender(<AgentGUI {...createAgentGUIProps("zh-CN")} />);
 
     expect(screen.getByTestId("agent-gui-language-probe")).toHaveTextContent(
       "新建会话"
@@ -50,9 +53,7 @@ describe("AgentGUI i18n", () => {
   });
 
   it("uses the host locale when mounted", () => {
-    render(
-      <AgentGUI {...({ locale: "zh-CN" } as Parameters<typeof AgentGUI>[0])} />
-    );
+    render(<AgentGUI {...createAgentGUIProps("zh-CN")} />);
 
     expect(screen.getByTestId("agent-gui-language-probe")).toHaveTextContent(
       "新建会话"

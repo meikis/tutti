@@ -443,16 +443,5 @@ func visibleProviderName(provider string) string {
 	if descriptor, ok := providerregistry.Find(provider); ok {
 		return descriptor.Identity.DisplayName
 	}
-	switch strings.TrimSpace(provider) {
-	case ProviderTuttiAgent:
-		return "Tutti Agent"
-	case ProviderNexight:
-		return "Nexight"
-	case ProviderHermes:
-		return "Hermes"
-	case ProviderOpenClaw:
-		return "OpenClaw"
-	default:
-		return "Agent"
-	}
+	return "Agent"
 }

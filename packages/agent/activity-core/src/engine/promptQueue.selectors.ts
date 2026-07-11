@@ -19,6 +19,14 @@ export function selectEngineQueuedPrompts(
   return selectEnginePromptQueue(state, agentSessionId)?.prompts ?? [];
 }
 
+export function selectEngineHasQueuedPrompts(
+  state: AgentSessionEngineState
+): boolean {
+  return Object.values(state.promptQueue.recordsBySessionId).some(
+    (record) => record.prompts.length > 0
+  );
+}
+
 export function selectEngineQueuedPrompt(
   state: AgentSessionEngineState,
   agentSessionId: string | null | undefined,

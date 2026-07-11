@@ -3,25 +3,16 @@ import { migratedAgentGUIProviderIdentityCatalog } from "../providerIdentityCata
 import { createProviderIconUrlMap } from "../providerIconAssets.ts";
 import { normalizeManagedAgentProvider } from "./managedAgentProviders";
 
-/**
- * Providers not yet in providerregistry.Migrated() retain this explicit
- * compatibility mapping. Migrated providers are appended from the generated
- * identity catalog below.
- */
-const legacyManagedAgentProviderIconKeys = {
-  "claude-code": "claude-code",
-  cursor: "cursor",
-  hermes: "hermes",
-  tutti: "tutti",
-  openclaw: "openclaw",
-  opencode: "opencode"
+// `tutti` is a historical presentation alias rather than a provider id.
+const managedAgentPresentationIconAliases = {
+  tutti: "tutti"
 } as const;
 
 /** Square avatar art for the managed toolchain agents (used by Manage Agents and Launch home Agents floor). */
 export const MANAGED_AGENT_ICON_URLS: Record<string, string> =
   createProviderIconUrlMap(
     "manage",
-    legacyManagedAgentProviderIconKeys,
+    managedAgentPresentationIconAliases,
     migratedAgentGUIProviderIdentityCatalog
   );
 
@@ -29,7 +20,7 @@ export const MANAGED_AGENT_ICON_URLS: Record<string, string> =
 export const MANAGED_AGENT_PROVIDER_RAIL_ICON_URLS: Record<string, string> =
   createProviderIconUrlMap(
     "providerRail",
-    legacyManagedAgentProviderIconKeys,
+    managedAgentPresentationIconAliases,
     migratedAgentGUIProviderIdentityCatalog
   );
 
@@ -37,7 +28,7 @@ export const MANAGED_AGENT_PROVIDER_RAIL_ICON_URLS: Record<string, string> =
 export const MANAGED_AGENT_ICON_ROUNDED_URLS: Record<string, string> =
   createProviderIconUrlMap(
     "rounded",
-    legacyManagedAgentProviderIconKeys,
+    managedAgentPresentationIconAliases,
     migratedAgentGUIProviderIdentityCatalog
   );
 

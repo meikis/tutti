@@ -1,4 +1,5 @@
 import type { AgentGUIProviderTarget } from "@tutti-os/agent-gui";
+import { resolveAgentGUIProviderCatalogIdentity } from "@tutti-os/agent-gui/provider-catalog";
 
 export function filterWorkspaceAgentGuiProviderTargets(
   targets: readonly AgentGUIProviderTarget[],
@@ -8,6 +9,9 @@ export function filterWorkspaceAgentGuiProviderTargets(
     return targets;
   }
   return targets.map((target) =>
-    target.provider === "tutti-agent" ? { ...target, disabled: true } : target
+    resolveAgentGUIProviderCatalogIdentity(target.provider)?.desktop
+      .visibilityGate === "tutti_agent"
+      ? { ...target, disabled: true }
+      : target
   );
 }

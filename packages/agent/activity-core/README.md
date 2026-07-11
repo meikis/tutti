@@ -98,7 +98,7 @@ export const adapter: AgentActivityAdapter = {
 
   createSession: createAgentSession,
   sendInput: sendAgentInput,
-  cancelSession: cancelAgentSession,
+  cancelTurn: cancelAgentTurn,
   respondPermission: respondToAgentPermission,
   deleteSession: deleteAgentSession
 };
@@ -152,10 +152,14 @@ Live streams emit `AgentActivitySessionEventEnvelope`:
 }
 ```
 
-Supported controller event types:
+The retained controller stream accepts `message_update` and upserts the message
+into `sessionMessagesById`. The session engine's generated
+`AgentActivityUpdatedEvent` input additionally accepts:
 
-- `message_update`: upserts a message into `sessionMessagesById`
-- `session_update`: upserts a session into `sessions`
+- `turn_update`: updates the canonical durable turn projection
+- `interaction_update`: updates the canonical durable interaction projection
+- `session_reconcile_required`: asks the engine transport to reload the session
+- `session_deleted`: removes the session through the engine tombstone flow
 
 Events with a different `workspaceId` are ignored. Unknown event types are
 ignored.

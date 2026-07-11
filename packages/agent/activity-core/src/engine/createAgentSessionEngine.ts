@@ -92,7 +92,19 @@ export function createAgentSessionEngine({
       try {
         listener(state);
       } catch (error) {
-        diagnosticSink?.({ error, type: "listenerError" });
+        if (diagnosticSink) {
+          diagnosticSink({ error, type: "listenerError" });
+        } else {
+          console.error(
+            "[agent-session-engine-diagnostic]",
+            JSON.stringify({
+              event: "listener_error",
+              error: error instanceof Error ? error.message : String(error),
+              origin: engineIdentity.origin,
+              workspaceId: engineIdentity.workspaceId
+            })
+          );
+        }
       }
     }
   }

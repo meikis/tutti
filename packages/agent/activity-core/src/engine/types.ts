@@ -38,6 +38,12 @@ export interface EngineConnectionChangedIntent {
   workspaceId?: string;
 }
 
+export interface WorkspaceReconcileRequestedIntent {
+  type: "workspace/reconcileRequested";
+  workspaceId: string;
+  retry?: boolean;
+}
+
 /** Requests a command-port round trip; exercises the executor feedback loop. */
 export interface EngineProbeRequestedIntent {
   type: "engine/probeRequested";
@@ -86,15 +92,19 @@ export interface EngineIntentExpiredIntent {
 }
 
 export type EngineIntent =
+  | AttentionReadIntent
   | EngineCommandResultIntent
   | EngineConnectionChangedIntent
   | EngineExpiryCancelRequestedIntent
   | EngineExpiryRequestedIntent
   | EngineIntentExpiredIntent
   | EngineProbeRequestedIntent
+  | WorkspaceReconcileRequestedIntent
   | PendingIntentsIntent
+  | PlanDecisionIntent
   | PromptQueueIntent
   | SessionReconcileIntent
+  | SessionCommandsIntent
   | SessionLifecycleIntent;
 
 // ---------------------------------------------------------------------------
@@ -133,10 +143,14 @@ export type EngineInternalCommand =
   | EngineScheduleExpiryCommand;
 
 export type EngineExternalCommand =
+  | AttentionReadCommand
   | EngineProbeCommand
   | EngineReconcileWorkspaceCommand
+  | InteractionRespondCommand
+  | PlanSubmitDecisionCommand
   | PromptQueueSendCommand
   | SessionActivateCommand
+  | SessionUpdateSettingsCommand
   | SessionUnactivateCommand
   | SessionReconcileCommand
   | TurnCancelCommand;
@@ -168,13 +182,22 @@ export interface EngineRuntimeState {
   lastCommandResult: EngineRuntimeCommandResultRecord | null;
   lastExpiredIntentId: string | null;
   processedIntentCount: number;
+  workspaceReconcile: {
+    commandId: string | null;
+    errorCode: string | null;
+    errorMessage: string | null;
+    status: "idle" | "loading" | "ready" | "failed" | "unknown";
+  };
 }
 
 export interface AgentSessionEngineState {
+  attentionReadState: AttentionReadState;
   engineRuntime: EngineRuntimeState;
   pendingIntents: PendingIntentsState;
+  planDecisions: PlanDecisionState;
   promptQueue: PromptQueueState;
   sessionReconcile: SessionReconcileState;
+  sessionCommands: SessionCommandsState;
   sessionLifecycle: SessionLifecycleState;
 }
 
@@ -211,7 +234,10 @@ export interface EngineClock {
 
 /** Transport adapter surface: executes external command descriptions. */
 export interface EngineCommandPort {
-  execute(command: EngineExternalCommand): Promise<unknown>;
+  execute(
+    command: EngineExternalCommand,
+    options?: { signal?: AbortSignal }
+  ): Promise<unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,9 +273,11 @@ import type {
   PendingIntentsIntent,
   PendingIntentsState,
   SessionActivateCommand,
+  SessionUpdateSettingsCommand,
   SessionUnactivateCommand
 } from "./pendingIntents.types.ts";
 import type {
+  InteractionRespondCommand,
   SessionLifecycleIntent,
   SessionLifecycleState,
   TurnCancelCommand
@@ -259,3 +287,17 @@ import type {
   SessionReconcileIntent,
   SessionReconcileState
 } from "./sessionReconcile.types.ts";
+import type {
+  AttentionReadCommand,
+  AttentionReadIntent,
+  AttentionReadState
+} from "./attentionReadState.types.ts";
+import type {
+  PlanDecisionIntent,
+  PlanDecisionState,
+  PlanSubmitDecisionCommand
+} from "./planDecision.types.ts";
+import type {
+  SessionCommandsIntent,
+  SessionCommandsState
+} from "./sessionCommands.types.ts";

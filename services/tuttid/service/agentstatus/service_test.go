@@ -145,6 +145,24 @@ func TestDefaultRegistryUsesTuttiAgentManagedNPMInstaller(t *testing.T) {
 	if !install.ManagedNPM.IncludeOptional {
 		t.Fatalf("IncludeOptional = false, want true")
 	}
+	if specs[0].LoginActionKind != ActionKindDaemonAction {
+		t.Fatalf("LoginActionKind = %q, want %q", specs[0].LoginActionKind, ActionKindDaemonAction)
+	}
+}
+
+func TestServiceListUsesDescriptorOwnedDaemonLoginAction(t *testing.T) {
+	service := testService(func(name string) (string, error) {
+		return "/usr/local/bin/" + name, nil
+	}, map[string]bool{})
+
+	snapshot, err := service.List(context.Background(), ListInput{Providers: []string{"tutti-agent"}})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	action := firstAction(t, onlyStatus(t, snapshot).Actions)
+	if action.ID != ActionLogin || action.Kind != ActionKindDaemonAction || action.Command != nil {
+		t.Fatalf("login action = %#v, want descriptor-owned daemon action", action)
+	}
 }
 
 func TestDefaultRegistryIncludesCursorSpec(t *testing.T) {
@@ -514,7 +532,7 @@ func TestServiceListReportsCodexChecksVersionAndLastError(t *testing.T) {
 	pkgDir := filepath.Join(home, "lib", "node_modules", "@openai", "codex")
 	writePackageManifest(t, pkgDir, "@openai/codex", "0.100.0")
 	codexPath := filepath.Join(pkgDir, "bin", "codex")
-	writeExecutable(t, codexPath, "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'codex 0.100.0'; exit 0; fi\nsleep 5\n")
+	writeExecutable(t, codexPath, "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'codex 0.100.0'; exit 0; fi\nexit 0\n")
 	visiblePath := filepath.Join(binDir, "codex")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("mkdir bin dir: %v", err)
@@ -1446,6 +1464,37 @@ func TestServiceRunActionReportsInstallCommandFailures(t *testing.T) {
 	}
 	if result.Probe != nil {
 		t.Fatalf("Probe = %#v, want nil when install command fails", result.Probe)
+	}
+}
+
+func TestServiceRunActionClassifiesInstallFailureFromDescriptorMarkers(t *testing.T) {
+	home := t.TempDir()
+	service := probeTestService(home)
+	service.Registry = Registry{Specs: []ProviderSpec{{
+		Provider:    "opencode",
+		BinaryNames: []string{"opencode"},
+		Install: InstallerSpec{
+			Kind:           InstallerKindShellCommand,
+			DisplayCommand: "install opencode test",
+			ShellCommand:   "install opencode test",
+			FailureReasonMarkers: map[string][]string{
+				"install_unavailable_in_region": {"unavailable-in-test-region"},
+			},
+		},
+	}}}
+	service.InstallCommand = func(context.Context, InstallCommandInput) (InstallCommandResult, error) {
+		return InstallCommandResult{ExitCode: 42, Stderr: "Unavailable-In-Test-Region"}, nil
+	}
+
+	result, err := service.RunAction(context.Background(), RunActionInput{
+		Provider: "opencode",
+		ActionID: ActionInstall,
+	})
+	if err != nil {
+		t.Fatalf("RunAction() error = %v", err)
+	}
+	if result.ReasonCode != "install_unavailable_in_region" {
+		t.Fatalf("ReasonCode = %q, want install_unavailable_in_region", result.ReasonCode)
 	}
 }
 

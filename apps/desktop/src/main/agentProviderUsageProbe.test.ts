@@ -20,6 +20,18 @@ beforeEach(() => {
   });
 });
 
+test("listDesktopWorkspaceAgentProbes resolves provider aliases through the catalog", async () => {
+  const result = await listDesktopWorkspaceAgentProbes({
+    includeUsage: false,
+    providers: ["open-code"],
+    refresh: true,
+    workspaceId: "workspace-1"
+  });
+
+  assert.equal(result.providers.length, 1);
+  assert.equal(result.providers[0]?.provider, "opencode");
+});
+
 test("listDesktopWorkspaceAgentProbes maps Codex OAuth usage windows", async () => {
   const previousCodexHome = process.env.CODEX_HOME;
   const directory = await mkdtemp(join(tmpdir(), "tutti-codex-usage-"));

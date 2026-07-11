@@ -1,12 +1,3 @@
-export type AgentActivitySessionStatus =
-  | "queued"
-  | "working"
-  | "waiting"
-  | "completed"
-  | "failed"
-  | "canceled"
-  | "unknown";
-
 export type AgentActivityDisplayStatus =
   | "working"
   | "waiting"
@@ -18,32 +9,53 @@ export type AgentActivityDisplayStatus =
 export interface AgentActivitySession {
   workspaceId: string;
   agentSessionId: string;
-  agentTargetId?: string | null;
+  agentTargetId: string | null;
   provider: string;
-  providerSessionId?: string | null;
+  providerSessionId: string | null;
   userId?: string;
   model?: string | null;
+  noProject?: boolean | null;
   cwd: string;
   title: string;
-  status: AgentActivitySessionStatus | (string & {});
-  activeTurnId?: string | null;
-  activeTurn?: AgentActivityTurn | null;
-  pendingInteractions?: readonly AgentActivityInteraction[];
-  turnLifecycle?: AgentActivityTurnLifecycle | null;
-  submitAvailability?: AgentActivitySubmitAvailability | null;
-  pendingInteractive?: AgentActivityInteractivePrompt | null;
-  visible?: boolean;
-  resumable?: boolean;
-  currentPhase?: string | null;
-  lastError?: string | null;
-  runtimeContext?: Record<string, unknown>;
-  messageVersion?: number;
-  lastEventUnixMs?: number;
-  startedAtUnixMs?: number;
-  endedAtUnixMs?: number;
-  pinnedAtUnixMs?: number | null;
-  createdAtUnixMs?: number;
-  updatedAtUnixMs?: number;
+  activeTurnId: string | null;
+  activeTurn: AgentActivityTurn | null;
+  latestTurn: AgentActivityTurn | null;
+  latestTurnInteractions: readonly AgentActivityInteraction[];
+  pendingInteractions: readonly AgentActivityInteraction[];
+  settings: AgentActivitySessionSettings;
+  permissionConfig: AgentActivitySessionPermissionConfig;
+  capabilities: AgentActivitySessionCapabilities | null;
+  backgroundAgents: AgentActivitySessionBackgroundAgents | null;
+  goal: AgentActivitySessionGoal | null;
+  imported: boolean;
+  visible: boolean;
+  resumable: boolean;
+  messageVersion: number;
+  lastEventUnixMs: number;
+  startedAtUnixMs: number;
+  endedAtUnixMs: number | null;
+  pinnedAtUnixMs: number | null;
+  createdAtUnixMs: number;
+  updatedAtUnixMs: number;
+}
+
+export type AgentActivityActivationMode = "new" | "existing";
+export type AgentActivityActivationStatus =
+  | "attached"
+  | "already_attached"
+  | "failed";
+
+export interface AgentActivityActivateSessionResult {
+  session: AgentActivitySession;
+  activation: {
+    mode: AgentActivityActivationMode;
+    status: AgentActivityActivationStatus;
+  };
+  error?: {
+    code: string;
+    message: string;
+    debugMessage?: string;
+  };
 }
 
 export interface AgentActivityInteractivePrompt {
@@ -57,24 +69,12 @@ export interface AgentActivityInteractivePrompt {
   metadata?: Record<string, unknown>;
 }
 
-export type AgentActivityCancelReason =
-  | "active_turn_canceled"
-  | "no_active_turn"
-  | "stale_turn_reconciled";
-
-export interface AgentActivityCancelSessionResult {
-  session: AgentActivitySession;
-  canceled: boolean;
-  reason: AgentActivityCancelReason | (string & {});
-}
-
 export interface AgentActivityMessage {
   workspaceId?: string;
   agentSessionId: string;
   messageId: string;
-  id?: number;
   version: number;
-  turnId: string;
+  turnId: string | null;
   role: string;
   kind: string;
   status?: string | null;
@@ -196,6 +196,7 @@ export interface AgentActivitySlashCommandPolicy {
 }
 
 export interface AgentActivityComposerBehavior {
+  collapseModelOptionsToLatest: boolean;
   modelOptionsAuthoritative: boolean;
   refreshModelOptionsAfterSettings: boolean;
   prewarmDraftSession: boolean;
@@ -217,7 +218,8 @@ export interface AgentActivityComposerOptions {
   /** Effective pre-session settings paired with this options snapshot. */
   effectiveSettings?: AgentActivityComposerSettings | null;
   permissionConfig?: AgentActivityComposerPermissionConfig | null;
-  runtimeContext?: Record<string, unknown>;
+  draftAgentSessionId?: string | null;
+  modelOptionsLoading?: boolean;
   skills: AgentActivityComposerSkillOption[];
   capabilityCatalog?: AgentActivityComposerCapabilityOption[];
   behavior: AgentActivityComposerBehavior;
@@ -243,74 +245,44 @@ export interface AgentActivitySnapshot {
   composerOptionsByProvider?: Record<string, AgentActivityComposerOptions>;
 }
 
-export interface AgentActivitySessionEventEnvelope {
-  workspaceId: string;
-  agentSessionId: string;
-  eventType: string;
-  data?: unknown;
-}
+export type AgentActivityUpdatedEvent = Extract<
+  AgentActivityUpdatedPayloadV1,
+  {
+    eventType:
+      | "interaction_update"
+      | "message_update"
+      | "session_deleted"
+      | "session_reconcile_required"
+      | "turn_update";
+  }
+>;
 
-export interface AgentActivityUpdatedEvent {
-  workspaceId: string;
-  agentSessionId: string;
-  eventType: string;
-  data?: unknown;
-}
-
-export interface AgentActivityStatePatch {
-  agentSessionId: string;
-  agentTargetId?: string;
-  currentPhase?: string;
-  cwd?: string;
-  lastError?: string;
-  lastEventUnixMs?: number;
-  lifecycleStatus?: string;
-  model?: string;
-  occurredAtUnixMs?: number;
-  provider?: string;
-  providerSessionId?: string;
-  runtimeContext?: Record<string, unknown>;
-  startedAtUnixMs?: number;
-  submitAvailability?: AgentActivitySubmitAvailability;
-  pendingInteractive?: AgentActivityInteractivePrompt | null;
-  endedAtUnixMs?: number;
-  title?: string;
-  turn?: {
-    activeTurnId?: string | null;
-    completedCommand?: AgentActivityCompletedCommand | null;
-    completedAtUnixMs?: number;
-    fileChanges?: unknown;
-    outcome?: string;
-    phase?: string;
-    settling?: boolean;
-    submitAvailability?: AgentActivitySubmitAvailability;
-    startedAtUnixMs?: number;
-    turnId: string;
-  };
-  workspaceId?: string;
-}
+export type AgentActivitySessionEventEnvelope = Extract<
+  AgentActivityUpdatedEvent,
+  { eventType: "message_update" }
+>;
 
 export interface AgentActivityUpdatedApplyResult {
   applied: boolean;
   messages: AgentActivityMessage[];
   session: AgentActivitySession | null;
-  statePatch: AgentActivityStatePatch | null;
 }
 
 export interface AgentActivityCreateSessionInput {
+  clientSubmitId: string;
   workspaceId: string;
   agentSessionId?: string | null;
   agentTargetId: string;
   cwd?: string | null;
+  noProject?: boolean | null;
   initialContent?: AgentPromptContentBlock[] | null;
   /** 仅展示用的首轮文本(bundle 折叠成一个 chip);initialContent 仍带展开后的文件。 */
   initialDisplayPrompt?: string | null;
-  metadata?: Record<string, unknown>;
+  submitDiagnostics?: AgentActivitySubmitDiagnostics;
   model?: string | null;
   planMode?: boolean | null;
   permissionModeId?: string | null;
   reasoningEffort?: string | null;
-  runtimeContext?: Record<string, unknown> | null;
   speed?: string | null;
   title?: string | null;
   visible?: boolean | null;
@@ -318,63 +290,37 @@ export interface AgentActivityCreateSessionInput {
 }
 
 export interface AgentActivitySendInput {
+  clientSubmitId: string;
   workspaceId: string;
   agentSessionId: string;
   content: AgentPromptContentBlock[];
   /** 仅展示用文本(bundle 折叠成一个 chip);content 仍带展开后的文件。 */
   displayPrompt?: string | null;
   guidance?: boolean;
-  metadata?: Record<string, unknown>;
+  submitDiagnostics?: AgentActivitySubmitDiagnostics;
   signal?: AbortSignal;
 }
 
-export type AgentActivityTurnPhase =
-  | "submitted"
-  | "running"
-  | "waiting"
-  | "settled";
-
-export type AgentActivityTurnOutcome =
-  | "completed"
-  | "failed"
-  | "canceled"
-  | (string & {});
-
-export interface AgentActivityCompletedCommand {
-  kind: "compact" | "review" | "undo" | "goal" | (string & {});
-  status: "completed" | "failed" | "canceled" | (string & {});
-}
-
-export interface AgentActivityTurnLifecycle {
-  activeTurnId: string | null;
-  phase: AgentActivityTurnPhase | (string & {});
-  settling?: boolean;
-  outcome?: AgentActivityTurnOutcome | null;
-  completedCommand?: AgentActivityCompletedCommand | null;
-}
-
-export interface AgentActivitySubmitAvailability {
-  state: "available" | "blocked" | "queueable" | (string & {});
-  reason?: string;
+export interface AgentActivitySubmitDiagnostics {
+  submittedAtUnixMs?: number;
+  blockCount?: number;
+  hasImage?: boolean;
+  promptLength?: number;
+  queued?: boolean;
+  source?: string;
 }
 
 export interface AgentActivityMessageSemantics {
   userVisibleAssistantResponse?: boolean;
   turnSettling?: boolean;
-  noticeCommand?: "compact" | "review" | "undo" | "goal" | (string & {});
-  noticeCommandStatus?:
-    | "running"
-    | "completed"
-    | "failed"
-    | "canceled"
-    | (string & {});
+  noticeCommand?: "compact" | "review" | "undo" | "goal";
+  noticeCommandStatus?: "running" | "completed" | "failed" | "canceled";
 }
 
 export interface AgentActivitySendInputResult {
   session: AgentActivitySession;
   turnId: string;
-  turnLifecycle: AgentActivityTurnLifecycle;
-  submitAvailability: AgentActivitySubmitAvailability;
+  turn: AgentActivityTurn;
 }
 
 export interface AgentPromptContentBlock {
@@ -394,12 +340,6 @@ export interface AgentPromptContentBlock {
   sizeBytes?: number;
 }
 
-export interface AgentActivityCancelSessionInput {
-  workspaceId: string;
-  agentSessionId: string;
-  signal?: AbortSignal;
-}
-
 export type AgentActivityGoalControlAction =
   | "pause"
   | "resume"
@@ -416,17 +356,22 @@ export interface AgentActivityGoalControlInput {
 
 export interface AgentActivityGoalControlResult {
   session: AgentActivitySession;
-  goal?: Record<string, unknown> | null;
+  goal?: AgentActivitySessionGoal | null;
 }
 
 export interface AgentActivitySubmitInteractiveInput {
   workspaceId: string;
   agentSessionId: string;
   requestId: string;
+  turnId: string;
   action?: string | null;
   optionId?: string | null;
   payload?: Record<string, unknown> | null;
   signal?: AbortSignal;
+}
+
+export interface AgentActivitySubmitInteractiveResult {
+  session: AgentActivitySession;
 }
 
 export interface AgentActivityDeleteSessionInput {
@@ -457,13 +402,50 @@ export interface AgentActivityNeedsAttentionItem {
   occurredAtUnixMs: number;
 }
 import type {
-  WorkspaceAgentInteraction,
-  WorkspaceAgentTurn,
-  WorkspaceAgentTurnCancelResponse
+  AgentSessionComposerSettings,
+  PermissionConfig,
+  WorkspaceAgentBackgroundAgents,
+  WorkspaceAgentCapabilities,
+  WorkspaceAgentCompletedCommand,
+  WorkspaceAgentInteractionKind,
+  WorkspaceAgentInteractionStatus,
+  WorkspaceAgentSessionGoal,
+  WorkspaceAgentTurnCancelResponse,
+  WorkspaceAgentTurnOutcome,
+  WorkspaceAgentTurnPhase
 } from "@tutti-os/client-tuttid-ts";
 
-export type AgentActivityTurn = WorkspaceAgentTurn;
-export type AgentActivityInteraction = WorkspaceAgentInteraction;
+export interface AgentActivityTurn {
+  agentSessionId: string;
+  completedCommand?: WorkspaceAgentCompletedCommand | null;
+  error?: { code?: string; message: string } | null;
+  fileChanges?: Record<string, unknown> | null;
+  outcome?: WorkspaceAgentTurnOutcome | null;
+  phase: WorkspaceAgentTurnPhase;
+  settledAtUnixMs?: number | null;
+  startedAtUnixMs: number;
+  turnId: string;
+  updatedAtUnixMs: number;
+}
+export interface AgentActivityInteraction {
+  agentSessionId: string;
+  createdAtUnixMs: number;
+  input?: Record<string, unknown> | null;
+  kind: WorkspaceAgentInteractionKind;
+  metadata?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  requestId: string;
+  status: WorkspaceAgentInteractionStatus;
+  toolName?: string | null;
+  turnId: string;
+  updatedAtUnixMs: number;
+}
+export type AgentActivitySessionSettings = AgentSessionComposerSettings;
+export type AgentActivitySessionPermissionConfig = PermissionConfig;
+export type AgentActivitySessionCapabilities = WorkspaceAgentCapabilities;
+export type AgentActivitySessionBackgroundAgents =
+  WorkspaceAgentBackgroundAgents;
+export type AgentActivitySessionGoal = WorkspaceAgentSessionGoal;
 export type AgentActivityTurnCancelResponse = WorkspaceAgentTurnCancelResponse;
 
 export interface AgentActivityCancelTurnInput {
@@ -471,3 +453,4 @@ export interface AgentActivityCancelTurnInput {
   turnId: string;
   workspaceId: string;
 }
+import type { AgentActivityUpdatedPayloadV1 } from "@tutti-os/client-tuttid-ts";

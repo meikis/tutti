@@ -268,43 +268,43 @@ func reverseSessionMessages(messages []SessionMessage) {
 }
 
 func waitReasonForSession(session Session) (WaitReason, bool) {
-	if session.TurnLifecycle != nil {
-		if reason, ok := waitReasonForPhase(session.TurnLifecycle.Phase); ok {
-			return reason, true
+	if session.ActiveTurn != nil {
+		if strings.TrimSpace(session.ActiveTurn.Phase) != agentactivitybiz.TurnPhaseWaiting {
+			return "", false
+		}
+		for _, interaction := range session.PendingInteractions {
+			if interaction.Status != agentactivitybiz.InteractionStatusPending {
+				continue
+			}
+			switch interaction.Kind {
+			case agentactivitybiz.InteractionKindApproval:
+				return WaitReasonWaitingApproval, true
+			case agentactivitybiz.InteractionKindQuestion, agentactivitybiz.InteractionKindPlan:
+				return WaitReasonWaitingInput, true
+			}
+		}
+		return WaitReasonWaiting, true
+	}
+	if session.LatestTurn != nil {
+		if strings.TrimSpace(session.LatestTurn.Phase) != agentactivitybiz.TurnPhaseSettled {
+			return "", false
+		}
+		switch strings.TrimSpace(session.LatestTurn.Outcome) {
+		case agentactivitybiz.TurnOutcomeCompleted:
+			return WaitReasonCompleted, true
+		case agentactivitybiz.TurnOutcomeFailed:
+			return WaitReasonFailed, true
+		case agentactivitybiz.TurnOutcomeCanceled, agentactivitybiz.TurnOutcomeInterrupted:
+			return WaitReasonCanceled, true
+		default:
+			return "", false
 		}
 	}
-	switch strings.TrimSpace(session.Status) {
-	case "ready", "created":
-		return WaitReasonReady, true
-	case "waiting":
-		return WaitReasonWaiting, true
-	case "completed":
-		return WaitReasonCompleted, true
-	case "failed":
-		return WaitReasonFailed, true
-	case "canceled":
-		return WaitReasonCanceled, true
-	default:
-		return "", false
-	}
-}
-
-func waitReasonForPhase(phase string) (WaitReason, bool) {
-	switch strings.TrimSpace(phase) {
-	case "waiting_approval":
-		return WaitReasonWaitingApproval, true
-	case "waiting_input":
-		return WaitReasonWaitingInput, true
-	case "running", "preparing":
-		return "", false
-	default:
-		return "", false
-	}
+	return WaitReasonReady, true
 }
 
 type waitStopState struct {
 	Reason       string
-	Status       string
 	Phase        string
 	ActiveTurnID string
 	Outcome      string
@@ -317,16 +317,14 @@ func waitStopStateForSession(session Session) (waitStopState, bool) {
 	}
 	state := waitStopState{
 		Reason: string(reason),
-		Status: strings.TrimSpace(session.Status),
 	}
-	if session.TurnLifecycle != nil {
-		state.Phase = strings.TrimSpace(session.TurnLifecycle.Phase)
-		if session.TurnLifecycle.ActiveTurnID != nil {
-			state.ActiveTurnID = strings.TrimSpace(*session.TurnLifecycle.ActiveTurnID)
-		}
-		if session.TurnLifecycle.Outcome != nil {
-			state.Outcome = strings.TrimSpace(*session.TurnLifecycle.Outcome)
-		}
+	if session.ActiveTurn != nil {
+		state.Phase = strings.TrimSpace(session.ActiveTurn.Phase)
+		state.ActiveTurnID = strings.TrimSpace(session.ActiveTurn.TurnID)
+		state.Outcome = strings.TrimSpace(session.ActiveTurn.Outcome)
+	} else if session.LatestTurn != nil {
+		state.Phase = strings.TrimSpace(session.LatestTurn.Phase)
+		state.Outcome = strings.TrimSpace(session.LatestTurn.Outcome)
 	}
 	return state, true
 }

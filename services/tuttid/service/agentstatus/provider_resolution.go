@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/tutti-os/tutti/services/tuttid/biz/agentprovider"
+	"github.com/tutti-os/tutti/packages/agent/daemon/providerregistry"
 	externalagentregistry "github.com/tutti-os/tutti/services/tuttid/service/externalagentregistry"
 	managedruntime "github.com/tutti-os/tutti/services/tuttid/service/managedruntime"
 )
@@ -163,10 +163,19 @@ func fileExistsPath(path string) bool {
 }
 
 func (s Service) resolveStaticProviderSpec(ctx context.Context, spec ProviderSpec, requireManagedRuntime bool) ProviderSpec {
-	if spec.Provider == agentprovider.Cursor {
-		return s.resolveCursorProviderSpec(spec)
+	resolverKind := spec.StaticSpecResolverKind
+	if resolverKind == "" {
+		if status, ok := migratedProviderStatus(spec.Provider); ok {
+			resolverKind = status.StaticSpecResolverKind
+		}
 	}
-	if !isCodexStatusSpec(spec) {
+	switch resolverKind {
+	case providerregistry.StaticSpecResolverKindCursor:
+		return s.resolveCursorProviderSpec(spec)
+	case providerregistry.StaticSpecResolverKindGeneric:
+		return spec
+	case providerregistry.StaticSpecResolverKindManagedNode:
+	default:
 		return spec
 	}
 	if s.userNodeRuntimeAvailable(spec.AdapterEnv) {

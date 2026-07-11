@@ -96,15 +96,11 @@ func newTestClaudeStartCommand(provider Provider) cliservice.Command {
 	})
 }
 
-func (f *fakeAgentSessions) Cancel(_ context.Context, workspaceID string, sessionID string) (agentservice.CancelSessionResult, error) {
+func (f *fakeAgentSessions) CancelTurn(_ context.Context, workspaceID string, sessionID string, _ string) (agentservice.CancelTurnResult, error) {
 	f.workspaceID = workspaceID
 	f.sessionID = sessionID
 	f.cancelCallCount++
-	return agentservice.CancelSessionResult{
-		Session:  agentservice.Session{ID: sessionID, Provider: "codex", Status: "canceled", Visible: true},
-		Canceled: true,
-		Reason:   agentservice.CancelReasonActiveTurnCanceled,
-	}, nil
+	return agentservice.CancelTurnResult{Canceled: true, Reason: agentservice.CancelTurnReasonTurnCanceled}, nil
 }
 
 func (f *fakeAgentSessions) Create(_ context.Context, workspaceID string, input agentservice.CreateSessionInput) (agentservice.Session, error) {
@@ -123,7 +119,6 @@ func (f *fakeAgentSessions) Create(_ context.Context, workspaceID string, input 
 		ID:       "SESSION-NEW",
 		Provider: input.Provider,
 		Cwd:      cwd,
-		Status:   "created",
 		Visible:  visible,
 	}, nil
 }
@@ -137,7 +132,7 @@ func (f *fakeAgentSessions) Get(_ context.Context, workspaceID string, sessionID
 	if f.getSession.ID != "" {
 		return f.getSession, nil
 	}
-	return agentservice.Session{ID: sessionID, Provider: "codex", Status: "created", Visible: true}, nil
+	return agentservice.Session{ID: sessionID, Provider: "codex", Visible: true}, nil
 }
 
 func (f *fakeAgentSessions) GetComposerOptions(_ context.Context, input agentservice.ComposerOptionsInput) (agentservice.ComposerOptions, error) {
@@ -229,8 +224,8 @@ func (f *fakeAgentSessions) List(_ context.Context, workspaceID string) ([]agent
 	f.listCallCount++
 	title := "Work"
 	return []agentservice.Session{
-		{ID: "SESSION-1", Provider: "codex", Status: "working", Title: &title, CreatedAt: time.Unix(1, 0)},
-		{ID: "SESSION-2", Provider: "claude", Status: "completed", CreatedAt: time.Unix(2, 0)},
+		{ID: "SESSION-1", Provider: "codex", ActiveTurnID: "turn-1", Title: &title, CreatedAt: time.Unix(1, 0)},
+		{ID: "SESSION-2", Provider: "claude", CreatedAt: time.Unix(2, 0)},
 	}, nil
 }
 
@@ -239,7 +234,7 @@ func (f *fakeAgentSessions) ListActivePeers(_ context.Context, workspaceID strin
 	title := "Work"
 	return agentservice.ActivePeers{
 		Agents: []agentservice.ActivePeer{{
-			Session:      agentservice.Session{ID: "SESSION-1", Provider: "codex", Cwd: "/workspace/repo", Status: "working", Title: &title, CreatedAt: time.Unix(1, 0)},
+			Session:      agentservice.Session{ID: "SESSION-1", Provider: "codex", Cwd: "/workspace/repo", ActiveTurnID: "turn-1", Title: &title, CreatedAt: time.Unix(1, 0)},
 			SelfRelation: "unknown",
 		}},
 		SelfKnown:      false,
@@ -334,7 +329,7 @@ func (f *fakeAgentSessions) SendInput(_ context.Context, workspaceID string, ses
 	f.sessionID = sessionID
 	f.sendInput = input
 	return agentservice.SendInputResult{
-		Session: agentservice.Session{ID: sessionID, Provider: "codex", Status: "working", Visible: true},
+		Session: agentservice.Session{ID: sessionID, Provider: "codex", ActiveTurnID: "turn-1", Visible: true},
 	}, nil
 }
 
@@ -351,10 +346,10 @@ func (f *fakeAgentSessions) Wait(_ context.Context, input agentservice.WaitInput
 	}
 	return agentservice.WaitResult{
 		Session: agentservice.Session{
-			ID:       input.AgentSessionID,
-			Provider: "codex",
-			Status:   "waiting",
-			Visible:  true,
+			ID:           input.AgentSessionID,
+			Provider:     "codex",
+			ActiveTurnID: "turn-1",
+			Visible:      true,
 		},
 		Messages: []agentservice.SessionMessage{{
 			AgentSessionID: input.AgentSessionID,
@@ -659,13 +654,11 @@ func TestWaitCommandReturnsRecentAgentMessages(t *testing.T) {
 	sessions := &fakeAgentSessions{
 		waitResult: agentservice.WaitResult{
 			Session: agentservice.Session{
-				ID:       "SESSION-1",
-				Provider: "codex",
-				Status:   "waiting",
-				Visible:  true,
-				TurnLifecycle: &agentservice.TurnLifecycle{
-					Phase: "waiting_input",
-				},
+				ID:           "SESSION-1",
+				Provider:     "codex",
+				ActiveTurnID: "turn-1",
+				Visible:      true,
+				ActiveTurn:   &agentactivitybiz.Turn{TurnID: "turn-1", Phase: agentactivitybiz.TurnPhaseWaiting},
 			},
 			Messages: []agentservice.SessionMessage{
 				{
@@ -756,10 +749,10 @@ func TestWaitCommandIncludesImageCompactMetadata(t *testing.T) {
 		localPaths: map[string]string{"attachment-1": "/tmp/agent/attachments/SESSION-1/attachment-1.png"},
 		waitResult: agentservice.WaitResult{
 			Session: agentservice.Session{
-				ID:       "SESSION-1",
-				Provider: "codex",
-				Status:   "waiting",
-				Visible:  true,
+				ID:           "SESSION-1",
+				Provider:     "codex",
+				ActiveTurnID: "turn-1",
+				Visible:      true,
 			},
 			Messages: []agentservice.SessionMessage{{
 				AgentSessionID: "SESSION-1",
@@ -1857,7 +1850,9 @@ func TestSendCommandExposesGuidanceFlagInSchema(t *testing.T) {
 }
 
 func TestCancelCommandCancelsSession(t *testing.T) {
-	sessions := &fakeAgentSessions{}
+	sessions := &fakeAgentSessions{getSession: agentservice.Session{
+		ID: "SESSION-1", Provider: "codex", ActiveTurnID: "turn-1", Visible: true,
+	}}
 	command := newTestProvider(
 		fakeWorkspaceCatalog{startup: workspacebiz.Summary{ID: "workspace-1"}},
 		sessions,
@@ -1872,7 +1867,7 @@ func TestCancelCommandCancelsSession(t *testing.T) {
 	if sessions.cancelCallCount != 1 || sessions.sessionID != "SESSION-1" {
 		t.Fatalf("sessions = %#v", sessions)
 	}
-	if output.Rows[0]["status"] != "canceled" {
+	if output.Rows[0]["id"] != "SESSION-1" {
 		t.Fatalf("output = %#v", output)
 	}
 }

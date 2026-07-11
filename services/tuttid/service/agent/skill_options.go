@@ -61,9 +61,7 @@ func composerSkillDiscoveryPlan(provider string, cwd string, env []string) ([]co
 		return codexComposerSkillRoots(cwd, env), codexSkillTrigger
 	case providerregistry.SkillKindClaudeCode:
 		return claudeCodeComposerSkillRoots(cwd, env), claudeCodeSkillTrigger
-	}
-	switch agentprovider.Normalize(provider) {
-	case agentprovider.Cursor:
+	case providerregistry.SkillKindCursor:
 		return cursorComposerSkillRoots(cwd, env), cursorSkillTrigger
 	default:
 		return nil, nil
@@ -614,35 +612,6 @@ func composerCapabilityOptionsRuntimeContext(options []ComposerCapabilityOption)
 		result = append(result, value)
 	}
 	return result
-}
-
-func withComposerSkillOptionsRuntimeContext(
-	runtimeContext map[string]any,
-	options []ComposerSkillOption,
-) map[string]any {
-	if len(options) == 0 {
-		return runtimeContext
-	}
-	if runtimeContext == nil {
-		runtimeContext = map[string]any{}
-	}
-	runtimeContext["skills"] = composerSkillOptionsRuntimeContext(options)
-	return runtimeContext
-}
-
-func withFallbackComposerSkillOptionsRuntimeContext(
-	runtimeContext map[string]any,
-	options []ComposerSkillOption,
-) map[string]any {
-	if len(options) == 0 {
-		return runtimeContext
-	}
-	if runtimeContext != nil {
-		if _, ok := runtimeContext["skills"]; ok {
-			return runtimeContext
-		}
-	}
-	return withComposerSkillOptionsRuntimeContext(runtimeContext, options)
 }
 
 func skillSourceRank(sourceKind string) int {

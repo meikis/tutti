@@ -23,6 +23,10 @@ const DisabledReasonProviderTemporarilyUnsupported = "provider_temporarily_unsup
 
 type ProviderSpec struct {
 	Kind                         providerregistry.StatusKind
+	AuthOutputParserKind         providerregistry.AuthOutputParserKind
+	AuthMarkerParserKind         providerregistry.AuthMarkerParserKind
+	AuthCommandRunnerKind        providerregistry.AuthCommandRunnerKind
+	StaticSpecResolverKind       providerregistry.StaticSpecResolverKind
 	Provider                     string
 	MinVersion                   string
 	NPMRegistryPackage           string
@@ -41,6 +45,7 @@ type ProviderSpec struct {
 	Install                      InstallerSpec
 	AdapterInstall               InstallerSpec
 	LoginArgs                    []string
+	LoginActionKind              ActionKind
 }
 
 type AdapterPackageRequirement struct {
@@ -90,84 +95,7 @@ func (r Registry) Select(providers []string) ([]ProviderSpec, error) {
 }
 
 func DefaultRegistry() Registry {
-	specsByProvider := map[string]ProviderSpec{
-		agentprovider.TuttiAgent: {
-			Provider:    agentprovider.TuttiAgent,
-			BinaryNames: []string{"tutti-agent"},
-			// Tutti Agent is a Codex CLI fork and exposes the same built-in
-			// app-server; probe that command directly because bare `tutti-agent`
-			// is an interactive TUI and fails headless.
-			AdapterBinaryNames: []string{"tutti-agent"},
-			AdapterCommand:     []string{"tutti-agent", "app-server"},
-			AuthStatusCommand:  []string{"login", "status"},
-			AuthMarkerPaths:    []string{"~/.tutti-agent/auth.json"},
-			Install:            tuttiAgentInstallerSpec(),
-			LoginArgs:          []string{"login"},
-		},
-		agentprovider.Cursor: {
-			Provider: agentprovider.Cursor,
-			// Cursor's official installer has shipped the CLI as `cursor-agent`
-			// and, more recently, as `agent`; probe both names.
-			BinaryNames:       []string{"cursor-agent", "agent"},
-			AdapterCommand:    []string{"cursor-agent", "acp"},
-			AuthStatusCommand: []string{"status"},
-			AuthMarkerPaths:   []string{"~/.cursor/cli-config.json"},
-			Install: InstallerSpec{
-				Kind:           InstallerKindOfficialScript,
-				DisplayCommand: "curl https://cursor.com/install -fsS | bash",
-				ScriptURL:      "https://cursor.com/install",
-				ScriptShell:    "bash",
-			},
-			LoginArgs: []string{"login"},
-		},
-		agentprovider.Nexight: {
-			Provider:           agentprovider.Nexight,
-			SupportStatus:      ProviderSupportStatusUnsupported,
-			DisabledReasonCode: DisabledReasonProviderTemporarilyUnsupported,
-			BinaryNames:        []string{"nexight"},
-			AdapterBinaryNames: []string{"nexight-acp"},
-			AdapterCommand:     []string{"nexight-acp"},
-			AuthMarkerPaths:    []string{"~/.nexight/auth.json", "~/.tutti/nexight/auth.json"},
-			LoginArgs:          []string{"login"},
-		},
-		agentprovider.Hermes: {
-			Provider:           agentprovider.Hermes,
-			SupportStatus:      ProviderSupportStatusUnsupported,
-			DisabledReasonCode: DisabledReasonProviderTemporarilyUnsupported,
-			BinaryNames:        []string{"hermes"},
-			AdapterCommand:     []string{"hermes", "acp"},
-			AuthMarkerPaths:    []string{"~/.hermes/auth.json", "~/.config/hermes/auth.json"},
-			LoginArgs:          []string{"login"},
-		},
-		agentprovider.OpenClaw: {
-			Provider:           agentprovider.OpenClaw,
-			SupportStatus:      ProviderSupportStatusUnsupported,
-			DisabledReasonCode: DisabledReasonProviderTemporarilyUnsupported,
-			BinaryNames:        []string{"openclaw"},
-			AdapterCommand:     []string{"openclaw", "acp", "-v"},
-			AuthMarkerPaths:    []string{"~/.openclaw/auth.json", "~/.config/openclaw/auth.json"},
-			Install: InstallerSpec{
-				Kind:           InstallerKindShellCommand,
-				DisplayCommand: "npm install -g openclaw",
-				ShellCommand:   "npm install -g openclaw",
-			},
-			LoginArgs: []string{"login"},
-		},
-		agentprovider.OpenCode: {
-			Provider:          agentprovider.OpenCode,
-			BinaryNames:       []string{"opencode"},
-			AdapterCommand:    []string{"opencode", "acp"},
-			AuthStatusCommand: []string{"auth", "list"},
-			AuthMarkerPaths:   []string{"~/.local/share/opencode/auth.json"},
-			Install: InstallerSpec{
-				Kind:           InstallerKindOfficialScript,
-				DisplayCommand: "curl -fsSL https://opencode.ai/install | bash",
-				ScriptURL:      "https://opencode.ai/install",
-				ScriptShell:    "bash",
-			},
-			LoginArgs: []string{"auth", "login"},
-		},
-	}
+	specsByProvider := make(map[string]ProviderSpec, len(providerregistry.Migrated()))
 	for _, descriptor := range providerregistry.Migrated() {
 		spec, err := providerSpecFromDescriptor(descriptor)
 		if err != nil {
@@ -200,20 +128,27 @@ func providerSpecFromDescriptor(descriptor providerregistry.ProviderDescriptor) 
 		adapterBinaryNames = []string{descriptor.Runtime.Command[0]}
 	}
 	return ProviderSpec{
-		Kind:               descriptor.Status.Kind,
-		Provider:           descriptor.Identity.ID,
-		MinVersion:         descriptor.Status.MinVersion,
-		NPMRegistryPackage: descriptor.Status.NPMRegistryPackage,
-		BinaryNames:        append([]string(nil), descriptor.Status.BinaryNames...),
-		AdapterBinaryNames: adapterBinaryNames,
-		AdapterCommand:     append([]string(nil), descriptor.Runtime.Command...),
-		AuthStatusCommand:  append([]string(nil), descriptor.Status.AuthStatusCommand...),
+		Kind:                   descriptor.Status.Kind,
+		AuthOutputParserKind:   descriptor.Status.AuthOutputParserKind,
+		AuthMarkerParserKind:   descriptor.Status.AuthMarkerParserKind,
+		AuthCommandRunnerKind:  descriptor.Status.AuthCommandRunnerKind,
+		StaticSpecResolverKind: descriptor.Status.StaticSpecResolverKind,
+		Provider:               descriptor.Identity.ID,
+		MinVersion:             descriptor.Status.MinVersion,
+		NPMRegistryPackage:     descriptor.Status.NPMRegistryPackage,
+		BinaryNames:            append([]string(nil), descriptor.Status.BinaryNames...),
+		AdapterBinaryNames:     adapterBinaryNames,
+		AdapterCommand:         append([]string(nil), descriptor.Runtime.Command...),
+		AuthStatusCommand:      append([]string(nil), descriptor.Status.AuthStatusCommand...),
 		AuthStatusCommandTimeout: time.Duration(
 			descriptor.Status.AuthStatusCommandTimeoutSeconds,
 		) * time.Second,
-		AuthMarkerPaths: append([]string(nil), descriptor.Status.AuthMarkerPaths...),
-		Install:         install,
-		LoginArgs:       append([]string(nil), descriptor.Status.LoginArgs...),
+		AuthMarkerPaths:    append([]string(nil), descriptor.Status.AuthMarkerPaths...),
+		Install:            install,
+		LoginArgs:          append([]string(nil), descriptor.Status.LoginArgs...),
+		LoginActionKind:    ActionKind(descriptor.Status.LoginActionKind),
+		SupportStatus:      ProviderSupportStatus(descriptor.Status.SupportStatus),
+		DisabledReasonCode: descriptor.Status.DisabledReasonCode,
 	}, nil
 }
 
@@ -246,11 +181,13 @@ func migratedProviderStatus(provider string) (providerregistry.StatusDescriptor,
 }
 
 func installerSpecFromProviderDescriptor(descriptor providerregistry.InstallerDescriptor) (InstallerSpec, error) {
+	failureReasonMarkers := cloneInstallerFailureReasonMarkers(descriptor.FailureReasonMarkers)
 	switch descriptor.Kind {
 	case providerregistry.InstallerKindCodexCLILatest:
 		return InstallerSpec{
-			Kind:           InstallerKindCodexCLILatest,
-			DisplayCommand: descriptor.DisplayCommand,
+			Kind:                 InstallerKindCodexCLILatest,
+			DisplayCommand:       descriptor.DisplayCommand,
+			FailureReasonMarkers: failureReasonMarkers,
 			CodexCLI: &CodexCLILatestInstallerSpec{
 				PackageName:     descriptor.PackageName,
 				BinaryName:      descriptor.BinaryName,
@@ -259,14 +196,39 @@ func installerSpecFromProviderDescriptor(descriptor providerregistry.InstallerDe
 		}, nil
 	case providerregistry.InstallerKindOfficialScript:
 		return InstallerSpec{
-			Kind:           InstallerKindOfficialScript,
-			DisplayCommand: descriptor.DisplayCommand,
-			ScriptURL:      descriptor.ScriptURL,
-			ScriptShell:    descriptor.ScriptShell,
+			Kind:                 InstallerKindOfficialScript,
+			DisplayCommand:       descriptor.DisplayCommand,
+			FailureReasonMarkers: failureReasonMarkers,
+			ScriptURL:            descriptor.ScriptURL,
+			ScriptShell:          descriptor.ScriptShell,
 		}, nil
+	case providerregistry.InstallerKindManagedNPM:
+		return InstallerSpec{
+			Kind:                 InstallerKindManagedNPMPackage,
+			DisplayCommand:       descriptor.DisplayCommand,
+			FailureReasonMarkers: failureReasonMarkers,
+			ManagedNPM: &ManagedNPMPackageInstallerSpec{
+				PackageName: descriptor.PackageName, BinaryName: descriptor.BinaryName, IncludeOptional: descriptor.IncludeOptional,
+			},
+		}, nil
+	case providerregistry.InstallerKindShellCommand:
+		return InstallerSpec{Kind: InstallerKindShellCommand, DisplayCommand: descriptor.DisplayCommand, ShellCommand: descriptor.ShellCommand, FailureReasonMarkers: failureReasonMarkers}, nil
+	case "":
+		return InstallerSpec{}, nil
 	default:
 		return InstallerSpec{}, fmt.Errorf("unsupported installer kind %q", descriptor.Kind)
 	}
+}
+
+func cloneInstallerFailureReasonMarkers(values map[string][]string) map[string][]string {
+	if values == nil {
+		return nil
+	}
+	result := make(map[string][]string, len(values))
+	for reasonCode, markers := range values {
+		result[reasonCode] = append([]string(nil), markers...)
+	}
+	return result
 }
 
 // codexCLIInstallerSpec remains as a focused test/injection helper. Its values
@@ -281,16 +243,4 @@ func codexCLIInstallerSpec() InstallerSpec {
 		panic(fmt.Sprintf("invalid codex installer descriptor: %v", err))
 	}
 	return install
-}
-
-func tuttiAgentInstallerSpec() InstallerSpec {
-	return InstallerSpec{
-		Kind:           InstallerKindManagedNPMPackage,
-		DisplayCommand: "npm install -g @tutti-os/tutti-agent --include=optional",
-		ManagedNPM: &ManagedNPMPackageInstallerSpec{
-			PackageName:     "@tutti-os/tutti-agent",
-			BinaryName:      "tutti-agent",
-			IncludeOptional: true,
-		},
-	}
 }

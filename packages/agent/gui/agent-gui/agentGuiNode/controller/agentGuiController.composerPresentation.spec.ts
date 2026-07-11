@@ -84,18 +84,16 @@ describe("composer target presentation", () => {
   });
 
   it("treats live model discovery as foreground loading only without usable cached options", () => {
-    const runtimeContext = { appServerStartup: { models: "loading" } };
-
     expect(
       isForegroundModelOptionsLoading({
-        runtimeContext,
+        modelOptionsLoading: true,
         selection: { currentValue: "gpt-5", options: [] },
         supportsModel: true
       })
     ).toBe(true);
     expect(
       isForegroundModelOptionsLoading({
-        runtimeContext,
+        modelOptionsLoading: true,
         selection: {
           currentValue: "gpt-5",
           options: [{ value: "gpt-5", label: "GPT-5" }]
@@ -113,6 +111,7 @@ describe("composer target presentation", () => {
       speeds: [],
       skills: [],
       behavior: {
+        collapseModelOptionsToLatest: false,
         modelOptionsAuthoritative: false,
         refreshModelOptionsAfterSettings: false,
         prewarmDraftSession: false,
@@ -150,6 +149,7 @@ describe("composer target presentation", () => {
       speeds: [],
       skills: [],
       behavior: {
+        collapseModelOptionsToLatest: false,
         modelOptionsAuthoritative: false,
         refreshModelOptionsAfterSettings: false,
         prewarmDraftSession: false,
@@ -179,6 +179,7 @@ describe("composer target presentation", () => {
       speeds: [],
       skills: [],
       behavior: {
+        collapseModelOptionsToLatest: false,
         modelOptionsAuthoritative: false,
         refreshModelOptionsAfterSettings: false,
         prewarmDraftSession: false,
@@ -194,6 +195,7 @@ describe("composer target presentation", () => {
       sanitizeComposerSettingsForOptions(settings, {
         ...options,
         behavior: {
+          collapseModelOptionsToLatest: false,
           modelOptionsAuthoritative: true,
           refreshModelOptionsAfterSettings: false,
           prewarmDraftSession: false,

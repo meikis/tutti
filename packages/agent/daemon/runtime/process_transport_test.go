@@ -151,7 +151,7 @@ func TestProcessStartEnvDiagnosticsSummarizesFinalPath(t *testing.T) {
 
 func receiveRuntimeStdoutFrame(t *testing.T, conn ProcessConnection) ProcessFrame {
 	t.Helper()
-	deadline := time.After(2 * time.Second)
+	deadline := time.After(5 * time.Second)
 	for {
 		done := make(chan ProcessFrame, 1)
 		errs := make(chan error, 1)

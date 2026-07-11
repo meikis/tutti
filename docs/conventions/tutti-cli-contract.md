@@ -123,10 +123,11 @@ Action commands should return the smallest useful confirmation payload. For
 agent session actions, this normally means session id, provider, status, and
 whether a launch/open request was published.
 
-Agent session compact/detail JSON may include additive runtime protocol fields
-such as `turnLifecycle` and `submitAvailability` when the daemon has them. Keep
-their field names aligned with the HTTP/OpenAPI session shape so CLI callers can
-reason about active turns without switching transports.
+Agent session detail JSON uses the same protocol-v2 entities as HTTP/OpenAPI:
+`activeTurnId`, `activeTurn`, `latestTurn`, and pending Interaction records.
+It must not expose the provider-runtime `turnLifecycle` or
+`submitAvailability` mirrors as session-domain fields. CLI status labels are
+derived from the typed Turn projection rather than persisted on Session.
 
 `agent send --guidance` sends a one-shot prompt as active-turn guidance for an
 existing running session. It requires an active turn, does not attach to stdout
@@ -149,7 +150,8 @@ recovery.
 `agent wait --json` is the blocking progress helper for launched or continued
 agent sessions. It should wait for the next meaningful stop point such as turn
 completion, failure, cancellation, waiting for approval, waiting for user
-input, or timeout. Its JSON result should stay narrow: compact session status,
+input, or timeout. Its JSON result should stay narrow: `activeTurnId`, latest
+Turn phase/outcome,
 wait reason, latest version, timeout flag, and only the most recent agent
 execution messages from the wait window. It must not return a full transcript;
 callers that need broader context should follow with `agent session-summary`.

@@ -13,7 +13,6 @@ import { AgentGuiI18nProvider, type AgentGuiI18nLocale } from "./i18n/index";
 export interface AgentGUIProps extends AgentGUINodeProps {
   agentActivityRuntime: AgentActivityRuntime;
   agentHostApi?: AgentHostInputApi | null;
-  embedded?: boolean;
   i18n?: I18nRuntime<string> | null;
   locale?: AgentGuiI18nLocale;
 }
@@ -35,7 +34,7 @@ export const AgentGUI = memo(function AgentGUI({
       </AgentActivityHostProvider>
     </AgentGuiI18nProvider>
   );
-  return props.previewMode ? (
+  return props.frame.previewMode ? (
     content
   ) : (
     <TooltipProvider delayDuration={120} skipDelayDuration={0}>

@@ -1,4 +1,3 @@
-//revive:disable:file-length-limit
 package agentruntime
 
 import (

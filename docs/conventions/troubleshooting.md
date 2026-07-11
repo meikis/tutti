@@ -43,6 +43,75 @@ Use this shape for new entries:
 
 ## Current Entries
 
+### AgentGUI submit clears the composer but creates no session or turn
+
+- Symptom:
+  Sending from AgentGUI clears or switches the composer, but the conversation
+  rail and transcript do not change. Renderer diagnostics stop at
+  `renderer_adapter.create.http_requested` or
+  `renderer_adapter.send.http_requested`, and the daemon has no matching
+  `clientSubmitId`.
+- Quick checks:
+  Correlate `clientSubmitId` across the desktop and daemon logs. If the engine
+  records an immediate failed activation while the daemon has no create/send
+  business log, compare the adapter's exact JSON body with the generated
+  request type and the OpenAPI schema, including `additionalProperties`.
+- Root cause:
+  A conditional object spread can add a stale property to an otherwise typed
+  request without triggering excess-property checking. Strict OpenAPI request
+  validation then rejects the body before the business handler, while eager
+  composer clearing makes the failed request look successful for an instant.
+- Fix:
+  Keep `clientSubmitId` as the top-level idempotency field and carry optional
+  evidence through the typed `submitDiagnostics` contract from AgentGUI through
+  the session engine to the desktop adapter. Assign the final body to the
+  generated request type before sending. Clear a draft only after the engine
+  queues, accepts, or confirms the exact submitted content; failed sends retain
+  the draft.
+- Validation:
+  Assert the adapter's complete create/send body with generated request types,
+  verify the generated client serializes `submitDiagnostics`, and cover that
+  Composer does not clear before its parent applies engine acknowledgment.
+- References:
+  [agent-gui-node.md](../architecture/agent-gui-node.md)
+  [desktopAgentActivityAdapter.ts](../../apps/desktop/src/renderer/src/features/workspace-agent/services/desktopAgentActivityAdapter.ts)
+  [useAgentGUISubmitInteractionActions.ts](../../packages/agent/gui/agent-gui/agentGuiNode/controller/useAgentGUISubmitInteractionActions.ts)
+
+### AgentGUI new session times out and appears completed without a reply
+
+- Symptom:
+  A new conversation shows the optimistic user prompt, then becomes idle or
+  completed with no assistant reply. The session has no canonical turn or
+  messages.
+- Quick checks:
+  Correlate the create `clientSubmitId`. A characteristic sequence is desktop
+  `renderer_adapter.create.failed errorCode=ETIMEDOUT` at 30 seconds, followed
+  by daemon `provider_runtime_status=failed`, `agent session is not connected`,
+  and a rejected turnless `visible-error` message.
+- Root cause:
+  Runtime command-guide construction asked the CLI registry to run live
+  capability filters. The agent-context filter probes provider availability,
+  so static guide construction could consume the entire create-request budget.
+  Cancellation then reached provider startup. The failed startup was also
+  published as a durable session plus a message without a turn, creating a
+  phantom session that the UI could only project as idle/completed.
+- Fix:
+  Build runtime command guides from static capability registration with live
+  capability filters skipped. Treat provider startup as transactional: return a
+  typed runtime error when the provider fails to start; for create-with-prompt,
+  keep the runtime Session provisional until the first Turn is accepted. A
+  failed or rolled-back attempt must not publish or store a canonical Session,
+  Turn, command/config snapshot, or turnless message.
+- Validation:
+  Cover the non-blocking command-catalog context, typed failed-start mapping,
+  provisional provider callback isolation and rollback, and controller behavior
+  proving that startup failure returns diagnostics but creates no canonical
+  session or activity report.
+- References:
+  [command_catalog.go](../../services/tuttid/service/agentsidecar/command_catalog.go)
+  [controller_session_lifecycle.go](../../packages/agent/daemon/runtime/controller_session_lifecycle.go)
+  [agent_runtime_adapter.go](../../services/tuttid/agent_runtime_adapter.go)
+
 ### App Factory job keeps loading after AgentGUI Stop
 
 - Symptom:
@@ -103,8 +172,65 @@ Use this shape for new entries:
   stored session is already settled/canceled, and the adapter returns
   `ErrSessionNoActiveTurn`.
 - References:
-  [controller.go](../../packages/agent/daemon/runtime/controller.go)
+  [controller_turn_finish.go](../../packages/agent/daemon/runtime/controller_turn_finish.go)
   [controller_test.go](../../packages/agent/daemon/runtime/controller_test.go)
+
+### Canceling an old AgentGUI turn stops a newer turn
+
+- Symptom:
+  A `cancelTurn(turnId)` request targets an older turn, but a newer turn in the
+  same session stops, or the requested turn is reported canceled even though
+  the runtime continued with a different active turn.
+- Quick checks:
+  Compare `requested_turn_id` and `active_turn_id` in
+  `agent_session.cancel.turn_mismatch`. Also check whether a new `Exec` entered
+  between the exact-turn lookup and the provider cancel call.
+- Root cause:
+  Session-level provider cancel APIs do not carry a turn id. Validating the id
+  before calling the adapter is insufficient unless validation and cancel are
+  protected by the same session lifecycle lock used to start turns.
+- Fix:
+  Carry the requested turn id through HTTP service, runtime adapter, and
+  controller. Return an idempotent no-op on mismatch, and hold the per-session
+  lifecycle lock across the active-turn comparison and `adapter.Cancel` so a
+  new turn cannot enter the gap.
+- Validation:
+  Cover both a mismatched active turn (the adapter must not be called) and a
+  blocking adapter cancel (a second lifecycle operation must remain blocked
+  until cancel returns).
+- References:
+  [service_turns.go](../../services/tuttid/service/agent/service_turns.go)
+  [controller_cancel.go](../../packages/agent/daemon/runtime/controller_cancel.go)
+  [controller_test.go](../../packages/agent/daemon/runtime/controller_test.go)
+
+### Historical Agent completions notify again when a workspace opens
+
+- Symptom:
+  Opening a workspace produces completion or failure notifications for turns
+  that settled before the window was opened.
+- Quick checks:
+  Compare notification-controller creation with the first agent activity
+  `load`. If the engine was empty at subscription time and the first populated
+  snapshot contains settled turns, verify those turns were treated as initial
+  hydration rather than live transitions.
+- Root cause:
+  Taking an empty engine snapshot as the history baseline is insufficient when
+  durable loading happens asynchronously after subscribers are registered.
+  The first hydrated settled turn then looks indistinguishable from a newly
+  settled turn.
+- Fix:
+  Keep outcome notifications behind an explicit hydration boundary. Record all
+  settled turns observed before the initial durable load resolves as baseline
+  history. After hydration, notify only the first observation of each
+  session-scoped turn key; a live non-settled turn can also establish readiness
+  when the initial load is unavailable.
+- Validation:
+  Cover the real startup order: subscribe against an empty engine, hydrate a
+  historical settled turn without notifying, finish hydration, then verify a
+  later running-to-settled turn notifies exactly once.
+- References:
+  [workspaceAgentOutcomeNotification.ts](../../apps/desktop/src/renderer/src/features/workspace-workbench/services/workspaceAgentOutcomeNotification.ts)
+  [workspaceAgentOutcomeNotification.test.ts](../../apps/desktop/src/renderer/src/features/workspace-workbench/services/workspaceAgentOutcomeNotification.test.ts)
 
 ### AgentGUI send blocked by active_turn after settled snapshot
 
@@ -138,7 +264,7 @@ Use this shape for new entries:
   that `HasActiveTurn` is false. Run
   `go test ./packages/agent/daemon/runtime`.
 - References:
-  [controller.go](../../packages/agent/daemon/runtime/controller.go)
+  [controller_cancel.go](../../packages/agent/daemon/runtime/controller_cancel.go)
   [controller_test.go](../../packages/agent/daemon/runtime/controller_test.go)
 
 ### AgentGUI loading disappears before active turn settles
@@ -226,7 +352,8 @@ Use this shape for new entries:
   `running`/`active_turn`.
 - Quick checks:
   Compare the desktop `reconcile.state_fetch.resolved` session timestamp with
-  the latest inline `state_patch` timestamp. In `tuttid.log`, check whether
+  the latest `turn_update` timestamp and any `session_reconcile_required`
+  invalidation. In `tuttid.log`, check whether
   runtime emitted a terminal `turn_phase=settled` event before the fetch
   response was applied.
 - Root cause:
@@ -1194,10 +1321,11 @@ delimited by ---`, and the composer skill picker may show partial or
   `agent.activity.updated` publish is rejected before the renderer runtime sees
   the settling patch.
 - Fix:
-  Keep `catalog.go` validation DTOs in sync with new event fields, especially
-  for `agent.activity.updated` top-level, `session_update`, and `state_patch`
-  payloads. Add a positive validator test for the new field, not only generated
-  protocol checks.
+  Keep `catalog.go` validation DTOs in sync with the versioned full-entity
+  `turn_update`/`interaction_update` payloads. Session-only invalidations use
+  `session_reconcile_required`; they must never be applied as partial Session
+  entities. Add positive validator and required-field presence tests, not only
+  generated protocol checks.
 - Validation:
   Run `go test ./services/tuttid/service/eventstream` and
   `pnpm check:event-protocol-generated` when event protocol sources changed.
@@ -1211,13 +1339,12 @@ delimited by ---`, and the composer skill picker may show partial or
   After refreshing or restarting the app around a pending agent approval, the
   conversation may show the turn as ready or complete while an approval/cancel
   control still submits an old request id. Logs can include
-  `permission request "...id..." is no longer live` or
-  `agent session cancel skipped because no active turn exists`.
+  `permission request "...id..." is no longer live`.
 - Quick checks:
-  Compare the durable agent session status with the runtime session status.
-  If the persisted session is `working` or `waiting` but the resumed runtime is
-  already idle/ready, verify the service reconciles the stale persisted turn
-  before forwarding approve/cancel to the runtime. In the renderer, inspect the
+  Compare the durable `activeTurnId`, Turn phase/outcome, and pending Interaction
+  entities. Do not use provider runtime `status` or `turnLifecycle` as a second
+  source of truth. If a process restart left a non-settled turn, verify startup
+  reconciliation settled it as `interrupted` before requests are served. In the renderer, inspect the
   notification region as well as the in-conversation approval card; a stale
   toast can outlive the message-center waiting item.
 - Root cause:
@@ -1227,9 +1354,9 @@ delimited by ---`, and the composer skill picker may show partial or
   forwarding stale approval or cancel actions. Renderer notifications also need
   to dismiss when the waiting item disappears from the activity snapshot.
 - Fix:
-  Reconcile stale persisted agent turns on session get/resume and before
-  approve/cancel/interactive submit. Mark open tool-call messages in the latest
-  turn failed, then report the session idle. Track active renderer approval
+  Settle non-terminal durable turns once during daemon startup. Session get/resume
+  must be read-only with respect to Turn lifecycle, and interactive/cancel operations
+  must scope their decisions to the durable Turn and Interaction. Track active renderer approval
   toast ids and dismiss them when their waiting keys are no longer present.
 - Validation:
   Add service tests for stale approve and cancel paths, then run
@@ -1249,37 +1376,22 @@ delimited by ---`, and the composer skill picker may show partial or
   `request interrupted by application restart`. The composer or dock can briefly
   show a spinner, then clear without user approval.
 - Quick checks:
-  Compare runtime and durable session state. A live SDK interactive turn can
-  report `Status=created` while `TurnLifecycle.ActiveTurnID` is non-empty and
-  `TurnLifecycle.Phase=waiting_approval`. That is live, not stale. A bare
-  runtime `Status=waiting` without `pendingInteractive`, a live background
-  agent, or a non-empty active turn lifecycle is stale and should not block
-  reconciliation.
+  Inspect the durable Turn and pending Interaction. Provider runtime status is
+  diagnostic context only and must not trigger lifecycle writes.
 - Root cause:
   Stale resume reconciliation is only for restored persisted turns whose
   provider callback no longer exists. If service read/ensure paths look only at
   runtime `Status`, they can misclassify a live SDK synthetic interactive turn
   as idle and mark the pending `ExitPlanMode` tool failed.
 - Fix:
-  Gate stale reconciliation with full runtime turn state: status, active turn
-  id, and phase. Treat `submitted`, `working`, `running`, `streaming`,
-  `waiting`, `waiting_approval`, `waiting_input`, and `awaiting_approval` with a
-  non-empty active turn id as live. Also treat a runtime pending interactive
-  prompt with a non-empty request id as live: a call message can reach durable
-  storage before the corresponding turn-lifecycle patch, and stale
-  reconciliation must not fail that just-created prompt during the race window.
-  Do not treat runtime `Status=waiting` alone as live. When a pending
-  interactive request fails or is canceled, emit the failed call and an
-  interrupted turn completion so the controller and durable session leave
-  `waiting_approval`.
-  Only reconcile when no live runtime turn or pending interactive prompt is
-  present, or when resuming from durable state after process loss.
+  Persist the waiting Turn and Interaction before exposing the approval. Resolve
+  them through the turn-scoped operation saga. On process loss, startup
+  reconciliation settles the Turn as `interrupted`; get/resume never infers
+  staleness from provider runtime fields.
 - Validation:
-  Add agent service tests for `Status=created` plus
-  `TurnLifecycle.Phase=waiting_approval` and a synthetic active turn id. `Get`
-  and `ensureRuntimeSessionResult` must not call stale reconciliation. Also add
-  coverage for `Status=waiting` with no pending interactive/live turn, which
-  must reconcile stale durable state.
+  Add store/startup tests for a non-settled Turn becoming
+  `settled/interrupted`, plus service tests proving get/resume do not mutate the
+  Turn.
 
 ### Codex ACP warns about user-level config as project-local config
 
@@ -1513,6 +1625,48 @@ delimited by ---`, and the composer skill picker may show partial or
   delegated task (only the child `result` does) and that a trailing
   `task_progress` after settlement does not resurrect the task.
 
+### Interactive response or exact-turn cancel succeeds in the provider but durable state stays pending
+
+- Symptom:
+  The provider has consumed an approval response or canceled the requested turn,
+  but the HTTP call reports a persistence error, the interaction remains pending,
+  or the turn remains active after a daemon restart. Repeating the request may
+  report that the interactive request is no longer live.
+- Quick checks:
+  Inspect `workspace_agent_runtime_operations` for the deterministic
+  workspace/session/subject operation. Check `status`, `attempt`,
+  `next_attempt_at_unix_ms`, lease owner/expiry, and `last_error`. For a completed
+  operation, verify that `workspace_agent_runtime_operation_events` contains an
+  unpublished event rather than assuming the activity stream was delivered.
+- Root cause:
+  A provider side effect and SQLite cannot share one transaction. Calling the
+  provider before recording durable intent, or persisting the turn/interaction
+  separately from completion and its event, creates a crash window where a
+  one-shot provider response is consumed without a recoverable local transition.
+- Fix:
+  Prepare a deterministic runtime operation before invoking the provider. Claim
+  it with a lease, then commit the domain transition, completed operation, and
+  event outbox row in one SQLite transaction. Leave an operation leased when
+  completion fails, requeue prior-process leases before startup stale-turn
+  settlement, and use bounded retry backoff for typed transient errors. Startup
+  stale settlement must exclude turns referenced by every prepared/leased
+  operation, including operations whose next attempt is still in the future;
+  the interrupted turn, session active pointer, pending interaction, and
+  restart system notice must commit in one transaction; a settlement database
+  error must fail daemon startup. Exact cancel with no controller turn-registry entry must
+  reach the adapter and return typed target-absent evidence; do not synthesize
+  a completed outcome from the session view. Treat an
+  interactive request as already consumed only when a typed runtime error and
+  the live registry agree for the same request id. Drain outbox events
+  independently; a publish failure must not acknowledge or delete the row.
+- Validation:
+  Use a fake clock and step-driven worker tests for prepare-before-side-effect,
+  atomic completion rollback, lease expiry/takeover, duplicate submission after
+  completion, startup lease recovery ordering, typed transient backoff, and
+  outbox publish failure. Include a database failure after provider success and
+  verify recovery reaches exactly one terminal operation without reverting a
+  terminal interaction.
+
 ### Claude SDK subagent approval stuck in Message Center
 
 - Symptom:
@@ -1551,8 +1705,9 @@ delimited by ---`, and the composer skill picker may show partial or
   Go adapter, and reuse it when emitting `approval_resolved` if the event omits
   `turnId`. Reconcile ghost open approvals whenever runtime has no live
   `pendingInteractive`, even if background agents are still running. When
-  `SubmitInteractive` returns a stale no-longer-live error, reconcile the
-  persisted approval instead of surfacing the raw failure. Treat nested assistant
+  `SubmitInteractive` returns the typed request-not-live error, reconcile the
+  persisted approval only when the live runtime registry also proves the same
+  request id is absent; never parse provider error text as evidence. Treat nested assistant
   messages with non-empty `parent_tool_use_id` and `stop_reason=end_turn` as
   delegated-task completion when no child `result` arrives, but only once no
   delegated child task launched by that subagent is still running. In the
@@ -1957,7 +2112,7 @@ delimited by ---`, and the composer skill picker may show partial or
   exits when its `Exec` context is canceled. A direct API smoke should return
   HTTP 200 and final session status `canceled`.
 - References:
-  [controller.go](../../packages/agent/daemon/runtime/controller.go)
+  [controller_cancel.go](../../packages/agent/daemon/runtime/controller_cancel.go)
   [controller_test.go](../../packages/agent/daemon/runtime/controller_test.go)
 
 ### Desktop restart leaves an orphan tuttid

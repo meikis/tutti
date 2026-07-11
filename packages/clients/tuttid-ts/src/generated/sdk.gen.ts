@@ -19,9 +19,6 @@ import type {
   AttachEventStreamData,
   AttachEventStreamErrors,
   AttachEventStreamResponses,
-  CancelWorkspaceAgentSessionData,
-  CancelWorkspaceAgentSessionErrors,
-  CancelWorkspaceAgentSessionResponses,
   CancelWorkspaceAgentTurnData,
   CancelWorkspaceAgentTurnErrors,
   CancelWorkspaceAgentTurnResponses,
@@ -379,6 +376,9 @@ import type {
   SubmitWorkspaceAgentInteractiveData,
   SubmitWorkspaceAgentInteractiveErrors,
   SubmitWorkspaceAgentInteractiveResponses,
+  SubmitWorkspaceAgentPlanDecisionData,
+  SubmitWorkspaceAgentPlanDecisionErrors,
+  SubmitWorkspaceAgentPlanDecisionResponses,
   TerminateWorkspaceTerminalData,
   TerminateWorkspaceTerminalErrors,
   TerminateWorkspaceTerminalResponses,
@@ -1916,28 +1916,6 @@ export const listWorkspaceAgentSessionGitBranches = <
   });
 
 /**
- * Cancel one workspace agent session
- *
- * Deprecated (protocol v2): cancellation is a turn-scoped operation. Use cancelWorkspaceAgentTurn instead. This endpoint remains as a compatibility path that cancels the session's active turn.
- *
- * @deprecated
- */
-export const cancelWorkspaceAgentSession = <
-  ThrowOnError extends boolean = false
->(
-  options: Options<CancelWorkspaceAgentSessionData, ThrowOnError>
-) =>
-  (options.client ?? client).post<
-    CancelWorkspaceAgentSessionResponses,
-    CancelWorkspaceAgentSessionErrors,
-    ThrowOnError
-  >({
-    security: [{ scheme: "bearer", type: "http" }],
-    url: "/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/cancel",
-    ...options
-  });
-
-/**
  * Cancel one workspace agent turn
  *
  * Idempotent turn-scoped cancellation (protocol v2). Canceling a turn that is already settled or unknown is a no-op success, not an error; the race between a user stop request and natural turn settlement is harmless at the protocol level.
@@ -1953,6 +1931,30 @@ export const cancelWorkspaceAgentTurn = <ThrowOnError extends boolean = false>(
     security: [{ scheme: "bearer", type: "http" }],
     url: "/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/turns/{turnID}/cancel",
     ...options
+  });
+
+/**
+ * Submit one durable workspace agent plan decision
+ *
+ * Prepares and advances an idempotent daemon-owned plan decision saga. The workspace, session, turn, request, and idempotency key form the strict operation scope. A retry with the same identity and payload returns the existing operation; a mismatched payload is rejected.
+ */
+export const submitWorkspaceAgentPlanDecision = <
+  ThrowOnError extends boolean = false
+>(
+  options: Options<SubmitWorkspaceAgentPlanDecisionData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    SubmitWorkspaceAgentPlanDecisionResponses,
+    SubmitWorkspaceAgentPlanDecisionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: "bearer", type: "http" }],
+    url: "/v1/workspaces/{workspaceID}/agent-sessions/{agentSessionID}/turns/{turnID}/plan-decisions/{requestID}",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
   });
 
 /**

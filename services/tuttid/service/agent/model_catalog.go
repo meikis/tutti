@@ -75,33 +75,7 @@ type agentModelCatalogSpec struct {
 }
 
 func defaultAgentModelCatalogSpecs() map[string]agentModelCatalogSpec {
-	specs := map[string]agentModelCatalogSpec{
-		agentprovider.TuttiAgent: {
-			source: "tutti-agent-cli",
-			ttl:    codexModelCacheTTL,
-			errTTL: codexModelErrorCacheTTL,
-			lister: func(c *CachedAgentModelCatalog) AgentModelLister {
-				if c.TuttiAgent != nil {
-					return c.TuttiAgent
-				}
-				return defaultTuttiAgentModelLister()
-			},
-			configuredDefaultModel: func() string { return "" },
-		},
-		agentprovider.OpenCode: {
-			source: "opencode-cli",
-			ttl:    opencodeModelCacheTTL,
-			errTTL: opencodeModelErrorTTL,
-			lister: func(c *CachedAgentModelCatalog) AgentModelLister {
-				if c.OpenCode != nil {
-					return c.OpenCode
-				}
-				return OpenCodeCLIModelLister{}
-			},
-			configuredDefaultModel:    readOpenCodeConfiguredDefaultModel,
-			missingDefaultDescription: "OpenCode configured custom model",
-		},
-	}
+	specs := make(map[string]agentModelCatalogSpec, len(providerregistry.Migrated()))
 	for _, descriptor := range providerregistry.Migrated() {
 		spec, ok, err := agentModelCatalogSpecFromDescriptor(descriptor)
 		if err != nil {
@@ -143,6 +117,41 @@ func agentModelCatalogSpecFromDescriptor(descriptor providerregistry.ProviderDes
 			},
 			configuredDefaultModel:    readCodexConfiguredDefaultModel,
 			missingDefaultDescription: descriptor.Identity.DisplayName + " configured custom model",
+		}, true, nil
+	case providerregistry.ModelCatalogKindOpenCodeCLI:
+		command := append([]string(nil), descriptor.Runtime.Command...)
+		if len(command) == 0 || strings.TrimSpace(command[0]) == "" {
+			return agentModelCatalogSpec{}, false, fmt.Errorf(
+				"provider %q model catalog runtime command is required",
+				descriptor.Identity.ID,
+			)
+		}
+		return agentModelCatalogSpec{
+			source: string(descriptor.ComposerProfile.ModelCatalog),
+			ttl:    opencodeModelCacheTTL,
+			errTTL: opencodeModelErrorTTL,
+			lister: func(c *CachedAgentModelCatalog) AgentModelLister {
+				if c.OpenCode != nil {
+					return c.OpenCode
+				}
+				return OpenCodeCLIModelLister{
+					Command: command[0],
+					Args:    []string{"models"},
+				}
+			},
+			configuredDefaultModel:    readOpenCodeConfiguredDefaultModel,
+			missingDefaultDescription: descriptor.Identity.DisplayName + " configured custom model",
+		}, true, nil
+	case providerregistry.ModelCatalogKindTuttiCLI:
+		return agentModelCatalogSpec{
+			source: string(descriptor.ComposerProfile.ModelCatalog), ttl: codexModelCacheTTL, errTTL: codexModelErrorCacheTTL,
+			lister: func(c *CachedAgentModelCatalog) AgentModelLister {
+				if c.TuttiAgent != nil {
+					return c.TuttiAgent
+				}
+				return defaultTuttiAgentModelLister()
+			},
+			configuredDefaultModel: func() string { return "" },
 		}, true, nil
 	default:
 		return agentModelCatalogSpec{}, false, fmt.Errorf(

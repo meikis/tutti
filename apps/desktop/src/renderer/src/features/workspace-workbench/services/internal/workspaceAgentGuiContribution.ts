@@ -6,13 +6,14 @@ import type {
   AgentGUIProviderRailEmptyRenderer,
   AgentGUIProviderTarget
 } from "@tutti-os/agent-gui";
+import { resolveAgentGUIProviderCatalogIdentity } from "@tutti-os/agent-gui/provider-catalog";
 import { resolveAgentGuiSessionProviderIconUrl } from "@tutti-os/agent-gui/agentGuiSessionProviderIconUrls";
 import {
   createAgentGuiWorkbenchContribution,
   resolveAgentGuiUnifiedDockLaunchPayload,
   type AgentGuiWorkbenchConversationIdentity
 } from "@tutti-os/agent-gui/workbench/contribution";
-import { resolveAgentGuiWorkbenchSessionTitle } from "@tutti-os/agent-gui/workbench/sessionTitle";
+import { selectWorkspaceAgentConsumerSession } from "@tutti-os/agent-activity-core";
 import type {
   AgentGuiWorkbenchProvider,
   AgentGuiWorkbenchState
@@ -294,7 +295,10 @@ function isWorkspaceAgentGuiProviderEnabledForNewEntry(
   if (!isAgentGuiWorkbenchProvider(provider)) {
     return false;
   }
-  if (provider !== "tutti-agent") {
+  if (
+    resolveAgentGUIProviderCatalogIdentity(provider)?.desktop.visibilityGate !==
+    "tutti_agent"
+  ) {
     return true;
   }
   return (providerTargets ?? []).some(
@@ -325,22 +329,13 @@ function resolveWorkspaceAgentGuiDockPopupTitle(
   if (!agentSessionId) {
     return null;
   }
-  const snapshot = input.workspaceAgentActivityService.getSnapshot(
-    input.workspaceId
-  );
-  const provider =
-    snapshot.sessions.find((item) => item.agentSessionId === agentSessionId)
-      ?.provider ?? "codex";
-  return (
-    resolveAgentGuiWorkbenchSessionTitle({
-      agentSessionId,
-      fallbackTitle: state?.lastActiveConversationTitle ?? null,
-      provider,
-      snapshot
-    }).title ??
-    state?.lastActiveConversationTitle ??
-    null
-  );
+  const session = selectWorkspaceAgentConsumerSession(
+    input.workspaceAgentActivityService
+      .getSessionEngine(input.workspaceId)
+      .getSnapshot(),
+    agentSessionId
+  )?.session;
+  return session?.title?.trim() || null;
 }
 
 function resolveWorkspaceAgentGuiDockPopupIdentity(
@@ -358,12 +353,12 @@ function resolveWorkspaceAgentGuiDockPopupIdentity(
   if (!agentSessionId) {
     return null;
   }
-  const snapshot = input.workspaceAgentActivityService.getSnapshot(
-    input.workspaceId
-  );
-  const session = snapshot.sessions.find(
-    (item) => item.agentSessionId === agentSessionId
-  );
+  const session = selectWorkspaceAgentConsumerSession(
+    input.workspaceAgentActivityService
+      .getSessionEngine(input.workspaceId)
+      .getSnapshot(),
+    agentSessionId
+  )?.session;
   // Prefer the target the workbench state already committed to when the session
   // was created. The activity snapshot lags a few frames behind session
   // creation, so relying on it alone briefly reports an unknown provider and
@@ -380,15 +375,7 @@ function resolveWorkspaceAgentGuiDockPopupIdentity(
     : isAgentGuiWorkbenchProvider(providerTarget?.provider)
       ? providerTarget.provider
       : null;
-  const title =
-    resolveAgentGuiWorkbenchSessionTitle({
-      agentSessionId,
-      fallbackTitle: state?.lastActiveConversationTitle ?? null,
-      provider: resolvedProvider ?? "codex",
-      snapshot
-    }).title ??
-    state?.lastActiveConversationTitle ??
-    null;
+  const title = session?.title?.trim() || null;
   // Never fall back to a concrete provider's icon (e.g. codex) while the real
   // provider is still unknown — leave iconUrl null so the header renders a
   // neutral placeholder until the provider resolves.

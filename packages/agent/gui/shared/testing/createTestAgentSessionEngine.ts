@@ -11,7 +11,7 @@ export function createTestAgentSessionEngine(
     execute: async () => ({ ok: true })
   }
 ): AgentSessionEngine {
-  return createAgentSessionEngine({
+  const engine = createAgentSessionEngine({
     clock: { nowUnixMs: () => Date.now() },
     commandPort,
     identity: { origin: AGENT_SESSION_ENGINE_LOCAL_ORIGIN, workspaceId },
@@ -23,4 +23,6 @@ export function createTestAgentSessionEngine(
       }
     }
   });
+  engine.dispatch({ type: "workspace/reconcileRequested", workspaceId });
+  return engine;
 }

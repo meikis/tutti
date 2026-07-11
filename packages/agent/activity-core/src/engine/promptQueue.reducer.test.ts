@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentActivitySession } from "../types.ts";
+import { normalizeAgentActivitySession } from "../sessionNormalization.ts";
 import {
   createInitialPromptQueueState,
   promptQueueReducer
@@ -38,6 +39,25 @@ test("enqueue drains immediately against the engine's available snapshot", () =>
   });
   const queued = reduce(loaded.state, enqueue("prompt-1"));
   assert.equal(queued.commands[0]?.type, "queue/sendPrompt");
+  assert.deepEqual(
+    queued.commands[0]?.type === "queue/sendPrompt"
+      ? queued.commands[0].submitDiagnostics
+      : null,
+    submitDiagnostics
+  );
+});
+
+test("immediate submit preserves diagnostics on the send command", () => {
+  const result = reduce(createInitialPromptQueueState(), {
+    ...submit("prompt-immediate"),
+    routing: "immediate"
+  });
+  assert.deepEqual(
+    result.commands[0]?.type === "queue/sendPrompt"
+      ? result.commands[0].submitDiagnostics
+      : null,
+    submitDiagnostics
+  );
 });
 
 test("successful send removes only the claimed head and waits for another lifecycle update", () => {
@@ -142,7 +162,7 @@ test("stale snapshots and stale cancel results cannot release a newer running tu
   const staleCancel = reduce(state, {
     ...commandResult("cancel-1", "turn/cancel", "succeeded"),
     value: {
-      cancel: { canceled: true, reason: "turn_canceled" },
+      cancel: { canceled: true, reason: "turn_canceled" as const },
       turn: {
         ...session("running", 2).activeTurn!,
         phase: "settled",
@@ -210,6 +230,12 @@ test("promoting a prompt while busy cancels once then sends after cancellation",
     sessions: [session("settled", 2)]
   });
   assert.equal(settledSnapshot.commands[0]?.type, "queue/sendPrompt");
+  assert.deepEqual(
+    settledSnapshot.commands[0]?.type === "queue/sendPrompt"
+      ? settledSnapshot.commands[0].submitDiagnostics
+      : null,
+    submitDiagnostics
+  );
 });
 
 test("cancel result can release send-next without waiting for snapshot ordering", () => {
@@ -226,16 +252,27 @@ test("cancel result can release send-next without waiting for snapshot ordering"
     promptId: "prompt-1",
     timeoutMs: 30_000
   });
-  const canceled = reduce(promoted.state, {
+  const cancelIntent = {
     ...commandResult("cancel-1", "turn/cancel", "succeeded"),
     value: {
-      cancel: { canceled: true, reason: "turn_canceled" },
+      cancel: { canceled: true, reason: "turn_canceled" as const },
       turn: {
         ...session("running", 2).activeTurn!,
-        phase: "settled",
-        outcome: "canceled",
+        completedCommand: null,
+        error: null,
+        fileChanges: null,
+        phase: "settled" as const,
+        outcome: "canceled" as const,
+        settledAtUnixMs: 2,
         updatedAtUnixMs: 2
       }
+    }
+  };
+  const canceled = promptQueueReducer(promoted.state, cancelIntent, {
+    deletedSessionIds: {},
+    cancelResultValidation: {
+      kind: "valid",
+      response: cancelIntent.value
     }
   });
   assert.equal(canceled.commands.length, 1);
@@ -434,7 +471,8 @@ function enqueue(promptId: string) {
     prompt: {
       id: promptId,
       content: [{ type: "text" as const, text: promptId }],
-      createdAtUnixMs: 1
+      createdAtUnixMs: 1,
+      submitDiagnostics
     },
     workspaceId: "workspace-1"
   };
@@ -448,19 +486,28 @@ function submit(clientSubmitId: string) {
     content: [{ type: "text" as const, text: clientSubmitId }],
     expiresAtUnixMs: 60_000,
     requestedAtUnixMs: 1,
+    submitDiagnostics,
     workspaceId: "workspace-1"
   };
 }
+
+const submitDiagnostics = {
+  blockCount: 1,
+  hasImage: false,
+  promptLength: 8,
+  queued: false,
+  source: "agent-gui",
+  submittedAtUnixMs: 1
+} as const;
 
 function session(
   phase: "running" | "settled",
   updatedAtUnixMs: number
 ): AgentActivitySession {
-  return {
+  return normalizeAgentActivitySession({
     agentSessionId: "session-1",
     cwd: "/workspace",
     provider: "codex",
-    status: phase === "running" ? "working" : "completed",
     activeTurnId: phase === "running" ? "turn-1" : null,
     activeTurn:
       phase === "running"
@@ -476,7 +523,7 @@ function session(
     title: "Session",
     updatedAtUnixMs,
     workspaceId: "workspace-1"
-  };
+  });
 }
 
 function commandResult(

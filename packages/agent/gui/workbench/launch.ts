@@ -25,21 +25,14 @@ const agentGuiWorkbenchDockEntryPrefix = "agent-gui:";
 const agentGuiWorkbenchUnifiedDockEntryIdValue = "agent-gui:unified";
 let agentGuiWorkbenchInstanceSequence = 0;
 
-export type AgentGuiWorkbenchDockIdentity =
-  | {
-      kind: "legacyProvider";
-      provider: AgentGuiWorkbenchProvider;
-    }
-  | {
-      kind: "unifiedAggregate";
-    };
+export interface AgentGuiWorkbenchDockIdentity {
+  kind: "unifiedAggregate";
+}
 
 export function agentGuiWorkbenchDockEntryId(
   provider: AgentGuiWorkbenchProvider
 ): string {
-  return provider === "codex"
-    ? agentGuiWorkbenchTypeId
-    : `${agentGuiWorkbenchDockEntryPrefix}${provider}`;
+  return `${agentGuiWorkbenchDockEntryPrefix}${provider}`;
 }
 
 export function agentGuiWorkbenchUnifiedDockEntryId(): string {
@@ -82,8 +75,14 @@ export function createAgentGuiWorkbenchInstanceId(input: {
 export function agentGuiWorkbenchProviderFromIdentifier(
   value: string | null | undefined
 ): AgentGuiWorkbenchProvider | null {
-  const identity = agentGuiWorkbenchDockIdentityFromIdentifier(value);
-  return identity?.kind === "legacyProvider" ? identity.provider : null;
+  const normalized = value?.trim();
+  if (!normalized?.startsWith(agentGuiWorkbenchDockEntryPrefix)) {
+    return null;
+  }
+  const provider = normalized
+    .slice(agentGuiWorkbenchDockEntryPrefix.length)
+    .split(":", 1)[0];
+  return isAgentGuiWorkbenchProvider(provider) ? provider : null;
 }
 
 export function agentGuiWorkbenchDockIdentityFromIdentifier(
@@ -97,17 +96,9 @@ export function agentGuiWorkbenchDockIdentityFromIdentifier(
     return { kind: "unifiedAggregate" };
   }
   if (normalized === agentGuiWorkbenchTypeId) {
-    return { kind: "legacyProvider", provider: "codex" };
+    return { kind: "unifiedAggregate" };
   }
-  if (!normalized.startsWith(agentGuiWorkbenchDockEntryPrefix)) {
-    return null;
-  }
-  const provider = normalized
-    .slice(agentGuiWorkbenchDockEntryPrefix.length)
-    .split(":", 1)[0];
-  return isAgentGuiWorkbenchProvider(provider)
-    ? { kind: "legacyProvider", provider }
-    : null;
+  return null;
 }
 
 export function agentGuiWorkbenchProviderFromLaunchRequest(
@@ -122,11 +113,13 @@ export function agentGuiWorkbenchProviderFromLaunchRequest(
   if (isAgentGuiWorkbenchProvider(payloadProvider)) {
     return payloadProvider;
   }
-  return (
+  const provider =
     agentGuiWorkbenchProviderFromIdentifier(request.dockEntryId) ??
-    agentGuiWorkbenchProviderFromIdentifier(request.typeId) ??
-    "codex"
-  );
+    agentGuiWorkbenchProviderFromIdentifier(request.typeId);
+  if (!provider) {
+    throw new Error("agent_gui_workbench.launch_provider_required");
+  }
+  return provider;
 }
 
 export function createAgentGuiWorkbenchSessionLaunchRequest(input: {

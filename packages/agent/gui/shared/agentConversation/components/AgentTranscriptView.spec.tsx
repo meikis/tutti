@@ -7,6 +7,7 @@ import {
   within
 } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { normalizeAgentActivitySession } from "@tutti-os/agent-activity-core";
 import type { WorkspaceAgentSessionDetailViewModel } from "../../workspaceAgentSessionDetailViewModel";
 import {
   AgentTranscriptView,
@@ -117,8 +118,7 @@ describe("AgentTranscriptView", () => {
           detailViewModel({
             showProcessingIndicator: true,
             session: {
-              ...detailViewModel().session,
-              status: "working"
+              ...detailViewModel().session
             }
           })
         )}
@@ -1167,8 +1167,7 @@ describe("AgentTranscriptView", () => {
           detailViewModel({
             showProcessingIndicator: true,
             session: {
-              ...detailViewModel().session,
-              status: "working"
+              ...detailViewModel().session
             },
             turns: [
               {
@@ -1288,8 +1287,7 @@ describe("AgentTranscriptView", () => {
           detailViewModel({
             showProcessingIndicator: true,
             session: {
-              ...detailViewModel().session,
-              status: "working"
+              ...detailViewModel().session
             },
             turns: [
               {
@@ -1375,9 +1373,7 @@ describe("AgentTranscriptView", () => {
         conversation={projectAgentConversationVM(
           detailViewModel({
             session: {
-              ...detailViewModel().session,
-              effectiveStatus: "completed",
-              turnPhase: "completed"
+              ...detailViewModel().session
             },
             showProcessingIndicator: false,
             turns: [
@@ -1523,9 +1519,7 @@ describe("AgentTranscriptView", () => {
               ]
             },
             session: {
-              ...detailViewModel().session,
-              effectiveStatus: "completed",
-              turnPhase: "completed"
+              ...detailViewModel().session
             },
             showProcessingIndicator: false
           })
@@ -1628,7 +1622,6 @@ describe("AgentTranscriptView", () => {
 
 async function flushCollapsibleRevealFrames(): Promise<void> {
   await flushAnimationFrame();
-  await flushAnimationFrame();
 }
 
 async function flushAnimationFrame(): Promise<void> {
@@ -1648,31 +1641,26 @@ function detailViewModel(
       sessionId: "session-1",
       agentName: "Codex",
       agentProvider: "codex",
-      status: "working",
       title: "Codex",
       latestActivitySummary: "Working",
+      status: "working",
       sortTimeUnixMs: 10,
       changedFiles: [],
       userId: "user-1",
       userName: "Taylor",
       userAvatarUrl: ""
     },
-    session: {
-      id: 1,
+    session: normalizeAgentActivitySession({
+      workspaceId: "workspace-1",
       agentSessionId: "session-1",
-      presenceId: 1,
       userId: "user-1",
       provider: "codex",
       providerSessionId: "provider-session-1",
-      sessionOrigin: "WORKSPACE_AGENT_SESSION_ORIGIN_RUNTIME",
       cwd: "/workspace/demo",
-      lifecycleStatus: "active",
-      turnPhase: "working",
-      effectiveStatus: "working",
       title: "Codex",
       createdAtUnixMs: 1,
       updatedAtUnixMs: 10
-    },
+    }),
     cwd: "/workspace/demo",
     workspaceRoot: "/workspace/demo",
     turns: [
@@ -1755,9 +1743,7 @@ function groupedToolDetail(
   }));
   return detailViewModel({
     session: {
-      ...detailViewModel().session,
-      effectiveStatus: "completed",
-      turnPhase: "completed"
+      ...detailViewModel().session
     },
     showProcessingIndicator: false,
     turns: [

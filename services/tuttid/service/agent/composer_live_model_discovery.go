@@ -203,7 +203,7 @@ func (s *Service) discoverLiveComposerModelsUncachedForScope(
 		}
 		return nil, errLiveModelDiscoveryAlreadyAttempted
 	}
-	var session RuntimeSession
+	var session ProviderRuntimeSession
 	visible := false
 	startInput := CreateSessionInput{
 		AgentSessionID:    uuid.NewString(),
@@ -219,11 +219,11 @@ func (s *Service) discoverLiveComposerModelsUncachedForScope(
 		Speed:             stringPointer(strings.TrimSpace(settings.Speed)),
 		Visible:           &visible,
 	}
-	session, err = func() (RuntimeSession, error) {
+	session, err = func() (ProviderRuntimeSession, error) {
 		defer releaseStartup()
 		prepared, prepareErr := s.prepareRuntime(ctx, scope.workspaceID, resolvedCwd, startInput)
 		if prepareErr != nil {
-			return RuntimeSession{}, prepareErr
+			return ProviderRuntimeSession{}, prepareErr
 		}
 		runtimeSession, startErr := s.controller().Start(ctx, RuntimeStartInput{
 			WorkspaceID:       scope.workspaceID,
@@ -247,7 +247,7 @@ func (s *Service) discoverLiveComposerModelsUncachedForScope(
 			Visible: startInput.Visible,
 		})
 		if startErr != nil {
-			return RuntimeSession{}, normalizeRuntimeError(startErr)
+			return ProviderRuntimeSession{}, normalizeRuntimeError(startErr)
 		}
 		return runtimeSession, nil
 	}()
@@ -308,13 +308,14 @@ func isHiddenLiveModelDiscoveryRuntimeContext(runtimeContext map[string]any) boo
 }
 
 func isStaleHiddenLiveModelDiscoverySession(session PersistedSession) bool {
-	if isHiddenLiveModelDiscoveryRuntimeContext(session.RuntimeContext) {
+	runtimeContext := persistedSessionRuntimeContext(session)
+	if isHiddenLiveModelDiscoveryRuntimeContext(runtimeContext) {
 		return true
 	}
 	if !isClaudeSDKLiveModelProvider(session.Provider) {
 		return false
 	}
-	if visibleFromRuntimeContext(session.RuntimeContext, true) {
+	if session.Metadata.Visible {
 		return false
 	}
 	return strings.TrimSpace(session.Settings.Model) == "" && strings.TrimSpace(session.Cwd) == "/"
@@ -323,7 +324,7 @@ func isStaleHiddenLiveModelDiscoverySession(session PersistedSession) bool {
 func (s *Service) pollComposerModelOptions(
 	ctx context.Context,
 	workspaceID string,
-	session RuntimeSession,
+	session ProviderRuntimeSession,
 ) ([]ComposerConfigOptionValue, error) {
 	ticker := time.NewTicker(liveModelDiscoveryPollInterval)
 	defer ticker.Stop()
@@ -347,7 +348,7 @@ func (s *Service) pollComposerModelOptions(
 	}
 }
 
-func liveModelDiscoverySessionFailureError(session RuntimeSession) error {
+func liveModelDiscoverySessionFailureError(session ProviderRuntimeSession) error {
 	if strings.TrimSpace(session.Status) != "failed" {
 		return nil
 	}

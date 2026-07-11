@@ -1,3 +1,4 @@
+import { enAgentGuiProviderIdentity } from "./en.agentGuiProviderIdentity.ts";
 import { enMessages } from "./en.messages.ts";
 import { enSettingsPanel } from "./en.settingsPanel.ts";
 import { enWebsiteNode } from "./en.websiteNode.ts";
@@ -699,9 +700,7 @@ export const en = {
       noConversations: "No sessions yet",
       emptyProjectConversations: "No chats yet",
       conversationFilterAll: "All",
-      conversationFilterCodex: "Codex",
-      conversationFilterClaudeCode: "Claude Code",
-      conversationFilterTutti: "Tutti",
+      ...enAgentGuiProviderIdentity,
       providerSwitchLabel: "Switch provider",
       handoffConversation: "Handoff",
       handoffConversationTooltip: "Hand off to another agent",
@@ -800,6 +799,7 @@ export const en = {
       processing: "Planning next moves",
       agentTargetRequired:
         "Select an available agent target before starting a session.",
+      sessionActivationFailed: "The agent session could not be started.",
       promptImagesUnsupported:
         "This agent does not support image input with the current model.",
       visibleErrorStartFailed: "{{provider}} failed to start",
@@ -835,6 +835,9 @@ export const en = {
       systemNoticeTransportRetry:
         "Agent connection interrupted. Reconnecting...",
       systemNoticeTransportFallback: "Agent switched to HTTPS transport",
+      systemNoticePlanImplementationPendingConfirmation:
+        "Plan implementation is awaiting confirmation",
+      systemNoticePlanImplementationCompleted: "Plan implementation started",
       systemNoticeWarning: "Agent warning",
       systemNoticeDefault: "Agent notice",
       contextCompactionInProgress: "Compacting context",
@@ -1080,10 +1083,7 @@ export const en = {
       mentionCollaboratorFallback: "Collaborator",
       syncPending: "Saved locally, syncing to cloud",
       syncSynced: "Synced to cloud",
-      syncFailed: "Cloud sync failed",
-      openclawGatewayStarting: "Starting OpenClaw gateway...",
-      openclawGatewayFailed: "OpenClaw gateway failed to start.",
-      openclawGatewayRetry: "Retry gateway"
+      syncFailed: "Cloud sync failed"
     },
     workspaceInsights: {
       runtimeTitle: "Runtime",

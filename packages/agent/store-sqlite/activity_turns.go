@@ -19,6 +19,33 @@ func (s *Store) RecordTurnTransition(ctx context.Context, transition TurnTransit
 	if s == nil || s.db == nil {
 		return Turn{}, false, errors.New("workspace database is not initialized")
 	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Turn{}, false, fmt.Errorf("begin workspace agent turn transition: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	turn, accepted, err := s.recordTurnTransitionTx(ctx, tx, transition, unixMs(time.Now().UTC()))
+	if err != nil {
+		return Turn{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Turn{}, false, fmt.Errorf("commit workspace agent turn transition: %w", err)
+	}
+	committed = true
+	return turn, accepted, nil
+}
+
+func (s *Store) recordTurnTransitionTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	transition TurnTransition,
+	now int64,
+) (Turn, bool, error) {
 	workspaceID := strings.TrimSpace(transition.WorkspaceID)
 	agentSessionID := strings.TrimSpace(transition.AgentSessionID)
 	turnID := strings.TrimSpace(transition.TurnID)
@@ -32,19 +59,10 @@ func (s *Store) RecordTurnTransition(ctx context.Context, transition TurnTransit
 	if transition.Outcome != "" && !isKnownTurnOutcome(transition.Outcome) {
 		return Turn{}, false, fmt.Errorf("unknown workspace agent turn outcome %q", transition.Outcome)
 	}
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Turn{}, false, fmt.Errorf("begin workspace agent turn transition: %w", err)
+	if err := validateLiveTurnSlotTx(ctx, tx, workspaceID, agentSessionID, turnID, phase); err != nil {
+		return Turn{}, false, err
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback()
-		}
-	}()
 
-	now := unixMs(time.Now().UTC())
 	occurred := transition.OccurredAtUnixMS
 	if occurred <= 0 {
 		occurred = now
@@ -58,6 +76,11 @@ func (s *Store) RecordTurnTransition(ctx context.Context, transition TurnTransit
 		// Terminal: reject silently so replays are idempotent. Backfilled
 		// placeholder rows stay writable so live reports can enrich them.
 		return existing, false, nil
+	}
+	if hasExisting && !existing.Backfilled {
+		if occurred < existing.UpdatedAtUnixMS || !isAllowedTurnPhaseTransition(existing.Phase, phase) {
+			return existing, false, nil
+		}
 	}
 
 	merged := mergeTurnTransition(existing, hasExisting, transition, phase, occurred, now)
@@ -112,8 +135,8 @@ WHERE workspace_id = ? AND agent_session_id = ? AND turn_id = ? AND status = ?
 UPDATE workspace_agent_sessions
 SET active_turn_id = ?, updated_at_unix_ms = ?
 WHERE workspace_id = ? AND agent_session_id = ? AND deleted_at_unix_ms = 0
-  AND (active_turn_id IS NULL OR active_turn_id != ?)
-`, turnID, now, workspaceID, agentSessionID, turnID); err != nil {
+	  AND active_turn_id IS NULL
+`, turnID, now, workspaceID, agentSessionID); err != nil {
 			return Turn{}, false, fmt.Errorf("set workspace agent session active turn: %w", err)
 		}
 	}
@@ -125,11 +148,55 @@ WHERE workspace_id = ? AND agent_session_id = ? AND deleted_at_unix_ms = 0
 	if !ok {
 		return Turn{}, false, fmt.Errorf("read recorded workspace agent turn: %w", sql.ErrNoRows)
 	}
-	if err := tx.Commit(); err != nil {
-		return Turn{}, false, fmt.Errorf("commit workspace agent turn transition: %w", err)
-	}
-	committed = true
 	return stored, true, nil
+}
+
+// validateLiveTurnSlotTx enforces the session-to-live-turn cardinality at the
+// durable write boundary. Keeping the previous active_turn_id while still
+// inserting a second live turn only hides the conflict from selectors; it
+// leaves two canonical live entities behind. Returning an error is
+// intentional so ReportActivityState rolls the accompanying session patch
+// back in the same transaction.
+func validateLiveTurnSlotTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	workspaceID string,
+	agentSessionID string,
+	turnID string,
+	phase string,
+) error {
+	if phase == TurnPhaseSettled {
+		return nil
+	}
+
+	var activeTurnID sql.NullString
+	err := tx.QueryRowContext(ctx, `
+SELECT active_turn_id
+FROM workspace_agent_sessions
+WHERE workspace_id = ? AND agent_session_id = ? AND deleted_at_unix_ms = 0
+`, workspaceID, agentSessionID).Scan(&activeTurnID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("read workspace agent session active turn: %w", err)
+	}
+	if active := strings.TrimSpace(activeTurnID.String); activeTurnID.Valid && active != "" && active != turnID {
+		return fmt.Errorf("workspace agent session already has live turn %q; cannot start %q", active, turnID)
+	}
+
+	var conflictingTurnID string
+	err = tx.QueryRowContext(ctx, `
+SELECT turn_id
+FROM workspace_agent_turns
+WHERE workspace_id = ? AND agent_session_id = ? AND phase != ? AND turn_id != ?
+ORDER BY updated_at_unix_ms DESC, turn_id DESC
+LIMIT 1
+`, workspaceID, agentSessionID, TurnPhaseSettled, turnID).Scan(&conflictingTurnID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read workspace agent session live turns: %w", err)
+	}
+	return fmt.Errorf("workspace agent session already has live turn %q; cannot start %q", conflictingTurnID, turnID)
 }
 
 func mergeTurnTransition(existing Turn, hasExisting bool, transition TurnTransition, phase string, occurred int64, now int64) Turn {
@@ -144,7 +211,7 @@ func mergeTurnTransition(existing Turn, hasExisting bool, transition TurnTransit
 	}
 	merged.Phase = phase
 	merged.Backfilled = false
-	merged.UpdatedAtUnixMS = now
+	merged.UpdatedAtUnixMS = occurred
 	if transition.ErrorMessage != "" {
 		merged.ErrorMessage = strings.TrimSpace(transition.ErrorMessage)
 		merged.ErrorCode = strings.TrimSpace(transition.ErrorCode)
@@ -179,6 +246,25 @@ func mergeTurnTransition(existing Turn, hasExisting bool, transition TurnTransit
 		merged.SettledAtUnixMS = 0
 	}
 	return merged
+}
+
+func isAllowedTurnPhaseTransition(existing string, incoming string) bool {
+	if existing == incoming {
+		return true
+	}
+	switch existing {
+	case TurnPhaseSubmitted:
+		return incoming == TurnPhaseRunning || incoming == TurnPhaseWaiting ||
+			incoming == TurnPhaseSettling || incoming == TurnPhaseSettled
+	case TurnPhaseRunning:
+		return incoming == TurnPhaseWaiting || incoming == TurnPhaseSettling || incoming == TurnPhaseSettled
+	case TurnPhaseWaiting:
+		return incoming == TurnPhaseRunning || incoming == TurnPhaseSettling || incoming == TurnPhaseSettled
+	case TurnPhaseSettling:
+		return incoming == TurnPhaseSettled
+	default:
+		return false
+	}
 }
 
 func (s *Store) GetTurn(ctx context.Context, workspaceID string, agentSessionID string, turnID string) (Turn, bool, error) {
@@ -258,11 +344,18 @@ func (s *Store) SettleStaleTurns(ctx context.Context) ([]StaleTurnSettlement, er
 	}()
 
 	rows, err := tx.QueryContext(ctx, `
-SELECT workspace_id, agent_session_id, turn_id
-FROM workspace_agent_turns
-WHERE phase != ?
+SELECT t.workspace_id, t.agent_session_id, t.turn_id
+FROM workspace_agent_turns AS t
+WHERE t.phase != ?
+  AND NOT EXISTS (
+    SELECT 1 FROM workspace_agent_runtime_operations AS op
+    WHERE op.workspace_id = t.workspace_id
+      AND op.agent_session_id = t.agent_session_id
+      AND op.turn_id = t.turn_id
+      AND op.status IN (?, ?)
+  )
 ORDER BY workspace_id ASC, agent_session_id ASC, turn_id ASC
-`, TurnPhaseSettled)
+`, TurnPhaseSettled, RuntimeOperationStatusPrepared, RuntimeOperationStatusLeased)
 	if err != nil {
 		return nil, fmt.Errorf("list stale workspace agent turns: %w", err)
 	}
@@ -291,25 +384,59 @@ ORDER BY workspace_id ASC, agent_session_id ASC, turn_id ASC
 
 	now := unixMs(time.Now().UTC())
 	if _, err := tx.ExecContext(ctx, `
-UPDATE workspace_agent_turns
+UPDATE workspace_agent_turns AS t
 SET phase = ?, outcome = ?, settled_at_unix_ms = ?, updated_at_unix_ms = ?
 WHERE phase != ?
-`, TurnPhaseSettled, TurnOutcomeInterrupted, now, now, TurnPhaseSettled); err != nil {
+  AND NOT EXISTS (
+    SELECT 1 FROM workspace_agent_runtime_operations AS op
+    WHERE op.workspace_id = t.workspace_id
+      AND op.agent_session_id = t.agent_session_id
+      AND op.turn_id = t.turn_id
+      AND op.status IN (?, ?)
+  )
+`, TurnPhaseSettled, TurnOutcomeInterrupted, now, now, TurnPhaseSettled,
+		RuntimeOperationStatusPrepared, RuntimeOperationStatusLeased); err != nil {
 		return nil, fmt.Errorf("settle stale workspace agent turns: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `
-UPDATE workspace_agent_sessions
+UPDATE workspace_agent_sessions AS s
 SET active_turn_id = NULL, updated_at_unix_ms = ?
 WHERE active_turn_id IS NOT NULL
-`, now); err != nil {
+  AND NOT EXISTS (
+    SELECT 1 FROM workspace_agent_runtime_operations AS op
+    WHERE op.workspace_id = s.workspace_id
+      AND op.agent_session_id = s.agent_session_id
+      AND op.turn_id = s.active_turn_id
+      AND op.status IN (?, ?)
+  )
+`, now, RuntimeOperationStatusPrepared, RuntimeOperationStatusLeased); err != nil {
 		return nil, fmt.Errorf("clear stale workspace agent session active turns: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `
-UPDATE workspace_agent_interactions
+UPDATE workspace_agent_interactions AS i
 SET status = ?, updated_at_unix_ms = ?
 WHERE status = ?
-`, InteractionStatusSuperseded, now, InteractionStatusPending); err != nil {
+  AND NOT EXISTS (
+    SELECT 1 FROM workspace_agent_runtime_operations AS op
+    WHERE op.workspace_id = i.workspace_id
+      AND op.agent_session_id = i.agent_session_id
+      AND op.turn_id = i.turn_id
+      AND op.status IN (?, ?)
+  )
+`, InteractionStatusSuperseded, now, InteractionStatusPending,
+		RuntimeOperationStatusPrepared, RuntimeOperationStatusLeased); err != nil {
 		return nil, fmt.Errorf("supersede stale workspace agent interactions: %w", err)
+	}
+	notifiedSessions := make(map[string]struct{}, len(settlements))
+	for _, settlement := range settlements {
+		key := settlement.WorkspaceID + "\x00" + settlement.AgentSessionID
+		if _, exists := notifiedSessions[key]; exists {
+			continue
+		}
+		notifiedSessions[key] = struct{}{}
+		if err := insertStaleTurnSystemMessageTx(ctx, tx, settlement, now); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -319,17 +446,12 @@ WHERE status = ?
 	return settlements, nil
 }
 
-// UpsertInteraction records an interaction status transition. A pending
-// upsert supersedes other pending interactions of the same session (the
-// runtime exposes a single live prompt slot), and ensures the owning turn
-// row exists so the foreign key holds even when the prompt arrives before
-// the turn's own state report (the turn is synthesized as waiting).
-// Answered/superseded are terminal; a terminal row rejects regressions to
-// pending (accepted=false) so replays stay idempotent.
-func (s *Store) UpsertInteraction(ctx context.Context, upsert InteractionUpsert) (Interaction, bool, error) {
-	if s == nil || s.db == nil {
-		return Interaction{}, false, errors.New("workspace database is not initialized")
-	}
+func (s *Store) upsertInteractionTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	upsert InteractionUpsert,
+	now int64,
+) (Interaction, bool, error) {
 	workspaceID := strings.TrimSpace(upsert.WorkspaceID)
 	agentSessionID := strings.TrimSpace(upsert.AgentSessionID)
 	requestID := strings.TrimSpace(upsert.RequestID)
@@ -346,38 +468,38 @@ func (s *Store) UpsertInteraction(ctx context.Context, upsert InteractionUpsert)
 		return Interaction{}, false, fmt.Errorf("unknown workspace agent interaction status %q", status)
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Interaction{}, false, fmt.Errorf("begin workspace agent interaction upsert: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback()
-		}
-	}()
-
-	now := unixMs(time.Now().UTC())
 	occurred := upsert.OccurredAtUnixMS
 	if occurred <= 0 {
 		occurred = now
 	}
 
-	existing, hasExisting, err := getAgentInteractionTx(ctx, tx, workspaceID, agentSessionID, requestID)
+	existing, hasExisting, err := getAgentInteractionTx(ctx, tx, workspaceID, agentSessionID, turnID, requestID)
 	if err != nil {
 		return Interaction{}, false, err
 	}
-	if hasExisting && existing.Status != InteractionStatusPending && status == InteractionStatusPending {
-		return existing, false, nil
+	if hasExisting {
+		if occurred < existing.UpdatedAtUnixMS {
+			return existing, false, nil
+		}
+		if existing.Status != InteractionStatusPending && status != existing.Status {
+			return existing, false, nil
+		}
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-INSERT OR IGNORE INTO workspace_agent_turns (
-  workspace_id, agent_session_id, turn_id, phase, started_at_unix_ms,
-  created_at_unix_ms, updated_at_unix_ms
-) VALUES (?, ?, ?, ?, ?, ?, ?)
-`, workspaceID, agentSessionID, turnID, TurnPhaseWaiting, occurred, now, now); err != nil {
-		return Interaction{}, false, fmt.Errorf("ensure workspace agent turn for interaction: %w", err)
+	if _, hasTurn, err := getAgentTurnTx(ctx, tx, workspaceID, agentSessionID, turnID); err != nil {
+		return Interaction{}, false, err
+	} else if !hasTurn {
+		if _, accepted, err := s.recordTurnTransitionTx(ctx, tx, TurnTransition{
+			WorkspaceID:      workspaceID,
+			AgentSessionID:   agentSessionID,
+			TurnID:           turnID,
+			Phase:            TurnPhaseWaiting,
+			OccurredAtUnixMS: occurred,
+		}, now); err != nil {
+			return Interaction{}, false, fmt.Errorf("ensure workspace agent turn for interaction: %w", err)
+		} else if !accepted {
+			return Interaction{}, false, errors.New("workspace agent interaction turn transition was rejected")
+		}
 	}
 
 	inputJSON, err := marshalJSONMap(upsert.Input)
@@ -398,8 +520,7 @@ INSERT INTO workspace_agent_interactions (
   workspace_id, agent_session_id, request_id, turn_id, kind, status, tool_name,
   input_json, output_json, metadata_json, created_at_unix_ms, updated_at_unix_ms
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(workspace_id, agent_session_id, request_id) DO UPDATE SET
-  turn_id = excluded.turn_id,
+ON CONFLICT(workspace_id, agent_session_id, turn_id, request_id) DO UPDATE SET
   kind = excluded.kind,
   status = excluded.status,
   tool_name = excluded.tool_name,
@@ -407,33 +528,19 @@ ON CONFLICT(workspace_id, agent_session_id, request_id) DO UPDATE SET
   output_json = excluded.output_json,
   metadata_json = excluded.metadata_json,
   updated_at_unix_ms = excluded.updated_at_unix_ms
-`, workspaceID, agentSessionID, requestID, turnID, kind, status,
+	`, workspaceID, agentSessionID, requestID, turnID, kind, status,
 		strings.TrimSpace(upsert.ToolName), inputJSON, outputJSON, metadataJSON,
-		occurred, now); err != nil {
+		occurred, occurred); err != nil {
 		return Interaction{}, false, fmt.Errorf("upsert workspace agent interaction: %w", err)
 	}
 
-	if status == InteractionStatusPending {
-		if _, err := tx.ExecContext(ctx, `
-UPDATE workspace_agent_interactions
-SET status = ?, updated_at_unix_ms = ?
-WHERE workspace_id = ? AND agent_session_id = ? AND request_id != ? AND status = ?
-`, InteractionStatusSuperseded, now, workspaceID, agentSessionID, requestID, InteractionStatusPending); err != nil {
-			return Interaction{}, false, fmt.Errorf("supersede workspace agent interactions: %w", err)
-		}
-	}
-
-	stored, ok, err := getAgentInteractionTx(ctx, tx, workspaceID, agentSessionID, requestID)
+	stored, ok, err := getAgentInteractionTx(ctx, tx, workspaceID, agentSessionID, turnID, requestID)
 	if err != nil {
 		return Interaction{}, false, err
 	}
 	if !ok {
 		return Interaction{}, false, fmt.Errorf("read upserted workspace agent interaction: %w", sql.ErrNoRows)
 	}
-	if err := tx.Commit(); err != nil {
-		return Interaction{}, false, fmt.Errorf("commit workspace agent interaction upsert: %w", err)
-	}
-	committed = true
 	return stored, true, nil
 }
 
@@ -500,10 +607,10 @@ WHERE workspace_id = ? AND agent_session_id = ? AND turn_id = ?
 	return turn, true, nil
 }
 
-func getAgentInteractionTx(ctx context.Context, tx *sql.Tx, workspaceID string, agentSessionID string, requestID string) (Interaction, bool, error) {
+func getAgentInteractionTx(ctx context.Context, tx *sql.Tx, workspaceID string, agentSessionID string, turnID string, requestID string) (Interaction, bool, error) {
 	row := tx.QueryRowContext(ctx, agentInteractionSelectSQL+`
-WHERE workspace_id = ? AND agent_session_id = ? AND request_id = ?
-`, workspaceID, agentSessionID, requestID)
+WHERE workspace_id = ? AND agent_session_id = ? AND turn_id = ? AND request_id = ?
+`, workspaceID, agentSessionID, turnID, requestID)
 	interaction, err := scanAgentInteraction(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -6,75 +6,37 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type JSX
 } from "react";
-import { useSnapshot } from "valtio";
 import { AgentGUI } from "@tutti-os/agent-gui";
-import type {
-  AgentActivityRuntime,
-  AgentGUIProvider,
-  AgentGUIProviderRailAllPresentation,
-  AgentGUIProviderRailMode,
-  AgentGUIProviderRailEmptyRenderer,
-  AgentGUIProviderReadinessGateAction,
-  AgentGUIProviderTarget,
-  AgentGUIProps,
-  AgentHostInputApi
-} from "@tutti-os/agent-gui";
+import type { AgentGUIProps, AgentHostInputApi } from "@tutti-os/agent-gui";
 import {
-  AGENT_GUI_WORKBENCH_CONVERSATION_RAIL_TOGGLE_EVENT,
   AGENT_GUI_WORKBENCH_NEW_CONVERSATION_EVENT,
-  type AgentGuiWorkbenchConversationRailToggleDetail,
   type AgentGuiWorkbenchNewConversationDetail
 } from "@tutti-os/agent-gui/workbench/contribution";
-import type { IWorkspaceAppCenterService } from "@renderer/features/workspace-app-center";
-import type { WorkspaceLinkAction } from "@contexts/workspace/presentation/renderer/actions/workspaceLinkActions";
 import { requestWorkspaceAgentGuiLaunch } from "../services/workspaceAgentGuiLaunchCoordinator.ts";
 import { registerWorkspaceAgentGuiOpenSession } from "../../workspace-workbench/services/workspaceAgentGuiOpenSessionCoordinator.ts";
-import {
-  workbenchFocusInputActivationType,
-  type WorkbenchDockPreviewCache,
-  type WorkbenchHostNodeBodyContext
-} from "@tutti-os/workbench-surface";
+import { workbenchFocusInputActivationType } from "@tutti-os/workbench-surface";
 import { useTranslation } from "@renderer/i18n";
 import type { WorkspaceAgentProvider } from "@tutti-os/client-tuttid-ts";
-import type {
-  AgentProviderStatusSnapshot,
-  IAgentProviderStatusService
-} from "../services/agentProviderStatusService.interface";
 import { useDesktopPreferencesService } from "@renderer/features/desktop-preferences/ui/useDesktopPreferencesService";
 import { Toast } from "@renderer/lib/toast";
 import { isDesktopAgentProvider } from "@shared/preferences";
-import type { DesktopComputerUseApi, DesktopRuntimeApi } from "@preload/types";
-import {
-  desktopComputerUseStatusesEqual,
-  type DesktopComputerUseStatus
-} from "@shared/contracts/ipc";
 import {
   areDesktopAgentGUINodeStatesEqual,
   areDesktopAgentGUIWorkbenchStatesEqual,
-  desktopAgentGUIProviderFromInstanceId,
   desktopAgentGUIPrefillPromptActivationType,
   normalizeDesktopAgentGUIProvider,
   normalizeDesktopAgentGUINodeState,
   normalizeDesktopAgentGUIWorkbenchState,
   projectDesktopAgentGUIWorkbenchState,
-  type DesktopAgentGUINodeState,
-  type DesktopAgentGUIWorkbenchState
+  type DesktopAgentGUINodeState
 } from "../desktopAgentGUINodeState";
 import { consumeDesktopAgentGUIOpenSessionActivation } from "../services/desktopAgentGUIOpenSessionActivation.ts";
 import {
   consumeDesktopAgentGUIPrefillPromptActivation,
   type DesktopAgentGUIPrefillPromptRequest
 } from "../services/desktopAgentGUIPrefillPromptActivation.ts";
-import { isDesktopManagedAgentProvider } from "../services/internal/desktopManagedAgentProviders.ts";
-import { AGENT_CONTEXT_MENTION_PROVIDER_IDS } from "@tutti-os/agent-gui/context-mention-provider";
-import { resolveWorkbenchDockFileMentionItems } from "../services/internal/resolveWorkbenchDockFileMentionItems.ts";
-import { createDesktopAgentGeneratedFileMentionProvider } from "../services/internal/createDesktopAgentGeneratedFileMentionProvider.ts";
-import { composeDesktopAgentGuiContextMentionProviders } from "../services/internal/composeDesktopAgentGuiContextMentionProviders.ts";
-import { resolveDesktopWorkspaceAppIconEntries } from "../services/internal/desktopWorkspaceAppIcons.ts";
-import { wrapDesktopFileMentionProviderWithDockFiles } from "../services/internal/wrapDesktopFileMentionProviderWithDockFiles.ts";
 import {
   logAgentComposerDefaultsDiagnostic,
   logAgentGUIConversationRailPreferenceDiagnostic,
@@ -85,171 +47,23 @@ import {
   resolveDesktopAgentGUIProviderForAgentTarget,
   withDesktopAgentGUIProviderComposerDefaults
 } from "./desktopAgentGUIWorkbenchStateHelpers.ts";
-import { useDesktopManagedAgentsState } from "./useDesktopManagedAgentsState.ts";
 import { useDesktopAgentProbes } from "./useDesktopAgentProbes.ts";
-import { projectDesktopManagedAgentsStateForAgentGUI } from "../services/internal/desktopManagedAgentProviders.ts";
-import { projectDesktopAgentProviderReadinessGates } from "../services/internal/desktopAgentProviderReadinessGate.ts";
-import { useAccountService } from "../../workspace-workbench/ui/useAccountService.ts";
-
-export const DESKTOP_AGENT_GUI_CONVERSATION_RAIL_TOGGLE_EVENT =
-  AGENT_GUI_WORKBENCH_CONVERSATION_RAIL_TOGGLE_EVENT;
-
-export type DesktopAgentGUIConversationRailToggleDetail =
-  AgentGuiWorkbenchConversationRailToggleDetail;
-
-interface DesktopAgentGUIWorkbenchBodyProps {
-  agentActivityRuntime: AgentActivityRuntime;
-  agentHostApi: AgentHostInputApi;
-  appCenterService: IWorkspaceAppCenterService;
-  agentProviderStatusService?: IAgentProviderStatusService;
-  context: WorkbenchHostNodeBodyContext;
-  computerUseApi?: Pick<DesktopComputerUseApi, "checkStatus">;
-  dockPreviewCache: WorkbenchDockPreviewCache;
-  onLinkAction?: (action: WorkspaceLinkAction) => void;
-  onCapabilitySettingsRequest?: AgentGUIProps["onCapabilitySettingsRequest"];
-  onOpenAgentConversationWindow?: (input: {
-    agentSessionId: string;
-    provider: DesktopAgentGUINodeState["provider"];
-    workspaceId: string;
-  }) => Promise<void> | void;
-  onStateChange: (state: DesktopAgentGUIWorkbenchState) => void;
-  previewMode?: boolean;
-  providerStatusBootstrapSnapshot?: AgentProviderStatusSnapshot | null;
-  providerTargets?: readonly AgentGUIProviderTarget[];
-  providerTargetsLoading?: boolean;
-  providerRailAllPresentation?: AgentGUIProviderRailAllPresentation | null;
-  /** "exact" renders only the provided targets (no static catalog). Defaults to "catalog". */
-  providerRailMode?: AgentGUIProviderRailMode;
-  /** Host-owned empty state for the provider rail in "exact" mode. */
-  renderProviderRailEmpty?: AgentGUIProviderRailEmptyRenderer;
-  comingSoonAgentProviders?: readonly AgentGUIProvider[];
-  defaultProviderTargetId?: string | null;
-  contextMentionProviders: NonNullable<
-    AgentGUIProps["contextMentionProviders"]
-  >;
-  runtimeApi?: Pick<DesktopRuntimeApi, "logTerminalDiagnostic">;
-  trackAgentProviderChatReady?: (input: { provider: string }) => Promise<void>;
-  trackWorkspaceFileReferences?: AgentGUIProps["onWorkspaceFileReferencesAdded"];
-  workspaceFileReferenceAdapter: NonNullable<
-    AgentGUIProps["workspaceFileReferenceAdapter"]
-  >;
-  resolveDroppedFileReferences: NonNullable<
-    AgentGUIProps["resolveDroppedFileReferences"]
-  >;
-  onRequestGitBranches: NonNullable<AgentGUIProps["onRequestGitBranches"]>;
-  referenceSourceAggregator?: AgentGUIProps["referenceSourceAggregator"];
-  resolveWorkspaceReferenceEntryIconUrl?: AgentGUIProps["resolveWorkspaceReferenceEntryIconUrl"];
-  resolveMentionReferenceTarget?: AgentGUIProps["resolveMentionReferenceTarget"];
-  resolveWorkspaceReferenceInitialTarget?: AgentGUIProps["resolveWorkspaceReferenceInitialTarget"];
-  workspaceId: string;
-}
-
-function resolveComputerUseAuthorizationState(
-  status: DesktopComputerUseStatus | null
-): "authorized" | "needs-authorization" | "unknown" | null {
-  if (!status?.installed) {
-    return null;
-  }
-  return status.authorization;
-}
-const DESKTOP_AGENT_GUI_AGENT_SETTINGS = {
-  avoidGroupingEdits: false
-} satisfies NonNullable<AgentGUIProps["agentSettings"]>;
-const DESKTOP_AGENT_GUI_NOOP = (): void => {};
-function handleDesktopAgentGUIShowMessage(
-  message: string,
-  tone?: "info" | "warning" | "error"
-): void {
-  if (tone === "error") {
-    Toast.Error(message);
-    return;
-  }
-  Toast.tips(message);
-}
-
-const AGENT_PROBE_REFRESH_DEBOUNCE_MS = 300;
-const DESKTOP_AGENT_GUI_EMPTY_CONTEXT_MENTION_PROVIDERS =
-  [] satisfies NonNullable<AgentGUIProps["contextMentionProviders"]>;
-const DESKTOP_AGENT_GUI_EMPTY_PROVIDER_STATUS_SNAPSHOT = {
-  capturedAt: null,
-  defaultProvider: null,
-  error: null,
-  isLoading: false,
-  pendingActions: [],
-  statuses: []
-} satisfies ReturnType<IAgentProviderStatusService["getSnapshot"]>;
-const DESKTOP_AGENT_GUI_POSITION = { x: 0, y: 0 };
-
-function areDesktopAgentGUIWorkbenchBodyPropsEqual(
-  previous: DesktopAgentGUIWorkbenchBodyProps,
-  next: DesktopAgentGUIWorkbenchBodyProps
-): boolean {
-  return (
-    previous.agentActivityRuntime === next.agentActivityRuntime &&
-    previous.agentHostApi === next.agentHostApi &&
-    previous.appCenterService === next.appCenterService &&
-    previous.agentProviderStatusService === next.agentProviderStatusService &&
-    previous.computerUseApi === next.computerUseApi &&
-    previous.dockPreviewCache === next.dockPreviewCache &&
-    previous.onLinkAction === next.onLinkAction &&
-    previous.onCapabilitySettingsRequest === next.onCapabilitySettingsRequest &&
-    previous.onOpenAgentConversationWindow ===
-      next.onOpenAgentConversationWindow &&
-    previous.previewMode === next.previewMode &&
-    previous.providerStatusBootstrapSnapshot ===
-      next.providerStatusBootstrapSnapshot &&
-    previous.providerTargets === next.providerTargets &&
-    previous.providerTargetsLoading === next.providerTargetsLoading &&
-    previous.providerRailAllPresentation?.iconUrl ===
-      next.providerRailAllPresentation?.iconUrl &&
-    previous.providerRailMode === next.providerRailMode &&
-    previous.renderProviderRailEmpty === next.renderProviderRailEmpty &&
-    previous.comingSoonAgentProviders === next.comingSoonAgentProviders &&
-    previous.defaultProviderTargetId === next.defaultProviderTargetId &&
-    previous.contextMentionProviders === next.contextMentionProviders &&
-    previous.runtimeApi === next.runtimeApi &&
-    previous.trackAgentProviderChatReady === next.trackAgentProviderChatReady &&
-    previous.trackWorkspaceFileReferences ===
-      next.trackWorkspaceFileReferences &&
-    previous.workspaceFileReferenceAdapter ===
-      next.workspaceFileReferenceAdapter &&
-    previous.resolveDroppedFileReferences ===
-      next.resolveDroppedFileReferences &&
-    previous.onRequestGitBranches === next.onRequestGitBranches &&
-    previous.referenceSourceAggregator === next.referenceSourceAggregator &&
-    previous.resolveWorkspaceReferenceEntryIconUrl ===
-      next.resolveWorkspaceReferenceEntryIconUrl &&
-    previous.resolveMentionReferenceTarget ===
-      next.resolveMentionReferenceTarget &&
-    previous.resolveWorkspaceReferenceInitialTarget ===
-      next.resolveWorkspaceReferenceInitialTarget &&
-    previous.workspaceId === next.workspaceId &&
-    areDesktopAgentGUIWorkbenchBodyContextsEqual(previous.context, next.context)
-  );
-}
-
-function areDesktopAgentGUIWorkbenchBodyContextsEqual(
-  previous: WorkbenchHostNodeBodyContext,
-  next: WorkbenchHostNodeBodyContext
-): boolean {
-  return (
-    previous === next ||
-    (previous.activation === next.activation &&
-      previous.displayMode === next.displayMode &&
-      previous.externalNodeState === next.externalNodeState &&
-      previous.host === next.host &&
-      previous.instanceId === next.instanceId &&
-      previous.instanceKey === next.instanceKey &&
-      previous.isFocused === next.isFocused &&
-      previous.node.id === next.node.id &&
-      previous.node.title === next.node.title &&
-      previous.node.frame.width === next.node.frame.width &&
-      previous.node.frame.height === next.node.frame.height &&
-      previous.node.frame.x === next.node.frame.x &&
-      previous.node.frame.y === next.node.frame.y &&
-      previous.node.data.runtimeNodeState === next.node.data.runtimeNodeState)
-  );
-}
+import {
+  AGENT_PROBE_REFRESH_DEBOUNCE_MS,
+  DESKTOP_AGENT_GUI_CONVERSATION_RAIL_TOGGLE_EVENT,
+  DESKTOP_AGENT_GUI_AGENT_SETTINGS,
+  DESKTOP_AGENT_GUI_NOOP,
+  DESKTOP_AGENT_GUI_POSITION,
+  areDesktopAgentGUIWorkbenchBodyPropsEqual,
+  handleDesktopAgentGUIShowMessage,
+  resolveComputerUseAuthorizationState,
+  type DesktopAgentGUIConversationRailToggleDetail,
+  type DesktopAgentGUIWorkbenchBodyProps
+} from "./desktopAgentGUIWorkbenchModel.ts";
+export { DESKTOP_AGENT_GUI_CONVERSATION_RAIL_TOGGLE_EVENT } from "./desktopAgentGUIWorkbenchModel.ts";
+export type { DesktopAgentGUIConversationRailToggleDetail } from "./desktopAgentGUIWorkbenchModel.ts";
+import { useDesktopAgentGUIContextMentions } from "./useDesktopAgentGUIContextMentions.ts";
+import { useDesktopAgentGUIReadiness } from "./useDesktopAgentGUIReadiness.ts";
 
 function DesktopAgentGUIWorkbenchBodyImpl({
   agentActivityRuntime,
@@ -288,277 +102,34 @@ function DesktopAgentGUIWorkbenchBodyImpl({
   const { i18n, locale } = useTranslation();
   const { service: desktopPreferencesService, state: desktopPreferencesState } =
     useDesktopPreferencesService();
-  const { service: accountService, state: accountState } = useAccountService();
-  const previousAccountLoginStatusRef = useRef<string | null>(null);
-  const previousAccountUserIdRef = useRef<string | null>(null);
-  const [computerUseStatus, setComputerUseStatus] =
-    useState<DesktopComputerUseStatus | null>(null);
-  const appCenterState = useSnapshot(appCenterService.store);
-  const workspaceAppIcons = useMemo(
-    () =>
-      resolveDesktopWorkspaceAppIconEntries({
-        apps: appCenterState.apps,
-        workspaceId
-      }),
-    [appCenterState.apps, workspaceId]
-  );
-  const workspaceAppMentionProvider = useMemo(() => {
-    if (previewMode) {
-      return null;
-    }
-    return (
-      contextMentionProviders.find(
-        (provider) =>
-          provider.id === AGENT_CONTEXT_MENTION_PROVIDER_IDS.workspaceApp
-      ) ?? null
-    );
-  }, [contextMentionProviders, previewMode]);
-  const agentGeneratedFileMentionProvider = useMemo(
-    () =>
-      previewMode
-        ? null
-        : createDesktopAgentGeneratedFileMentionProvider({
-            agentActivityRuntime,
-            workspaceId
-          }),
-    [agentActivityRuntime, previewMode, workspaceId]
-  );
-  const resolveDockFiles = useCallback(
-    () =>
-      resolveWorkbenchDockFileMentionItems({
-        host: context.host,
-        workspaceId
-      }),
-    [context.host, workspaceId]
-  );
-  const effectiveContextMentionProviders = useMemo(() => {
-    if (previewMode || !agentGeneratedFileMentionProvider) {
-      return DESKTOP_AGENT_GUI_EMPTY_CONTEXT_MENTION_PROVIDERS;
-    }
-    return composeDesktopAgentGuiContextMentionProviders({
-      baseProviders: contextMentionProviders,
-      agentGeneratedFileMentionProvider,
-      workspaceAppMentionProvider,
-      wrapBaseProvider: (provider) =>
-        wrapDesktopFileMentionProviderWithDockFiles(provider, {
-          readDockPreview: dockPreviewCache.read.bind(dockPreviewCache),
-          resolveDockFiles
-        })
-    });
-  }, [
-    agentGeneratedFileMentionProvider,
-    dockPreviewCache,
-    previewMode,
-    resolveDockFiles,
-    contextMentionProviders,
-    workspaceAppMentionProvider
-  ]);
-  const provider = desktopAgentGUIProviderFromInstanceId(context.instanceId);
-  const requiredProviders = useMemo(() => [provider], [provider]);
-  const managedAgentsState = useDesktopManagedAgentsState(
-    agentProviderStatusService,
-    { ensureLoaded: !previewMode, requiredProviders }
-  );
-  const providerStatusSnapshot = useSyncExternalStore(
-    agentProviderStatusService && !previewMode
-      ? (listener) => agentProviderStatusService.subscribe(listener)
-      : noopSubscribe,
-    agentProviderStatusService && !previewMode
-      ? () => agentProviderStatusService.getSnapshot()
-      : getEmptyProviderStatusSnapshot,
-    getEmptyProviderStatusSnapshot
-  );
-  const effectiveProviderStatusSnapshot =
-    !providerStatusSnapshot.capturedAt && providerStatusBootstrapSnapshot
-      ? providerStatusBootstrapSnapshot
-      : providerStatusSnapshot;
-  const effectiveManagedAgentsState = useMemo(
-    () =>
-      !providerStatusSnapshot.capturedAt && providerStatusBootstrapSnapshot
-        ? projectDesktopManagedAgentsStateForAgentGUI(
-            providerStatusBootstrapSnapshot
-          )
-        : managedAgentsState,
-    [
-      managedAgentsState,
-      providerStatusBootstrapSnapshot,
-      providerStatusSnapshot
-    ]
-  );
-  // Activation funnel stage ③ "saw a chattable surface": the agent workbench
-  // body is mounted (not a dock preview) and the active provider is ready, so
-  // the composer is interactive. reportProviderReady (stage ②) can fire while
-  // no agent surface is open; this fires only when the user is actually here.
-  const isActiveAgentProviderChatReady =
-    !previewMode &&
-    agentProviderStatusService?.getStatus(provider)?.availability.status ===
-      "ready";
-  const chatReadyReportedProvidersRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (
-      previewMode ||
-      !isActiveAgentProviderChatReady ||
-      !trackAgentProviderChatReady
-    ) {
-      return;
-    }
-    if (chatReadyReportedProvidersRef.current.has(provider)) {
-      return;
-    }
-    chatReadyReportedProvidersRef.current.add(provider);
-    void trackAgentProviderChatReady({ provider });
-  }, [
-    isActiveAgentProviderChatReady,
-    previewMode,
+  const {
+    computerUseStatus,
+    effectiveManagedAgentsState,
+    handleAgentProviderLogin,
     provider,
-    trackAgentProviderChatReady
-  ]);
-  // When a turn fails authentication (a dropped login the daemon now flags), the
-  // status is pull-based, so re-probe immediately to flip the dock/wizard to
-  // "needs login" without the user having to re-detect manually.
-  useEffect(() => {
-    if (previewMode || !agentProviderStatusService) {
-      return;
-    }
-    return agentActivityRuntime.subscribeSessionEvents(workspaceId, (event) => {
-      if (sessionEventLooksLikeAuthFailure(event)) {
-        void agentProviderStatusService.refresh([provider]);
-      }
-    });
-  }, [
+    providerReadinessGates,
+    providerStatusSnapshot
+  } = useDesktopAgentGUIReadiness({
     agentActivityRuntime,
     agentProviderStatusService,
+    computerUseApi,
+    host: context.host,
+    instanceId: context.instanceId,
     previewMode,
-    provider,
+    providerStatusBootstrapSnapshot,
+    trackAgentProviderChatReady,
     workspaceId
-  ]);
-  useEffect(() => {
-    if (previewMode || !computerUseApi) {
-      setComputerUseStatus(null);
-      return;
-    }
-
-    let canceled = false;
-    const refreshComputerUseStatus = () => {
-      void computerUseApi
-        .checkStatus()
-        .then((status) => {
-          if (!canceled) {
-            setComputerUseStatus((current) =>
-              desktopComputerUseStatusesEqual(current, status)
-                ? current
-                : status
-            );
-          }
-        })
-        .catch(() => {
-          if (!canceled) {
-            setComputerUseStatus((current) =>
-              desktopComputerUseStatusesEqual(current, null) ? current : null
-            );
-          }
-        });
-    };
-
-    refreshComputerUseStatus();
-    const interval = window.setInterval(refreshComputerUseStatus, 15_000);
-    // Permission changes usually happen in System Settings; refresh as soon
-    // as the user comes back instead of waiting for the next interval tick.
-    let lastVisibilityRefreshAt = 0;
-    const refreshOnVisibility = () => {
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-      const now = Date.now();
-      if (now - lastVisibilityRefreshAt < 5_000) {
-        return;
-      }
-      lastVisibilityRefreshAt = now;
-      refreshComputerUseStatus();
-    };
-    window.addEventListener("focus", refreshOnVisibility);
-    document.addEventListener("visibilitychange", refreshOnVisibility);
-    return () => {
-      canceled = true;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refreshOnVisibility);
-      document.removeEventListener("visibilitychange", refreshOnVisibility);
-    };
-  }, [computerUseApi, previewMode]);
-  const handleAgentProviderLogin = useCallback(
-    (
-      loginProvider: Parameters<
-        NonNullable<AgentGUIProps["onAgentProviderLogin"]>
-      >[0]
-    ) => {
-      if (!isDesktopManagedAgentProvider(loginProvider)) {
-        return;
-      }
-      if (loginProvider === "tutti-agent") {
-        void accountService.startLogin();
-        return;
-      }
-      void agentProviderStatusService?.runAction(loginProvider, "login", {
-        workbenchHost: context.host,
-        workspaceId
-      });
-    },
-    [accountService, agentProviderStatusService, context.host, workspaceId]
-  );
-  const accountUserId = accountState.user?.user_id ?? null;
-  useEffect(() => {
-    const previousLoginStatus = previousAccountLoginStatusRef.current;
-    const previousUserId = previousAccountUserIdRef.current;
-    previousAccountLoginStatusRef.current = accountState.loginStatus;
-    previousAccountUserIdRef.current = accountUserId;
-    const loginCompletedChanged =
-      previousLoginStatus === "completed" ||
-      accountState.loginStatus === "completed";
-    const signedInUserChanged =
-      previousUserId !== accountUserId &&
-      (previousUserId !== null || accountUserId !== null);
-    if (!loginCompletedChanged && !signedInUserChanged) {
-      return;
-    }
-    void agentProviderStatusService?.refresh(["tutti-agent"]);
-  }, [accountState.loginStatus, accountUserId, agentProviderStatusService]);
-  const handleProviderReadinessGateAction = useCallback(
-    (
-      actionProvider: AgentGUIProvider,
-      action: AgentGUIProviderReadinessGateAction
-    ) => {
-      if (!isDesktopManagedAgentProvider(actionProvider)) {
-        return;
-      }
-      if (action === "refresh") {
-        void agentProviderStatusService?.refresh([actionProvider]);
-        return;
-      }
-      if (actionProvider === "tutti-agent" && action === "login") {
-        void accountService.startLogin();
-        return;
-      }
-      void agentProviderStatusService?.runAction(actionProvider, action, {
-        workbenchHost: context.host,
-        workspaceId
-      });
-    },
-    [accountService, agentProviderStatusService, context.host, workspaceId]
-  );
-  const providerReadinessGates = useMemo(
-    () =>
-      previewMode
-        ? null
-        : projectDesktopAgentProviderReadinessGates({
-            snapshot: effectiveProviderStatusSnapshot,
-            onAction: handleProviderReadinessGateAction
-          }),
-    [
-      effectiveProviderStatusSnapshot,
-      handleProviderReadinessGateAction,
-      previewMode
-    ]
-  );
+  });
+  const { effectiveContextMentionProviders, workspaceAppIcons } =
+    useDesktopAgentGUIContextMentions({
+      agentActivityRuntime,
+      appCenterService,
+      contextMentionProviders,
+      dockPreviewCache,
+      host: context.host,
+      previewMode,
+      workspaceId
+    });
   const rawWorkbenchStateSource = useMemo(
     () => context.externalNodeState ?? context.node.data.runtimeNodeState,
     [context.externalNodeState, context.node.data.runtimeNodeState]
@@ -567,9 +138,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
     () => normalizeDesktopAgentGUIWorkbenchState(rawWorkbenchStateSource),
     [rawWorkbenchStateSource]
   );
-  // The workbench host returns a fresh externalNodeState object on every render
-  // (its store hands out a defensive copy). Pin it by reference so downstream
-  // memos and effects only react to real content changes.
+  // Pin the host's defensive state copy so downstream work tracks real changes.
   const workbenchStateRef = useRef(rawWorkbenchState);
   if (
     !areDesktopAgentGUIWorkbenchStatesEqual(
@@ -604,9 +173,8 @@ function DesktopAgentGUIWorkbenchBodyImpl({
     desktopPreferencesState.agentGuiConversationRailCollapsedByProvider[
       nodeProvider
     ] === true;
-  // Single source of truth: derive the node state directly from the workbench
-  // external store (plus a pure provider-default overlay). There is no local
-  // mirror, so the previous two-way binding and its render loop are gone.
+  // Derive node state from the workbench store plus provider-default overlay;
+  // there is no local mirror or two-way binding.
   const nodeState = useMemo(() => {
     const baseState = normalizeDesktopAgentGUINodeState(
       workbenchState,
@@ -654,7 +222,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
   > | null>(null);
   const [agentProbeRefreshSequence, setAgentProbeRefreshSequence] = useState(0);
   const [openSessionRequest, setOpenSessionRequest] = useState<NonNullable<
-    AgentGUIProps["openSessionRequest"]
+    AgentGUIProps["runtimeRequests"]["openSession"]
   > | null>(null);
   const [prefillPromptRequest, setPrefillPromptRequest] =
     useState<DesktopAgentGUIPrefillPromptRequest | null>(null);
@@ -666,9 +234,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
   // referentially stable and effects don't resubscribe each render.
   const onStateChangeRef = useRef(onStateChange);
   onStateChangeRef.current = onStateChange;
-  // The only writer. Reads the live derived node state, applies the update,
-  // and persists to the workbench store via onStateChange when the projected
-  // workbench state actually changes.
+  // The only writer persists when the projected workbench state changes.
   const handleUpdateNode = useCallback(
     (
       updater: (current: DesktopAgentGUINodeState) => DesktopAgentGUINodeState
@@ -743,7 +309,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
     workspaceId
   });
   const handleAgentProbeDemandChange: NonNullable<
-    AgentGUIProps["onAgentProbeDemandChange"]
+    AgentGUIProps["runtimeRequests"]["onProbeDemandChange"]
   > = useCallback((probeProvider, sourceId = "default") => {
     setAgentProbeDemandBySource((current) => {
       if (!probeProvider) {
@@ -764,7 +330,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
     });
   }, []);
   const handleAgentProbeRefreshRequest: NonNullable<
-    AgentGUIProps["onAgentProbeRefreshRequest"]
+    AgentGUIProps["runtimeRequests"]["onProbeRefreshRequest"]
   > = useCallback((probeProvider, sourceId = "default") => {
     setAgentProbeDemandBySource((current) =>
       current[sourceId] === probeProvider
@@ -861,10 +427,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
           ...current,
           agentTargetId: request.agentTargetId ?? current.agentTargetId ?? null,
           lastActiveAgentSessionId: null,
-          lastActiveConversationTitle: null,
-          provider: request.provider ?? current.provider,
-          providerTargetId: null,
-          providerTargetRef: null
+          provider: request.provider ?? current.provider
         }));
       } else {
         handleUpdateNode((current) =>
@@ -872,8 +435,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
             ? current
             : {
                 ...current,
-                lastActiveAgentSessionId: null,
-                lastActiveConversationTitle: null
+                lastActiveAgentSessionId: null
               }
         );
       }
@@ -1030,7 +592,7 @@ function DesktopAgentGUIWorkbenchBodyImpl({
   ]);
 
   const handleRememberComposerDefaults = useCallback<
-    NonNullable<AgentGUIProps["onRememberComposerDefaults"]>
+    NonNullable<AgentGUIProps["hostActions"]["onRememberComposerDefaults"]>
   >(
     ({ agentTargetId, provider: defaultsProvider, defaults }) => {
       // Remembered defaults are keyed strictly by agent target; targets
@@ -1087,7 +649,9 @@ function DesktopAgentGUIWorkbenchBodyImpl({
     context.activation?.type === desktopAgentGUIPrefillPromptActivationType
       ? context.activation.sequence
       : (prefillPromptRequest?.sequence ?? null);
-  const capabilityMenuState = useMemo<AgentGUIProps["capabilityMenuState"]>(
+  const capabilityMenuState = useMemo<
+    AgentGUIProps["hostCapabilities"]["capabilityMenuState"]
+  >(
     () => ({
       browserUse: {
         connectionMode: desktopPreferencesState.browserUseConnectionMode
@@ -1117,48 +681,90 @@ function DesktopAgentGUIWorkbenchBodyImpl({
         agentHostApi={agentHostApiWithToast}
         i18n={i18n}
         locale={locale}
-        agentSettings={DESKTOP_AGENT_GUI_AGENT_SETTINGS}
-        capabilityMenuState={capabilityMenuState}
-        currentUserId="local"
-        desktopSize={desktopSize}
-        embedded
-        height={frame.height}
-        isMaximized={context.displayMode === "fullscreen"}
-        isActive={context.isFocused}
-        composerFocusRequestSequence={composerFocusRequestSequence}
-        newConversationRequestSequence={newConversationRequestSequence}
-        openSessionRequest={openSessionRequest}
-        prefillPromptRequest={prefillPromptRequest}
-        managedAgentsState={effectiveManagedAgentsState}
-        nodeId={context.node.id}
-        providerTargets={providerTargetsLoading ? [] : providerTargets}
-        providerTargetsLoading={providerTargetsLoading}
-        providerRailAllPresentation={providerRailAllPresentation}
-        providerRailMode={providerRailMode}
-        renderProviderRailEmpty={renderProviderRailEmpty}
-        comingSoonProviders={comingSoonAgentProviders}
-        providerReadinessGates={providerReadinessGates}
-        defaultProviderTargetId={defaultProviderTargetId}
-        workspaceAgentProbes={workspaceAgentProbes}
-        providerAuthAccountLabels={providerAuthAccountLabels}
-        onAgentProbeDemandChange={
-          previewMode ? undefined : handleAgentProbeDemandChange
-        }
-        onAgentProbeRefreshRequest={
-          previewMode ? undefined : handleAgentProbeRefreshRequest
-        }
-        onAgentProviderLogin={
-          !previewMode && agentProviderStatusService
-            ? handleAgentProviderLogin
-            : undefined
-        }
-        onCapabilitySettingsRequest={
-          previewMode ? undefined : onCapabilitySettingsRequest
-        }
-        onClose={DESKTOP_AGENT_GUI_NOOP}
-        onLinkAction={previewMode ? undefined : onLinkAction}
-        onHandoffConversation={
+        identity={{
+          nodeId: context.node.id,
+          workspaceId,
+          currentUserId: "local",
+          title: context.node.title
+        }}
+        workspace={{
+          path: "",
+          fileReferenceAdapter: previewMode
+            ? null
+            : workspaceFileReferenceAdapter,
+          onRequestGitBranches: previewMode ? null : onRequestGitBranches,
+          resolveDroppedFileReferences: previewMode
+            ? null
+            : resolveDroppedFileReferences,
+          referenceSourceAggregator: previewMode
+            ? null
+            : referenceSourceAggregator,
+          resolveReferenceEntryIconUrl: previewMode
+            ? undefined
+            : resolveWorkspaceReferenceEntryIconUrl,
+          resolveMentionReferenceTarget: previewMode
+            ? undefined
+            : resolveMentionReferenceTarget,
+          resolveReferenceInitialTarget: previewMode
+            ? undefined
+            : resolveWorkspaceReferenceInitialTarget,
+          onFileReferencesAdded: previewMode
+            ? undefined
+            : trackWorkspaceFileReferences,
+          agentSettings: DESKTOP_AGENT_GUI_AGENT_SETTINGS
+        }}
+        frame={{
+          position: DESKTOP_AGENT_GUI_POSITION,
+          width: frame.width,
+          height: frame.height,
+          desktopSize,
+          isMaximized: context.displayMode === "fullscreen",
+          isActive: context.isFocused,
+          embedded: true,
           previewMode
+        }}
+        state={nodeState}
+        runtimeRequests={{
+          composerFocusSequence: composerFocusRequestSequence,
+          newConversationSequence: newConversationRequestSequence,
+          openSession: openSessionRequest,
+          prefillPrompt: prefillPromptRequest,
+          agentProbes: workspaceAgentProbes,
+          onProbeDemandChange: previewMode
+            ? undefined
+            : handleAgentProbeDemandChange,
+          onProbeRefreshRequest: previewMode
+            ? undefined
+            : handleAgentProbeRefreshRequest
+        }}
+        hostCapabilities={{
+          capabilityMenuState,
+          accountMenuState: null,
+          providerTargets: providerTargetsLoading ? [] : providerTargets,
+          providerTargetsLoading,
+          providerRailAllPresentation,
+          providerRailMode,
+          comingSoonProviders: comingSoonAgentProviders,
+          providerReadinessGates,
+          defaultProviderTargetId,
+          providerAuthAccountLabels,
+          managedAgentsState: effectiveManagedAgentsState,
+          contextMentionProviders: previewMode
+            ? []
+            : effectiveContextMentionProviders,
+          workspaceAppIcons
+        }}
+        hostActions={{
+          onAgentProviderLogin:
+            !previewMode && agentProviderStatusService
+              ? handleAgentProviderLogin
+              : undefined,
+          onCapabilitySettingsRequest: previewMode
+            ? undefined
+            : onCapabilitySettingsRequest,
+          onClose: DESKTOP_AGENT_GUI_NOOP,
+          onLinkAction: previewMode ? undefined : onLinkAction,
+          onHandoffConversation: previewMode
             ? undefined
             : async (request) => {
                 await requestWorkspaceAgentGuiLaunch({
@@ -1169,50 +775,19 @@ function DesktopAgentGUIWorkbenchBodyImpl({
                   userProjectPath: request.userProjectPath,
                   workspaceId
                 });
-              }
-        }
-        onResize={DESKTOP_AGENT_GUI_NOOP}
-        onShowMessage={handleDesktopAgentGUIShowMessage}
-        onUpdateNode={handleUpdateNode}
-        onRememberComposerDefaults={handleRememberComposerDefaults}
-        onOpenConversationWindow={
-          previewMode || !onOpenAgentConversationWindow
-            ? undefined
-            : handleOpenConversationWindow
-        }
-        onWorkspaceFileReferencesAdded={
-          previewMode ? undefined : trackWorkspaceFileReferences
-        }
-        position={DESKTOP_AGENT_GUI_POSITION}
-        previewMode={previewMode}
-        contextMentionProviders={
-          previewMode ? [] : effectiveContextMentionProviders
-        }
-        state={nodeState}
-        title={context.node.title}
-        width={frame.width}
-        workspaceFileReferenceAdapter={
-          previewMode ? null : workspaceFileReferenceAdapter
-        }
-        resolveDroppedFileReferences={
-          previewMode ? null : resolveDroppedFileReferences
-        }
-        onRequestGitBranches={previewMode ? null : onRequestGitBranches}
-        referenceSourceAggregator={
-          previewMode ? null : referenceSourceAggregator
-        }
-        resolveWorkspaceReferenceEntryIconUrl={
-          previewMode ? undefined : resolveWorkspaceReferenceEntryIconUrl
-        }
-        resolveMentionReferenceTarget={
-          previewMode ? undefined : resolveMentionReferenceTarget
-        }
-        resolveWorkspaceReferenceInitialTarget={
-          previewMode ? undefined : resolveWorkspaceReferenceInitialTarget
-        }
-        workspaceAppIcons={workspaceAppIcons}
-        workspaceId={workspaceId}
-        workspacePath=""
+              },
+          onResize: DESKTOP_AGENT_GUI_NOOP,
+          onShowMessage: handleDesktopAgentGUIShowMessage,
+          onUpdateNode: handleUpdateNode,
+          onRememberComposerDefaults: handleRememberComposerDefaults,
+          onOpenConversationWindow:
+            previewMode || !onOpenAgentConversationWindow
+              ? undefined
+              : handleOpenConversationWindow
+        }}
+        renderSlots={{
+          providerRailEmpty: renderProviderRailEmpty
+        }}
       />
     </>
   );
@@ -1222,57 +797,3 @@ export const DesktopAgentGUIWorkbenchBody = memo(
   DesktopAgentGUIWorkbenchBodyImpl,
   areDesktopAgentGUIWorkbenchBodyPropsEqual
 );
-
-function getEmptyProviderStatusSnapshot(): ReturnType<
-  IAgentProviderStatusService["getSnapshot"]
-> {
-  return DESKTOP_AGENT_GUI_EMPTY_PROVIDER_STATUS_SNAPSHOT;
-}
-
-function noopSubscribe(): () => void {
-  return () => {};
-}
-
-const AUTH_FAILURE_MARKERS = [
-  "authentication_failed",
-  "invalid authentication credentials",
-  "401 invalid authentication",
-  "unauthorized",
-  "not logged in",
-  "please run /login",
-  "invalid api key"
-];
-
-// Read defensively: session events arrive as `unknown`, in either the
-// {eventType:"message_update", data:{status,payload}} runtime shape or a flatter
-// {status,payload,content} shape. We only care about a failed turn whose payload
-// looks like an authentication failure (matching the daemon's classification).
-function sessionEventLooksLikeAuthFailure(event: unknown): boolean {
-  if (typeof event !== "object" || event === null) {
-    return false;
-  }
-  const record = event as {
-    status?: unknown;
-    content?: unknown;
-    payload?: Record<string, unknown>;
-    data?: { status?: unknown; payload?: Record<string, unknown> };
-  };
-  const status = record.data?.status ?? record.status;
-  if (status !== "failed") {
-    return false;
-  }
-  const payload = record.data?.payload ?? record.payload ?? {};
-  if (payload["code"] === "auth_required") {
-    return true;
-  }
-  const text = [
-    payload["content"],
-    payload["text"],
-    payload["detail"],
-    record.content
-  ]
-    .filter((value): value is string => typeof value === "string")
-    .join(" ")
-    .toLowerCase();
-  return AUTH_FAILURE_MARKERS.some((marker) => text.includes(marker));
-}

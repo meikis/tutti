@@ -33,7 +33,7 @@ WHERE workspace_id = ? AND agent_session_id = ? AND deleted_at_unix_ms = 0
 	return version, nil
 }
 
-func upsertAgentMessageTx(
+func (s *Store) upsertAgentMessageTx(
 	ctx context.Context,
 	tx *sql.Tx,
 	workspaceID string,
@@ -66,6 +66,20 @@ func upsertAgentMessageTx(
 	)
 	if !accepted {
 		return Message{}, false, nil
+	}
+	if turnID := strings.TrimSpace(message.TurnID); turnID != "" {
+		if _, exists, err := getAgentTurnTx(ctx, tx, workspaceID, agentSessionID, turnID); err != nil {
+			return Message{}, false, err
+		} else if !exists {
+			if _, accepted, err := s.recordTurnTransitionTx(ctx, tx, TurnTransition{
+				WorkspaceID: workspaceID, AgentSessionID: agentSessionID, TurnID: turnID,
+				Phase: TurnPhaseSubmitted, OccurredAtUnixMS: message.OccurredAtUnixMS,
+			}, now); err != nil {
+				return Message{}, false, fmt.Errorf("ensure workspace agent turn for message: %w", err)
+			} else if !accepted {
+				return Message{}, false, errors.New("workspace agent message turn transition was rejected")
+			}
+		}
 	}
 	payloadJSON, err := json.Marshal(message.Payload)
 	if err != nil {

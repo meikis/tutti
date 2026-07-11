@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"strings"
 
 	agentsessionstore "github.com/tutti-os/tutti/packages/agent/daemon/activity"
@@ -13,88 +12,53 @@ import (
 
 // Protocol v2 turn persistence (agent-gui refactor plan, slice P3).
 //
-// ReportSessionState used to drop TurnLifecycle on the floor; every turn
-// phase transition now lands in the workspace_agent_turns table
-// synchronously, and interaction prompts land in
-// workspace_agent_interactions, so a daemon restart reconciles from
-// persisted truth instead of lazy read-time guessing.
+// ReportSessionState used to drop TurnLifecycle on the floor. Session, turn,
+// and interaction state now commit through ReportActivityState as one SQLite
+// transaction, so a daemon restart reconciles from persisted truth and no
+// protocol v2 child write can fail after the session row has committed.
 
-// persistTurnState writes the turn transition and pending interaction
-// carried by one session state report, then emits the protocol v2
-// turn_update / interaction_update events. Persistence failures are logged
-// and swallowed: the legacy state patch path stays authoritative for the
-// session row and must not fail because the v2 projection did.
-func (p *ActivityProjection) persistTurnState(
+// publishPersistedTurnState emits protocol v2 events only after the atomic
+// session/turn/interaction transaction has committed.
+func (p *ActivityProjection) publishPersistedTurnState(
 	ctx context.Context,
 	input agentsessionstore.ReportSessionStateInput,
+	result agentactivitybiz.ActivityStateReportResult,
 ) {
-	if p == nil || p.repo == nil {
+	if p == nil {
 		return
 	}
-	workspaceID := strings.TrimSpace(input.WorkspaceID)
-	agentSessionID := strings.TrimSpace(input.AgentSessionID)
-	if workspaceID == "" || agentSessionID == "" {
-		return
+	if result.TurnAccepted {
+		p.publishActivityUpdated(ctx, input.WorkspaceID, input.AgentSessionID, "turn_update",
+			activityTurnUpdateEventPayload(input.WorkspaceID, input.AgentSessionID, result.Turn, input.State.OccurredAtUnixMS))
 	}
-
-	transition, ok := turnTransitionFromStateInput(input)
-	var recordedTurnID string
-	if ok {
-		turn, accepted, err := p.repo.RecordTurnTransition(ctx, transition)
-		if err != nil {
-			slog.Warn("workspace agent turn transition persist failed",
-				"event", "workspace.agent_turn.persist_failed",
-				"workspace_id", workspaceID,
-				"agent_session_id", agentSessionID,
-				"turn_id", transition.TurnID,
-				"phase", transition.Phase,
-				"error", err,
-			)
-		} else if accepted {
-			recordedTurnID = turn.TurnID
-			p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "turn_update",
-				activityTurnUpdateEventPayload(workspaceID, agentSessionID, turn, input.State.OccurredAtUnixMS))
-		}
+	if result.InteractionAccepted {
+		p.publishActivityUpdated(ctx, input.WorkspaceID, input.AgentSessionID, "interaction_update",
+			activityInteractionUpdateEventPayload(input.WorkspaceID, input.AgentSessionID, result.Interaction, input.State.OccurredAtUnixMS))
 	}
-
-	p.persistPendingInteraction(ctx, input, recordedTurnID)
 }
 
-func (p *ActivityProjection) persistPendingInteraction(
-	ctx context.Context,
+func pendingInteractionFromStateInput(
 	input agentsessionstore.ReportSessionStateInput,
-	recordedTurnID string,
-) {
+	transition *agentactivitybiz.TurnTransition,
+) (*agentactivitybiz.InteractionUpsert, error) {
 	prompt := input.State.PendingInteractive
 	if prompt == nil {
-		return
+		return nil, nil
 	}
-	workspaceID := strings.TrimSpace(input.WorkspaceID)
-	agentSessionID := strings.TrimSpace(input.AgentSessionID)
-	requestID := strings.TrimSpace(prompt.RequestID)
-	if requestID == "" {
-		return
+	if strings.TrimSpace(prompt.RequestID) == "" {
+		return nil, ErrInvalidArgument
 	}
-	turnID := firstNonEmptyString(recordedTurnID, activeTurnIDFromStateInput(input))
-	if turnID == "" {
-		// Last resort: the persisted session may still point at the turn.
-		if session, ok, err := p.repo.GetSession(ctx, workspaceID, agentSessionID); err == nil && ok {
-			turnID = strings.TrimSpace(session.ActiveTurnID)
-		}
+	turnID := activeTurnIDFromStateInput(input)
+	if transition != nil && transition.Phase != agentactivitybiz.TurnPhaseSettled {
+		turnID = strings.TrimSpace(transition.TurnID)
 	}
 	if turnID == "" {
-		slog.Warn("workspace agent interaction persist skipped without turn attribution",
-			"event", "workspace.agent_interaction.persist_skipped",
-			"workspace_id", workspaceID,
-			"agent_session_id", agentSessionID,
-			"request_id", requestID,
-		)
-		return
+		return nil, ErrInvalidArgument
 	}
-	interaction, accepted, err := p.repo.UpsertInteraction(ctx, agentactivitybiz.InteractionUpsert{
-		WorkspaceID:      workspaceID,
-		AgentSessionID:   agentSessionID,
-		RequestID:        requestID,
+	return &agentactivitybiz.InteractionUpsert{
+		WorkspaceID:      strings.TrimSpace(input.WorkspaceID),
+		AgentSessionID:   strings.TrimSpace(input.AgentSessionID),
+		RequestID:        strings.TrimSpace(prompt.RequestID),
 		TurnID:           turnID,
 		Kind:             interactionKindFromPrompt(prompt.Kind),
 		Status:           agentactivitybiz.InteractionStatusPending,
@@ -103,131 +67,7 @@ func (p *ActivityProjection) persistPendingInteraction(
 		Output:           clonePayload(prompt.Output),
 		Metadata:         clonePayload(prompt.Metadata),
 		OccurredAtUnixMS: input.State.OccurredAtUnixMS,
-	})
-	if err != nil {
-		slog.Warn("workspace agent interaction persist failed",
-			"event", "workspace.agent_interaction.persist_failed",
-			"workspace_id", workspaceID,
-			"agent_session_id", agentSessionID,
-			"request_id", requestID,
-			"error", err,
-		)
-		return
-	}
-	if accepted {
-		p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "interaction_update",
-			activityInteractionUpdateEventPayload(workspaceID, agentSessionID, interaction, input.State.OccurredAtUnixMS))
-	}
-}
-
-// SettleTurnCanceled force-settles one turn with outcome=canceled and emits
-// the turn_update event. It backs the cancelTurn endpoint: the runtime settle
-// report may never arrive (dead process, stale turn), so cancellation writes
-// persisted truth directly. Already-settled turns reject the transition, so
-// the call is idempotent and never double-publishes.
-func (p *ActivityProjection) SettleTurnCanceled(
-	ctx context.Context,
-	workspaceID string,
-	agentSessionID string,
-	turnID string,
-) {
-	if p == nil || p.repo == nil {
-		return
-	}
-	workspaceID = strings.TrimSpace(workspaceID)
-	agentSessionID = strings.TrimSpace(agentSessionID)
-	turnID = strings.TrimSpace(turnID)
-	if workspaceID == "" || agentSessionID == "" || turnID == "" {
-		return
-	}
-	turn, accepted, err := p.repo.RecordTurnTransition(ctx, agentactivitybiz.TurnTransition{
-		WorkspaceID:    workspaceID,
-		AgentSessionID: agentSessionID,
-		TurnID:         turnID,
-		Phase:          agentactivitybiz.TurnPhaseSettled,
-		Outcome:        agentactivitybiz.TurnOutcomeCanceled,
-	})
-	if err != nil {
-		slog.Warn("workspace agent turn cancel settle failed",
-			"event", "workspace.agent_turn.cancel_settle_failed",
-			"workspace_id", workspaceID,
-			"agent_session_id", agentSessionID,
-			"turn_id", turnID,
-			"error", err,
-		)
-		return
-	}
-	if accepted {
-		p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "turn_update",
-			activityTurnUpdateEventPayload(workspaceID, agentSessionID, turn, 0))
-	}
-}
-
-// MarkInteractionAnswered records that the user answered an interaction and
-// emits the interaction_update event. Unknown request ids are a no-op: an
-// answer racing a settle/supersede is not an error.
-func (p *ActivityProjection) MarkInteractionAnswered(
-	ctx context.Context,
-	workspaceID string,
-	agentSessionID string,
-	requestID string,
-) {
-	if p == nil || p.repo == nil {
-		return
-	}
-	workspaceID = strings.TrimSpace(workspaceID)
-	agentSessionID = strings.TrimSpace(agentSessionID)
-	requestID = strings.TrimSpace(requestID)
-	if workspaceID == "" || agentSessionID == "" || requestID == "" {
-		return
-	}
-	pending, err := p.repo.ListSessionInteractions(ctx, agentactivitybiz.ListSessionInteractionsInput{
-		WorkspaceID:    workspaceID,
-		AgentSessionID: agentSessionID,
-		Status:         agentactivitybiz.InteractionStatusPending,
-	})
-	if err != nil {
-		slog.Warn("workspace agent interaction answer lookup failed",
-			"event", "workspace.agent_interaction.answer_lookup_failed",
-			"workspace_id", workspaceID,
-			"agent_session_id", agentSessionID,
-			"request_id", requestID,
-			"error", err,
-		)
-		return
-	}
-	for _, existing := range pending {
-		if existing.RequestID != requestID {
-			continue
-		}
-		answered, accepted, err := p.repo.UpsertInteraction(ctx, agentactivitybiz.InteractionUpsert{
-			WorkspaceID:    workspaceID,
-			AgentSessionID: agentSessionID,
-			RequestID:      requestID,
-			TurnID:         existing.TurnID,
-			Kind:           existing.Kind,
-			Status:         agentactivitybiz.InteractionStatusAnswered,
-			ToolName:       existing.ToolName,
-			Input:          existing.Input,
-			Output:         existing.Output,
-			Metadata:       existing.Metadata,
-		})
-		if err != nil {
-			slog.Warn("workspace agent interaction answer persist failed",
-				"event", "workspace.agent_interaction.answer_persist_failed",
-				"workspace_id", workspaceID,
-				"agent_session_id", agentSessionID,
-				"request_id", requestID,
-				"error", err,
-			)
-			return
-		}
-		if accepted {
-			p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "interaction_update",
-				activityInteractionUpdateEventPayload(workspaceID, agentSessionID, answered, 0))
-		}
-		return
-	}
+	}, nil
 }
 
 // turnTransitionFromStateInput derives one closed-vocabulary turn transition

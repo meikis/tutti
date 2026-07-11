@@ -1,21 +1,14 @@
 import {
-  hasAgentCapability,
-  selectNeedsAttentionItems,
-  selectSessionDisplayStatuses,
   type AgentActivityMessage,
   type AgentActivityNeedsAttentionItem,
   type AgentActivitySession,
-  type AgentActivitySnapshot
+  type WorkspaceAgentConsumerSession
 } from "@tutti-os/agent-activity-core";
 import type { AgentConversationPromptVM } from "../shared/agentConversation/contracts/agentConversationVM";
 import { normalizeAskUserQuestions } from "../shared/agentConversation/askUserQuestions";
 import { extractAgentMcpToolTarget } from "../shared/agentMcpToolTarget";
 import type { WorkspaceAgentActivityStatus } from "../shared/workspaceAgentActivityListViewModel";
 import { resolveWorkspaceAgentSessionSortTimeUnixMs } from "../shared/workspaceAgentSessionSortTime";
-import {
-  latestPlanTurnId,
-  planImplementationPromptFromPlanTurn
-} from "../shared/agentConversation/planImplementation";
 import {
   buildWorkspaceAgentMessageCenterDigest,
   resolveWorkspaceAgentMessageCenterDigestAgentMessageSummary,
@@ -27,6 +20,13 @@ import {
   extractExitPlanModeOptions,
   isExitPlanSwitchModeInput
 } from "../shared/agentConversation/exitPlanOptions";
+export {
+  buildWorkspaceAgentMessageCenterModelFromItems,
+  isCompletedMessageCenterItem,
+  isInteractiveMessageCenterItem,
+  isWaitingMessageCenterItem,
+  selectMessageCenterAttentionDeckItems
+} from "./workspaceAgentMessageCenterCollection";
 
 export interface WorkspaceAgentMessageCenterModel {
   waitingCount: number;
@@ -91,93 +91,71 @@ export interface WorkspaceAgentMessageCenterPromptFallbackLabels {
   title: string;
 }
 
-const EMPTY_COUNTS: WorkspaceAgentMessageCenterCounts = {
-  all: 0,
-  working: 0,
-  waiting: 0,
-  completed: 0,
-  failed: 0
-};
+export interface BuildWorkspaceAgentMessageCenterItemInput {
+  session: WorkspaceAgentMessageCenterSession;
+  messages: readonly AgentActivityMessage[];
+  status: WorkspaceAgentActivityStatus;
+  needsAttention: AgentActivityNeedsAttentionItem | null;
+  pendingPrompt: AgentConversationPromptVM | null;
+  latestTurnOutcome: WorkspaceAgentMessageCenterTurnOutcome | null;
+  options?: BuildWorkspaceAgentMessageCenterOptions;
+}
 
-export function buildWorkspaceAgentMessageCenterModel(
-  snapshot: AgentActivitySnapshot,
-  options: BuildWorkspaceAgentMessageCenterOptions = {}
-): WorkspaceAgentMessageCenterModel {
-  const needsAttentionBySessionId = latestNeedsAttentionBySessionId(
-    selectNeedsAttentionItems(snapshot)
+type WorkspaceAgentMessageCenterSession =
+  | AgentActivitySession
+  | WorkspaceAgentConsumerSession["session"];
+
+export function buildWorkspaceAgentMessageCenterItem({
+  session,
+  messages,
+  status,
+  needsAttention,
+  pendingPrompt,
+  latestTurnOutcome,
+  options = {}
+}: BuildWorkspaceAgentMessageCenterItemInput): WorkspaceAgentMessageCenterItem {
+  const messageAnalysis = analyzeMessageCenterSessionMessages(
+    session.agentSessionId,
+    messages
   );
-  const displayStatuses = selectSessionDisplayStatuses(snapshot);
-  const items = snapshot.sessions
-    .filter((session) => session.visible !== false)
-    .map((session) => {
-      const messages = resolveSessionMessages(snapshot, session);
-      const messageAnalysis = analyzeMessageCenterSessionMessages(
-        session.agentSessionId,
-        messages
-      );
-      const needsAttention =
-        needsAttentionBySessionId.get(session.agentSessionId) ?? null;
-      const status = displayStatuses.get(session.agentSessionId) ?? "idle";
-      const lastAgentMessage = messageAnalysis.latestAgentMessage;
-      const title = resolveSessionTitle(
-        session,
-        messageAnalysis.latestUserMessageSummary,
-        messageAnalysis.firstUserMessageSummary
-      );
-      const pendingPrompt =
-        messageAnalysis.pendingPrompt ??
-        planImplementationPrompt(session, status, messages) ??
-        fallbackPromptFromNeedsAttention(
-          needsAttention,
-          options.promptFallbackLabels
-        );
-      const digest = buildWorkspaceAgentMessageCenterDigest({
-        fallbackTitle: resolveDigestFallbackTitle(session),
-        latestAgentMessage: messageAnalysis.latestDigestAgentMessage,
-        needsAttention,
-        pendingPrompt,
-        status
-      });
-      const sortTimeUnixMs = resolveWorkspaceAgentSessionSortTimeUnixMs(
-        session,
-        {
-          messages
-        }
-      );
-
-      return {
-        id: `message-center-${session.agentSessionId}`,
-        agentSessionId: session.agentSessionId,
-        agentTargetId: session.agentTargetId?.trim() || null,
-        provider: session.provider,
-        userId: session.userId?.trim() || null,
-        title,
-        ...(isImportedMessageCenterSession(session) ? { imported: true } : {}),
-        identity: resolveMessageCenterIdentity(
-          session.agentSessionId,
-          options.identityBySessionId
-        ),
-        cwd: session.cwd,
-        status,
-        digest,
-        lastAgentMessageSummary:
-          lastAgentMessage?.summary ?? needsAttention?.summary ?? title,
-        lastAgentMessageAtUnixMs: lastAgentMessage?.occurredAtUnixMs ?? null,
-        pendingPrompt,
-        needsAttentionKind: needsAttention?.kind ?? null,
-        needsAttentionSummary: needsAttention?.summary ?? null,
-        latestTurnOutcome: messageAnalysis.latestTurnOutcome,
-        sortTimeUnixMs
-      } satisfies WorkspaceAgentMessageCenterItem;
-    })
-    .filter((item) =>
-      isWithinMessageCenterItemCutoff(item, options.itemCutoffUnixMs)
-    );
-
+  const lastAgentMessage = messageAnalysis.latestAgentMessage;
+  const title = resolveSessionTitle(
+    session,
+    messageAnalysis.latestUserMessageSummary,
+    messageAnalysis.firstUserMessageSummary
+  );
+  const digest = buildWorkspaceAgentMessageCenterDigest({
+    fallbackTitle: resolveDigestFallbackTitle(session),
+    latestAgentMessage: messageAnalysis.latestDigestAgentMessage,
+    needsAttention,
+    pendingPrompt,
+    status
+  });
   return {
-    waitingCount: items.filter(isWaitingMessageCenterItem).length,
-    items: items.sort(compareMessageCenterItems),
-    counts: countMessageCenterItems(items)
+    id: `message-center-${session.agentSessionId}`,
+    agentSessionId: session.agentSessionId,
+    agentTargetId: session.agentTargetId?.trim() || null,
+    provider: session.provider,
+    userId: session.userId?.trim() || null,
+    title,
+    ...(isImportedMessageCenterSession(session) ? { imported: true } : {}),
+    identity: resolveMessageCenterIdentity(
+      session.agentSessionId,
+      options.identityBySessionId
+    ),
+    cwd: session.cwd,
+    status,
+    digest,
+    lastAgentMessageSummary:
+      lastAgentMessage?.summary ?? needsAttention?.summary ?? title,
+    lastAgentMessageAtUnixMs: lastAgentMessage?.occurredAtUnixMs ?? null,
+    pendingPrompt,
+    needsAttentionKind: needsAttention?.kind ?? null,
+    needsAttentionSummary: needsAttention?.summary ?? null,
+    latestTurnOutcome,
+    sortTimeUnixMs: resolveWorkspaceAgentSessionSortTimeUnixMs(session, {
+      messages
+    })
   };
 }
 
@@ -207,81 +185,13 @@ function resolveMessageCenterIdentity(
 }
 
 function isImportedMessageCenterSession(
-  session: AgentActivitySession
+  session: WorkspaceAgentMessageCenterSession
 ): boolean {
-  return session.runtimeContext?.imported === true;
-}
-
-export function isWaitingMessageCenterItem(
-  item: WorkspaceAgentMessageCenterItem
-): boolean {
-  return item.pendingPrompt !== null || item.needsAttentionKind !== null;
-}
-
-export function isInteractiveMessageCenterItem(
-  item: WorkspaceAgentMessageCenterItem
-): boolean {
-  return item.pendingPrompt !== null;
-}
-
-function isWithinMessageCenterItemCutoff(
-  item: WorkspaceAgentMessageCenterItem,
-  cutoffUnixMs: number | null | undefined
-): boolean {
-  if (!Number.isFinite(cutoffUnixMs)) {
-    return true;
-  }
-  if (isWaitingMessageCenterItem(item)) {
-    return true;
-  }
-  const timestamp = item.sortTimeUnixMs || item.lastAgentMessageAtUnixMs || 0;
-  return timestamp >= Number(cutoffUnixMs);
-}
-
-export function selectMessageCenterAttentionDeckItems(
-  items: readonly WorkspaceAgentMessageCenterItem[]
-): WorkspaceAgentMessageCenterItem[] {
-  return items.filter(isInteractiveMessageCenterItem);
-}
-
-export function isCompletedMessageCenterItem(
-  item: WorkspaceAgentMessageCenterItem
-): boolean {
-  return (
-    item.status === "completed" ||
-    item.status === "canceled" ||
-    item.status === "idle"
-  );
-}
-
-function latestNeedsAttentionBySessionId(
-  items: readonly AgentActivityNeedsAttentionItem[]
-): Map<string, AgentActivityNeedsAttentionItem> {
-  const bySessionId = new Map<string, AgentActivityNeedsAttentionItem>();
-  for (const item of items) {
-    const previous = bySessionId.get(item.agentSessionId);
-    if (!previous || item.occurredAtUnixMs > previous.occurredAtUnixMs) {
-      bySessionId.set(item.agentSessionId, item);
-    }
-  }
-  return bySessionId;
-}
-
-function resolveSessionMessages(
-  snapshot: AgentActivitySnapshot,
-  session: AgentActivitySession
-): AgentActivityMessage[] {
-  for (const sessionId of [session.agentSessionId, session.providerSessionId]) {
-    const normalized = sessionId?.trim() ?? "";
-    if (normalized && snapshot.sessionMessagesById[normalized]) {
-      return snapshot.sessionMessagesById[normalized];
-    }
-  }
-  return [];
+  return "imported" in session && session.imported === true;
 }
 
 function resolveSessionTitle(
-  session: AgentActivitySession,
+  session: WorkspaceAgentMessageCenterSession,
   latestUserMessageSummary: string,
   firstUserMessageSummary: string
 ): string {
@@ -296,7 +206,9 @@ function resolveSessionTitle(
   return firstUserMessageSummary || session.provider || session.agentSessionId;
 }
 
-function resolveDigestFallbackTitle(session: AgentActivitySession): string {
+function resolveDigestFallbackTitle(
+  session: WorkspaceAgentMessageCenterSession
+): string {
   return session.title.trim() || session.provider || session.agentSessionId;
 }
 
@@ -571,33 +483,6 @@ function isExitPlanMessage(
   );
 }
 
-function planImplementationPrompt(
-  session: AgentActivitySession,
-  status: WorkspaceAgentActivityStatus,
-  messages: readonly AgentActivityMessage[]
-): AgentConversationPromptVM | null {
-  if (!hasAgentCapability(session.runtimeContext, "planImplementation")) {
-    return null;
-  }
-  // Offer only after a cleanly completed turn; active or failed plans are not
-  // actionable.
-  if (status !== "completed" && status !== "idle") {
-    return null;
-  }
-  const planTurnId = latestPlanTurnId(messages);
-  if (!planTurnId) {
-    return null;
-  }
-  // Use the plan item itself, not the first message in its turn.
-  const planMessage = messages.find(
-    (item) =>
-      item.turnId?.trim() === planTurnId &&
-      recordValue(item.payload).messageKind === "plan"
-  );
-  const title = planMessage ? messageSummary(planMessage) : "";
-  return planImplementationPromptFromPlanTurn(planTurnId, title);
-}
-
 function turnOutcomeFromMessage(
   agentSessionId: string,
   message: AgentActivityMessage
@@ -640,85 +525,6 @@ function outcomeStatusFromMessage(
     default:
       return null;
   }
-}
-
-function fallbackPromptFromNeedsAttention(
-  item: AgentActivityNeedsAttentionItem | null,
-  labels: WorkspaceAgentMessageCenterPromptFallbackLabels | undefined
-): AgentConversationPromptVM | null {
-  if (!item || item.kind === "permission" || !labels) {
-    return null;
-  }
-  return {
-    kind: "ask-user",
-    requestId: requestIdFromNeedsAttentionItem(item),
-    title: item.summary || item.title || labels.title,
-    questions: [
-      {
-        id: "response",
-        header:
-          item.kind === "constraint"
-            ? labels.constraintHeader
-            : labels.inputHeader,
-        question: item.summary || item.title || labels.question,
-        options: [],
-        multiSelect: false,
-        answer: null
-      }
-    ]
-  };
-}
-
-function requestIdFromNeedsAttentionItem(
-  item: AgentActivityNeedsAttentionItem
-): string {
-  const [, messageId] = item.id.split(":", 2);
-  return messageId?.trim() || item.id;
-}
-
-function countMessageCenterItems(
-  items: readonly WorkspaceAgentMessageCenterItem[]
-): WorkspaceAgentMessageCenterCounts {
-  return items.reduce<WorkspaceAgentMessageCenterCounts>(
-    (counts, item) => {
-      counts.all += 1;
-      if (isWaitingMessageCenterItem(item)) {
-        counts.waiting += 1;
-        return counts;
-      }
-      if (isCompletedMessageCenterItem(item)) {
-        counts.completed += 1;
-        return counts;
-      }
-      switch (item.status) {
-        case "working":
-          counts.working += 1;
-          break;
-        case "failed":
-          counts.failed += 1;
-          break;
-        default:
-          break;
-      }
-      return counts;
-    },
-    { ...EMPTY_COUNTS }
-  );
-}
-
-function compareMessageCenterItems(
-  left: WorkspaceAgentMessageCenterItem,
-  right: WorkspaceAgentMessageCenterItem
-): number {
-  const leftWaiting = isWaitingMessageCenterItem(left);
-  const rightWaiting = isWaitingMessageCenterItem(right);
-  if (leftWaiting !== rightWaiting) {
-    return leftWaiting ? -1 : 1;
-  }
-  return (
-    right.sortTimeUnixMs - left.sortTimeUnixMs ||
-    left.agentSessionId.localeCompare(right.agentSessionId)
-  );
 }
 
 function isAgentMessageRole(role: string): boolean {

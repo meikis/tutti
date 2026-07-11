@@ -19,7 +19,7 @@ import (
 var sessionActionColumns = []cliservice.TableColumn{
 	{Key: "id", Label: "ID"},
 	{Key: "provider", Label: "Provider"},
-	{Key: "status", Label: "Status"},
+	{Key: "activeTurnId", Label: "Active Turn"},
 	{Key: "launchRequested", Label: "Launch Requested"},
 }
 
@@ -416,11 +416,16 @@ func (p Provider) runCancel(ctx context.Context, invoke framework.InvokeContext,
 	if err := p.requireSessions(); err != nil {
 		return nil, err
 	}
-	result, err := p.sessions.Cancel(ctx, invoke.WorkspaceID, input.SessionID)
+	session, err := p.sessions.Get(ctx, invoke.WorkspaceID, input.SessionID)
 	if err != nil {
 		return nil, err
 	}
-	return sessionActionResult{Session: result.Session}, nil
+	if turnID := strings.TrimSpace(session.ActiveTurnID); turnID != "" {
+		if _, err := p.sessions.CancelTurn(ctx, invoke.WorkspaceID, input.SessionID, turnID); err != nil {
+			return nil, err
+		}
+	}
+	return sessionActionResult{Session: session}, nil
 }
 
 func sessionActionOutputSpec() framework.OutputSpec {
@@ -435,7 +440,7 @@ func sessionActionOutputSpec() framework.OutputSpec {
 				return []map[string]any{{
 					"id":              action.Session.ID,
 					"provider":        action.Session.Provider,
-					"status":          action.Session.Status,
+					"activeTurnId":    action.Session.ActiveTurnID,
 					"launchRequested": action.LaunchRequested,
 				}}
 			},

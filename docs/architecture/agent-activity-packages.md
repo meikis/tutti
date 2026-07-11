@@ -1,8 +1,13 @@
 # Agent Activity Packages
 
-Status: shared Agent Activity core, desktop adapter, Agent GUI runtime input,
-and Message Center snapshot model implemented; legacy Host API projection kept
-only at compatibility and desktop bridge boundaries
+Status: implementation converging. The canonical core, desktop adapter, Agent
+GUI runtime input, grouped node contract, and Message Center snapshot model are
+implemented. The controller is 715 lines and acts as a thin assembly module.
+Activation settings and results are core-owned canonical contracts; legacy
+Host Session, activation, pin, `providerTargetRef`, and synthesized
+`session_update` mirrors are removed. Persisted launch-field readers remain
+only at explicit private migration seams, and product consumers read canonical
+sessions through activity-core selectors.
 
 This document records the package split for reusable Agent Activity and Agent
 GUI surfaces. The goal is to make the agent session data flow reusable by other
@@ -119,6 +124,18 @@ snapshot, but section first-page reloads should be tied to workspace, rail
 filter, user project, or session membership changes.
 
 `AgentActivity*` types are the canonical frontend agent activity data model.
+Agent GUI must import `AgentActivitySession`, `AgentActivitySnapshot`, and
+`AgentActivityPresence` from `agent-activity-core`; it must not recreate those
+entities in a handwritten aggregate. GUI-only projections stay in focused
+timeline, synchronization, summary, and message-overlay modules. Working and
+completion decisions derive from canonical `activeTurn` and `latestTurn`
+state, not from legacy session-level lifecycle mirrors.
+Canonical sessions also carry typed `settings`, `permissionConfig`,
+`capabilities`, `backgroundAgents`, `goal`, and `imported` fields from the
+daemon. Desktop adapters preserve those fields and must not recreate them from
+`runtimeContext`, `lastError`, or module-global per-session defaults. Existing
+session control state is read from the daemon; pre-session edits remain in the
+engine-owned activation/draft record until the daemon confirms the session.
 `AgentHostWorkspaceAgent*` types may only appear in compatibility or projection
 layers while the legacy Agent GUI internals are being migrated. Production read
 paths must not call `workspaceAgents.list`,
@@ -129,6 +146,55 @@ paths must not call `workspaceAgents.list`,
 `AgentActivityRuntime` instead. Legacy host DTOs are allowlisted only in the
 host API contract, explicit projection helpers, and message merge/page-loading
 helpers that accept runtime-shaped adapters.
+
+The desktop activity diagnostics module is the only narrow consumer allowed to
+serialize legacy lifecycle fields while comparing old host events with the
+canonical model. Those values are diagnostic evidence only and must never feed
+session, turn, submit, or rendering decisions.
+
+Slash command behavior is descriptor-authoritative. The provider catalog's
+typed slash policy owns fallback commands and command effects; a missing policy
+produces no provider slash commands or local command effects. Agent GUI must not
+infer Cursor, Codex, Claude, or universal command behavior from provider names.
+
+The synthesized `plan-implementation` / `implement` decision crosses the
+desktop boundary as one semantic, turn-and-request-scoped daemon command with
+a caller-stable idempotency key. Desktop transport must not expand that command
+into local settings or send operations. `tuttid` prepares a leased
+`plan_decision` operation, checkpoints the idempotent plan-mode target write,
+persists `send_dispatched` before provider execution, and confirms the result
+only from a different durable turn/message carrying the operation's stable
+`clientSubmitId`; an unknown send result is never blindly replayed. Completion
+and its outbox event commit atomically. The `send_dispatched` checkpoint also
+persists a session-level `agent_system_notice` with notice kind
+`plan_implementation_pending_confirmation` and its message-update outbox event
+in the same transaction, so an open client can observe the unknown window even
+if the provider call hangs or the process exits. Completion upgrades the same
+message to `plan_implementation_completed`, and its outbox publishes both the
+confirmed turn and notice update. These payloads contain semantic IDs only;
+user-visible copy belongs to consumer i18n. Provider-originated exit-plan
+prompts remain ordinary durable interaction responses and use the existing
+`interactive_response` operation rather than this synthetic-plan endpoint.
+
+Protocol-v2 session responses expose `activeTurnId` (required and nullable),
+`pendingInteractions` (required and never null), independent `activeTurn` /
+`latestTurn` projections, typed capabilities/background-agent/goal/import
+fields, and Unix-millisecond timestamps. They do not expose legacy session
+status, turn lifecycle, submit availability, last error, ISO timestamps, or
+the raw runtime context. SQLite migrations split typed session metadata from
+provider-private recovery context, remove the legacy status/current-phase/
+last-error/runtime-context columns, and enforce nullable exact
+`active_turn_id` ownership plus Turn/Interaction/message foreign keys. Public
+activity events are version 2: full Turn and Interaction entities use
+`turn_update`/`interaction_update`; a session invalidation that requires an
+authoritative read is explicitly named `session_reconcile_required` and must
+never be applied as a partial Session entity. The old public `state_patch` and
+storage message row id are removed.
+
+Message `turnId` is explicitly nullable. Runtime execution messages should use
+the exact durable Turn id, while historical imports without trustworthy
+provider turn boundaries stay session-scoped (`turnId = null`); import must not
+manufacture one live synthetic Turn per transcript message.
 
 It should not know how a host connects to `tuttid`, opens SSE streams, resolves
 workspace paths, or talks to Electron.
@@ -210,10 +276,14 @@ export interface AgentActivityAdapter {
   createSession(
     input: AgentActivityCreateSessionInput
   ): Promise<AgentActivitySession>;
-  sendInput(input: AgentActivitySendInput): Promise<AgentActivitySession>;
-  cancelSession(
-    input: AgentActivityCancelSessionInput
-  ): Promise<AgentActivitySession>;
+  sendInput(
+    input: AgentActivitySendInput
+  ): Promise<AgentActivitySendInputResult>;
+  cancelTurn(input: {
+    workspaceId: string;
+    agentSessionId: string;
+    turnId: string;
+  }): Promise<AgentActivityTurnCancelResult>;
   respondPermission(
     input: AgentActivityPermissionResponseInput
   ): Promise<unknown>;
@@ -222,6 +292,11 @@ export interface AgentActivityAdapter {
   ): Promise<AgentActivityDeleteSessionResult>;
 }
 ```
+
+`AgentActivitySendInputResult` contains the authoritative canonical `turn` in
+addition to its session and turn id. Desktop adapters must reject a successful
+transport response that omits that turn; they must not reconstruct it from the
+deprecated session-level lifecycle or submit-availability fields.
 
 `AgentActivityRuntime.activateSession` requires `agentTargetId` for
 `mode: "new"`. Shared UI passes it through unchanged; trusted host or daemon code

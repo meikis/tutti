@@ -11,10 +11,11 @@
     "./agent-env": "./shared/agentEnv/index.ts",
     "./workspace-settings-panel": "./shared/workspaceSettingsPanel/workspaceSettingsPanelStore.ts",
     "./context-mention-palette": "./context-mention-palette/index.ts",
-    "./plan-decision-ops": "./shared/agentConversation/planImplementation.ts",
     "./context-mention-provider": "./agent-gui/agentGuiNode/agentContextMentionProvider.ts",
     "./mention-file-presentation": "./agent-gui/shared/mentionFilePresentation.ts",
     "./agent-title-text": "./shared/utils/agentTitleText.ts",
+    "./provider-identity": "./provider-identity.ts",
+    "./provider-catalog": "./provider-catalog.ts",
     "./provider-icons": "./provider-icons.ts",
     "./agentGuiSessionProviderIconUrls": "./agentGuiSessionProviderIconUrls.ts",
     "./workspace-agent-generated-files": "./shared/workspaceAgentActivityListViewModel.ts",
@@ -120,10 +121,6 @@
         "types": "./dist/context-mention-palette/index.d.ts",
         "import": "./dist/context-mention-palette/index.js"
       },
-      "./plan-decision-ops": {
-        "types": "./dist/plan-decision-ops.d.ts",
-        "import": "./dist/plan-decision-ops.js"
-      },
       "./context-mention-provider": {
         "types": "./dist/context-mention-provider.d.ts",
         "import": "./dist/context-mention-provider.js"
@@ -139,6 +136,10 @@
       "./provider-icons": {
         "types": "./dist/provider-icons.d.ts",
         "import": "./dist/provider-icons.js"
+      },
+      "./provider-identity": {
+        "types": "./dist/provider-identity.d.ts",
+        "import": "./dist/provider-identity.js"
       },
       "./workspace-agent-generated-files": {
         "types": "./dist/workspace-agent-generated-files.d.ts",
@@ -193,9 +194,6 @@
         "context-mention-palette": [
           "./dist/context-mention-palette/index.d.ts"
         ],
-        "plan-decision-ops": [
-          "./dist/plan-decision-ops.d.ts"
-        ],
         "context-mention-provider": [
           "./dist/context-mention-provider.d.ts"
         ],
@@ -207,6 +205,9 @@
         ],
         "provider-icons": [
           "./dist/provider-icons.d.ts"
+        ],
+        "provider-identity": [
+          "./dist/provider-identity.d.ts"
         ],
         "workspace-agent-generated-files": [
           "./dist/workspace-agent-generated-files.d.ts"

@@ -24,8 +24,6 @@ func providerBaseURL(session Session, provider string) string {
 	if descriptor, ok := providerregistry.Find(provider); ok {
 		return providerBaseURLFromDescriptor(env, session.CWD, descriptor.Runtime.Endpoint)
 	}
-	// Unmigrated providers keep their legacy endpoint discovery until their
-	// runtime descriptor owns it.
 	return ""
 }
 

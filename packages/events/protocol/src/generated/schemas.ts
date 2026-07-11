@@ -706,7 +706,7 @@ export const agentActivityUpdatedPayloadSchema = {
           minLength: 1
         },
         eventType: {
-          const: "session_update"
+          const: "session_reconcile_required"
         },
         data: {
           type: "object",
@@ -729,7 +729,7 @@ export const agentActivityUpdatedPayloadSchema = {
               type: "string"
             },
             eventType: {
-              const: "session_update"
+              const: "session_reconcile_required"
             },
             lastEventUnixMs: {
               type: "integer",
@@ -835,7 +835,6 @@ export const agentActivityUpdatedPayloadSchema = {
                 type: "object",
                 required: [
                   "agentSessionId",
-                  "id",
                   "kind",
                   "messageId",
                   "occurredAtUnixMs",
@@ -848,10 +847,6 @@ export const agentActivityUpdatedPayloadSchema = {
                   agentSessionId: {
                     type: "string",
                     minLength: 1
-                  },
-                  id: {
-                    type: "integer",
-                    minimum: 0
                   },
                   kind: {
                     type: "string",
@@ -921,143 +916,6 @@ export const agentActivityUpdatedPayloadSchema = {
           minLength: 1
         },
         eventType: {
-          const: "state_patch"
-        },
-        data: {
-          type: "object",
-          required: [
-            "workspaceId",
-            "agentSessionId",
-            "eventType",
-            "lastEventUnixMs"
-          ],
-          properties: {
-            workspaceId: {
-              type: "string",
-              minLength: 1
-            },
-            agentSessionId: {
-              type: "string",
-              minLength: 1
-            },
-            eventType: {
-              const: "state_patch"
-            },
-            lastEventUnixMs: {
-              type: "integer",
-              minimum: 0
-            },
-            occurredAtUnixMs: {
-              type: "integer",
-              minimum: 0
-            },
-            provider: {
-              type: "string"
-            },
-            agentTargetId: {
-              type: "string"
-            },
-            providerSessionId: {
-              type: "string"
-            },
-            model: {
-              type: "string"
-            },
-            cwd: {
-              type: "string"
-            },
-            title: {
-              type: "string"
-            },
-            lifecycleStatus: {
-              type: "string"
-            },
-            currentPhase: {
-              type: "string"
-            },
-            lastError: {
-              type: "string"
-            },
-            startedAtUnixMs: {
-              type: "integer",
-              minimum: 0
-            },
-            endedAtUnixMs: {
-              type: "integer",
-              minimum: 0
-            },
-            runtimeContext: {
-              type: "object"
-            },
-            submitAvailability: {
-              type: "object",
-              required: ["state"],
-              properties: {
-                state: {
-                  type: "string",
-                  minLength: 1
-                },
-                reason: {
-                  type: "string"
-                }
-              }
-            },
-            turn: {
-              type: "object",
-              required: ["turnId"],
-              properties: {
-                turnId: {
-                  type: "string",
-                  minLength: 1
-                },
-                phase: {
-                  type: "string"
-                },
-                outcome: {
-                  type: "string"
-                },
-                fileChanges: true,
-                startedAtUnixMs: {
-                  type: "integer",
-                  minimum: 0
-                },
-                completedAtUnixMs: {
-                  type: "integer",
-                  minimum: 0
-                },
-                submitAvailability: {
-                  type: "object",
-                  required: ["state"],
-                  properties: {
-                    state: {
-                      type: "string",
-                      minLength: 1
-                    },
-                    reason: {
-                      type: "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      type: "object",
-      additionalProperties: false,
-      required: ["workspaceId", "agentSessionId", "eventType", "data"],
-      properties: {
-        workspaceId: {
-          type: "string",
-          minLength: 1
-        },
-        agentSessionId: {
-          type: "string",
-          minLength: 1
-        },
-        eventType: {
           const: "turn_update"
         },
         data: {
@@ -1097,7 +955,12 @@ export const agentActivityUpdatedPayloadSchema = {
                 "turnId",
                 "agentSessionId",
                 "phase",
+                "outcome",
+                "error",
+                "fileChanges",
+                "completedCommand",
                 "startedAtUnixMs",
+                "settledAtUnixMs",
                 "updatedAtUnixMs"
               ],
               properties: {
@@ -1120,11 +983,11 @@ export const agentActivityUpdatedPayloadSchema = {
                   ]
                 },
                 outcome: {
-                  type: "string",
+                  type: ["string", "null"],
                   enum: ["completed", "failed", "canceled", "interrupted"]
                 },
                 error: {
-                  type: "object",
+                  type: ["object", "null"],
                   required: ["message"],
                   properties: {
                     message: {
@@ -1138,7 +1001,7 @@ export const agentActivityUpdatedPayloadSchema = {
                 },
                 fileChanges: true,
                 completedCommand: {
-                  type: "object",
+                  type: ["object", "null"],
                   required: ["kind", "status"],
                   properties: {
                     kind: {
@@ -1156,7 +1019,7 @@ export const agentActivityUpdatedPayloadSchema = {
                   minimum: 0
                 },
                 settledAtUnixMs: {
-                  type: "integer",
+                  type: ["integer", "null"],
                   minimum: 0
                 },
                 updatedAtUnixMs: {
@@ -1218,6 +1081,10 @@ export const agentActivityUpdatedPayloadSchema = {
                 "turnId",
                 "kind",
                 "status",
+                "toolName",
+                "input",
+                "output",
+                "metadata",
                 "createdAtUnixMs",
                 "updatedAtUnixMs"
               ],
@@ -1243,16 +1110,16 @@ export const agentActivityUpdatedPayloadSchema = {
                   enum: ["pending", "answered", "superseded"]
                 },
                 toolName: {
-                  type: "string"
+                  type: ["string", "null"]
                 },
                 input: {
-                  type: "object"
+                  type: ["object", "null"]
                 },
                 output: {
-                  type: "object"
+                  type: ["object", "null"]
                 },
                 metadata: {
-                  type: "object"
+                  type: ["object", "null"]
                 },
                 createdAtUnixMs: {
                   type: "integer",
@@ -1284,10 +1151,9 @@ export const agentActivityUpdatedPayloadSchema = {
     eventType: {
       type: "string",
       enum: [
-        "session_update",
+        "session_reconcile_required",
         "session_deleted",
         "message_update",
-        "state_patch",
         "turn_update",
         "interaction_update"
       ]

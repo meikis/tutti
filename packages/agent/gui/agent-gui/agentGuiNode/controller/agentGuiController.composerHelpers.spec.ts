@@ -5,9 +5,6 @@ import type { AgentGUINodeData } from "../../../types";
 import {
   buildNodeDefaultComposerSettings,
   slashCommandPoliciesEqual,
-  composerOptionsMissingLiveModelValues,
-  liveModelOptionValuesFromRuntimeContext,
-  mergeRuntimeContextComposerSettings,
   nodeDataFromComposerSettings,
   permissionModeOptions,
   providerSkillsFromComposerOptions,
@@ -44,119 +41,6 @@ describe("slash command policy equality", () => {
         commandCatalogAuthoritative: true
       })
     ).toBe(false);
-  });
-});
-
-describe("live model options from runtime context", () => {
-  const cursorRuntimeContext = {
-    configOptions: [
-      { id: "mode", options: [{ value: "agent", name: "Agent" }] },
-      {
-        id: "model",
-        currentValue: "composer-2.5[fast=true]",
-        options: [
-          { value: "default[]", name: "Auto" },
-          { value: "composer-2.5[fast=true]", name: "composer-2.5" },
-          { value: "gpt-5.2[reasoning=medium,fast=false]", name: "gpt-5.2" }
-        ]
-      }
-    ]
-  };
-
-  it("extracts advertised model values", () => {
-    expect(
-      liveModelOptionValuesFromRuntimeContext(cursorRuntimeContext)
-    ).toEqual([
-      "default[]",
-      "composer-2.5[fast=true]",
-      "gpt-5.2[reasoning=medium,fast=false]"
-    ]);
-    expect(liveModelOptionValuesFromRuntimeContext(null)).toEqual([]);
-    expect(liveModelOptionValuesFromRuntimeContext({})).toEqual([]);
-    expect(
-      liveModelOptionValuesFromRuntimeContext({ configOptions: "nope" })
-    ).toEqual([]);
-  });
-
-  it("detects composer options missing live models and quiesces once merged", () => {
-    const staleOptions = {
-      provider: "cursor",
-      models: [
-        { value: "composer-2.5[fast=true]", label: "composer-2.5[fast=true]" }
-      ],
-      reasoningEfforts: [],
-      speeds: [],
-      skills: [],
-      loadedAtUnixMs: 1
-    } as unknown as AgentActivityComposerOptions;
-    const mergedOptions = {
-      ...staleOptions,
-      models: [
-        { value: "default[]", label: "Auto" },
-        { value: "composer-2.5[fast=true]", label: "composer-2.5" },
-        { value: "gpt-5.2[reasoning=medium,fast=false]", label: "gpt-5.2" }
-      ]
-    } as unknown as AgentActivityComposerOptions;
-    const liveValues =
-      liveModelOptionValuesFromRuntimeContext(cursorRuntimeContext);
-
-    expect(
-      composerOptionsMissingLiveModelValues(staleOptions, liveValues)
-    ).toBe(true);
-    expect(
-      composerOptionsMissingLiveModelValues(mergedOptions, liveValues)
-    ).toBe(false);
-    expect(composerOptionsMissingLiveModelValues(null, liveValues)).toBe(false);
-    expect(composerOptionsMissingLiveModelValues(staleOptions, [])).toBe(false);
-  });
-});
-
-describe("descriptor-backed runtime config options", () => {
-  it("updates Codex config keys from daemon-provided descriptors without provider branches", () => {
-    const runtimeContext = {
-      config: {},
-      configOptions: [
-        { id: "model", currentValue: "gpt-5" },
-        { id: "reasoning_effort", currentValue: "medium" },
-        { id: "service_tier", currentValue: "standard" },
-        { id: "mode", currentValue: "auto" }
-      ]
-    };
-
-    expect(
-      mergeRuntimeContextComposerSettings(runtimeContext, {
-        model: "gpt-5.3-codex",
-        reasoningEffort: "high",
-        speed: "fast",
-        permissionModeId: "full-access"
-      })
-    ).toEqual({
-      config: {
-        model: "gpt-5.3-codex",
-        reasoning_effort: "high",
-        service_tier: "fast",
-        mode: "full-access"
-      },
-      configOptions: [
-        { id: "model", currentValue: "gpt-5.3-codex" },
-        { id: "reasoning_effort", currentValue: "high" },
-        { id: "service_tier", currentValue: "fast" },
-        { id: "mode", currentValue: "full-access" }
-      ]
-    });
-  });
-
-  it("does not invent provider config keys when descriptors are unavailable", () => {
-    const runtimeContext = { config: { providerOwned: true } };
-
-    expect(
-      mergeRuntimeContextComposerSettings(runtimeContext, {
-        model: "model",
-        reasoningEffort: "high",
-        speed: "fast",
-        permissionModeId: "auto"
-      })
-    ).toEqual(runtimeContext);
   });
 });
 
@@ -223,8 +107,6 @@ describe("target-keyed composer defaults", () => {
   const baseNodeData: AgentGUINodeData = {
     provider: "codex",
     agentTargetId: "local:codex",
-    providerTargetId: null,
-    providerTargetRef: null,
     lastActiveAgentSessionId: null,
     composerOverrides: null,
     composerOverridesByAgentTargetId: {

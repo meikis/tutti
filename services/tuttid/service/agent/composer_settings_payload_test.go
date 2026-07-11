@@ -83,7 +83,7 @@ func TestCreateSessionInputFromPersistedCarriesExternalRolloutSourcePath(t *test
 	input := createSessionInputFromPersisted(PersistedSession{
 		ID:       "session-1",
 		Provider: "codex",
-		RuntimeContext: map[string]any{
+		InternalRuntimeContext: map[string]any{
 			"imported":           true,
 			"externalSourcePath": "/home/user/.codex/sessions/2026/07/04/rollout-abc.jsonl",
 		},

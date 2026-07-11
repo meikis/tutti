@@ -4,6 +4,24 @@ import type {
   PendingSubmitIntentRecord
 } from "./pendingIntents.types.ts";
 
+export function selectPendingActivations(
+  state: AgentSessionEngineState
+): readonly PendingActivationIntentRecord[] {
+  return Object.values(state.pendingIntents.activationsByRequestId).sort(
+    (left, right) =>
+      left.requestedAtUnixMs - right.requestedAtUnixMs ||
+      left.requestId.localeCompare(right.requestId)
+  );
+}
+
+export function selectPendingActivationByRequestId(
+  state: AgentSessionEngineState,
+  requestId: string | null | undefined
+): PendingActivationIntentRecord | null {
+  const id = requestId?.trim() ?? "";
+  return state.pendingIntents.activationsByRequestId[id] ?? null;
+}
+
 const EMPTY_PENDING_SUBMITS: readonly PendingSubmitIntentRecord[] = [];
 
 export interface SessionActivationPresentation {
@@ -115,11 +133,13 @@ export function selectSessionActivationPresentations(
       errorMessage: activation.errorMessage,
       requestId: activation.requestId,
       status:
-        activation.status === "confirmed"
-          ? "active"
-          : activation.status === "failed"
-            ? "failed"
-            : "activating"
+        activation.settingsUpdateStatus === "failed"
+          ? "failed"
+          : activation.status === "confirmed"
+            ? "active"
+            : activation.status === "failed"
+              ? "failed"
+              : "activating"
     };
   }
   for (const agentSessionId of Object.keys(

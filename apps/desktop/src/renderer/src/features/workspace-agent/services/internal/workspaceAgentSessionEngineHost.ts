@@ -4,7 +4,6 @@ import {
   createAgentSessionEngine,
   type AgentActivityAdapter,
   type AgentActivityController,
-  type AgentActivitySnapshot,
   type AgentSessionEngine,
   type SessionActivateCommand,
   type SessionReconcileCommand
@@ -14,6 +13,10 @@ import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { DesktopRuntimeApi } from "@preload/types";
 import type { AgentHostAgentSessionComposerSettings } from "@shared/contracts/dto";
 import { createDesktopAgentActivityAdapter } from "../desktopAgentActivityAdapter.ts";
+import {
+  readDesktopWorkspaceAgentReadState,
+  writeDesktopWorkspaceAgentReadState
+} from "../createDesktopAgentHostApi.ts";
 
 export interface WorkspaceAgentSessionEngineHost {
   adapter: AgentActivityAdapter;
@@ -28,17 +31,35 @@ interface CreateWorkspaceAgentSessionEngineHostInput {
     turnId: string;
     workspaceId: string;
   }): Promise<unknown>;
-  loadWorkspace(workspaceId: string): Promise<AgentActivitySnapshot>;
   reconcileSession(command: SessionReconcileCommand): Promise<unknown>;
   runtimeApi: Pick<DesktopRuntimeApi, "logTerminalDiagnostic">;
   sendInput(input: {
     agentSessionId: string;
+    clientSubmitId: string;
     content: Parameters<AgentActivityRuntime["sendInput"]>[0]["content"];
     displayPrompt?: string | null;
     guidance?: boolean;
-    metadata?: Record<string, unknown>;
+    submitDiagnostics?: Parameters<
+      AgentActivityRuntime["sendInput"]
+    >[0]["submitDiagnostics"];
     workspaceId: string;
   }): Promise<unknown>;
+  submitInteractive: AgentActivityRuntime["submitInteractive"];
+  submitPlanDecision(input: {
+    action: "implement";
+    agentSessionId: string;
+    idempotencyKey: string;
+    promptKind: "plan-implementation";
+    requestId: string;
+    turnId: string;
+    workspaceId: string;
+  }): Promise<unknown>;
+  subscribeSessionEvents(
+    workspaceId: string,
+    listener: (event: unknown) => void
+  ): () => void;
+  unactivateSession: AgentActivityRuntime["unactivateSession"];
+  updateSessionSettings: AgentActivityRuntime["updateSessionSettings"];
   tuttidClient: TuttidClient;
   workspaceId: string;
 }
@@ -58,8 +79,30 @@ export function createWorkspaceAgentSessionEngineHost(
   const engine = createAgentSessionEngine({
     clock: { nowUnixMs: () => Date.now() },
     commandPort: {
-      execute: (command) => {
+      execute: (command, options) => {
         switch (command.type) {
+          case "attention/readState/read":
+            return readDesktopWorkspaceAgentReadState({
+              roomId: command.workspaceId,
+              userId: command.userId
+            });
+          case "attention/readState/write":
+            return Promise.all([
+              writeDesktopWorkspaceAgentReadState({
+                roomId: command.workspaceId,
+                userId: command.userId,
+                kind: "completed",
+                readIds: [...command.completed.readIds],
+                unreadIds: [...command.completed.unreadIds]
+              }),
+              writeDesktopWorkspaceAgentReadState({
+                roomId: command.workspaceId,
+                userId: command.userId,
+                kind: "failed",
+                readIds: [...command.failed.readIds],
+                unreadIds: [...command.failed.unreadIds]
+              })
+            ]);
           case "turn/cancel":
             return input.cancelTurn({
               agentSessionId: command.agentSessionId,
@@ -69,22 +112,57 @@ export function createWorkspaceAgentSessionEngineHost(
           case "queue/sendPrompt":
             return input.sendInput({
               agentSessionId: command.agentSessionId,
+              clientSubmitId: command.clientSubmitId,
               content: [...command.content],
               displayPrompt: command.displayPrompt ?? null,
               ...(command.guidance === true ? { guidance: true } : {}),
-              ...(command.metadata
-                ? { metadata: { ...command.metadata } }
+              ...(command.submitDiagnostics
+                ? { submitDiagnostics: { ...command.submitDiagnostics } }
                 : {}),
               workspaceId: command.workspaceId
             });
+          case "interaction/respond":
+            return input.submitInteractive({
+              ...(command.action ? { action: command.action } : {}),
+              agentSessionId: command.agentSessionId,
+              ...(command.optionId ? { optionId: command.optionId } : {}),
+              ...(command.payload ? { payload: { ...command.payload } } : {}),
+              requestId: command.requestId,
+              turnId: command.turnId,
+              workspaceId: command.workspaceId
+            });
+          case "plan/submitDecision":
+            return input.submitPlanDecision({
+              action: command.action,
+              agentSessionId: command.agentSessionId,
+              idempotencyKey: command.idempotencyKey,
+              promptKind: command.promptKind,
+              requestId: command.requestId,
+              turnId: command.turnId,
+              workspaceId: command.workspaceId
+            });
           case "session/activate":
-            return input.activateSession(activationInput(command));
+            return input.activateSession({
+              ...activationInput(command),
+              signal: options?.signal
+            });
+          case "session/updateSettings":
+            return input.updateSessionSettings({
+              agentSessionId: command.agentSessionId,
+              settings: command.settings,
+              workspaceId: command.workspaceId
+            });
           case "engine/probe":
             return Promise.resolve({ ok: true });
           case "engine/reconcileWorkspace":
-            return input.loadWorkspace(command.workspaceId);
+            return controller.load();
           case "session/reconcile":
             return input.reconcileSession(command);
+          case "session/unactivate":
+            return input.unactivateSession({
+              agentSessionId: command.agentSessionId,
+              workspaceId: command.workspaceId
+            });
         }
       }
     },
@@ -113,6 +191,25 @@ export function createWorkspaceAgentSessionEngineHost(
       { batch: true }
     );
   });
+  input.subscribeSessionEvents(input.workspaceId, (event) => {
+    if (!event || typeof event !== "object") return;
+    const candidate = event as {
+      eventType?: unknown;
+      data?: { agentSessionId?: unknown; commands?: unknown };
+    };
+    if (
+      candidate.eventType !== "available_commands_update" ||
+      typeof candidate.data?.agentSessionId !== "string" ||
+      !Array.isArray(candidate.data.commands)
+    )
+      return;
+    engine.dispatch({
+      agentSessionId: candidate.data.agentSessionId,
+      commands: candidate.data.commands,
+      type: "session/availableCommandsReceived",
+      workspaceId: input.workspaceId
+    });
+  });
   return { adapter, controller, engine };
 }
 
@@ -128,9 +225,8 @@ function activationInput(
     ...(command.initialDisplayPrompt !== undefined
       ? { initialDisplayPrompt: command.initialDisplayPrompt }
       : {}),
-    ...(command.metadata ? { metadata: { ...command.metadata } } : {}),
-    ...(command.openclawGatewayReady !== undefined
-      ? { openclawGatewayReady: command.openclawGatewayReady }
+    ...(command.submitDiagnostics
+      ? { submitDiagnostics: { ...command.submitDiagnostics } }
       : {}),
     ...(command.settings
       ? {
@@ -145,6 +241,7 @@ function activationInput(
     ? {
         ...shared,
         agentTargetId: command.agentTargetId ?? "",
+        clientSubmitId: command.clientSubmitId,
         mode: "new"
       }
     : {

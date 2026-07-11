@@ -90,13 +90,12 @@ export const AGENT_HOST_MANAGED_TOOLCHAIN_AGENTS: readonly AgentHostManagedToolc
     },
     {
       id: "opencode",
-      // i18n-check-ignore: Provider brand name.
-      label: "OpenCode",
+      label: migratedProviderDisplayName("opencode"),
       toolIds: ["opencode-cli"],
       agentIds: ["opencode"],
       runtimeManaged: true,
       helperProvider: "opencode",
-      aliases: ["open code", "open-code", "opencode-ai"]
+      aliases: migratedProviderAliases("opencode")
     }
   ] as const;
 
@@ -106,6 +105,14 @@ function migratedProviderDisplayName(providerId: string): string {
     throw new Error(`Missing migrated provider identity for ${providerId}`);
   }
   return identity.displayName;
+}
+
+function migratedProviderAliases(providerId: string): string[] {
+  const identity = resolveMigratedAgentGUIProviderIdentity(providerId);
+  if (!identity) {
+    throw new Error(`Missing migrated provider identity for ${providerId}`);
+  }
+  return [...identity.aliases];
 }
 
 /**

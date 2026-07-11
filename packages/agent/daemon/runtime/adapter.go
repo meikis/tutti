@@ -10,14 +10,13 @@ import (
 var ErrLiveSessionBusy = errors.New("agent live session is busy")
 
 type ProcessSpec struct {
-	Provider             string
-	AgentSessionID       string
-	RoomID               string
-	CWD                  string
-	Command              []string
-	Env                  []string
-	OpenclawGatewayReady bool
-	DirectStart          bool
+	Provider       string
+	AgentSessionID string
+	RoomID         string
+	CWD            string
+	Command        []string
+	Env            []string
+	DirectStart    bool
 }
 
 type ProcessFrame struct {

@@ -76,7 +76,7 @@ func TestGetLiveComposerModelOptionsClaudeAuthScopeIsolatesCache(t *testing.T) {
 func TestGetComposerOptionsClaudeRunningSessionOverridesStaleCache(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "claude-code",
@@ -95,7 +95,7 @@ func TestGetComposerOptionsClaudeRunningSessionOverridesStaleCache(t *testing.T)
 			},
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	// Seed a stale cache that predates the running session's newer list.
 	service.setLiveComposerModelOptions("claude-code", "ws-1", "/repo", time.Now().UTC().Add(-time.Hour), []ComposerConfigOptionValue{
 		{Value: "default", Label: "Default"},

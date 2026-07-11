@@ -23,7 +23,13 @@ test("initial engine runtime state is idle and empty", () => {
     connection: "unknown",
     lastCommandResult: null,
     lastExpiredIntentId: null,
-    processedIntentCount: 0
+    processedIntentCount: 0,
+    workspaceReconcile: {
+      commandId: null,
+      errorCode: null,
+      errorMessage: null,
+      status: "idle"
+    }
   });
 });
 
@@ -75,7 +81,14 @@ test("connected transition requests one workspace reconcile", () => {
   });
   assert.equal(duplicate.commands.length, 0);
 
-  const disconnected = engineRuntimeReducer(duplicate.state, {
+  const completed = engineRuntimeReducer(duplicate.state, {
+    commandId: connected.state.workspaceReconcile.commandId ?? "",
+    commandType: "engine/reconcileWorkspace",
+    outcome: "succeeded",
+    type: "engine/commandResult"
+  });
+
+  const disconnected = engineRuntimeReducer(completed.state, {
     status: "disconnected",
     type: "engine/connectionChanged",
     workspaceId: "workspace-1"
@@ -86,6 +99,40 @@ test("connected transition requests one workspace reconcile", () => {
     workspaceId: "workspace-1"
   });
   assert.equal(reconnected.commands[0]?.type, "engine/reconcileWorkspace");
+});
+
+test("workspace start loads once and failed load requires explicit retry", () => {
+  const initial = engineRuntimeReducer(createInitialEngineRuntimeState(), {
+    type: "workspace/reconcileRequested",
+    workspaceId: "workspace-1"
+  });
+  assert.equal(initial.commands.length, 1);
+  const duplicate = engineRuntimeReducer(initial.state, {
+    type: "workspace/reconcileRequested",
+    workspaceId: "workspace-1"
+  });
+  assert.equal(duplicate.commands.length, 0);
+  const failed = engineRuntimeReducer(duplicate.state, {
+    commandId: initial.state.workspaceReconcile.commandId ?? "",
+    commandType: "engine/reconcileWorkspace",
+    errorCode: "load_failed",
+    outcome: "failed",
+    type: "engine/commandResult"
+  });
+  assert.equal(failed.state.workspaceReconcile.status, "failed");
+  assert.equal(
+    engineRuntimeReducer(failed.state, {
+      type: "workspace/reconcileRequested",
+      workspaceId: "workspace-1"
+    }).commands.length,
+    0
+  );
+  const retry = engineRuntimeReducer(failed.state, {
+    retry: true,
+    type: "workspace/reconcileRequested",
+    workspaceId: "workspace-1"
+  });
+  assert.equal(retry.commands.length, 1);
 });
 
 test("expiry request and cancellation emit internal clock commands", () => {
@@ -176,7 +223,6 @@ test("canceling a queued submit atomically removes queue and pending intent", ()
         agentSessionId: "session-1",
         cwd: "/workspace",
         provider: "codex",
-        status: "working",
         title: "Session",
         updatedAtUnixMs: 1,
         workspaceId: "workspace-1"
@@ -215,6 +261,54 @@ test("canceling a queued submit atomically removes queue and pending intent", ()
   assert.deepEqual(canceled.commands, [
     { expiryId: "submit:submit-1", type: "engine/cancelExpiry" }
   ]);
+});
+
+test("submit acceptance rejects unknown and cross-workspace canonical sessions atomically", () => {
+  const submit = {
+    agentSessionId: "session-1",
+    clientSubmitId: "submit-1",
+    content: [{ type: "text" as const, text: "hello" }],
+    expiresAtUnixMs: 120_000,
+    requestedAtUnixMs: 2,
+    type: "submit/requested" as const,
+    workspaceId: "workspace-1"
+  };
+  const unknown = rootEngineReducer(
+    createInitialAgentSessionEngineState(),
+    submit
+  );
+  assert.equal(
+    unknown.state.pendingIntents.submitsByClientSubmitId["submit-1"],
+    undefined
+  );
+  assert.equal(
+    unknown.state.promptQueue.recordsBySessionId["session-1"],
+    undefined
+  );
+
+  let state = rootEngineReducer(createInitialAgentSessionEngineState(), {
+    sessions: [
+      {
+        agentSessionId: "session-1",
+        cwd: "/workspace",
+        provider: "codex",
+        title: "Session",
+        updatedAtUnixMs: 1,
+        workspaceId: "workspace-2"
+      }
+    ],
+    type: "session/snapshotReceived"
+  }).state;
+  const crossWorkspace = rootEngineReducer(state, submit);
+  assert.equal(
+    crossWorkspace.state.pendingIntents.submitsByClientSubmitId["submit-1"],
+    undefined
+  );
+  assert.equal(
+    crossWorkspace.state.promptQueue.recordsBySessionId["session-1"],
+    undefined
+  );
+  assert.deepEqual(crossWorkspace.commands, []);
 });
 
 test("an uncertain queued submit cannot be half-canceled", () => {
@@ -260,7 +354,6 @@ test("an uncertain queued submit cannot be half-canceled", () => {
           updatedAtUnixMs: 3
         },
         activeTurnId: null,
-        status: "ready",
         updatedAtUnixMs: 3
       }
     ],
@@ -300,7 +393,6 @@ test("session tombstone blocks late queue and snapshot resurrection across domai
         agentSessionId: "session-1",
         cwd: "/workspace",
         provider: "codex",
-        status: "completed",
         title: "Session",
         updatedAtUnixMs: 1,
         workspaceId: "workspace-1"
@@ -332,7 +424,6 @@ test("session tombstone blocks late queue and snapshot resurrection across domai
         agentSessionId: "session-1",
         cwd: "/workspace",
         provider: "codex",
-        status: "completed",
         title: "Session",
         updatedAtUnixMs: 3,
         workspaceId: "workspace-1"
@@ -345,13 +436,13 @@ test("session tombstone blocks late queue and snapshot resurrection across domai
     undefined
   );
   assert.equal(
-    lateSnapshot.state.sessionLifecycle.recordsBySessionId["session-1"],
+    lateSnapshot.state.sessionLifecycle.sessionsById["session-1"],
     undefined
   );
   const lateActivity = rootEngineReducer(lateSnapshot.state, {
     type: "session/activityObserved",
     agentSessionId: "session-1",
-    eventType: "session_update",
+    eventType: "session_reconcile_required",
     hasCachedSession: false,
     hasInlineMessages: false,
     inlineApplied: false,
@@ -381,7 +472,6 @@ test("an invalid queue promotion cannot cancel an unrelated active turn", () => 
         agentSessionId: "session-1",
         cwd: "/workspace",
         provider: "codex",
-        status: "working",
         title: "Session",
         updatedAtUnixMs: 1,
         workspaceId: "workspace-1"
@@ -398,7 +488,7 @@ test("an invalid queue promotion cannot cancel an unrelated active turn", () => 
   });
   assert.equal(invalid.commands.length, 0);
   assert.equal(
-    invalid.state.sessionLifecycle.recordsBySessionId["session-1"]?.cancel
+    invalid.state.sessionLifecycle.operationBySessionId["session-1"]?.cancel
       .status,
     "idle"
   );
@@ -415,7 +505,6 @@ test("an accepted promotion waits with a deadline when the referenced turn entit
         agentSessionId: "session-1",
         cwd: "/workspace",
         provider: "codex",
-        status: "working",
         title: "Session",
         updatedAtUnixMs: 1,
         workspaceId: "workspace-1"
@@ -441,7 +530,7 @@ test("an accepted promotion waits with a deadline when the referenced turn entit
     timeoutMs: 30_000
   });
   assert.equal(
-    promoted.state.sessionLifecycle.recordsBySessionId["session-1"]?.cancel
+    promoted.state.sessionLifecycle.operationBySessionId["session-1"]?.cancel
       .status,
     "awaitingTurn"
   );

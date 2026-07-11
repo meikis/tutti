@@ -1,10 +1,4 @@
 export {
-  buildAgentActivitySnapshotProjection,
-  agentHostSnapshotFromAgentActivitySnapshot,
-  projectCoreSessionStatus,
-  type AgentActivitySnapshotProjection
-} from "./shared/agentActivitySnapshotProjection";
-export {
   getAgentCustomMentionKind,
   registerAgentCustomMentionKind,
   resetAgentCustomMentionKindsForTests,
@@ -67,10 +61,15 @@ export {
 export { preloadAgentMentionBrowse } from "./agent-gui/agentGuiNode/AgentMentionSearchController";
 export { AgentActivityHostProvider } from "./agentActivityHost";
 export type { AgentActivityHostProviderProps } from "./agentActivityHost";
+export { useEngineSelector } from "./shared/engine/useEngineSelector";
+export type { EngineStateStore } from "./shared/engine/useEngineSelector";
+export {
+  dispatchAgentPlanPromptAction,
+  selectAgentPlanPromptTurn
+} from "./shared/agentConversation/agentPlanPromptDispatch";
+export type { AgentPlanPromptAction } from "./shared/agentConversation/agentPlanPromptDispatch";
 export {
   AgentActivityRuntimeProvider,
-  getAgentActivityRuntime,
-  getOptionalAgentActivityRuntime,
   resetAgentActivityRuntimeForTests,
   setAgentActivityRuntimeForTests,
   useAgentActivitySnapshot,
@@ -82,12 +81,11 @@ export type {
   AgentActivityRuntimeListSessionMessagesInput,
   AgentActivityRuntimeProviderProps,
   AgentActivityRuntimePromptContentBlock,
-  AgentActivityRuntimeRetainSessionEventsInput,
   AgentActivityRuntimeSetSessionPinnedInput,
   AgentActivityRuntimeUploadPromptContentInput,
   AgentActivityRuntimeUploadPromptContentResult,
   AgentActivityRuntimeUpdateSessionSettingsInput,
-  AgentActivityRuntimeWarmupOpenclawGatewayInput
+  AgentActivityRuntimeUpdateSessionSettingsResult
 } from "./agentActivityRuntime";
 export type {
   AgentHostApi,

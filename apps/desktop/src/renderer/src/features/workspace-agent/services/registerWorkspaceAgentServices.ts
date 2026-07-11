@@ -11,7 +11,7 @@ import { IAgentProviderStatusService } from "./agentProviderStatusService.interf
 import type { AgentProviderTerminalCommandRunner } from "./agentProviderStatusService.interface";
 import { bindDesktopManagedAgentProviderVisibilityRefresh } from "./internal/desktopAgentProviderVisibilityRefresh.ts";
 import { DesktopAgentProviderStatusService } from "./internal/desktopAgentProviderStatusService";
-import { startTuttiAgentInstallBootstrap } from "./internal/tuttiAgentInstallBootstrap.ts";
+import { startManagedAgentInstallBootstraps } from "./internal/tuttiAgentInstallBootstrap.ts";
 import { DesktopAgentsService } from "./internal/desktopAgentsService";
 import { WorkspaceAgentActivityService } from "./internal/workspaceAgentActivityService";
 import { WorkspaceAgentPromptSessionService } from "./internal/workspaceAgentPromptSessionService";
@@ -65,7 +65,7 @@ export function registerWorkspaceAgentServices(
     agentProviderStatusService
   );
   bindDesktopManagedAgentProviderVisibilityRefresh(agentProviderStatusService);
-  startTuttiAgentInstallBootstrap(agentProviderStatusService);
+  startManagedAgentInstallBootstraps(agentProviderStatusService);
   const agentsService = new DesktopAgentsService({
     resolveAgentTargetIconUrl: input.resolveAgentTargetIconUrl,
     isAgentTargetProviderGated: input.isAgentTargetProviderGated,

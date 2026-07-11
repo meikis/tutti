@@ -7,6 +7,10 @@ import type {
   AgentProbeProvider,
   AgentUsageQuota
 } from "@tutti-os/agent-gui";
+import {
+  migratedAgentGUIProviderIdentityCatalog,
+  resolveAgentGUIProviderCatalogIdentity
+} from "@tutti-os/agent-gui/provider-catalog";
 
 import { getDesktopLogger } from "./logging.ts";
 import { outboundFetch } from "./net/outboundFetch.ts";
@@ -65,8 +69,15 @@ export async function listDesktopWorkspaceAgentProbes(
 }
 
 function normalizeProbeProviders(providers: readonly string[] | undefined) {
-  const normalized = (providers ?? ["codex", "claude-code"])
-    .map((provider) => provider.trim())
+  const defaults = migratedAgentGUIProviderIdentityCatalog
+    .filter((entry) => entry.desktop.usageProbeKind !== "")
+    .map((entry) => entry.providerId);
+  const normalized = (providers ?? defaults)
+    .map(
+      (provider) =>
+        resolveAgentGUIProviderCatalogIdentity(provider)?.providerId ??
+        provider.trim()
+    )
     .filter(Boolean);
   return Array.from(new Set(normalized));
 }
@@ -151,11 +162,12 @@ async function resolveDesktopAgentProbe(
   input: AgentProviderProbeListInput,
   capturedAtUnixMs: number
 ): Promise<AgentProbeProvider> {
-  if (provider === "codex") {
-    return probeCodexProvider(input, capturedAtUnixMs);
-  }
-  if (provider === "claude-code") {
-    return probeClaudeCodeProvider(input, capturedAtUnixMs);
+  const probeKind =
+    resolveAgentGUIProviderCatalogIdentity(provider)?.desktop.usageProbeKind ??
+    "";
+  const handler = desktopAgentUsageProbeHandlers.get(probeKind);
+  if (handler) {
+    return handler(input, capturedAtUnixMs);
   }
   return {
     availability: {
@@ -170,6 +182,19 @@ async function resolveDesktopAgentProbe(
     provider
   };
 }
+
+type DesktopAgentUsageProbeHandler = (
+  input: AgentProviderProbeListInput,
+  capturedAtUnixMs: number
+) => Promise<AgentProbeProvider>;
+
+const desktopAgentUsageProbeHandlers = new Map<
+  string,
+  DesktopAgentUsageProbeHandler
+>([
+  ["codex", probeCodexProvider],
+  ["claude_code", probeClaudeCodeProvider]
+]);
 
 // The usage probe runs in the Electron main process and hits the vendor account
 // API directly, catching every failure into `lastError` so `.list()` always

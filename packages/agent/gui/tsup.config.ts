@@ -12,10 +12,10 @@ export default defineConfig({
     "context-mention-provider":
       "agent-gui/agentGuiNode/agentContextMentionProvider.ts",
     "agent-title-text": "shared/utils/agentTitleText.ts",
+    "provider-identity": "provider-identity.ts",
     "provider-icons": "provider-icons.ts",
     "i18n/index": "i18n/index.ts",
     "mention-file-presentation": "agent-gui/shared/mentionFilePresentation.ts",
-    "plan-decision-ops": "shared/agentConversation/planImplementation.ts",
     "workbench/index": "workbench/index.ts",
     "workbench/contribution": "workbench/contribution.ts",
     "workbench/launch": "workbench/launch.ts",

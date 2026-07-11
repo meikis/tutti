@@ -91,6 +91,10 @@ func (s *SQLiteStore) ReportSessionState(ctx context.Context, input agentactivit
 	return s.agentStore().ReportSessionState(ctx, input)
 }
 
+func (s *SQLiteStore) ReportActivityState(ctx context.Context, input agentactivitybiz.ActivityStateReport) (agentactivitybiz.ActivityStateReportResult, error) {
+	return s.agentStore().ReportActivityState(ctx, input)
+}
+
 func (s *SQLiteStore) ReportSessionMessages(ctx context.Context, input agentactivitybiz.SessionMessageReport) (agentactivitybiz.MessageReportResult, error) {
 	return s.agentStore().ReportSessionMessages(ctx, input)
 }
@@ -135,24 +139,100 @@ func (s *SQLiteStore) GetTurn(ctx context.Context, workspaceID string, agentSess
 	return s.agentStore().GetTurn(ctx, workspaceID, agentSessionID, turnID)
 }
 
-func (s *SQLiteStore) ListSessionTurns(ctx context.Context, workspaceID string, agentSessionID string) ([]agentactivitybiz.Turn, error) {
-	return s.agentStore().ListSessionTurns(ctx, workspaceID, agentSessionID)
+func (s *SQLiteStore) GetLatestTurn(ctx context.Context, workspaceID string, agentSessionID string) (agentactivitybiz.Turn, bool, error) {
+	return s.agentStore().GetLatestTurn(ctx, workspaceID, agentSessionID)
 }
 
-func (s *SQLiteStore) RecordTurnTransition(ctx context.Context, transition agentactivitybiz.TurnTransition) (agentactivitybiz.Turn, bool, error) {
-	return s.agentStore().RecordTurnTransition(ctx, transition)
+func (s *SQLiteStore) ListLatestTurns(ctx context.Context, workspaceID string, agentSessionIDs []string) (map[string]agentactivitybiz.Turn, error) {
+	return s.agentStore().ListLatestTurns(ctx, workspaceID, agentSessionIDs)
+}
+
+func (s *SQLiteStore) ListLatestTurnInteractions(ctx context.Context, workspaceID string, agentSessionIDs []string) (map[string][]agentactivitybiz.Interaction, error) {
+	return s.agentStore().ListLatestTurnInteractions(ctx, workspaceID, agentSessionIDs)
+}
+
+func (s *SQLiteStore) ListTurnsBySession(ctx context.Context, workspaceID string, turnIDBySessionID map[string]string) (map[string]agentactivitybiz.Turn, error) {
+	return s.agentStore().ListTurnsBySession(ctx, workspaceID, turnIDBySessionID)
+}
+
+func (s *SQLiteStore) ListPendingInteractionsBySession(ctx context.Context, workspaceID string, agentSessionIDs []string) (map[string][]agentactivitybiz.Interaction, error) {
+	return s.agentStore().ListPendingInteractionsBySession(ctx, workspaceID, agentSessionIDs)
+}
+
+func (s *SQLiteStore) ListSessionTurns(ctx context.Context, workspaceID string, agentSessionID string) ([]agentactivitybiz.Turn, error) {
+	return s.agentStore().ListSessionTurns(ctx, workspaceID, agentSessionID)
 }
 
 func (s *SQLiteStore) SettleStaleTurns(ctx context.Context) ([]agentactivitybiz.StaleTurnSettlement, error) {
 	return s.agentStore().SettleStaleTurns(ctx)
 }
 
-func (s *SQLiteStore) UpsertInteraction(ctx context.Context, upsert agentactivitybiz.InteractionUpsert) (agentactivitybiz.Interaction, bool, error) {
-	return s.agentStore().UpsertInteraction(ctx, upsert)
-}
-
 func (s *SQLiteStore) ListSessionInteractions(ctx context.Context, input agentactivitybiz.ListSessionInteractionsInput) ([]agentactivitybiz.Interaction, error) {
 	return s.agentStore().ListSessionInteractions(ctx, input)
+}
+
+func (s *SQLiteStore) PrepareRuntimeOperation(ctx context.Context, input agentactivitybiz.RuntimeOperationPrepare) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return s.agentStore().PrepareRuntimeOperation(ctx, input)
+}
+
+func (s *SQLiteStore) PrepareSubmitClaim(ctx context.Context, input agentactivitybiz.SubmitClaimPrepare) (agentactivitybiz.SubmitClaim, bool, error) {
+	return s.agentStore().PrepareSubmitClaim(ctx, input)
+}
+
+func (s *SQLiteStore) AcceptSubmitClaim(ctx context.Context, workspaceID, agentSessionID, clientSubmitID, turnID string, nowUnixMS int64) (agentactivitybiz.SubmitClaim, bool, error) {
+	return s.agentStore().AcceptSubmitClaim(ctx, workspaceID, agentSessionID, clientSubmitID, turnID, nowUnixMS)
+}
+
+func (s *SQLiteStore) DeleteSubmitClaim(ctx context.Context, workspaceID, agentSessionID, clientSubmitID string) (bool, error) {
+	return s.agentStore().DeleteSubmitClaim(ctx, workspaceID, agentSessionID, clientSubmitID)
+}
+
+func (s *SQLiteStore) GetRuntimeOperation(ctx context.Context, workspaceID string, operationID string) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return s.agentStore().GetRuntimeOperation(ctx, workspaceID, operationID)
+}
+
+func (s *SQLiteStore) ListClaimableRuntimeOperations(ctx context.Context, input agentactivitybiz.ListClaimableRuntimeOperationsInput) ([]agentactivitybiz.RuntimeOperation, error) {
+	return s.agentStore().ListClaimableRuntimeOperations(ctx, input)
+}
+
+func (s *SQLiteStore) ClaimRuntimeOperationLease(ctx context.Context, input agentactivitybiz.ClaimRuntimeOperationLeaseInput) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return s.agentStore().ClaimRuntimeOperationLease(ctx, input)
+}
+
+func (s *SQLiteStore) ReleaseOrFailRuntimeOperation(ctx context.Context, input agentactivitybiz.ReleaseOrFailRuntimeOperationInput) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return s.agentStore().ReleaseOrFailRuntimeOperation(ctx, input)
+}
+
+func (s *SQLiteStore) CheckpointRuntimeOperation(ctx context.Context, input agentactivitybiz.CheckpointRuntimeOperationInput) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return s.agentStore().CheckpointRuntimeOperation(ctx, input)
+}
+
+func (s *SQLiteStore) RequeueLeasedRuntimeOperationsOnStartup(ctx context.Context, nowUnixMS int64) (int64, error) {
+	return s.agentStore().RequeueLeasedRuntimeOperationsOnStartup(ctx, nowUnixMS)
+}
+
+func (s *SQLiteStore) CompleteInteractiveRuntimeOperation(ctx context.Context, input agentactivitybiz.CompleteInteractiveRuntimeOperationInput) (agentactivitybiz.RuntimeOperationCompletion, bool, error) {
+	return s.agentStore().CompleteInteractiveRuntimeOperation(ctx, input)
+}
+
+func (s *SQLiteStore) CompleteCancelRuntimeOperation(ctx context.Context, input agentactivitybiz.CompleteCancelRuntimeOperationInput) (agentactivitybiz.RuntimeOperationCompletion, bool, error) {
+	return s.agentStore().CompleteCancelRuntimeOperation(ctx, input)
+}
+
+func (s *SQLiteStore) CompletePlanDecisionRuntimeOperation(ctx context.Context, input agentactivitybiz.CompletePlanDecisionRuntimeOperationInput) (agentactivitybiz.RuntimeOperationCompletion, bool, error) {
+	return s.agentStore().CompletePlanDecisionRuntimeOperation(ctx, input)
+}
+
+func (s *SQLiteStore) FindTurnByClientSubmitID(ctx context.Context, workspaceID string, agentSessionID string, clientSubmitID string) (string, bool, error) {
+	return s.agentStore().FindTurnByClientSubmitID(ctx, workspaceID, agentSessionID, clientSubmitID)
+}
+
+func (s *SQLiteStore) ListPendingRuntimeOperationEvents(ctx context.Context, workspaceID string, limit int) ([]agentactivitybiz.RuntimeOperationEvent, error) {
+	return s.agentStore().ListPendingRuntimeOperationEvents(ctx, workspaceID, limit)
+}
+
+func (s *SQLiteStore) MarkRuntimeOperationEventPublished(ctx context.Context, workspaceID string, eventID int64, publishedAtUnixMS int64) (bool, error) {
+	return s.agentStore().MarkRuntimeOperationEventPublished(ctx, workspaceID, eventID, publishedAtUnixMS)
 }
 
 func (s *SQLiteStore) ListAgentTargets(ctx context.Context) ([]agenttargetbiz.Target, error) {

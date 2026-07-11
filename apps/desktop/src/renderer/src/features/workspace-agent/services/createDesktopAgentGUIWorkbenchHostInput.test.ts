@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentHostInputApi } from "@tutti-os/agent-gui";
-import type { AgentActivitySnapshot } from "@tutti-os/agent-activity-core";
+import {
+  normalizeAgentActivitySession,
+  type AgentActivitySnapshot
+} from "@tutti-os/agent-activity-core";
 import type { TuttidClient } from "@tutti-os/client-tuttid-ts";
 import type { RichTextTriggerProvider } from "@tutti-os/ui-rich-text/types";
 import type {
@@ -191,7 +194,7 @@ test("desktop agent GUI workbench host input creates the default agent host api"
 
   assert.equal(hostInput.agentHostApi.meta?.workspaceId, workspaceId);
   assert.equal(hostInput.agentHostApi.agentSessions, undefined);
-  assert.equal(hostInput.agentHostApi.workspaceAgents, undefined);
+  assert.equal("workspaceAgents" in hostInput.agentHostApi, false);
   assert.deepEqual(
     await hostInput.workspaceFileReferenceAdapter.listDirectory?.({
       workspaceId
@@ -427,6 +430,7 @@ test("desktop agent GUI workbench host input tracks runtime prompt sends", async
   });
 
   await hostInput.agentActivityRuntime.sendInput({
+    clientSubmitId: "submit-runtime-send-1",
     workspaceId,
     agentSessionId: "session-runtime-send-1",
     content: [
@@ -535,77 +539,6 @@ test("desktop agent GUI workbench host input tracks agent provider chat ready", 
   ]);
 });
 
-test("desktop agent GUI workbench host input tracks runtime message stops", async () => {
-  const reporterCalls: ReporterEventInput[][] = [];
-  const hostInput = createDesktopAgentGUIWorkbenchHostInput({
-    agentHostApi: {
-      meta: { workspaceId }
-    } as unknown as AgentHostInputApi,
-    hostFilesApi: createHostFilesApi(),
-    tuttidClient: createTuttidClient(),
-    platformApi: createPlatformApi(),
-    reporterNow: () => 1749124800000,
-    reporterService: createLegacyAgentReporterService(reporterCalls),
-    richTextAtService: createRichTextAtService(),
-    runtimeApi: createRuntimeApi(),
-    workspaceAgentActivityService: createWorkspaceAgentActivityService([]),
-    workspaceId
-  });
-
-  await hostInput.agentActivityRuntime.cancelSession({
-    workspaceId,
-    agentSessionId: "session-runtime-stop-1"
-  });
-
-  assert.deepEqual(reporterCalls, [
-    [
-      {
-        clientTS: 1749124800000,
-        name: "agent.message_stopped",
-        params: {
-          agent_session_id: "session-runtime-stop-1",
-          provider: "codex"
-        }
-      }
-    ]
-  ]);
-});
-
-test("desktop agent GUI workbench host input skips stopped tracking for no-op cancel", async () => {
-  const reporterCalls: ReporterEventInput[][] = [];
-  const hostInput = createDesktopAgentGUIWorkbenchHostInput({
-    agentHostApi: {
-      meta: { workspaceId }
-    } as unknown as AgentHostInputApi,
-    hostFilesApi: createHostFilesApi(),
-    tuttidClient: createTuttidClient(),
-    platformApi: createPlatformApi(),
-    reporterNow: () => 1749124800000,
-    reporterService: createLegacyAgentReporterService(reporterCalls),
-    richTextAtService: createRichTextAtService(),
-    runtimeApi: createRuntimeApi(),
-    workspaceAgentActivityService: createWorkspaceAgentActivityService([], {
-      cancelSessionResult: {
-        canceled: false,
-        reason: "no_active_turn",
-        session: {
-          ...emptySession(),
-          agentSessionId: "session-runtime-stop-1",
-          status: "ready"
-        }
-      }
-    }),
-    workspaceId
-  });
-
-  await hostInput.agentActivityRuntime.cancelSession({
-    workspaceId,
-    agentSessionId: "session-runtime-stop-1"
-  });
-
-  assert.deepEqual(reporterCalls, []);
-});
-
 test("desktop agent GUI workbench host input tracks runtime new session activation", async () => {
   const reporterCalls: ReporterEventInput[][] = [];
   const hostInput = createDesktopAgentGUIWorkbenchHostInput({
@@ -627,6 +560,7 @@ test("desktop agent GUI workbench host input tracks runtime new session activati
     workspaceId,
     agentSessionId: "session-runtime-start-1",
     agentTargetId: "local:codex",
+    clientSubmitId: "submit-runtime-start-1",
     cwd: "/workspace",
     initialContent: [{ type: "text", text: "Track initial prompt" }],
     mode: "new",
@@ -797,11 +731,13 @@ test("desktop agent GUI workbench host input tracks runtime session settings cha
     {
       details: {
         agentSessionId: "session-runtime-settings-1",
-        changedFields: "model,permissionModeId,reasoningEffort",
+        changedFields: "model,permissionModeId,planMode,reasoningEffort",
         modelFrom: "gpt-5",
         modelTo: "custom:local-model",
         permissionModeIdFrom: "auto",
         permissionModeIdTo: "full-access",
+        planModeFrom: false,
+        planModeTo: null,
         provider: "codex",
         reasoningEffortFrom: "medium",
         reasoningEffortTo: "high",
@@ -921,40 +857,6 @@ test("desktop agent GUI workbench host input tracks draft composer setting chang
   ]);
 });
 
-test("desktop agent GUI workbench host input wires runtime control-state reads through the workspace activity service", async () => {
-  const calls: string[] = [];
-  const workspaceAgentActivityService =
-    createWorkspaceAgentActivityService(calls);
-
-  const hostInput = createDesktopAgentGUIWorkbenchHostInput({
-    agentHostApi: {
-      meta: { workspaceId }
-    } as unknown as AgentHostInputApi,
-    hostFilesApi: createHostFilesApi(),
-    tuttidClient: createTuttidClient(),
-    platformApi: createPlatformApi(),
-    richTextAtService: createRichTextAtService(),
-    runtimeApi: createRuntimeApi(),
-    workspaceAgentActivityService,
-    workspaceId
-  });
-
-  assert.deepEqual(
-    await hostInput.agentActivityRuntime.getSessionControlState({
-      workspaceId,
-      agentSessionId: "session-1"
-    }),
-    {
-      workspaceId,
-      agentSessionId: "session-1",
-      provider: "codex",
-      status: "ready",
-      updatedAtUnixMs: 1
-    }
-  );
-  assert.deepEqual(calls, ["getSessionControlState:workspace-1:session-1"]);
-});
-
 test("desktop agent GUI workbench host input wires runtime composer options through the workspace activity service", async () => {
   const calls: string[] = [];
   const workspaceAgentActivityService =
@@ -1006,60 +908,21 @@ test("desktop agent GUI workbench host input wires runtime activation through th
     workspaceId
   });
 
-  assert.deepEqual(
-    await hostInput.agentActivityRuntime.activateSession({
-      workspaceId,
-      agentSessionId: "session-1",
-      mode: "existing"
-    }),
-    {
-      activation: { mode: "existing", status: "already_attached" },
-      session: {
-        agentSessionId: "session-1",
-        createdAtUnixMs: 1,
-        cwd: "/workspace",
-        provider: "codex",
-        providerSessionId: "session-1",
-        resumable: false,
-        status: "ready",
-        updatedAtUnixMs: 1,
-        workspaceId
-      }
-    }
-  );
+  const result = await hostInput.agentActivityRuntime.activateSession({
+    workspaceId,
+    agentSessionId: "session-1",
+    mode: "existing"
+  });
+  assert.deepEqual(result.activation, {
+    mode: "existing",
+    status: "already_attached"
+  });
+  assert.equal(result.session.agentSessionId, "session-1");
+  assert.equal(result.session.provider, "codex");
+  assert.equal(result.session.activeTurnId, null);
+  assert.deepEqual(result.session.pendingInteractions, []);
+  assert.equal("status" in result.session, false);
   assert.deepEqual(calls, ["activateSession:workspace-1:session-1:existing"]);
-});
-
-test("desktop agent GUI workbench host input forwards OpenClaw warmup through the runtime", async () => {
-  const warmupOpenclawGateway = async () => ({
-    accepted: true,
-    ready: true
-  });
-  const hostInput = createDesktopAgentGUIWorkbenchHostInput({
-    agentHostApi: {
-      meta: { workspaceId },
-      runtime: {
-        warmupOpenclawGateway
-      }
-    } as unknown as AgentHostInputApi,
-    hostFilesApi: createHostFilesApi(),
-    tuttidClient: createTuttidClient(),
-    platformApi: createPlatformApi(),
-    richTextAtService: createRichTextAtService(),
-    runtimeApi: createRuntimeApi(),
-    workspaceAgentActivityService: createWorkspaceAgentActivityService([]),
-    workspaceId
-  });
-
-  assert.deepEqual(
-    await hostInput.agentActivityRuntime.warmupOpenclawGateway?.({
-      workspaceId
-    }),
-    {
-      accepted: true,
-      ready: true
-    }
-  );
 });
 
 function createRichTextTriggerProvider(id: string): RichTextTriggerProvider {
@@ -1436,9 +1299,6 @@ function createWorkspaceUserProjectService(
 function createWorkspaceAgentActivityService(
   calls: string[],
   options: {
-    cancelSessionResult?: Awaited<
-      ReturnType<IWorkspaceAgentActivityService["cancelSession"]>
-    >;
     controlStateSettings?: {
       model?: string | null;
       permissionModeId?: string | null;
@@ -1466,37 +1326,17 @@ function createWorkspaceAgentActivityService(
           mode: input.mode,
           status: input.mode === "existing" ? "already_attached" : "attached"
         },
-        session: {
+        session: normalizeAgentActivitySession({
           agentSessionId: input.agentSessionId,
           createdAtUnixMs: 1,
           workspaceId: input.workspaceId,
           provider: "codex",
           providerSessionId: input.agentSessionId,
-          status: "ready",
           resumable: false,
           cwd: "/workspace",
+          title: "Codex",
           updatedAtUnixMs: 1
-        }
-      };
-    },
-    async cancelSession(input) {
-      if (options.cancelSessionResult) {
-        return {
-          ...options.cancelSessionResult,
-          session: {
-            ...options.cancelSessionResult.session,
-            agentSessionId: input.agentSessionId
-          }
-        };
-      }
-      return {
-        canceled: true,
-        reason: "active_turn_canceled",
-        session: {
-          ...emptySession(),
-          agentSessionId: input.agentSessionId,
-          status: "canceled"
-        }
+        })
       };
     },
     async goalControl(input) {
@@ -1541,25 +1381,17 @@ function createWorkspaceAgentActivityService(
       );
       return {
         agentSessionId: input.agentSessionId,
-        settings: input.settings
+        settings: input.settings,
+        session: { ...emptySession(), agentSessionId: input.agentSessionId }
       };
     },
     async getSession(_workspaceId, agentSessionId) {
-      return { ...emptySession(), agentSessionId };
-    },
-    async getSessionControlState(input) {
-      calls.push(
-        `getSessionControlState:${input.workspaceId}:${input.agentSessionId}`
-      );
       return {
-        workspaceId: input.workspaceId,
-        agentSessionId: input.agentSessionId,
-        provider: "codex",
+        ...emptySession(),
+        agentSessionId,
         ...(options.controlStateSettings
           ? { settings: options.controlStateSettings }
-          : {}),
-        status: "ready",
-        updatedAtUnixMs: 1
+          : {})
       };
     },
     getSnapshot(inputWorkspaceId) {
@@ -1614,17 +1446,20 @@ function createWorkspaceAgentActivityService(
     ensureSessionSynchronized() {
       return () => {};
     },
-    retainSessionEvents() {
-      return () => {};
-    },
     async sendInput(input) {
       return {
         session: {
           ...emptySession(),
-          agentSessionId: input.agentSessionId,
-          status: "working"
+          agentSessionId: input.agentSessionId
         },
         turnId: "turn-1",
+        turn: {
+          agentSessionId: input.agentSessionId,
+          phase: "submitted",
+          startedAtUnixMs: 1,
+          turnId: "turn-1",
+          updatedAtUnixMs: 1
+        },
         turnLifecycle: { activeTurnId: "turn-1", phase: "submitted" },
         submitAvailability: { state: "blocked", reason: "active_turn" }
       };
@@ -1644,9 +1479,11 @@ function createWorkspaceAgentActivityService(
       };
     },
     async submitInteractive() {
-      return {};
+      return { session: emptySession() };
     },
-    async submitPlanDecision() {},
+    async submitPlanDecision() {
+      return {} as never;
+    },
     subscribe() {
       return () => {};
     },
@@ -1663,14 +1500,13 @@ function createWorkspaceAgentActivityService(
 }
 
 function emptySession(): AgentActivitySnapshot["sessions"][number] {
-  return {
+  return normalizeAgentActivitySession({
     workspaceId,
     agentSessionId: "session-1",
     provider: "codex",
     cwd: "/workspace",
     title: "Session",
-    status: "working",
     createdAtUnixMs: 1,
     updatedAtUnixMs: 1
-  };
+  });
 }

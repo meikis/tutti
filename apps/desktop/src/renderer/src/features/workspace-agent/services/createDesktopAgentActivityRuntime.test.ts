@@ -275,9 +275,6 @@ function createWorkspaceAgentActivityService(): IWorkspaceAgentActivityService {
     activateSession: async () => {
       throw new Error("not implemented");
     },
-    cancelSession: async () => {
-      throw new Error("not implemented");
-    },
     goalControl: async () => {
       throw new Error("not implemented");
     },
@@ -297,9 +294,6 @@ function createWorkspaceAgentActivityService(): IWorkspaceAgentActivityService {
       throw new Error("not implemented");
     },
     updateSessionSettings: async () => {
-      throw new Error("not implemented");
-    },
-    getSessionControlState: async () => {
       throw new Error("not implemented");
     },
     getSnapshot: () => {
@@ -349,7 +343,6 @@ function createWorkspaceAgentActivityService(): IWorkspaceAgentActivityService {
       throw new Error("not implemented");
     },
     ensureSessionSynchronized: () => () => {},
-    retainSessionEvents: () => () => {},
     sendInput: async () => {
       throw new Error("not implemented");
     },

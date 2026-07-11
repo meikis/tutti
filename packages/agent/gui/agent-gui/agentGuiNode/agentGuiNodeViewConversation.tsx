@@ -9,8 +9,8 @@ export interface ConversationSection {
   id: string;
   kind: "pinned" | "project" | "conversations";
   label: string;
-  project: AgentGUINodeViewModel["conversations"][number]["project"];
-  items: AgentGUINodeViewModel["conversations"];
+  project: AgentGUINodeViewModel["rail"]["conversations"][number]["project"];
+  items: AgentGUINodeViewModel["rail"]["conversations"];
 }
 
 export function ConversationMeta({
@@ -18,7 +18,7 @@ export function ConversationMeta({
   nowMs,
   labels
 }: {
-  item: AgentGUINodeViewModel["conversations"][number];
+  item: AgentGUINodeViewModel["rail"]["conversations"][number];
   nowMs: number;
   labels: Pick<
     AgentGUIViewLabels,
@@ -102,9 +102,9 @@ export function ConversationMeta({
 }
 
 export function groupConversations(
-  conversations: AgentGUINodeViewModel["conversations"],
+  conversations: AgentGUINodeViewModel["rail"]["conversations"],
   labels: Pick<AgentGUIViewLabels, "sectionPinned" | "sectionConversations">,
-  userProjects: AgentGUINodeViewModel["userProjects"] = [],
+  userProjects: AgentGUINodeViewModel["rail"]["userProjects"] = [],
   options: { includeEmptyConversations?: boolean } = {}
 ): ConversationSection[] {
   const groups: ConversationSection[] = [];
@@ -262,7 +262,7 @@ function normalizeConversationProjectPathCached(
 }
 
 function conversationMetaKind(
-  conversation: AgentGUINodeViewModel["conversations"][number]
+  conversation: AgentGUINodeViewModel["rail"]["conversations"][number]
 ): "loading" | "waiting" | "failed" | "unread-complete" | "time" {
   if (conversation.status === "working") {
     return "loading";

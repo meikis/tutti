@@ -210,8 +210,7 @@ export function StandaloneAgentWindow({
     resolveAgentGuiSessionProviderIconUrl(headerProvider);
   const headerConversationIconUrl =
     headerAgentTarget?.iconUrl ?? headerConversationIconFallbackUrl;
-  const headerConversationTitle =
-    nodeState.lastActiveConversationTitle?.trim() || null;
+  const headerConversationTitle = null;
   const headerConversationRailWidthPx =
     typeof nodeState.conversationRailWidthPx === "number" &&
     Number.isFinite(nodeState.conversationRailWidthPx)

@@ -1,11 +1,11 @@
-import type { AgentActivitySession } from "../types.ts";
+import type { AgentActivitySessionInput } from "../sessionNormalization.ts";
 import type {
   PromptQueueAvailability,
   PromptQueueInFlightCommand
 } from "./promptQueue.types.ts";
 
 export function promptQueueAvailabilityFromSession(
-  session: AgentActivitySession
+  session: AgentActivitySessionInput
 ): PromptQueueAvailability {
   const activeTurnId = session.activeTurnId?.trim() || null;
   const activeTurn =
@@ -133,7 +133,7 @@ function observedTurnAfterQueueSend(
   );
 }
 
-function activityVersion(session: AgentActivitySession): number | null {
+function activityVersion(session: AgentActivitySessionInput): number | null {
   const versions = [
     session.updatedAtUnixMs ??
       session.lastEventUnixMs ??

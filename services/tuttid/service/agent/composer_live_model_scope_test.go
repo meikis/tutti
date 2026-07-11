@@ -17,7 +17,7 @@ type startupWaitRuntime struct {
 	*fakeRuntime
 	firstSessionsCall chan struct{}
 	sessionsCalls     atomic.Int32
-	afterWaitSessions []RuntimeSession
+	afterWaitSessions []ProviderRuntimeSession
 }
 
 type closeSignalRuntime struct {
@@ -30,12 +30,12 @@ func (r *closeSignalRuntime) Close(_ context.Context, input RuntimeCloseInput) e
 	return nil
 }
 
-func (r *startupWaitRuntime) Sessions(string) []RuntimeSession {
+func (r *startupWaitRuntime) Sessions(string) []ProviderRuntimeSession {
 	if r.sessionsCalls.Add(1) == 1 {
 		close(r.firstSessionsCall)
 		return nil
 	}
-	return append([]RuntimeSession(nil), r.afterWaitSessions...)
+	return append([]ProviderRuntimeSession(nil), r.afterWaitSessions...)
 }
 
 func TestClaudeLiveModelCacheKeyIgnoresCallerCwd(t *testing.T) {
@@ -80,7 +80,7 @@ func TestClaudeLiveModelScopeIsSharedAcrossWorkspacesAndSeparatedByTarget(t *tes
 func TestClaudeLiveModelDiscoveryUsesDaemonOwnedCwd(t *testing.T) {
 	stateDir := t.TempDir()
 	t.Setenv("TUTTI_STATE_DIR", stateDir)
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 
 	fromRoot, err := service.resolveLiveModelDiscoveryCwd(context.Background(), agentprovider.ClaudeCode, "/")
 	if err != nil {
@@ -109,7 +109,7 @@ func TestClaudeLiveModelDiscoveryRechecksSessionsAfterStartupWait(t *testing.T) 
 		fakeRuntime:       newFakeRuntime(),
 		firstSessionsCall: make(chan struct{}),
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	releaseStartup, err := service.awaitClaudeStartupSlot(context.Background(), agentprovider.ClaudeCode)
 	if err != nil {
 		t.Fatalf("acquire startup slot: %v", err)
@@ -131,7 +131,7 @@ func TestClaudeLiveModelDiscoveryRechecksSessionsAfterStartupWait(t *testing.T) 
 	}()
 
 	<-runtime.firstSessionsCall
-	runtime.afterWaitSessions = []RuntimeSession{{
+	runtime.afterWaitSessions = []ProviderRuntimeSession{{
 		ID:          "existing-discovery",
 		Provider:    agentprovider.ClaudeCode,
 		WorkspaceID: "workspace-1",
@@ -155,10 +155,10 @@ func TestClaudeLiveModelDiscoveryRechecksSessionsAfterStartupWait(t *testing.T) 
 func TestClaudeAuthInvalidationKeepsRetainedDiscoverySessionAlive(t *testing.T) {
 	closed := make(chan RuntimeCloseInput, 1)
 	runtime := &closeSignalRuntime{fakeRuntime: newFakeRuntime(), closed: closed}
-	runtime.sessions["workspace-1:discovery-1"] = RuntimeSession{
+	runtime.sessions["workspace-1:discovery-1"] = ProviderRuntimeSession{
 		ID: "discovery-1", WorkspaceID: "workspace-1", Provider: agentprovider.ClaudeCode,
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	scope := newComposerLiveModelScope(agentprovider.ClaudeCode, "workspace-1", "/repo", "local-claude")
 	service.trackLiveModelDiscoverySession(scope, "discovery-1")
 	service.markLiveModelDiscoveryAttempted(scope.key())
@@ -179,7 +179,7 @@ func TestClaudeDiscoveryStartFailureRemainsRetryable(t *testing.T) {
 	t.Setenv("TUTTI_STATE_DIR", t.TempDir())
 	runtime := newFakeRuntime()
 	runtime.startErr = errors.New("transient startup failure")
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	scope := newComposerLiveModelScope(agentprovider.ClaudeCode, "workspace-1", "/repo", "")
 
 	if _, err := service.discoverLiveComposerModelsUncachedForScope(

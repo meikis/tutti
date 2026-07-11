@@ -117,7 +117,7 @@ func (p *ActivityProjection) ReportSessionState(
 	}
 	input.SessionOrigin = sessionOrigin
 	input.Source = source
-	result, err := p.repo.ReportSessionState(ctx, agentactivitybiz.SessionStateReport{
+	stateReport := agentactivitybiz.SessionStateReport{
 		WorkspaceID:    strings.TrimSpace(input.WorkspaceID),
 		AgentSessionID: strings.TrimSpace(input.AgentSessionID),
 		Origin:         strings.TrimSpace(input.SessionOrigin),
@@ -138,10 +138,21 @@ func (p *ActivityProjection) ReportSessionState(
 		OccurredAtUnixMS:  input.State.OccurredAtUnixMS,
 		StartedAtUnixMS:   input.State.StartedAtUnixMS,
 		EndedAtUnixMS:     input.State.EndedAtUnixMS,
-	})
+	}
+	activityReport := agentactivitybiz.ActivityStateReport{Session: stateReport}
+	if transition, ok := turnTransitionFromStateInput(input); ok {
+		activityReport.Turn = &transition
+	}
+	interaction, err := pendingInteractionFromStateInput(input, activityReport.Turn)
 	if err != nil {
 		return agentsessionstore.ReportSessionStateReply{}, err
 	}
+	activityReport.Interaction = interaction
+	activityResult, err := p.repo.ReportActivityState(ctx, activityReport)
+	if err != nil {
+		return agentsessionstore.ReportSessionStateReply{}, err
+	}
+	result := activityResult.State
 	reply := agentsessionstore.ReportSessionStateReply{
 		Accepted:          result.Accepted,
 		StateApplied:      result.StateApplied,
@@ -149,31 +160,19 @@ func (p *ActivityProjection) ReportSessionState(
 		RequestBodyBytes:  result.RequestBodyBytes,
 	}
 	if result.Accepted {
-		// Protocol v2: turn transitions and interaction prompts are
-		// persisted synchronously alongside the legacy session patch.
-		p.persistTurnState(ctx, input)
-		if result.StateApplied {
-			p.publishActivityUpdated(
-				ctx,
+		p.publishPersistedTurnState(ctx, input, activityResult)
+		p.publishActivityUpdated(
+			ctx,
+			input.WorkspaceID,
+			input.AgentSessionID,
+			"session_reconcile_required",
+			activitySessionUpdateEventPayload(
 				input.WorkspaceID,
 				input.AgentSessionID,
-				"state_patch",
-				activityStatePatchEventPayload(input, result.LastEventUnixMS),
-			)
-		} else {
-			p.publishActivityUpdated(
-				ctx,
-				input.WorkspaceID,
-				input.AgentSessionID,
-				"session_update",
-				activitySessionUpdateEventPayload(
-					input.WorkspaceID,
-					input.AgentSessionID,
-					result.LastEventUnixMS,
-					firstNonEmptyString(input.State.AgentTargetID, input.Source.AgentTargetID),
-				),
-			)
-		}
+				result.LastEventUnixMS,
+				firstNonEmptyString(input.State.AgentTargetID, input.Source.AgentTargetID),
+			),
+		)
 		if result.StateApplied {
 			p.reportFailedRuntimeNodeResult(ctx, input)
 		}
@@ -217,7 +216,7 @@ func activitySessionUpdateEventPayload(workspaceID string, agentSessionID string
 	}
 	payload := map[string]any{
 		"agentSessionId":  strings.TrimSpace(agentSessionID),
-		"eventType":       "session_update",
+		"eventType":       "session_reconcile_required",
 		"lastEventUnixMs": lastEventUnixMS,
 		"workspaceId":     strings.TrimSpace(workspaceID),
 	}
@@ -435,7 +434,7 @@ func (p *ActivityProjection) UpdateSessionPinned(ctx context.Context, workspaceI
 		return PersistedSession{}, false, nil
 	}
 	persisted := persistedSessionFromActivity(session)
-	p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "session_update", activitySessionUpdateEventPayload(workspaceID, agentSessionID, persisted.UpdatedAtUnixMS))
+	p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "session_reconcile_required", activitySessionUpdateEventPayload(workspaceID, agentSessionID, persisted.UpdatedAtUnixMS))
 	return persisted, true, nil
 }
 
@@ -453,68 +452,8 @@ func (p *ActivityProjection) UpdateSessionTitle(ctx context.Context, workspaceID
 		return PersistedSession{}, false, nil
 	}
 	persisted := persistedSessionFromActivity(session)
-	p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "session_update", activitySessionUpdateEventPayload(workspaceID, agentSessionID, persisted.UpdatedAtUnixMS))
+	p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "session_reconcile_required", activitySessionUpdateEventPayload(workspaceID, agentSessionID, persisted.UpdatedAtUnixMS))
 	return persisted, true, nil
-}
-
-func (p *ActivityProjection) ReconcileStaleTurnOnResume(ctx context.Context, session PersistedSession) error {
-	if p == nil || p.repo == nil {
-		return nil
-	}
-	workspaceID := strings.TrimSpace(session.WorkspaceID)
-	agentSessionID := strings.TrimSpace(session.ID)
-	if workspaceID == "" || agentSessionID == "" {
-		return nil
-	}
-	now := time.Now().UnixMilli()
-	page, ok := p.ListSessionMessages(agentactivitybiz.ListSessionMessagesInput{
-		WorkspaceID:    workspaceID,
-		AgentSessionID: agentSessionID,
-		Limit:          100,
-		Order:          agentactivitybiz.MessageOrderDesc,
-	})
-	if ok {
-		updates := staleResumeMessageUpdates(page.Messages, now)
-		if len(updates) > 0 {
-			if _, err := p.ReportSessionMessages(ctx, agentsessionstore.ReportSessionMessagesInput{
-				WorkspaceID:    workspaceID,
-				AgentSessionID: agentSessionID,
-				SessionOrigin:  agentsessionstore.WorkspaceAgentSessionOriginRuntime,
-				Updates:        updates,
-			}); err != nil {
-				return err
-			}
-		}
-	}
-	_, err := p.ReportSessionState(ctx, agentsessionstore.ReportSessionStateInput{
-		WorkspaceID:    workspaceID,
-		AgentSessionID: agentSessionID,
-		SessionOrigin:  agentsessionstore.WorkspaceAgentSessionOriginRuntime,
-		State: agentsessionstore.WorkspaceAgentSessionStateUpdate{
-			Provider:          strings.TrimSpace(session.Provider),
-			ProviderSessionID: strings.TrimSpace(session.ProviderSessionID),
-			CWD:               strings.TrimSpace(session.Cwd),
-			Title:             strings.TrimSpace(session.Title),
-			LifecycleStatus:   "active",
-			CurrentPhase:      "idle",
-			// Repair the persisted lifecycle copy too: the runtime confirmed
-			// no live turn exists, and lifecycle-first consumers (ADR 0008)
-			// would otherwise keep reading a stale live phase after resume.
-			TurnLifecycle: &agentsessionstore.WorkspaceAgentTurnLifecycle{
-				ActiveTurnID: nil,
-				Phase:        "settled",
-				Outcome:      staleResumeLifecycleOutcome(),
-			},
-			SubmitAvailability: &agentsessionstore.WorkspaceAgentSubmitAvailability{State: "available"},
-			OccurredAtUnixMS:   now,
-		},
-	})
-	return err
-}
-
-func staleResumeLifecycleOutcome() *string {
-	outcome := "canceled"
-	return &outcome
 }
 
 func (p *ActivityProjection) ListSessionMessages(
@@ -577,95 +516,6 @@ func (p *ActivityProjection) ListWorkspaceGeneratedFiles(
 		WorkspaceID: strings.TrimSpace(list.WorkspaceID),
 		Files:       files,
 	}, true
-}
-
-func staleResumeMessageUpdates(messages []SessionMessage, occurredAtUnixMS int64) []agentsessionstore.WorkspaceAgentSessionMessageUpdate {
-	turnID := latestStaleResumeTurnID(messages)
-	if turnID == "" {
-		return nil
-	}
-	updates := make([]agentsessionstore.WorkspaceAgentSessionMessageUpdate, 0)
-	for _, message := range messages {
-		if strings.TrimSpace(message.TurnID) != turnID {
-			continue
-		}
-		if !isStaleResumeOpenToolCall(message) {
-			continue
-		}
-		payload := staleResumeFailedPayload(message.Payload)
-		updates = append(updates, agentsessionstore.WorkspaceAgentSessionMessageUpdate{
-			MessageID:         strings.TrimSpace(message.MessageID),
-			TurnID:            strings.TrimSpace(message.TurnID),
-			Role:              strings.TrimSpace(message.Role),
-			Kind:              strings.TrimSpace(message.Kind),
-			Status:            "failed",
-			Payload:           payload,
-			OccurredAtUnixMS:  occurredAtUnixMS,
-			CompletedAtUnixMS: occurredAtUnixMS,
-		})
-	}
-	return updates
-}
-
-func latestStaleResumeTurnID(messages []SessionMessage) string {
-	for _, message := range messages {
-		if !isStaleResumeOpenMessage(message) {
-			continue
-		}
-		if turnID := strings.TrimSpace(message.TurnID); turnID != "" {
-			return turnID
-		}
-	}
-	for _, message := range messages {
-		if turnID := strings.TrimSpace(message.TurnID); turnID != "" {
-			return turnID
-		}
-	}
-	return ""
-}
-
-func isStaleResumeOpenToolCall(message SessionMessage) bool {
-	return strings.TrimSpace(message.Kind) == "tool_call" && isStaleResumeOpenMessage(message)
-}
-
-func isStaleResumeOpenMessage(message SessionMessage) bool {
-	status := strings.TrimSpace(message.Status)
-	if status == "" {
-		status = payloadString(message.Payload, "status")
-	}
-	switch status {
-	case "completed", "failed", "canceled", "errored":
-		return false
-	default:
-		return true
-	}
-}
-
-func staleResumeFailedPayload(payload map[string]any) map[string]any {
-	next := clonePayload(payload)
-	if next == nil {
-		next = map[string]any{}
-	}
-	next["status"] = "failed"
-	errorPayload := map[string]any{
-		"message": "request interrupted by application restart",
-	}
-	if requestID := requestIDFromMessagePayload(next); requestID != "" {
-		errorPayload["requestId"] = requestID
-	}
-	next["error"] = errorPayload
-	return next
-}
-
-func requestIDFromMessagePayload(payload map[string]any) string {
-	if requestID := payloadString(payload, "requestId"); requestID != "" {
-		return requestID
-	}
-	input, ok := payload["input"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	return payloadString(input, "requestId")
 }
 
 func (p *ActivityProjection) publishActivityUpdated(
@@ -752,7 +602,6 @@ func activityMessagesEventPayload(messages []agentactivitybiz.Message) []map[str
 		}
 		item := map[string]any{
 			"agentSessionId":   strings.TrimSpace(message.AgentSessionID),
-			"id":               message.ID,
 			"kind":             strings.TrimSpace(message.Kind),
 			"messageId":        strings.TrimSpace(message.MessageID),
 			"occurredAtUnixMs": message.OccurredAtUnixMS,
@@ -779,22 +628,4 @@ func activityMessagesEventPayload(messages []agentactivitybiz.Message) []map[str
 		out = append(out, item)
 	}
 	return out
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func firstNonZeroInt64(values ...int64) int64 {
-	for _, value := range values {
-		if value > 0 {
-			return value
-		}
-	}
-	return 0
 }

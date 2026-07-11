@@ -155,7 +155,7 @@ test("routes provider branches of identity-exempt files to the identity bucket",
   assert.equal(regular.identityProviderBranches, 0);
 });
 
-test("aggregates per-file metrics and applies the 800-line threshold", () => {
+test("aggregates hook totals and applies the per-file 800-line threshold", () => {
   const longFile = measureFileMetrics(
     "packages/agent/gui/long.ts",
     `${"line\n".repeat(801)}`,
@@ -171,7 +171,8 @@ test("aggregates per-file metrics and applies the 800-line threshold", () => {
     "packages/agent/gui/short.ts": shortFile
   });
   assert.deepEqual(metrics.fileLines, { "packages/agent/gui/long.ts": 801 });
-  assert.deepEqual(metrics.effectCount, { "packages/agent/gui/short.ts": 1 });
+  assert.equal(metrics.effectCount, 1);
+  assert.equal(metrics.memoCount, 0);
 });
 
 test("flags increases as regressions and decreases as unlocked improvements", () => {

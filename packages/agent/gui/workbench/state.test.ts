@@ -61,21 +61,13 @@ describe("agent gui workbench state", () => {
         conversationRailCollapsed: true,
         conversationRailWidthPx: 360.4,
         agentTargetId: "shared-agent:agent-1",
-        lastActiveAgentSessionId: "session-1",
-        lastActiveConversationTitle: "A title",
-        providerTargetId: "legacy-target",
-        providerTargetRef: {
-          kind: "shared-agent",
-          provider: "hermes",
-          sharedAgentId: "agent-1"
-        }
+        lastActiveAgentSessionId: "session-1"
       })
     ).toEqual({
       agentTargetId: "shared-agent:agent-1",
       conversationRailCollapsed: true,
       conversationRailWidthPx: 360,
-      lastActiveAgentSessionId: "session-1",
-      lastActiveConversationTitle: "A title"
+      lastActiveAgentSessionId: "session-1"
     });
   });
 
@@ -87,16 +79,6 @@ describe("agent gui workbench state", () => {
     };
 
     expect(
-      projectAgentGuiWorkbenchState({
-        ...createDefaultAgentGuiWorkbenchNodeState("codex"),
-        providerTargetId: "shared-agent:agent-1",
-        providerTargetRef
-      })
-    ).toMatchObject({
-      agentTargetId: "shared-agent:agent-1"
-    });
-
-    expect(
       normalizeAgentGuiWorkbenchNodeState({
         provider: "codex",
         providerTargetId: "shared-agent:agent-1",
@@ -104,9 +86,7 @@ describe("agent gui workbench state", () => {
       })
     ).toMatchObject({
       agentTargetId: "shared-agent:agent-1",
-      provider: "codex",
-      providerTargetId: "shared-agent:agent-1",
-      providerTargetRef
+      provider: "codex"
     });
 
     expect(
@@ -120,8 +100,7 @@ describe("agent gui workbench state", () => {
       })
     ).toMatchObject({
       provider: "codex",
-      providerTargetId: "shared-agent:agent-1",
-      providerTargetRef: null
+      agentTargetId: "shared-agent:agent-1"
     });
   });
 
@@ -160,16 +139,18 @@ describe("agent gui workbench state", () => {
   });
 
   it("derives providers from workbench instance ids", () => {
-    expect(agentGuiWorkbenchProviderFromInstanceId("agent-gui")).toBe("codex");
+    expect(() => agentGuiWorkbenchProviderFromInstanceId("agent-gui")).toThrow(
+      "agent_gui_workbench.instance_provider_required"
+    );
     expect(
       agentGuiWorkbenchProviderFromInstanceId("agent-gui:claude-code")
     ).toBe("claude-code");
     expect(
       agentGuiWorkbenchProviderFromInstanceId("agent-gui:hermes:panel:abc")
     ).toBe("hermes");
-    expect(
+    expect(() =>
       agentGuiWorkbenchProviderFromInstanceId("agent-gui:unsupported")
-    ).toBe("codex");
+    ).toThrow("agent_gui_workbench.instance_provider_required");
   });
 
   it("returns null instead of defaulting when the provider is unresolved", () => {

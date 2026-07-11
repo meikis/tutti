@@ -1,4 +1,5 @@
-import type { AgentActivityMessage, AgentActivitySession } from "../types.ts";
+import type { AgentActivityMessage } from "../types.ts";
+import type { AgentActivitySessionInput } from "../sessionNormalization.ts";
 import type {
   EngineCommand,
   EngineCommandResultIntent,
@@ -6,7 +7,6 @@ import type {
   EngineReducerResult
 } from "./types.ts";
 import type {
-  EngineQueuedPrompt,
   PromptQueueIntent,
   PromptQueueRecord,
   PromptQueueState
@@ -19,8 +19,9 @@ import {
   promptQueueAvailabilityMapsEqual,
   shouldAcceptPromptQueueAvailability
 } from "./promptQueue.availability.ts";
-import { isAgentActivityTurnCancelResponse } from "./sessionLifecycle.types.ts";
+import type { CancelResultValidation } from "./commandResult.validation.ts";
 import { promptQueuePromptIdForClientSubmit } from "./promptQueue.lookup.ts";
+import { normalizeQueuedPrompt } from "./promptQueue.prompt.ts";
 
 const NO_COMMANDS: readonly EngineCommand[] = [];
 const QUEUE_SEND_TIMEOUT_MS = 30_000;
@@ -32,6 +33,9 @@ export function promptQueueReducer(
   intent: EngineIntent,
   context: {
     deletedSessionIds: Readonly<Record<string, true>>;
+    planFeedbackAccepted?: boolean;
+    submitRequestAccepted?: boolean;
+    cancelResultValidation?: CancelResultValidation | null;
   } = { deletedSessionIds: {} }
 ): EngineReducerResult<PromptQueueState> {
   switch (intent.type) {
@@ -57,10 +61,15 @@ export function promptQueueReducer(
       }
       return enqueuePrompt(state, intent);
     case "submit/requested":
+      if (context.submitRequestAccepted === false) return unchanged(state);
       if (context.deletedSessionIds[intent.agentSessionId.trim()]) {
         return unchanged(state);
       }
       return enqueueSubmit(state, intent);
+    case "plan/feedbackRequested":
+      return context.planFeedbackAccepted === true
+        ? enqueueSubmit(state, { ...intent, type: "submit/requested" })
+        : unchanged(state);
     case "submit/canceled":
       return removePrompt(
         state,
@@ -91,7 +100,11 @@ export function promptQueueReducer(
       return resumeQueue(state, intent.agentSessionId);
     case "engine/commandResult":
       if (intent.commandType === "turn/cancel") {
-        return receiveTurnCancelResult(state, intent);
+        return receiveTurnCancelResult(
+          state,
+          intent,
+          context.cancelResultValidation ?? null
+        );
       }
       return intent.commandType === "queue/sendPrompt"
         ? settleQueueCommand(state, intent)
@@ -103,7 +116,7 @@ export function promptQueueReducer(
 
 function receiveSessionSnapshot(
   state: PromptQueueState,
-  sessions: readonly AgentActivitySession[],
+  sessions: readonly AgentActivitySessionInput[],
   markMissing = true
 ): EngineReducerResult<PromptQueueState> {
   const sessionsById = new Map(
@@ -177,7 +190,7 @@ function enqueuePrompt(
 ): EngineReducerResult<PromptQueueState> {
   const agentSessionId = intent.agentSessionId.trim();
   const workspaceId = intent.workspaceId.trim();
-  const prompt = normalizePrompt(intent.prompt);
+  const prompt = normalizeQueuedPrompt(intent.prompt);
   if (!agentSessionId || !workspaceId || !prompt) {
     return unchanged(state);
   }
@@ -211,17 +224,16 @@ function enqueueSubmit(
         {
           agentSessionId: intent.agentSessionId,
           commandId: `submit:send:${intent.clientSubmitId}`,
+          clientSubmitId: intent.clientSubmitId,
           correlationId: intent.clientSubmitId,
           content: intent.runtimeContent ?? intent.content,
           ...(intent.displayPrompt
             ? { displayPrompt: intent.displayPrompt }
             : {}),
           ...(intent.guidance === true ? { guidance: true } : {}),
-          metadata: {
-            ...(intent.metadata ?? {}),
-            clientSubmitId: intent.clientSubmitId,
-            clientSubmittedAtUnixMs: intent.requestedAtUnixMs
-          },
+          ...(intent.submitDiagnostics
+            ? { submitDiagnostics: intent.submitDiagnostics }
+            : {}),
           promptId: intent.clientSubmitId,
           timeoutMs: QUEUE_SEND_TIMEOUT_MS,
           type: "queue/sendPrompt",
@@ -250,10 +262,14 @@ function enqueueSubmit(
       ...(intent.displayPrompt ? { displayPrompt: intent.displayPrompt } : {}),
       ...(intent.guidance === true ? { guidance: true } : {}),
       id: intent.clientSubmitId,
-      metadata: {
-        ...(intent.metadata ?? {}),
-        clientSubmitId: intent.clientSubmitId,
-        clientSubmittedAtUnixMs: intent.requestedAtUnixMs
+      submitDiagnostics: {
+        ...(intent.submitDiagnostics ?? {}),
+        blockCount:
+          intent.submitDiagnostics?.blockCount ?? intent.content.length,
+        queued: visibleInQueue,
+        submittedAtUnixMs:
+          intent.submitDiagnostics?.submittedAtUnixMs ??
+          intent.requestedAtUnixMs
       },
       ...(intent.runtimeContent
         ? { runtimeContent: intent.runtimeContent }
@@ -416,7 +432,7 @@ function settleQueueCommand(
     const uncertain = {
       ...current,
       failedPromptId: inFlight.promptId,
-      failureMessage: "Queued prompt delivery is being reconciled.",
+      failureMessage: null,
       inFlight: null,
       uncertainDelivery: inFlight
     };
@@ -445,7 +461,7 @@ function settleQueueCommand(
   const record: PromptQueueRecord = {
     ...current,
     failedPromptId: inFlight.promptId,
-    failureMessage: intent.errorMessage?.trim() || "Queued prompt failed.",
+    failureMessage: intent.errorMessage?.trim() || null,
     inFlight: null
   };
   return {
@@ -456,16 +472,17 @@ function settleQueueCommand(
 
 function receiveTurnCancelResult(
   state: PromptQueueState,
-  intent: EngineCommandResultIntent
+  intent: EngineCommandResultIntent,
+  validation: CancelResultValidation | null
 ): EngineReducerResult<PromptQueueState> {
   if (
     intent.outcome !== "succeeded" ||
-    !isAgentActivityTurnCancelResponse(intent.value) ||
-    !intent.value.turn
+    validation?.kind !== "valid" ||
+    !validation.response.turn
   ) {
     return unchanged(state);
   }
-  const turn = intent.value.turn;
+  const turn = validation.response.turn;
   let nextState = state;
   const commands: EngineCommand[] = [];
   for (const [agentSessionId, current] of Object.entries(
@@ -553,10 +570,13 @@ function startEligibleCommand(
         agentSessionId: record.agentSessionId,
         commandId,
         ...(head.clientSubmitId ? { correlationId: head.clientSubmitId } : {}),
+        clientSubmitId: head.clientSubmitId ?? head.id,
         content: head.runtimeContent ?? head.content,
         ...(head.displayPrompt ? { displayPrompt: head.displayPrompt } : {}),
         ...(head.guidance === true ? { guidance: true } : {}),
-        ...(head.metadata ? { metadata: head.metadata } : {}),
+        ...(head.submitDiagnostics
+          ? { submitDiagnostics: head.submitDiagnostics }
+          : {}),
         promptId: head.id,
         timeoutMs: QUEUE_SEND_TIMEOUT_MS,
         type: "queue/sendPrompt",
@@ -602,32 +622,6 @@ function emptyQueueRecord(
     suspendReason: null,
     uncertainDelivery: null,
     workspaceId
-  };
-}
-
-function normalizePrompt(
-  prompt: EngineQueuedPrompt
-): EngineQueuedPrompt | null {
-  const id = prompt.id.trim();
-  if (!id || prompt.content.length === 0) {
-    return null;
-  }
-  return {
-    ...(prompt.clientSubmitId?.trim()
-      ? { clientSubmitId: prompt.clientSubmitId.trim() }
-      : {}),
-    content: prompt.content.map((block) => ({ ...block })),
-    createdAtUnixMs: prompt.createdAtUnixMs,
-    ...(prompt.displayPrompt?.trim()
-      ? { displayPrompt: prompt.displayPrompt.trim() }
-      : {}),
-    ...(prompt.guidance === true ? { guidance: true } : {}),
-    id,
-    ...(prompt.metadata ? { metadata: { ...prompt.metadata } } : {}),
-    ...(prompt.runtimeContent
-      ? { runtimeContent: prompt.runtimeContent.map((block) => ({ ...block })) }
-      : {}),
-    ...(prompt.visibleInQueue === false ? { visibleInQueue: false } : {})
   };
 }
 
@@ -785,7 +779,7 @@ function expireUncertainDelivery(
     commands: NO_COMMANDS,
     state: replaceRecord(state, agentSessionId, {
       ...record,
-      failureMessage: "Queued prompt delivery could not be confirmed.",
+      failureMessage: null,
       uncertainDelivery: null
     })
   };

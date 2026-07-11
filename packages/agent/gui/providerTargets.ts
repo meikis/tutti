@@ -10,34 +10,23 @@ import {
   resolveMigratedAgentGUIProviderIdentity
 } from "./providerIdentityCatalog.ts";
 
-const legacyAgentGUIDefaultTargetProviders = [
-  "claude-code",
-  "cursor",
-  "tutti-agent",
-  "opencode",
-  "hermes",
-  "openclaw"
-] as const satisfies readonly AgentGUIProvider[];
+export const agentGUIDefaultTargetProviders: readonly AgentGUIProvider[] =
+  createAgentGUIDefaultTargetProviders();
 
-export const agentGUIDefaultTargetProviders: readonly AgentGUIProvider[] = [
-  ...uniqueAgentGUIProviders(
-    [...migratedAgentGUIProviderIdentityCatalog]
-      .sort((left, right) => left.target.sortOrder - right.target.sortOrder)
-      .map((identity) => identity.providerId as AgentGUIProvider),
-    legacyAgentGUIDefaultTargetProviders
-  )
-];
+const disabledAgentGUIProviderTargetProviders =
+  migratedAgentGUIProviderIdentityCatalog
+    .filter((identity) => !identity.target.enabled)
+    .map((identity) => identity.providerId as AgentGUIProvider);
 
-function uniqueAgentGUIProviders(
-  ...providerLists: readonly (readonly AgentGUIProvider[])[]
-): AgentGUIProvider[] {
-  return [...new Set(providerLists.flat())];
+function createAgentGUIDefaultTargetProviders(): AgentGUIProvider[] {
+  return migratedAgentGUIProviderIdentityCatalog
+    .map((identity) => ({
+      provider: identity.providerId as AgentGUIProvider,
+      sortOrder: identity.target.sortOrder
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((entry) => entry.provider);
 }
-
-const legacyAgentGUIDisabledPlaceholderProviders = [
-  "hermes",
-  "openclaw"
-] as const satisfies readonly AgentGUIProvider[];
 
 export function createLocalAgentGUIProviderTarget(
   provider: AgentGUIProvider
@@ -54,7 +43,7 @@ export function createLocalAgentGUIProviderTarget(
       kind: "local",
       provider
     },
-    label: identity?.targetDisplayName ?? identity?.displayName ?? provider,
+    label: identity?.displayName ?? provider,
     ...(migratedIdentity?.target.enabled === false ? { disabled: true } : {})
   };
 }
@@ -118,17 +107,10 @@ export function createLocalAgentGUIProviderTargets(
 
 function createStaticAgentGUIProviderTargets(
   providers: readonly AgentGUIProvider[] = agentGUIDefaultTargetProviders,
-  options?: { includeDisabledPlaceholders?: boolean }
+  _options?: { includeDisabledPlaceholders?: boolean }
 ): AgentGUIProviderTarget[] {
-  const disabledProviders = new Set<AgentGUIProvider>(
-    options?.includeDisabledPlaceholders === true
-      ? legacyAgentGUIDisabledPlaceholderProviders
-      : []
-  );
   return providers.map((provider) =>
-    disabledProviders.has(provider)
-      ? createDisabledPlaceholderAgentGUIProviderTarget(provider)
-      : createLocalAgentGUIProviderTarget(provider)
+    createLocalAgentGUIProviderTarget(provider)
   );
 }
 
@@ -175,13 +157,10 @@ export function normalizeAgentGUIProviderTargets(
     normalizedTargets.push(normalized);
   }
   if (includeDisabledPlaceholders && normalizedTargets.length > 0) {
-    for (const provider of legacyAgentGUIDisabledPlaceholderProviders) {
-      if (seenProviders.has(provider)) {
-        continue;
+    for (const provider of disabledAgentGUIProviderTargetProviders) {
+      if (!seenProviders.has(provider)) {
+        normalizedTargets.push(createLocalAgentGUIProviderTarget(provider));
       }
-      normalizedTargets.push(
-        createDisabledPlaceholderAgentGUIProviderTarget(provider)
-      );
     }
   }
   return normalizedTargets.length > 0 || !useStaticCatalog

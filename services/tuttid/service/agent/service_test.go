@@ -38,9 +38,6 @@ func TestServiceCreatesAndListsSessions(t *testing.T) {
 	if session.ID != "11111111-1111-4111-8111-111111111111" {
 		t.Fatalf("session ID = %q, want frontend UUID", session.ID)
 	}
-	if session.Status != "running" {
-		t.Fatalf("status = %q, want running", session.Status)
-	}
 	if !session.Resumable {
 		t.Fatal("created session resumable = false, want true")
 	}
@@ -67,7 +64,7 @@ func TestServiceCreatesAndListsSessions(t *testing.T) {
 
 func TestServiceUpdateTitleReturnsPersistedTitleForLiveRuntimeSession(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:              "session-1",
 		WorkspaceID:     "ws-1",
 		Provider:        "codex",
@@ -77,7 +74,7 @@ func TestServiceUpdateTitleReturnsPersistedTitleForLiveRuntimeSession(t *testing
 		CreatedAtUnixMS: 1,
 		UpdatedAtUnixMS: 10,
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = &fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
@@ -85,7 +82,6 @@ func TestServiceUpdateTitleReturnsPersistedTitleForLiveRuntimeSession(t *testing
 				WorkspaceID:     "ws-1",
 				Provider:        "codex",
 				Cwd:             "/workspace",
-				Status:          "ready",
 				Title:           "Old persisted title",
 				CreatedAtUnixMS: 1,
 				UpdatedAtUnixMS: 10,
@@ -114,7 +110,7 @@ func TestServiceUpdateTitleReturnsPersistedTitleForLiveRuntimeSession(t *testing
 
 func TestServiceUpdateTitleRejectsBlankTitle(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = &fakeSessionReader{}
 
 	_, err := service.UpdateTitle(context.Background(), "ws-1", "session-1", "   ")
@@ -125,7 +121,7 @@ func TestServiceUpdateTitleRejectsBlankTitle(t *testing.T) {
 
 func TestServiceUpdateTitleRejectsOverlongTitle(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = &fakeSessionReader{}
 
 	_, err := service.UpdateTitle(context.Background(), "ws-1", "session-1", strings.Repeat("好", maxSessionTitleRunes+1))
@@ -142,7 +138,7 @@ func TestServiceCreateResolvesProviderFromAgentTarget(t *testing.T) {
 	// spins until the test's own timeout kills it. Supply one immediately so
 	// discovery resolves on its first check, matching the pattern used by
 	// TestServiceCreateDiscoversClaudeModelsBeforeStartingInvalidModel below.
-	runtime.startHook = func(input RuntimeStartInput, session RuntimeSession) RuntimeSession {
+	runtime.startHook = func(input RuntimeStartInput, session ProviderRuntimeSession) ProviderRuntimeSession {
 		if input.Visible != nil && !*input.Visible {
 			session.RuntimeContext = map[string]any{
 				"configOptions": []any{
@@ -157,7 +153,7 @@ func TestServiceCreateResolvesProviderFromAgentTarget(t *testing.T) {
 		}
 		return session
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.AgentTargetStore = fakeAgentTargetStore{
 		targets: map[string]agenttargetbiz.Target{
 			agenttargetbiz.IDLocalClaudeCode: {
@@ -305,7 +301,7 @@ func TestServiceCreateRejectsInvalidAgentTargetInputs(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runtime := newFakeRuntime()
-			service := NewService(runtime)
+			service := newIsolatedAgentService(runtime)
 			service.AgentTargetStore = fakeAgentTargetStore{targets: tc.targets}
 
 			_, err := service.Create(context.Background(), "ws-1", tc.input)
@@ -355,7 +351,7 @@ func TestServiceCreatePassesNormalizedConversationDetailModeToRuntime(t *testing
 
 func TestServiceCreateResolvesAgentTargetID(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.AgentTargetStore = fakeAgentTargetLookup{
 		targets: map[string]agenttargetbiz.Target{
 			"local-codex": {
@@ -442,7 +438,7 @@ func TestServiceCreateRejectsInvalidAgentTargets(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			service := NewService(newFakeRuntime())
+			service := newIsolatedAgentService(newFakeRuntime())
 			service.AgentTargetStore = fakeAgentTargetLookup{
 				targets: map[string]agenttargetbiz.Target{
 					tc.target.ID: tc.target,
@@ -507,6 +503,25 @@ func TestServiceCreateReportsNodeResults(t *testing.T) {
 	}
 }
 
+func TestServiceCreateDoesNotExecuteDuplicateInitialSubmit(t *testing.T) {
+	runtime := newFakeRuntime()
+	service := newTestService(runtime)
+	service.SubmitClaimStore = openAgentServiceSQLiteStore(t)
+	input := CreateSessionInput{
+		AgentSessionID: "session-create-idempotent", AgentTargetID: agenttargetbiz.IDLocalCodex,
+		InitialContent: TextPromptContent("hello"), Metadata: map[string]any{"clientSubmitId": "submit-create-1"},
+	}
+	if _, err := service.Create(context.Background(), "ws-1", input); err != nil {
+		t.Fatalf("first Create() error = %v", err)
+	}
+	if _, err := service.Create(context.Background(), "ws-1", input); err != nil {
+		t.Fatalf("duplicate Create() error = %v", err)
+	}
+	if len(runtime.execCalls) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(runtime.execCalls))
+	}
+}
+
 func TestServiceImportExternalSessionsOmitsProjectsWithoutValidSessions(t *testing.T) {
 	ctx := context.Background()
 	store := openAgentServiceSQLiteStore(t)
@@ -526,7 +541,7 @@ func TestServiceImportExternalSessionsOmitsProjectsWithoutValidSessions(t *testi
 	t.Setenv("CODEX_HOME", filepath.Join(root, "codex-home"))
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(root, "claude-home"))
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	projection := NewActivityProjection(store)
 	service.SessionReader = projection
 	service.MessageReader = projection
@@ -585,7 +600,7 @@ func TestServiceImportExternalSessionsOmitsProjectWhenOnlySessionFailsToImport(t
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	projection := NewActivityProjection(store)
 	service.SessionReader = projection
 	service.MessageReader = projection
@@ -648,7 +663,7 @@ func TestServiceExternalImportValidProjectPaths(t *testing.T) {
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	paths, err := service.ExternalImportValidProjectPaths(ctx, ExternalImportInput{
 		Projects: []ExternalImportProjectSelection{{Path: project}, {Path: empty}},
 	})
@@ -704,7 +719,7 @@ func TestServiceExternalImportValidProjectPathsOrdersByLatestSession(t *testing.
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	paths, err := service.ExternalImportValidProjectPaths(ctx, ExternalImportInput{
 		Projects: []ExternalImportProjectSelection{{Path: olderProject}, {Path: newerProject}},
 	})
@@ -896,7 +911,7 @@ func TestServiceImportedCodexWorktreeSessionGroupsUnderExistingMainCheckoutProje
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	projection := NewActivityProjection(store)
 	service.SessionReader = projection
 	service.MessageReader = projection
@@ -964,7 +979,7 @@ func TestServiceImportsHomeCwdAsNoProjectWithoutRegisteringUserHome(t *testing.T
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	projection := NewActivityProjection(store)
 	service.SessionReader = projection
 	service.MessageReader = projection
@@ -982,12 +997,9 @@ func TestServiceImportsHomeCwdAsNoProjectWithoutRegisteringUserHome(t *testing.T
 	if len(result.ProjectPaths) != 0 || result.ImportedProjects != 0 {
 		t.Fatalf("import result = %#v, want no registered project paths for home cwd", result)
 	}
-	session, err := service.Get(ctx, "ws-1", externalImportedSessionID("codex", "no-project"))
+	_, err = service.Get(ctx, "ws-1", externalImportedSessionID("codex", "no-project"))
 	if err != nil {
 		t.Fatalf("Get imported no-project session error = %v", err)
-	}
-	if session.RuntimeContext["externalImportNoProject"] != true {
-		t.Fatalf("runtime context = %#v, want externalImportNoProject true", session.RuntimeContext)
 	}
 }
 
@@ -1026,7 +1038,7 @@ func TestServiceImportsCodexScratchCwdAsNoProjectWithoutRegisteringIt(t *testing
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	projection := NewActivityProjection(store)
 	service.SessionReader = projection
 	service.MessageReader = projection
@@ -1050,9 +1062,6 @@ func TestServiceImportsCodexScratchCwdAsNoProjectWithoutRegisteringIt(t *testing
 	}
 	if session.Cwd != scratchCwd {
 		t.Fatalf("session cwd = %q, want imported scratch cwd %q", session.Cwd, scratchCwd)
-	}
-	if session.RuntimeContext["externalImportNoProject"] != true {
-		t.Fatalf("runtime context = %#v, want externalImportNoProject true", session.RuntimeContext)
 	}
 }
 
@@ -1091,7 +1100,7 @@ func TestServiceImportPreservesLocalCodexModelAndReasoningEffort(t *testing.T) {
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	projection := NewActivityProjection(store)
 	service.SessionReader = projection
 	service.MessageReader = projection
@@ -1158,7 +1167,7 @@ func TestServiceScanCountsAndImportsSessionWithDeletedWorkingDirectory(t *testin
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	scan, err := service.ScanExternalImports(ctx, ExternalImportScanInput{})
 	if err != nil {
 		t.Fatalf("ScanExternalImports error = %v", err)
@@ -1234,7 +1243,7 @@ func TestServiceListsImportedSessionsByExternalActivityTime(t *testing.T) {
 		}},
 	)
 
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	projection := NewActivityProjection(store)
 	service.SessionReader = projection
 	service.MessageReader = projection
@@ -1359,7 +1368,7 @@ func TestServiceImportsExternalAgentSessionsByProject(t *testing.T) {
 	)
 
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	projection := NewActivityProjection(store)
 	service.SessionReader = projection
 	service.MessageReader = projection
@@ -1893,10 +1902,10 @@ func TestServiceCreateCachesProviderAvailabilityCheck(t *testing.T) {
 func TestServiceSendInputRejectsUnsupportedImageBeforePersistingAttachment(t *testing.T) {
 	runtime := newFakeRuntime()
 	runtime.validateErr = ErrPromptImageUnsupported
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	tempDir := t.TempDir()
 	service.PromptAttachmentStore = PromptAttachmentStore{RootDir: tempDir}
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -1924,14 +1933,14 @@ func TestServiceSendInputRejectsUnsupportedImageBeforePersistingAttachment(t *te
 
 func TestServiceLocalAttachmentPathRequiresWorkspaceSession(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
 		Status:      "ready",
 		Visible:     true,
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	tempDir := t.TempDir()
 	service.PromptAttachmentStore = PromptAttachmentStore{RootDir: tempDir}
 	path, err := service.PromptAttachmentStore.attachmentPath("ws-1", "session-1", "attachment-1", "image/png")
@@ -2137,8 +2146,8 @@ func TestServiceUpdateVisibleUpdatesRuntimeSession(t *testing.T) {
 
 func TestServiceSendInputPassesDisplayPromptToRuntime(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	service := newIsolatedAgentService(runtime)
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
@@ -2183,16 +2192,38 @@ func TestServiceSendInputPassesDisplayPromptToRuntime(t *testing.T) {
 	}
 }
 
+func TestServiceSendInputDoesNotExecuteDuplicateClientSubmitID(t *testing.T) {
+	runtime := newFakeRuntime()
+	service := newTestService(runtime)
+	store := openAgentServiceSQLiteStore(t)
+	service.SubmitClaimStore = store
+	if _, err := service.Create(context.Background(), "ws-1", CreateSessionInput{
+		AgentSessionID: "session-idempotent", AgentTargetID: agenttargetbiz.IDLocalCodex,
+	}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	input := SendInput{Content: TextPromptContent("hello"), Metadata: map[string]any{"clientSubmitId": "submit-1"}}
+	if _, err := service.SendInput(context.Background(), "ws-1", "session-idempotent", input); err != nil {
+		t.Fatalf("first SendInput() error = %v", err)
+	}
+	if _, err := service.SendInput(context.Background(), "ws-1", "session-idempotent", input); !errors.Is(err, ErrSubmitDeliveryUnknown) {
+		t.Fatalf("duplicate SendInput() error = %v, want delivery unknown without replay", err)
+	}
+	if len(runtime.execCalls) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(runtime.execCalls))
+	}
+}
+
 func TestServiceSendInputWaitsForClaudeStartupSlotBeforeExec(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "claude-code",
 		Status:      "ready",
 		Visible:     true,
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	if err := service.claudeStartup().Acquire(context.Background()); err != nil {
 		t.Fatalf("acquire startup lock: %v", err)
 	}
@@ -2307,7 +2338,7 @@ func TestServiceCreatePassesExtraSkillsToRuntimePreparer(t *testing.T) {
 func TestServiceGetSkillBundleUsesRuntimeRenderer(t *testing.T) {
 	runtime := newFakeRuntime()
 	var renderInput agentsidecarservice.PrepareInput
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.RuntimePreparer = fakeSkillBundleRenderer{
 		input: &renderInput,
 		bundle: agentsidecarservice.SkillBundle{
@@ -2346,7 +2377,7 @@ func TestServiceGetSkillBundleUsesRuntimeRenderer(t *testing.T) {
 
 func TestServiceGetSkillBundleRequiresRenderer(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.RuntimePreparer = fakeRuntimePreparer{}
 
 	_, err := service.GetSkillBundle(context.Background(), "ws-1", SkillBundleInput{Provider: "codex"})
@@ -2395,7 +2426,7 @@ func TestServiceDeleteCleansPreparedRuntime(t *testing.T) {
 
 func TestServiceGetsComposerOptionsWithoutStartingRuntime(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.CapabilityLister = &recordingComposerCapabilityLister{}
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
@@ -2457,7 +2488,7 @@ func TestServiceGetsComposerOptionsWithoutStartingRuntime(t *testing.T) {
 
 func TestServiceGetComposerOptionsResolvesProviderFromAgentTargetID(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.AgentTargetStore = fakeAgentTargetStore{targets: defaultTestAgentTargets()}
 	service.CapabilityLister = &recordingComposerCapabilityLister{}
 
@@ -2477,7 +2508,7 @@ func TestServiceGetComposerOptionsResolvesProviderFromAgentTargetID(t *testing.T
 
 func TestServiceGetComposerOptionsDoesNotCarryConversationDetailMode(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider: "codex",
@@ -2521,7 +2552,7 @@ func (l *recordingComposerCapabilityLister) ListComposerCapabilityOptions(
 func TestServiceGetComposerOptionsSkipsCapabilityCatalogWhenDisabled(t *testing.T) {
 	runtime := newFakeRuntime()
 	lister := &recordingComposerCapabilityLister{}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.CapabilityLister = lister
 	includeCapabilityCatalog := false
 
@@ -2543,7 +2574,7 @@ func TestServiceGetComposerOptionsSkipsCapabilityCatalogWhenDisabled(t *testing.
 func TestServiceGetComposerOptionsIncludesCapabilityCatalogByDefault(t *testing.T) {
 	runtime := newFakeRuntime()
 	lister := &recordingComposerCapabilityLister{}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.CapabilityLister = lister
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
@@ -2563,7 +2594,7 @@ func TestServiceGetComposerOptionsIncludesCapabilityCatalogByDefault(t *testing.
 func TestServiceGetComposerOptionsCachesCapabilityCatalog(t *testing.T) {
 	runtime := newFakeRuntime()
 	lister := &recordingComposerCapabilityLister{}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.CapabilityLister = lister
 
 	first, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
@@ -2589,7 +2620,7 @@ func TestServiceGetComposerOptionsCachesCapabilityCatalog(t *testing.T) {
 
 func TestServiceGetsComposerOptionsLocalizesDisplayLabels(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Locale:   "zh-CN",
@@ -2622,7 +2653,7 @@ func TestServiceGetsComposerOptionsLocalizesDisplayLabels(t *testing.T) {
 
 func TestServiceGetsComposerOptionsFromCodexModelCatalog(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.ModelCatalog = fakeModelCatalog{
 		result: AgentModelCatalogResult{
 			Provider: "codex",
@@ -2668,7 +2699,7 @@ func TestServiceGetsComposerOptionsFromCodexModelCatalog(t *testing.T) {
 
 func TestServiceGetsComposerOptionsFromTuttiAgentModelCatalog(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.ModelCatalog = fakeModelCatalog{
 		result: AgentModelCatalogResult{
 			Provider: "tutti-agent",
@@ -2718,7 +2749,7 @@ func TestServiceGetsComposerOptionsFromTuttiAgentModelCatalog(t *testing.T) {
 
 func TestServiceGetsComposerOptionsFromOpenCodeModelCatalogWithReasoning(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	imageSupported := true
 	service.ModelCatalog = fakeModelCatalog{
 		result: AgentModelCatalogResult{
@@ -2783,7 +2814,7 @@ func TestServiceGetsComposerOptionsFromOpenCodeModelCatalogWithReasoning(t *test
 
 func TestServiceGetsComposerOptionsWithResolvedCodexDefaultModel(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.ModelCatalog = fakeModelCatalog{
 		result: AgentModelCatalogResult{
 			Provider: "codex",
@@ -2821,7 +2852,8 @@ func TestServiceGetsComposerOptionsWithResolvedCodexDefaultModel(t *testing.T) {
 
 func TestServiceGetsComposerOptionsNormalizesCodexMinimalReasoningEffort(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.CapabilityLister = &recordingComposerCapabilityLister{}
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider: "codex",
@@ -2862,7 +2894,7 @@ func TestServiceGetsComposerOptionsNormalizesCodexMinimalReasoningEffort(t *test
 
 func TestServiceGetsComposerOptionsNormalizesClaudeMinimalReasoningEffort(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider: "claude-code",
@@ -2903,7 +2935,7 @@ func TestServiceGetsComposerOptionsNormalizesClaudeMinimalReasoningEffort(t *tes
 
 func TestServiceGetsComposerOptionsUsesClaudeStaticModelsWithoutModelCatalog(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	service.ModelCatalog = fakeModelCatalog{
 		result: AgentModelCatalogResult{
@@ -2951,7 +2983,7 @@ func TestServiceGetsComposerOptionsUsesClaudeStaticModelsWithoutModelCatalog(t *
 
 func TestGetComposerOptionsClaudeCodeWithoutWorkspaceUsesStaticModels(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider: "claude-code",
@@ -2991,7 +3023,7 @@ func TestGetComposerOptionsClaudeCodeIncludesSettingsJSONModel(t *testing.T) {
 		t.Fatalf("write Claude settings: %v", err)
 	}
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider: "claude-code",
@@ -3021,7 +3053,7 @@ func TestGetComposerOptionsClaudeCodeIncludesSettingsJSONModel(t *testing.T) {
 func TestGetComposerOptionsClaudeCodeReusesRunningSessionLiveModels(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "claude-code",
@@ -3046,7 +3078,7 @@ func TestGetComposerOptionsClaudeCodeReusesRunningSessionLiveModels(t *testing.T
 			},
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider:    "claude-code",
@@ -3077,7 +3109,7 @@ func TestGetComposerOptionsClaudeCodeReusesRunningSessionLiveModels(t *testing.T
 func TestGetComposerOptionsClaudeCodeLiveModelsSanitizesUnsupportedSelectedModel(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "claude-code",
@@ -3097,7 +3129,7 @@ func TestGetComposerOptionsClaudeCodeLiveModelsSanitizesUnsupportedSelectedModel
 			},
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider:    "claude-code",
@@ -3142,7 +3174,7 @@ func TestGetComposerOptionsClaudeCodeLiveModelsSanitizesUnsupportedSelectedModel
 func TestGetComposerOptionsClaudeCodeSkipsDiscoveryBesideRunningSession(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "claude-code",
@@ -3151,7 +3183,7 @@ func TestGetComposerOptionsClaudeCodeSkipsDiscoveryBesideRunningSession(t *testi
 			"capabilities": []any{"imageInput"},
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider:    "claude-code",
@@ -3176,7 +3208,7 @@ func TestGetComposerOptionsClaudeCodeSkipsStaleRunningSessionModelsAfterInvalida
 	t.Setenv("TUTTI_STATE_DIR", t.TempDir())
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:              "session-1",
 		WorkspaceID:     "ws-1",
 		Provider:        "claude-code",
@@ -3196,7 +3228,7 @@ func TestGetComposerOptionsClaudeCodeSkipsStaleRunningSessionModelsAfterInvalida
 			},
 		},
 	}
-	runtime.startHook = func(input RuntimeStartInput, session RuntimeSession) RuntimeSession {
+	runtime.startHook = func(input RuntimeStartInput, session ProviderRuntimeSession) ProviderRuntimeSession {
 		if input.Provider != "claude-code" {
 			t.Fatalf("start provider = %q, want claude-code", input.Provider)
 		}
@@ -3213,7 +3245,7 @@ func TestGetComposerOptionsClaudeCodeSkipsStaleRunningSessionModelsAfterInvalida
 		}
 		return session
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.LiveModelDiscoveryDeleteDelay = time.Hour
 
 	service.InvalidateLiveComposerModels("claude-code")
@@ -3244,7 +3276,7 @@ func TestGetComposerOptionsClaudeCodeStartsHiddenDiscoveryOnceAcrossWorkspacesAn
 		fakeRuntime: newFakeRuntime(),
 		closed:      closed,
 	}
-	runtime.startHook = func(input RuntimeStartInput, session RuntimeSession) RuntimeSession {
+	runtime.startHook = func(input RuntimeStartInput, session ProviderRuntimeSession) ProviderRuntimeSession {
 		if input.Provider != "claude-code" {
 			t.Fatalf("start provider = %q, want claude-code", input.Provider)
 		}
@@ -3268,7 +3300,7 @@ func TestGetComposerOptionsClaudeCodeStartsHiddenDiscoveryOnceAcrossWorkspacesAn
 		}
 		return session
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.AgentTargetStore = fakeAgentTargetStore{targets: defaultTestAgentTargets()}
 	service.LiveModelDiscoveryDeleteDelay = 2 * time.Second
 
@@ -3332,7 +3364,7 @@ func TestGetComposerOptionsClaudeCodeStartsHiddenDiscoveryOnceAcrossWorkspacesAn
 
 func TestGetComposerOptionsClaudeCodeLiveModelsUsesCache(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "claude-code",
@@ -3349,7 +3381,7 @@ func TestGetComposerOptionsClaudeCodeLiveModelsUsesCache(t *testing.T) {
 			},
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	for index := range 2 {
 		options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
@@ -3377,7 +3409,7 @@ func TestGetComposerOptionsClaudeCodeLiveModelsUsesCache(t *testing.T) {
 
 func TestServiceGetsComposerOptionsLeavesUnresolvedProviderModelUnset(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	options, err := service.GetComposerOptions(context.Background(), ComposerOptionsInput{
 		Provider: "openclaw",
@@ -3397,39 +3429,9 @@ func TestServiceGetsComposerOptionsLeavesUnresolvedProviderModelUnset(t *testing
 	}
 }
 
-func TestServiceSessionNormalizesStaleClaudeSDKImageCapability(t *testing.T) {
-	session := serviceSession(RuntimeSession{
-		ID:          "session-1",
-		WorkspaceID: "ws-1",
-		Provider:    "claude-code",
-		Settings: &ComposerSettings{
-			Model: "haiku",
-		},
-		RuntimeContext: map[string]any{
-			"adapter":      "claude-agent-sdk",
-			"capabilities": []any{"compact", "tokenUsage", "rateLimits", "planMode", "interrupt", "review"},
-		},
-		Status:          "ready",
-		CreatedAtUnixMS: 100,
-		UpdatedAtUnixMS: 200,
-	}, true)
-
-	capabilities, ok := session.RuntimeContext["capabilities"].([]any)
-	hasImageInput := false
-	for _, capability := range capabilities {
-		if capability == "imageInput" {
-			hasImageInput = true
-			break
-		}
-	}
-	if !ok || !hasImageInput {
-		t.Fatalf("capabilities = %#v, want imageInput", session.RuntimeContext["capabilities"])
-	}
-}
-
 func TestServiceUpdateSettingsNormalizesCodexMinimalReasoningEffort(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		Provider:    "codex",
 		WorkspaceID: "ws-1",
@@ -3438,7 +3440,7 @@ func TestServiceUpdateSettingsNormalizesCodexMinimalReasoningEffort(t *testing.T
 			ReasoningEffort: "high",
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	reasoningEffort := "minimal"
 
 	session, err := service.UpdateSettings(context.Background(), "ws-1", "session-1", ComposerSettingsPatch{
@@ -3454,7 +3456,7 @@ func TestServiceUpdateSettingsNormalizesCodexMinimalReasoningEffort(t *testing.T
 
 func TestServiceUpdateSettingsNormalizesClaudeMinimalReasoningEffort(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		Provider:    "claude-code",
 		WorkspaceID: "ws-1",
@@ -3463,7 +3465,7 @@ func TestServiceUpdateSettingsNormalizesClaudeMinimalReasoningEffort(t *testing.
 			ReasoningEffort: "high",
 		},
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	reasoningEffort := "minimal"
 
 	session, err := service.UpdateSettings(context.Background(), "ws-1", "session-1", ComposerSettingsPatch{
@@ -3477,129 +3479,21 @@ func TestServiceUpdateSettingsNormalizesClaudeMinimalReasoningEffort(t *testing.
 	}
 }
 
-func TestServiceMapsRuntimeSessionLastError(t *testing.T) {
-	now := time.Now().UnixMilli()
-	session := serviceSession(RuntimeSession{
-		ID:              "session-1",
-		Provider:        "codex",
-		Status:          "failed",
-		Title:           "Smoke",
-		LastError:       "codex-acp: executable file not found",
-		WorkspaceID:     "ws-1",
-		CreatedAtUnixMS: now,
-		UpdatedAtUnixMS: now,
-	}, true)
-
-	if session.LastError == nil || *session.LastError != "codex-acp: executable file not found" {
-		t.Fatalf("last error = %#v, want runtime failure detail", session.LastError)
-	}
-}
-
-func TestServiceGetDoesNotDiscoverComposerSkills(t *testing.T) {
-	tempDir := t.TempDir()
-	homeDir := filepath.Join(tempDir, "home")
-	cwd := filepath.Join(tempDir, "repo")
-	t.Setenv("HOME", homeDir)
-	t.Setenv("USERPROFILE", homeDir)
-	writeSkill(t, filepath.Join(cwd, ".codex", "skills", "project-skill", "SKILL.md"), `---
-description: Project skill.
----
-`)
-	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:          "session-1",
-		Provider:    "codex",
-		WorkspaceID: "ws-1",
-		Cwd:         cwd,
-		Status:      "working",
-	}
-	service := NewService(runtime)
-
-	session, err := service.Get(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Get returned error: %v", err)
-	}
-	if _, ok := session.RuntimeContext["skills"]; ok {
-		t.Fatalf("runtime context skills = %#v, want not discovered on get", session.RuntimeContext["skills"])
-	}
-}
-
-func TestServiceSessionNormalizesReasoningRuntimeConfigOptions(t *testing.T) {
-	session := serviceSession(RuntimeSession{
-		ID:          "session-1",
-		Provider:    "claude-code",
-		WorkspaceID: "ws-1",
-		Status:      "working",
-		Settings: &ComposerSettings{
-			ReasoningEffort: "low",
-		},
-		RuntimeContext: map[string]any{
-			"configOptions": []any{
-				map[string]any{
-					"id":           "effort",
-					"currentValue": "low",
-					"options": []any{
-						map[string]any{"name": "Default", "value": "default"},
-						map[string]any{"name": "Low", "value": "low"},
-						map[string]any{"name": "Medium", "value": "medium"},
-						map[string]any{"name": "High", "value": "high"},
-						map[string]any{"name": "Max", "value": "max"},
-					},
-				},
-			},
-			"reasoningEffort": "low",
-		},
-	}, true)
-
-	configOptions, ok := session.RuntimeContext["configOptions"].([]any)
-	if !ok || len(configOptions) != 1 {
-		t.Fatalf("configOptions = %#v", session.RuntimeContext["configOptions"])
-	}
-	option, ok := configOptions[0].(map[string]any)
-	if !ok {
-		t.Fatalf("option = %#v", configOptions[0])
-	}
-	if option["currentValue"] != "low" {
-		t.Fatalf("currentValue = %#v, want low", option["currentValue"])
-	}
-	options, ok := option["options"].([]map[string]string)
-	if !ok {
-		t.Fatalf("options = %#v", option["options"])
-	}
-	values := make([]string, 0, len(options))
-	for _, entry := range options {
-		values = append(values, entry["value"])
-	}
-	if strings.Join(values, ",") != "low,medium,high,xhigh" {
-		t.Fatalf("values = %#v, want [low medium high xhigh]", values)
-	}
-}
-
-func TestActivityProjectionMapsLifecycleAndPhaseToServiceStatus(t *testing.T) {
+func TestActivityProjectionDerivesActivityOnlyFromActiveTurnReference(t *testing.T) {
 	tests := []struct {
 		name    string
 		session agentactivitybiz.Session
 		want    string
 	}{
 		{
-			name:    "active working phase",
-			session: agentactivitybiz.Session{Status: "active", CurrentPhase: "working"},
-			want:    "working",
+			name:    "active turn",
+			session: agentactivitybiz.Session{ActiveTurnID: "turn-1"},
+			want:    "running",
 		},
 		{
-			name:    "active waiting input phase",
-			session: agentactivitybiz.Session{Status: "active", CurrentPhase: "waiting_input"},
-			want:    "waiting",
-		},
-		{
-			name:    "completed lifecycle wins",
-			session: agentactivitybiz.Session{Status: "completed", CurrentPhase: "working"},
-			want:    "completed",
-		},
-		{
-			name:    "failed lifecycle wins",
-			session: agentactivitybiz.Session{Status: "failed", CurrentPhase: "idle"},
-			want:    "failed",
+			name:    "no active turn",
+			session: agentactivitybiz.Session{},
+			want:    "ready",
 		},
 	}
 	for _, tt := range tests {
@@ -3620,8 +3514,6 @@ func TestActivityProjectionPublishesSessionUpdateForUnappliedStatePatch(t *testi
 			Session: agentactivitybiz.Session{
 				ID:              "session-1",
 				WorkspaceID:     "ws-1",
-				Status:          "completed",
-				CurrentPhase:    "idle",
 				LastEventUnixMS: 200,
 			},
 		},
@@ -3649,11 +3541,11 @@ func TestActivityProjectionPublishesSessionUpdateForUnappliedStatePatch(t *testi
 		t.Fatalf("published events = %d, want 1", len(publisher.events))
 	}
 	event := publisher.events[0]
-	if event.eventType != "session_update" {
-		t.Fatalf("published event type = %q, want session_update", event.eventType)
+	if event.eventType != "session_reconcile_required" {
+		t.Fatalf("published event type = %q, want session_reconcile_required", event.eventType)
 	}
-	if got := event.payload["eventType"]; got != "session_update" {
-		t.Fatalf("payload eventType = %#v, want session_update", got)
+	if got := event.payload["eventType"]; got != "session_reconcile_required" {
+		t.Fatalf("payload eventType = %#v, want session_reconcile_required", got)
 	}
 	if got := event.payload["lastEventUnixMs"]; got != int64(200) {
 		t.Fatalf("payload lastEventUnixMs = %#v, want 200", got)
@@ -3663,7 +3555,7 @@ func TestActivityProjectionPublishesSessionUpdateForUnappliedStatePatch(t *testi
 	}
 }
 
-func TestActivityProjectionUsesRuntimeContextTitleFallback(t *testing.T) {
+func TestActivityProjectionUsesExplicitTitle(t *testing.T) {
 	repo := &activityProjectionRepoStub{
 		stateResult: agentactivitybiz.StateReportResult{
 			Accepted:        true,
@@ -3679,9 +3571,7 @@ func TestActivityProjectionUsesRuntimeContextTitleFallback(t *testing.T) {
 		WorkspaceID:    "ws-1",
 		AgentSessionID: "session-1",
 		State: agentsessionstore.WorkspaceAgentSessionStateUpdate{
-			RuntimeContext: map[string]any{
-				"title": "Automation Review",
-			},
+			Title:            "Automation Review",
 			LifecycleStatus:  "failed",
 			CurrentPhase:     "failed",
 			OccurredAtUnixMS: 150,
@@ -3696,8 +3586,8 @@ func TestActivityProjectionUsesRuntimeContextTitleFallback(t *testing.T) {
 	if len(publisher.events) != 1 {
 		t.Fatalf("published events = %d, want 1", len(publisher.events))
 	}
-	if got := publisher.events[0].payload["title"]; got != "Automation Review" {
-		t.Fatalf("published title = %#v, want runtime context title", got)
+	if got := publisher.events[0].eventType; got != "session_reconcile_required" {
+		t.Fatalf("published event type = %q, want reconciliation invalidation", got)
 	}
 }
 
@@ -3874,74 +3764,8 @@ func TestActivityProjectionPublishesDeletedEventsForClearedSessions(t *testing.T
 	}
 }
 
-func TestStaleResumeMessageUpdatesFailOpenToolCallsForLatestTurn(t *testing.T) {
-	updates := staleResumeMessageUpdates([]SessionMessage{
-		{
-			MessageID: "approval-2",
-			TurnID:    "turn-2",
-			Role:      "assistant",
-			Kind:      "tool_call",
-			Status:    "waiting_approval",
-			Payload: map[string]any{
-				"input":  map[string]any{"requestId": "permission-2"},
-				"status": "waiting_approval",
-			},
-		},
-		{
-			MessageID: "approval-1",
-			TurnID:    "turn-1",
-			Role:      "assistant",
-			Kind:      "tool_call",
-			Status:    "waiting_approval",
-			Payload:   map[string]any{"status": "waiting_approval"},
-		},
-	}, 1234)
-
-	if len(updates) != 1 {
-		t.Fatalf("updates = %#v, want latest turn open tool call", updates)
-	}
-	update := updates[0]
-	if update.MessageID != "approval-2" || update.TurnID != "turn-2" || update.Status != "failed" {
-		t.Fatalf("update = %#v, want failed latest approval", update)
-	}
-	if update.CompletedAtUnixMS != 1234 {
-		t.Fatalf("completed at = %d, want 1234", update.CompletedAtUnixMS)
-	}
-	errorPayload, ok := update.Payload["error"].(map[string]any)
-	if !ok || errorPayload["requestId"] != "permission-2" {
-		t.Fatalf("error payload = %#v, want permission request id", update.Payload["error"])
-	}
-}
-
-func TestHasStaleResumeOpenToolCall(t *testing.T) {
-	if hasStaleResumeOpenToolCall([]SessionMessage{{
-		MessageID: "text-1",
-		TurnID:    "turn-1",
-		Kind:      "text",
-		Status:    "waiting_approval",
-	}}) {
-		t.Fatal("text message reported as open tool call")
-	}
-	if hasStaleResumeOpenToolCall([]SessionMessage{{
-		MessageID: "approval-1",
-		TurnID:    "turn-1",
-		Kind:      "tool_call",
-		Status:    "completed",
-	}}) {
-		t.Fatal("completed tool call reported as open")
-	}
-	if !hasStaleResumeOpenToolCall([]SessionMessage{{
-		MessageID: "approval-2",
-		TurnID:    "turn-2",
-		Kind:      "tool_call",
-		Status:    "waiting_approval",
-	}}) {
-		t.Fatal("waiting approval tool call was not reported as open")
-	}
-}
-
 func TestServiceListsSessionMessages(t *testing.T) {
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	lastLimit := 0
 	lastTurnID := ""
 	service.MessageReader = fakeMessageReader{
@@ -4000,12 +3824,12 @@ func TestServiceListsSessionMessages(t *testing.T) {
 
 func TestServiceListMessagesReturnsEmptyPageForLiveSessionWithoutProjection(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:live-session"] = RuntimeSession{
+	runtime.sessions["ws-1:live-session"] = ProviderRuntimeSession{
 		ID:          "live-session",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 
 	page, err := service.ListMessages(
 		context.Background(),
@@ -4025,7 +3849,7 @@ func TestServiceListMessagesReturnsEmptyPageForLiveSessionWithoutProjection(t *t
 }
 
 func TestServiceListMessagesReturnsEmptyPageForPersistedSessionWithoutProjectionMessages(t *testing.T) {
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:persisted-session": {
@@ -4055,7 +3879,7 @@ func TestServiceListMessagesReturnsEmptyPageForPersistedSessionWithoutProjection
 }
 
 func TestServiceListMessagesReturnsNotFoundForUnknownSession(t *testing.T) {
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.MessageReader = fakeMessageReader{}
 
 	if _, err := service.ListMessages(
@@ -4069,15 +3893,16 @@ func TestServiceListMessagesReturnsNotFoundForUnknownSession(t *testing.T) {
 }
 
 func TestServiceFallsBackToPersistedSessions(t *testing.T) {
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
 				ID:                "session-1",
 				WorkspaceID:       "ws-1",
 				Provider:          "codex",
+				Metadata:          agentactivitybiz.SessionMetadata{Visible: true, Capabilities: []string{}},
 				ProviderSessionID: "provider-session-1",
-				Status:            "working",
+				ActiveTurnID:      "turn-1",
 				Title:             "Persisted session",
 				CreatedAtUnixMS:   1000,
 				UpdatedAtUnixMS:   2000,
@@ -4105,106 +3930,12 @@ func TestServiceFallsBackToPersistedSessions(t *testing.T) {
 	}
 }
 
-func TestServiceGetUsesNewerPersistedStateOverStaleRuntimeSession(t *testing.T) {
-	runtime := newFakeRuntime()
-	activeTurnID := "turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:                "session-1",
-		WorkspaceID:       "ws-1",
-		Provider:          "claude-code",
-		ProviderSessionID: "provider-session-1",
-		Status:            "working",
-		TurnLifecycle: &TurnLifecycle{
-			ActiveTurnID: &activeTurnID,
-			Phase:        "running",
-		},
-		SubmitAvailability: &SubmitAvailability{State: "blocked", Reason: "active_turn"},
-		UpdatedAtUnixMS:    1000,
-	}
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:                "session-1",
-				WorkspaceID:       "ws-1",
-				Provider:          "claude-code",
-				ProviderSessionID: "provider-session-1",
-				Status:            "completed",
-				CurrentPhase:      "idle",
-				LastEventUnixMS:   2000,
-				UpdatedAtUnixMS:   2000,
-			},
-		},
-	}
-
-	got, err := service.Get(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Get returned error: %v", err)
-	}
-	if got.Status != "completed" {
-		t.Fatalf("status = %q, want completed", got.Status)
-	}
-	if got.TurnLifecycle == nil || got.TurnLifecycle.ActiveTurnID != nil || got.TurnLifecycle.Phase != "settled" {
-		t.Fatalf("turn lifecycle = %#v, want settled without active turn", got.TurnLifecycle)
-	}
-	if got.SubmitAvailability == nil || got.SubmitAvailability.State != "available" {
-		t.Fatalf("submit availability = %#v, want available", got.SubmitAvailability)
-	}
-
-	list, err := service.List(context.Background(), "ws-1")
-	if err != nil {
-		t.Fatalf("List returned error: %v", err)
-	}
-	if len(list) != 1 || list[0].Status != "completed" {
-		t.Fatalf("list = %#v, want completed persisted state", list)
-	}
-}
-
-func TestServiceGetKeepsRuntimeStateWhenPersistedStateIsNotNewer(t *testing.T) {
-	runtime := newFakeRuntime()
-	activeTurnID := "turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:                 "session-1",
-		WorkspaceID:        "ws-1",
-		Provider:           "claude-code",
-		Status:             "working",
-		TurnLifecycle:      &TurnLifecycle{ActiveTurnID: &activeTurnID, Phase: "running"},
-		UpdatedAtUnixMS:    2000,
-		SubmitAvailability: &SubmitAvailability{State: "blocked", Reason: "active_turn"},
-	}
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:              "session-1",
-				WorkspaceID:     "ws-1",
-				Provider:        "claude-code",
-				Status:          "completed",
-				CurrentPhase:    "idle",
-				LastEventUnixMS: 1000,
-				UpdatedAtUnixMS: 1000,
-			},
-		},
-	}
-
-	got, err := service.Get(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Get returned error: %v", err)
-	}
-	if got.Status != "running" {
-		t.Fatalf("status = %q, want runtime running", got.Status)
-	}
-	if got.TurnLifecycle == nil || got.TurnLifecycle.ActiveTurnID == nil || *got.TurnLifecycle.ActiveTurnID != activeTurnID {
-		t.Fatalf("turn lifecycle = %#v, want live runtime turn", got.TurnLifecycle)
-	}
-}
-
 func TestServiceListFilteredMatchesSearchVisibilityLimitAndUpdatedOrder(t *testing.T) {
 	runtime := newFakeRuntime()
 	olderUpdatedAt := time.UnixMilli(2000)
 	newerUpdatedAt := time.UnixMilli(4000)
 	hiddenUpdatedAt := time.UnixMilli(5000)
-	runtime.sessions["ws-1:session-hidden"] = RuntimeSession{
+	runtime.sessions["ws-1:session-hidden"] = ProviderRuntimeSession{
 		ID:              "session-hidden",
 		WorkspaceID:     "ws-1",
 		Provider:        "codex",
@@ -4215,7 +3946,7 @@ func TestServiceListFilteredMatchesSearchVisibilityLimitAndUpdatedOrder(t *testi
 		CreatedAtUnixMS: time.UnixMilli(1000).UnixMilli(),
 		UpdatedAtUnixMS: hiddenUpdatedAt.UnixMilli(),
 	}
-	runtime.sessions["ws-1:session-older"] = RuntimeSession{
+	runtime.sessions["ws-1:session-older"] = ProviderRuntimeSession{
 		ID:              "session-older",
 		WorkspaceID:     "ws-1",
 		Provider:        "codex",
@@ -4226,7 +3957,7 @@ func TestServiceListFilteredMatchesSearchVisibilityLimitAndUpdatedOrder(t *testi
 		CreatedAtUnixMS: time.UnixMilli(1000).UnixMilli(),
 		UpdatedAtUnixMS: olderUpdatedAt.UnixMilli(),
 	}
-	runtime.sessions["ws-1:session-newer"] = RuntimeSession{
+	runtime.sessions["ws-1:session-newer"] = ProviderRuntimeSession{
 		ID:              "session-newer",
 		WorkspaceID:     "ws-1",
 		Provider:        "codex",
@@ -4238,7 +3969,7 @@ func TestServiceListFilteredMatchesSearchVisibilityLimitAndUpdatedOrder(t *testi
 		UpdatedAtUnixMS: newerUpdatedAt.UnixMilli(),
 	}
 
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	list, err := service.ListFiltered(context.Background(), "ws-1", ListSessionsInput{
 		SearchQuery: "mention",
 		Limit:       1,
@@ -4258,25 +3989,23 @@ func TestServiceListDeletesStalePersistedHiddenLiveModelDiscoverySession(t *test
 	reader := fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:hidden": {
-				ID:          "hidden",
-				WorkspaceID: "ws-1",
-				Provider:    "claude-code",
-				Cwd:         "/",
-				RuntimeContext: map[string]any{
-					"visible": false,
-				},
+				ID:              "hidden",
+				WorkspaceID:     "ws-1",
+				Provider:        "claude-code",
+				Cwd:             "/",
+				Metadata:        agentactivitybiz.SessionMetadata{Visible: false},
 				UpdatedAtUnixMS: time.UnixMilli(5000).UnixMilli(),
 			},
 			"ws-1:session-1": {
 				ID:              "session-1",
 				WorkspaceID:     "ws-1",
 				Provider:        "claude-code",
-				Visible:         true,
+				Metadata:        agentactivitybiz.SessionMetadata{Visible: true, Capabilities: []string{}},
 				UpdatedAtUnixMS: time.UnixMilli(4000).UnixMilli(),
 			},
 		},
 	}
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = reader
 
 	list, err := service.List(context.Background(), "ws-1")
@@ -4301,7 +4030,6 @@ func TestServiceListSessionSectionsUsesCurrentProjectsAndConversations(t *testin
 					WorkspaceID:     "ws-1",
 					Provider:        "codex",
 					Cwd:             "/workspace/project",
-					Status:          "completed",
 					CreatedAtUnixMS: 1000,
 					UpdatedAtUnixMS: 5000,
 				}},
@@ -4315,7 +4043,6 @@ func TestServiceListSessionSectionsUsesCurrentProjectsAndConversations(t *testin
 					WorkspaceID:     "ws-1",
 					Provider:        "codex",
 					Cwd:             "/scratch/session",
-					Status:          "completed",
 					CreatedAtUnixMS: 1000,
 					UpdatedAtUnixMS: 4000,
 				}},
@@ -4326,7 +4053,6 @@ func TestServiceListSessionSectionsUsesCurrentProjectsAndConversations(t *testin
 					ID:              "pinned-session",
 					WorkspaceID:     "ws-1",
 					Provider:        "codex",
-					Status:          "completed",
 					PinnedAtUnixMS:  6000,
 					CreatedAtUnixMS: 1000,
 					UpdatedAtUnixMS: 3000,
@@ -4336,7 +4062,7 @@ func TestServiceListSessionSectionsUsesCurrentProjectsAndConversations(t *testin
 			},
 		},
 	}
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = reader
 	service.UserProjectReader = fakeUserProjectReader{projects: []userprojectbiz.Project{{
 		ID:    "project-1",
@@ -4379,7 +4105,7 @@ func TestServiceListSessionSectionsUsesCurrentProjectsAndConversations(t *testin
 
 func TestServiceListSessionSectionPageForwardsStableCursor(t *testing.T) {
 	reader := &fakeSectionReader{}
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = reader
 	service.UserProjectReader = fakeUserProjectReader{projects: []userprojectbiz.Project{{
 		ID:         "project-1",
@@ -4411,7 +4137,7 @@ func TestServiceListSessionSectionPageForwardsStableCursor(t *testing.T) {
 
 func TestServiceListPinnedSessionPageForwardsStableCursor(t *testing.T) {
 	reader := &fakeSectionReader{}
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = reader
 
 	page, err := service.ListPinnedSessionPage(context.Background(), "ws-1", ListPinnedSessionPageInput{
@@ -4443,7 +4169,7 @@ func sessionIDs(sessions []Session) []string {
 }
 
 func TestServiceListsActivePeersFromCanonicalSessionStatus(t *testing.T) {
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
@@ -4451,7 +4177,8 @@ func TestServiceListsActivePeersFromCanonicalSessionStatus(t *testing.T) {
 				WorkspaceID:     "ws-1",
 				UserID:          "user-1",
 				Provider:        "codex",
-				Status:          "working",
+				Metadata:        agentactivitybiz.SessionMetadata{Visible: true, Capabilities: []string{}},
+				ActiveTurnID:    "turn-1",
 				Title:           "Active work",
 				CreatedAtUnixMS: 1000,
 				UpdatedAtUnixMS: 2000,
@@ -4461,7 +4188,7 @@ func TestServiceListsActivePeersFromCanonicalSessionStatus(t *testing.T) {
 				WorkspaceID:     "ws-1",
 				UserID:          "user-2",
 				Provider:        "claude",
-				Status:          "completed",
+				Metadata:        agentactivitybiz.SessionMetadata{Visible: true, Capabilities: []string{}},
 				Title:           "Done",
 				CreatedAtUnixMS: 2000,
 				UpdatedAtUnixMS: 3000,
@@ -4485,7 +4212,7 @@ func TestServiceListsActivePeersFromCanonicalSessionStatus(t *testing.T) {
 }
 
 func TestServiceDeletesPersistedSession(t *testing.T) {
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
@@ -4534,17 +4261,17 @@ func TestServiceDeleteClosesRuntimeSession(t *testing.T) {
 
 func TestServiceClearClosesRuntimeAndClearsPersistedSessions(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "codex",
 	}
-	runtime.sessions["ws-2:session-2"] = RuntimeSession{
+	runtime.sessions["ws-2:session-2"] = ProviderRuntimeSession{
 		ID:          "session-2",
 		WorkspaceID: "ws-2",
 		Provider:    "codex",
 	}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {ID: "session-1", WorkspaceID: "ws-1"},
@@ -4569,7 +4296,7 @@ func TestServiceClearClosesRuntimeAndClearsPersistedSessions(t *testing.T) {
 
 func TestServiceResumesPersistedSessionBeforeInput(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
@@ -4577,7 +4304,7 @@ func TestServiceResumesPersistedSessionBeforeInput(t *testing.T) {
 				WorkspaceID:       "ws-1",
 				Provider:          "codex",
 				ProviderSessionID: "provider-session-1",
-				Status:            "working",
+				ActiveTurnID:      "turn-1",
 				Title:             "Persisted session",
 				CreatedAtUnixMS:   1000,
 				UpdatedAtUnixMS:   2000,
@@ -4606,7 +4333,7 @@ func TestServiceSendInputContinuesImportedSession(t *testing.T) {
 	// the provider session is missing locally, recreates) the provider session
 	// rather than rejecting with ErrSessionNotFound and forcing a new chat.
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-imported": {
@@ -4615,7 +4342,6 @@ func TestServiceSendInputContinuesImportedSession(t *testing.T) {
 				Provider:          "codex",
 				ProviderSessionID: "imported-thread-1",
 				Origin:            WorkspaceAgentSessionOriginImported,
-				Status:            "completed",
 				Title:             "Imported chat",
 				CreatedAtUnixMS:   1000,
 				UpdatedAtUnixMS:   2000,
@@ -4636,7 +4362,7 @@ func TestServiceSendInputContinuesImportedSession(t *testing.T) {
 
 func TestServiceSendInputReturnsRuntimeExecStatusOverStalePersistedStatus(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
@@ -4644,7 +4370,6 @@ func TestServiceSendInputReturnsRuntimeExecStatusOverStalePersistedStatus(t *tes
 				WorkspaceID:       "ws-1",
 				Provider:          "codex",
 				ProviderSessionID: "provider-session-1",
-				Status:            "completed",
 				Title:             "Persisted session",
 				CreatedAtUnixMS:   1000,
 				UpdatedAtUnixMS:   2000,
@@ -4656,19 +4381,15 @@ func TestServiceSendInputReturnsRuntimeExecStatusOverStalePersistedStatus(t *tes
 	if err != nil {
 		t.Fatalf("SendInput returned error: %v", err)
 	}
-	session := result.Session
-	if session.Status != "running" {
-		t.Fatalf("session status = %q, want running", session.Status)
-	}
-	if session.EndedAt != nil {
-		t.Fatalf("endedAt = %#v, want nil for accepted input", session.EndedAt)
+	if result.Session.EndedAt != nil {
+		t.Fatalf("endedAt = %#v, want nil for accepted input", result.Session.EndedAt)
 	}
 }
 
 func TestServiceSendInputReportsNodeResults(t *testing.T) {
 	runtime := newFakeRuntime()
 	reporter := &recordingAgentAnalyticsReporter{}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.AnalyticsReporter = reporter
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
@@ -4677,7 +4398,7 @@ func TestServiceSendInputReportsNodeResults(t *testing.T) {
 				WorkspaceID:       "ws-1",
 				Provider:          "codex",
 				ProviderSessionID: "provider-session-1",
-				Status:            "waiting",
+				ActiveTurnID:      "turn-1",
 				Title:             "Persisted session",
 				CreatedAtUnixMS:   1000,
 				UpdatedAtUnixMS:   2000,
@@ -4723,7 +4444,7 @@ func TestServiceSendInputReportsRuntimeExecFailure(t *testing.T) {
 	runtime := newFakeRuntime()
 	runtime.execErr = errors.New("network connection disconnected")
 	reporter := &recordingAgentAnalyticsReporter{}
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.AnalyticsReporter = reporter
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
@@ -4732,7 +4453,7 @@ func TestServiceSendInputReportsRuntimeExecFailure(t *testing.T) {
 				WorkspaceID:       "ws-1",
 				Provider:          "codex",
 				ProviderSessionID: "provider-session-1",
-				Status:            "waiting",
+				ActiveTurnID:      "turn-1",
 				Title:             "Persisted session",
 				CreatedAtUnixMS:   1000,
 				UpdatedAtUnixMS:   2000,
@@ -4767,242 +4488,27 @@ func TestServiceSendInputReportsRuntimeExecFailure(t *testing.T) {
 	}
 }
 
-func TestServiceReconcilesStalePersistedTurnBeforeSubmittingInteractive(t *testing.T) {
-	runtime := newFakeRuntime()
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:                "session-1",
-				WorkspaceID:       "ws-1",
-				Provider:          "codex",
-				ProviderSessionID: "provider-session-1",
-				Cwd:               "/workspace",
-				Status:            "waiting",
-				Title:             "Waiting",
-			},
-		},
-	}
-
-	session, err := service.SubmitInteractive(
-		context.Background(),
-		"ws-1",
-		"session-1",
-		"permission-1",
-		SubmitInteractiveInput{OptionID: stringRef("approve")},
-	)
-	if err != nil {
-		t.Fatalf("SubmitInteractive returned error: %v", err)
-	}
-	if session.ID != "session-1" {
-		t.Fatalf("session ID = %q, want session-1", session.ID)
-	}
-	if len(reconciled) != 1 || reconciled[0].ID != "session-1" {
-		t.Fatalf("reconciled = %#v, want stale persisted session", reconciled)
-	}
-	if len(runtime.submitInteractiveCalls) != 0 {
-		t.Fatalf("submit interactive calls = %#v, want skipped stale live request", runtime.submitInteractiveCalls)
-	}
-}
-
-func TestServiceReconcilesOpenToolCallBeforeSubmittingInteractive(t *testing.T) {
-	runtime := newFakeRuntime()
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:                "session-1",
-				WorkspaceID:       "ws-1",
-				Provider:          "codex",
-				ProviderSessionID: "provider-session-1",
-				Cwd:               "/workspace",
-				Status:            "created",
-				Title:             "Created",
-			},
-		},
-	}
-	service.MessageReader = fakeMessageReader{
-		page: SessionMessagesPage{
-			AgentSessionID: "session-1",
-			Messages: []SessionMessage{{
-				MessageID: "approval-1",
-				TurnID:    "turn-1",
-				Role:      "assistant",
-				Kind:      "tool_call",
-				Status:    "waiting_approval",
-				Payload: map[string]any{
-					"input":  map[string]any{"requestId": "permission-1"},
-					"status": "waiting_approval",
-				},
-			}},
-		},
-	}
-
-	session, err := service.SubmitInteractive(
-		context.Background(),
-		"ws-1",
-		"session-1",
-		"permission-1",
-		SubmitInteractiveInput{OptionID: stringRef("approve")},
-	)
-	if err != nil {
-		t.Fatalf("SubmitInteractive returned error: %v", err)
-	}
-	if session.ID != "session-1" {
-		t.Fatalf("session ID = %q, want session-1", session.ID)
-	}
-	if len(reconciled) != 1 || reconciled[0].ID != "session-1" {
-		t.Fatalf("reconciled = %#v, want open tool call session", reconciled)
-	}
-	if len(runtime.submitInteractiveCalls) != 0 {
-		t.Fatalf("submit interactive calls = %#v, want skipped stale live request", runtime.submitInteractiveCalls)
-	}
-}
-
-func TestServiceReconcilesGhostOpenApprovalWhileBackgroundAgentsAreLive(t *testing.T) {
-	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:          "session-1",
-		WorkspaceID: "ws-1",
-		Provider:    "claude-code",
-		Status:      "ready",
-		RuntimeContext: map[string]any{
-			"backgroundAgents": map[string]any{
-				"count": float64(1),
-				"items": []any{
-					map[string]any{
-						"agentId":         "agent-1",
-						"parentToolUseId": "toolu-agent",
-						"status":          "running",
-					},
-				},
-			},
-		},
-	}
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:           "session-1",
-				WorkspaceID:  "ws-1",
-				Provider:     "claude-code",
-				Status:       "active",
-				CurrentPhase: "idle",
-			},
-		},
-	}
-	service.MessageReader = fakeMessageReader{
-		page: SessionMessagesPage{
-			AgentSessionID: "session-1",
-			Messages: []SessionMessage{{
-				MessageID: "approval-1",
-				TurnID:    "turn-1",
-				Role:      "assistant",
-				Kind:      "tool_call",
-				Status:    "waiting_approval",
-				Payload: map[string]any{
-					"input":  map[string]any{"requestId": "permission-1"},
-					"status": "waiting_approval",
-				},
-			}},
-		},
-	}
-
-	session, err := service.Get(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Get returned error: %v", err)
-	}
-	if session.ID != "session-1" {
-		t.Fatalf("session ID = %q, want session-1", session.ID)
-	}
-	if len(reconciled) != 1 || reconciled[0].ID != "session-1" {
-		t.Fatalf("reconciled = %#v, want ghost open approval cleared", reconciled)
-	}
-}
-
-func TestServiceSubmitInteractiveReconcilesStaleLiveRequestError(t *testing.T) {
-	runtime := newFakeRuntime()
-	runtime.submitInteractiveErr = errors.New(`interactive request "permission-1" is no longer live`)
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:          "session-1",
-		WorkspaceID: "ws-1",
-		Provider:    "claude-code",
-		Status:      "ready",
-	}
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:          "session-1",
-				WorkspaceID: "ws-1",
-				Provider:    "claude-code",
-				Status:      "active",
-			},
-		},
-	}
-	service.MessageReader = fakeMessageReader{
-		page: SessionMessagesPage{
-			AgentSessionID: "session-1",
-			Messages: []SessionMessage{{
-				MessageID: "approval-1",
-				TurnID:    "turn-1",
-				Role:      "assistant",
-				Kind:      "tool_call",
-				Status:    "waiting_approval",
-				Payload: map[string]any{
-					"input":  map[string]any{"requestId": "permission-1"},
-					"status": "waiting_approval",
-				},
-			}},
-		},
-	}
-
-	session, err := service.SubmitInteractive(
-		context.Background(),
-		"ws-1",
-		"session-1",
-		"permission-1",
-		SubmitInteractiveInput{OptionID: stringRef("allow")},
-	)
-	if err != nil {
-		t.Fatalf("SubmitInteractive returned error: %v", err)
-	}
-	if session.ID != "session-1" {
-		t.Fatalf("session ID = %q, want session-1", session.ID)
-	}
-	if len(reconciled) != 1 || reconciled[0].ID != "session-1" {
-		t.Fatalf("reconciled = %#v, want stale approval cleared after no-longer-live", reconciled)
-	}
-}
-
 func TestServiceDoesNotReconcileStalePersistedTurnWhenRuntimeSessionIsWorking(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:                "session-1",
 		WorkspaceID:       "ws-1",
 		Provider:          "codex",
 		ProviderSessionID: "provider-session-1",
 		Status:            "working",
 	}
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
+	service.RuntimeOperationStore = &runtimeOperationMemoryStore{}
+	service.RuntimeOperationOwner = "worker-a"
+	service.TurnStore = runtimeOperationTurnStore("turn-1", "permission-1")
 	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
 				ID:                "session-1",
 				WorkspaceID:       "ws-1",
 				Provider:          "codex",
 				ProviderSessionID: "provider-session-1",
-				Status:            "waiting",
+				ActiveTurnID:      "turn-1",
 			},
 		},
 	}
@@ -5016,27 +4522,22 @@ func TestServiceDoesNotReconcileStalePersistedTurnWhenRuntimeSessionIsWorking(t 
 	); err != nil {
 		t.Fatalf("SubmitInteractive returned error: %v", err)
 	}
-	if len(reconciled) != 0 {
-		t.Fatalf("reconciled = %#v, want live working runtime session left alone", reconciled)
-	}
 	if len(runtime.submitInteractiveCalls) != 1 {
 		t.Fatalf("submit interactive calls = %#v, want live runtime interactive response", runtime.submitInteractiveCalls)
 	}
 }
 
-func TestServiceGetReconcilesStalePersistedTurn(t *testing.T) {
+func TestServiceGetDoesNotMutateDurableActiveTurn(t *testing.T) {
 	runtime := newFakeRuntime()
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
 				ID:                "session-1",
 				WorkspaceID:       "ws-1",
 				Provider:          "codex",
 				ProviderSessionID: "provider-session-1",
-				Status:            "waiting",
+				ActiveTurnID:      "turn-1",
 			},
 		},
 	}
@@ -5045,37 +4546,143 @@ func TestServiceGetReconcilesStalePersistedTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
-	if len(reconciled) != 1 {
-		t.Fatalf("reconciled = %#v, want stale persisted session reconciled on get", reconciled)
-	}
-	if session.Status == "waiting" {
-		t.Fatalf("session status = %q, want stale waiting cleared", session.Status)
+	if session.ActiveTurnID != "turn-1" {
+		t.Fatalf("active turn id = %q, want durable turn reference preserved", session.ActiveTurnID)
 	}
 }
 
-func TestServiceGetReconcilesRuntimeWaitingWithoutLivePendingInteractive(t *testing.T) {
+func TestServiceGetDoesNotReconcileLiveRuntimeWaitingApprovalTurn(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	activeTurnID := "synthetic-turn-1"
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "claude-code",
-		Status:      "waiting",
+		Status:      "created",
+		TurnLifecycle: &TurnLifecycle{
+			ActiveTurnID: &activeTurnID,
+			Phase:        "waiting_approval",
+		},
 	}
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	reader := fakeSessionReader{
-		reconciled: &reconciled,
+	service := newIsolatedAgentService(runtime)
+	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
-				ID:           "session-1",
-				WorkspaceID:  "ws-1",
-				Provider:     "claude-code",
-				Status:       "active",
-				CurrentPhase: "waiting_approval",
+				ID:          "session-1",
+				WorkspaceID: "ws-1",
+				Provider:    "claude-code",
 			},
 		},
 	}
+	service.MessageReader = fakeMessageReader{
+		page: SessionMessagesPage{
+			Messages: []SessionMessage{{
+				TurnID: "synthetic-turn-1",
+				Kind:   "tool_call",
+				Status: "waiting_approval",
+				Payload: map[string]any{
+					"input": map[string]any{"toolName": "ExitPlanMode"},
+				},
+			}},
+		},
+	}
+
+	_, err := service.Get(context.Background(), "ws-1", "session-1")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+}
+
+func TestServiceEnsureRuntimeSessionDoesNotReconcileLiveRuntimeWaitingApprovalTurn(t *testing.T) {
+	runtime := newFakeRuntime()
+	activeTurnID := "synthetic-turn-1"
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
+		ID:          "session-1",
+		WorkspaceID: "ws-1",
+		Provider:    "claude-code",
+		Status:      "created",
+		TurnLifecycle: &TurnLifecycle{
+			ActiveTurnID: &activeTurnID,
+			Phase:        "waiting_approval",
+		},
+	}
+	service := newIsolatedAgentService(runtime)
+	service.SessionReader = fakeSessionReader{
+		sessions: map[string]PersistedSession{
+			"ws-1:session-1": {
+				ID:          "session-1",
+				WorkspaceID: "ws-1",
+				Provider:    "claude-code",
+			},
+		},
+	}
+	service.MessageReader = fakeMessageReader{
+		page: SessionMessagesPage{
+			Messages: []SessionMessage{{
+				TurnID: "synthetic-turn-1",
+				Kind:   "tool_call",
+				Status: "waiting_approval",
+				Payload: map[string]any{
+					"input": map[string]any{"toolName": "ExitPlanMode"},
+				},
+			}},
+		},
+	}
+
+	_, err := service.ensureRuntimeSessionResult(context.Background(), "ws-1", "session-1")
+	if err != nil {
+		t.Fatalf("ensureRuntimeSessionResult returned error: %v", err)
+	}
+}
+
+func TestServiceEnsureRuntimeSessionDeletesStalePersistedHiddenLiveModelDiscoverySession(t *testing.T) {
+	reader := fakeSessionReader{
+		sessions: map[string]PersistedSession{
+			"ws-1:hidden": {
+				ID:          "hidden",
+				WorkspaceID: "ws-1",
+				Provider:    "claude-code",
+				Cwd:         "/",
+				Metadata:    agentactivitybiz.SessionMetadata{Visible: false},
+			},
+		},
+	}
+	service := newIsolatedAgentService(newFakeRuntime())
 	service.SessionReader = reader
+
+	_, err := service.ensureRuntimeSessionResult(context.Background(), "ws-1", "hidden")
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("ensureRuntimeSessionResult error = %v, want %v", err, ErrSessionNotFound)
+	}
+	if _, ok := reader.sessions["ws-1:hidden"]; ok {
+		t.Fatal("hidden discovery session still persisted, want deleted")
+	}
+}
+
+func TestServiceGetDoesNotReconcileLiveRuntimePendingInteractive(t *testing.T) {
+	runtime := newFakeRuntime()
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
+		ID:          "session-1",
+		WorkspaceID: "ws-1",
+		Provider:    "claude-code",
+		Status:      "created",
+		PendingInteractive: &RuntimeInteractivePrompt{
+			Kind:      "exit-plan",
+			RequestID: "plan-1",
+			ToolName:  "ExitPlanMode",
+			Status:    "waiting",
+		},
+	}
+	service := newIsolatedAgentService(runtime)
+	service.SessionReader = fakeSessionReader{
+		sessions: map[string]PersistedSession{
+			"ws-1:session-1": {
+				ID:          "session-1",
+				WorkspaceID: "ws-1",
+				Provider:    "claude-code",
+			},
+		},
+	}
 	service.MessageReader = fakeMessageReader{
 		page: SessionMessagesPage{
 			Messages: []SessionMessage{{
@@ -5096,267 +4703,11 @@ func TestServiceGetReconcilesRuntimeWaitingWithoutLivePendingInteractive(t *test
 	if err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
-	if len(reconciled) != 1 {
-		t.Fatalf("reconciled = %#v, want stale waiting runtime session reconciled", reconciled)
-	}
-	persisted := reader.sessions["ws-1:session-1"]
-	if persisted.Status == "waiting" || persisted.CurrentPhase == "waiting_approval" {
-		t.Fatalf("persisted session = %#v, want stale waiting cleared", persisted)
-	}
-}
-
-func TestServiceReconcilesStalePersistedTurnBeforeCanceling(t *testing.T) {
-	runtime := newFakeRuntime()
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:                "session-1",
-				WorkspaceID:       "ws-1",
-				Provider:          "codex",
-				ProviderSessionID: "provider-session-1",
-				Status:            "working",
-			},
-		},
-	}
-
-	result, err := service.Cancel(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Cancel returned error: %v", err)
-	}
-	if result.Canceled || result.Reason != CancelReasonStaleTurnReconciled {
-		t.Fatalf("cancel result = %#v, want stale turn reconciled without cancel", result)
-	}
-	if len(reconciled) != 1 || reconciled[0].ID != "session-1" {
-		t.Fatalf("reconciled = %#v, want stale persisted session", reconciled)
-	}
-	if len(runtime.cancelCalls) != 0 {
-		t.Fatalf("cancel calls = %#v, want skipped stale runtime cancel", runtime.cancelCalls)
-	}
-}
-
-func TestServiceReconcilesPhaseOnlyStalePersistedTurnBeforeCanceling(t *testing.T) {
-	runtime := newFakeRuntime()
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:                "session-1",
-				WorkspaceID:       "ws-1",
-				Provider:          "codex",
-				ProviderSessionID: "provider-session-1",
-				Status:            "created",
-				CurrentPhase:      "running",
-			},
-		},
-	}
-
-	result, err := service.Cancel(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Cancel returned error: %v", err)
-	}
-	if result.Canceled || result.Reason != CancelReasonStaleTurnReconciled {
-		t.Fatalf("cancel result = %#v, want phase-only stale turn reconciled without cancel", result)
-	}
-	if len(reconciled) != 1 || reconciled[0].CurrentPhase != "running" {
-		t.Fatalf("reconciled = %#v, want phase-only stale persisted session", reconciled)
-	}
-	if len(runtime.cancelCalls) != 0 {
-		t.Fatalf("cancel calls = %#v, want skipped stale runtime cancel", runtime.cancelCalls)
-	}
-}
-
-func TestServiceGetDoesNotReconcileLiveRuntimeWaitingApprovalTurn(t *testing.T) {
-	runtime := newFakeRuntime()
-	activeTurnID := "synthetic-turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:          "session-1",
-		WorkspaceID: "ws-1",
-		Provider:    "claude-code",
-		Status:      "created",
-		TurnLifecycle: &TurnLifecycle{
-			ActiveTurnID: &activeTurnID,
-			Phase:        "waiting_approval",
-		},
-	}
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:          "session-1",
-				WorkspaceID: "ws-1",
-				Provider:    "claude-code",
-				Status:      "ready",
-			},
-		},
-	}
-	service.MessageReader = fakeMessageReader{
-		page: SessionMessagesPage{
-			Messages: []SessionMessage{{
-				TurnID: "synthetic-turn-1",
-				Kind:   "tool_call",
-				Status: "waiting_approval",
-				Payload: map[string]any{
-					"input": map[string]any{"toolName": "ExitPlanMode"},
-				},
-			}},
-		},
-	}
-
-	session, err := service.Get(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Get returned error: %v", err)
-	}
-	if session.TurnLifecycle == nil || session.TurnLifecycle.Phase != "waiting_approval" {
-		t.Fatalf("turn lifecycle = %#v, want live waiting approval", session.TurnLifecycle)
-	}
-	if len(reconciled) != 0 {
-		t.Fatalf("reconciled = %#v, want no stale reconcile for live runtime turn", reconciled)
-	}
-}
-
-func TestServiceEnsureRuntimeSessionDoesNotReconcileLiveRuntimeWaitingApprovalTurn(t *testing.T) {
-	runtime := newFakeRuntime()
-	activeTurnID := "synthetic-turn-1"
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:          "session-1",
-		WorkspaceID: "ws-1",
-		Provider:    "claude-code",
-		Status:      "created",
-		TurnLifecycle: &TurnLifecycle{
-			ActiveTurnID: &activeTurnID,
-			Phase:        "waiting_approval",
-		},
-	}
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:          "session-1",
-				WorkspaceID: "ws-1",
-				Provider:    "claude-code",
-				Status:      "ready",
-			},
-		},
-	}
-	service.MessageReader = fakeMessageReader{
-		page: SessionMessagesPage{
-			Messages: []SessionMessage{{
-				TurnID: "synthetic-turn-1",
-				Kind:   "tool_call",
-				Status: "waiting_approval",
-				Payload: map[string]any{
-					"input": map[string]any{"toolName": "ExitPlanMode"},
-				},
-			}},
-		},
-	}
-
-	ensured, err := service.ensureRuntimeSessionResult(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("ensureRuntimeSessionResult returned error: %v", err)
-	}
-	if ensured.StaleTurnReconciled {
-		t.Fatal("stale turn reconciled = true, want false for live waiting approval turn")
-	}
-	if len(reconciled) != 0 {
-		t.Fatalf("reconciled = %#v, want no stale reconcile for live runtime turn", reconciled)
-	}
-}
-
-func TestServiceEnsureRuntimeSessionDeletesStalePersistedHiddenLiveModelDiscoverySession(t *testing.T) {
-	reader := fakeSessionReader{
-		sessions: map[string]PersistedSession{
-			"ws-1:hidden": {
-				ID:          "hidden",
-				WorkspaceID: "ws-1",
-				Provider:    "claude-code",
-				Cwd:         "/",
-				RuntimeContext: map[string]any{
-					"visible": false,
-				},
-			},
-		},
-	}
-	service := NewService(newFakeRuntime())
-	service.SessionReader = reader
-
-	_, err := service.ensureRuntimeSessionResult(context.Background(), "ws-1", "hidden")
-	if !errors.Is(err, ErrSessionNotFound) {
-		t.Fatalf("ensureRuntimeSessionResult error = %v, want %v", err, ErrSessionNotFound)
-	}
-	if _, ok := reader.sessions["ws-1:hidden"]; ok {
-		t.Fatal("hidden discovery session still persisted, want deleted")
-	}
-}
-
-func TestServiceGetDoesNotReconcileLiveRuntimePendingInteractive(t *testing.T) {
-	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:          "session-1",
-		WorkspaceID: "ws-1",
-		Provider:    "claude-code",
-		Status:      "created",
-		PendingInteractive: &RuntimeInteractivePrompt{
-			Kind:      "exit-plan",
-			RequestID: "plan-1",
-			ToolName:  "ExitPlanMode",
-			Status:    "waiting",
-		},
-	}
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
-	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
-		sessions: map[string]PersistedSession{
-			"ws-1:session-1": {
-				ID:           "session-1",
-				WorkspaceID:  "ws-1",
-				Provider:     "claude-code",
-				Status:       "ready",
-				CurrentPhase: "idle",
-			},
-		},
-	}
-	service.MessageReader = fakeMessageReader{
-		page: SessionMessagesPage{
-			Messages: []SessionMessage{{
-				TurnID: "synthetic-turn-1",
-				Kind:   "tool_call",
-				Status: "waiting_approval",
-				Payload: map[string]any{
-					"input": map[string]any{
-						"requestId": "plan-1",
-						"toolName":  "ExitPlanMode",
-					},
-				},
-			}},
-		},
-	}
-
-	session, err := service.Get(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Get returned error: %v", err)
-	}
-	if session.Status != "created" {
-		t.Fatalf("session status = %q, want live runtime status", session.Status)
-	}
-	if len(reconciled) != 0 {
-		t.Fatalf("reconciled = %#v, want no stale reconcile for live pending interactive", reconciled)
-	}
 }
 
 func TestServiceGetDoesNotReconcileLiveRuntimeBackgroundAgent(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
+	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
 		WorkspaceID: "ws-1",
 		Provider:    "claude-code",
@@ -5371,16 +4722,13 @@ func TestServiceGetDoesNotReconcileLiveRuntimeBackgroundAgent(t *testing.T) {
 			},
 		},
 	}
-	reconciled := make([]PersistedSession, 0)
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = fakeSessionReader{
-		reconciled: &reconciled,
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
 				ID:          "session-1",
 				WorkspaceID: "ws-1",
 				Provider:    "claude-code",
-				Status:      "ready",
 			},
 		},
 	}
@@ -5397,72 +4745,16 @@ func TestServiceGetDoesNotReconcileLiveRuntimeBackgroundAgent(t *testing.T) {
 		},
 	}
 
-	session, err := service.Get(context.Background(), "ws-1", "session-1")
+	_, err := service.Get(context.Background(), "ws-1", "session-1")
 	if err != nil {
 		t.Fatalf("Get returned error: %v", err)
-	}
-	if session.RuntimeContext["backgroundAgents"] == nil {
-		t.Fatalf("runtime context = %#v, want backgroundAgents preserved", session.RuntimeContext)
-	}
-	if len(reconciled) != 0 {
-		t.Fatalf("reconciled = %#v, want no stale reconcile while background agent is running", reconciled)
-	}
-}
-
-func TestServiceCancelReportsActiveTurnCanceled(t *testing.T) {
-	runtime := newFakeRuntime()
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:              "session-1",
-		WorkspaceID:     "ws-1",
-		Provider:        "codex",
-		Status:          "working",
-		CreatedAtUnixMS: 100,
-		UpdatedAtUnixMS: 200,
-	}
-	service := NewService(runtime)
-
-	result, err := service.Cancel(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Cancel returned error: %v", err)
-	}
-	if !result.Canceled || result.Reason != CancelReasonActiveTurnCanceled {
-		t.Fatalf("cancel result = %#v, want active turn canceled", result)
-	}
-	if result.Session.ID != "session-1" || result.Session.Status != "running" {
-		t.Fatalf("session = %#v, want running session-1", result.Session)
-	}
-}
-
-func TestServiceCancelReportsNoActiveTurn(t *testing.T) {
-	runtime := newFakeRuntime()
-	runtime.cancelResult = RuntimeCancelResult{AgentSessionID: "session-1", Canceled: false}
-	runtime.cancelResultSet = true
-	runtime.sessions["ws-1:session-1"] = RuntimeSession{
-		ID:              "session-1",
-		WorkspaceID:     "ws-1",
-		Provider:        "codex",
-		Status:          "ready",
-		CreatedAtUnixMS: 100,
-		UpdatedAtUnixMS: 200,
-	}
-	service := NewService(runtime)
-
-	result, err := service.Cancel(context.Background(), "ws-1", "session-1")
-	if err != nil {
-		t.Fatalf("Cancel returned error: %v", err)
-	}
-	if result.Canceled || result.Reason != CancelReasonNoActiveTurn {
-		t.Fatalf("cancel result = %#v, want no active turn", result)
-	}
-	if result.Session.ID != "session-1" || result.Session.Status != "created" {
-		t.Fatalf("session = %#v, want created session-1", result.Session)
 	}
 }
 
 func TestServiceResumesPersistedSessionWithPreparedRuntime(t *testing.T) {
 	runtime := newFakeRuntime()
 	var prepareInput agentsidecarservice.PrepareInput
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.RuntimePreparer = fakeRuntimePreparer{
 		input: &prepareInput,
 		result: agentsidecarservice.PreparedRuntime{
@@ -5483,7 +4775,7 @@ func TestServiceResumesPersistedSessionWithPreparedRuntime(t *testing.T) {
 					PermissionModeID: "auto",
 					ReasoningEffort:  "high",
 				},
-				Status:          "working",
+				ActiveTurnID:    "turn-1",
 				Title:           "Persisted session",
 				CreatedAtUnixMS: 1000,
 				UpdatedAtUnixMS: 2000,
@@ -5522,14 +4814,14 @@ func TestServiceResumesPersistedSessionWithPreparedRuntime(t *testing.T) {
 
 func TestServiceResumesPersistedSessionWithoutProviderSessionID(t *testing.T) {
 	runtime := newFakeRuntime()
-	service := NewService(runtime)
+	service := newIsolatedAgentService(runtime)
 	service.SessionReader = fakeSessionReader{
 		sessions: map[string]PersistedSession{
 			"ws-1:session-1": {
 				ID:              "session-1",
 				WorkspaceID:     "ws-1",
 				Provider:        "codex",
-				Status:          "working",
+				ActiveTurnID:    "turn-1",
 				Title:           "Persisted session",
 				CreatedAtUnixMS: 1000,
 				UpdatedAtUnixMS: 2000,
@@ -5554,7 +4846,7 @@ func TestServiceResumesPersistedSessionWithoutProviderSessionID(t *testing.T) {
 }
 
 func TestServiceListMessagesValidatesInputs(t *testing.T) {
-	service := NewService(newFakeRuntime())
+	service := newIsolatedAgentService(newFakeRuntime())
 
 	if _, err := service.ListMessages(
 		context.Background(),
@@ -5592,12 +4884,13 @@ type fakeRuntime struct {
 	execErr                error
 	execCalls              []RuntimeExecInput
 	resumeCalls            []RuntimeResumeInput
-	sessions               map[string]RuntimeSession
+	sessions               map[string]ProviderRuntimeSession
 	submitInteractiveCalls []RuntimeSubmitInteractiveInput
 	submitInteractiveErr   error
 	startErr               error
 	startCalls             []RuntimeStartInput
-	startHook              func(RuntimeStartInput, RuntimeSession) RuntimeSession
+	startHook              func(RuntimeStartInput, ProviderRuntimeSession) ProviderRuntimeSession
+	updateSettingsCalls    []RuntimeUpdateSettingsInput
 	closeHook              func(RuntimeCloseInput)
 	validateErr            error
 	validateCalls          []RuntimeExecInput
@@ -5694,8 +4987,27 @@ func writeAgentServiceJSONL(t *testing.T, path string, items ...map[string]any) 
 	}
 }
 
-func newTestService(runtime RuntimeController) *Service {
+type isolatedComposerCapabilityLister struct{}
+
+func (isolatedComposerCapabilityLister) ListComposerCapabilityOptions(
+	context.Context,
+	string,
+	string,
+	[]ComposerSkillOption,
+) ([]ComposerCapabilityOption, []string) {
+	return nil, nil
+}
+
+// newIsolatedAgentService keeps package tests hermetic. Tests that exercise
+// capability discovery replace CapabilityLister with an explicit fixture.
+func newIsolatedAgentService(runtime RuntimeController) *Service {
 	service := NewService(runtime)
+	service.CapabilityLister = isolatedComposerCapabilityLister{}
+	return service
+}
+
+func newTestService(runtime RuntimeController) *Service {
+	service := newIsolatedAgentService(runtime)
 	service.AgentTargetStore = fakeAgentTargetStore{targets: defaultTestAgentTargets()}
 	return service
 }
@@ -5731,8 +5043,7 @@ func (f *fakeProviderAvailabilityChecker) ListProviderAvailability(_ context.Con
 }
 
 type fakeSessionReader struct {
-	reconciled *[]PersistedSession
-	sessions   map[string]PersistedSession
+	sessions map[string]PersistedSession
 }
 
 type fakeSectionReader struct {
@@ -5786,7 +5097,7 @@ func (f fakeMessageReader) ListSessionMessages(
 
 func newFakeRuntime() *fakeRuntime {
 	return &fakeRuntime{
-		sessions: make(map[string]RuntimeSession),
+		sessions: make(map[string]ProviderRuntimeSession),
 	}
 }
 
@@ -5837,6 +5148,8 @@ func (f *fakeRuntime) Exec(_ context.Context, input RuntimeExecInput) (RuntimeEx
 		Status:         "started",
 		Accepted:       true,
 		SessionStatus:  "working",
+		TurnID:         "turn-1",
+		TurnLifecycle:  TurnLifecycle{Phase: "submitted"},
 	}, nil
 }
 
@@ -5854,6 +5167,7 @@ func (f *fakeRuntime) SubmitInteractive(_ context.Context, input RuntimeSubmitIn
 }
 
 func (f *fakeRuntime) UpdateSettings(_ context.Context, input RuntimeUpdateSettingsInput) error {
+	f.updateSettingsCalls = append(f.updateSettingsCalls, input)
 	key := input.WorkspaceID + ":" + input.AgentSessionID
 	session, ok := f.sessions[key]
 	if !ok {
@@ -5881,9 +5195,9 @@ func (f *fakeRuntime) UpdateSettings(_ context.Context, input RuntimeUpdateSetti
 	return nil
 }
 
-func (f *fakeRuntime) Resume(_ context.Context, input RuntimeResumeInput) (RuntimeSession, error) {
+func (f *fakeRuntime) Resume(_ context.Context, input RuntimeResumeInput) (ProviderRuntimeSession, error) {
 	f.resumeCalls = append(f.resumeCalls, input)
-	session := RuntimeSession{
+	session := ProviderRuntimeSession{
 		ID:                input.AgentSessionID,
 		AgentTargetID:     input.AgentTargetID,
 		Provider:          input.Provider,
@@ -5901,16 +5215,16 @@ func (f *fakeRuntime) Resume(_ context.Context, input RuntimeResumeInput) (Runti
 	return session, nil
 }
 
-func (f *fakeRuntime) Session(workspaceID string, agentSessionID string) (RuntimeSession, bool) {
+func (f *fakeRuntime) Session(workspaceID string, agentSessionID string) (ProviderRuntimeSession, bool) {
 	session, ok := f.sessions[workspaceID+":"+agentSessionID]
 	return session, ok
 }
 
-func (f *fakeRuntime) SetVisible(_ context.Context, input RuntimeSetVisibleInput) (RuntimeSession, error) {
+func (f *fakeRuntime) SetVisible(_ context.Context, input RuntimeSetVisibleInput) (ProviderRuntimeSession, error) {
 	key := input.WorkspaceID + ":" + input.AgentSessionID
 	session, ok := f.sessions[key]
 	if !ok {
-		return RuntimeSession{}, ErrSessionNotFound
+		return ProviderRuntimeSession{}, ErrSessionNotFound
 	}
 	session.Visible = input.Visible
 	session.UpdatedAtUnixMS = time.Now().UnixMilli()
@@ -5918,11 +5232,11 @@ func (f *fakeRuntime) SetVisible(_ context.Context, input RuntimeSetVisibleInput
 	return session, nil
 }
 
-func (f *fakeRuntime) SetTitle(_ context.Context, input RuntimeSetTitleInput) (RuntimeSession, error) {
+func (f *fakeRuntime) SetTitle(_ context.Context, input RuntimeSetTitleInput) (ProviderRuntimeSession, error) {
 	key := input.WorkspaceID + ":" + input.AgentSessionID
 	session, ok := f.sessions[key]
 	if !ok {
-		return RuntimeSession{}, ErrSessionNotFound
+		return ProviderRuntimeSession{}, ErrSessionNotFound
 	}
 	session.Title = strings.TrimSpace(input.Title)
 	session.UpdatedAtUnixMS = time.Now().UnixMilli()
@@ -5930,8 +5244,8 @@ func (f *fakeRuntime) SetTitle(_ context.Context, input RuntimeSetTitleInput) (R
 	return session, nil
 }
 
-func (f *fakeRuntime) Sessions(workspaceID string) []RuntimeSession {
-	result := make([]RuntimeSession, 0)
+func (f *fakeRuntime) Sessions(workspaceID string) []ProviderRuntimeSession {
+	result := make([]ProviderRuntimeSession, 0)
 	for _, session := range f.sessions {
 		if session.WorkspaceID == workspaceID {
 			result = append(result, session)
@@ -5989,23 +5303,10 @@ func (f fakeSessionReader) ClearSessions(_ context.Context, workspaceID string) 
 	return ClearSessionsResult{RemovedSessions: removed, RemovedSessionIDs: removedIDs}, nil
 }
 
-func (f fakeSessionReader) ReconcileStaleTurnOnResume(_ context.Context, session PersistedSession) error {
-	if f.reconciled != nil {
-		*f.reconciled = append(*f.reconciled, session)
-	}
-	key := strings.TrimSpace(session.WorkspaceID) + ":" + strings.TrimSpace(session.ID)
-	if persisted, ok := f.sessions[key]; ok {
-		persisted.Status = "ready"
-		persisted.CurrentPhase = "idle"
-		f.sessions[key] = persisted
-	}
-	return nil
-}
-
-func (f *fakeRuntime) Start(_ context.Context, input RuntimeStartInput) (RuntimeSession, error) {
+func (f *fakeRuntime) Start(_ context.Context, input RuntimeStartInput) (ProviderRuntimeSession, error) {
 	f.startCalls = append(f.startCalls, input)
 	if f.startErr != nil {
-		return RuntimeSession{}, f.startErr
+		return ProviderRuntimeSession{}, f.startErr
 	}
 	f.nextID++
 	now := time.Now().UnixMilli()
@@ -6013,7 +5314,7 @@ func (f *fakeRuntime) Start(_ context.Context, input RuntimeStartInput) (Runtime
 	if id == "" {
 		id = "session-" + string(rune('0'+f.nextID))
 	}
-	session := RuntimeSession{
+	session := ProviderRuntimeSession{
 		ID:            id,
 		AgentTargetID: input.AgentTargetID,
 		Provider:      input.Provider,
@@ -6059,11 +5360,18 @@ func (f fakeAgentTargetLookup) GetAgentTarget(_ context.Context, id string) (age
 }
 
 type activityProjectionRepoStub struct {
-	clearResult   agentactivitybiz.ClearSessionsResult
-	stateResult   agentactivitybiz.StateReportResult
-	stateInput    agentactivitybiz.SessionStateReport
-	messageInput  agentactivitybiz.SessionMessageReport
-	messageResult agentactivitybiz.MessageReportResult
+	clearResult    agentactivitybiz.ClearSessionsResult
+	settleStaleErr error
+	stateResult    agentactivitybiz.StateReportResult
+	stateInput     agentactivitybiz.SessionStateReport
+	messageInput   agentactivitybiz.SessionMessageReport
+	messageResult  agentactivitybiz.MessageReportResult
+	messagePage    agentactivitybiz.MessagePage
+	messagePageOK  bool
+	messagePageErr error
+	turnResult     agentactivitybiz.Turn
+	turnFound      bool
+	turnErr        error
 }
 
 func (r *activityProjectionRepoStub) ClearSessions(context.Context, string) (agentactivitybiz.ClearSessionsResult, error) {
@@ -6086,8 +5394,8 @@ func (*activityProjectionRepoStub) ListSessionSection(context.Context, agentacti
 	return agentactivitybiz.SessionSectionPage{}, false, nil
 }
 
-func (*activityProjectionRepoStub) ListSessionMessages(context.Context, agentactivitybiz.ListSessionMessagesInput) (agentactivitybiz.MessagePage, bool, error) {
-	return agentactivitybiz.MessagePage{}, false, nil
+func (r *activityProjectionRepoStub) ListSessionMessages(context.Context, agentactivitybiz.ListSessionMessagesInput) (agentactivitybiz.MessagePage, bool, error) {
+	return r.messagePage, r.messagePageOK, r.messagePageErr
 }
 
 func (*activityProjectionRepoStub) ListWorkspaceGeneratedFiles(context.Context, agentactivitybiz.ListWorkspaceGeneratedFilesInput) (agentactivitybiz.GeneratedFileList, bool, error) {
@@ -6104,6 +5412,33 @@ func (r *activityProjectionRepoStub) ReportSessionState(_ context.Context, input
 	return r.stateResult, nil
 }
 
+func (r *activityProjectionRepoStub) ReportActivityState(_ context.Context, input agentactivitybiz.ActivityStateReport) (agentactivitybiz.ActivityStateReportResult, error) {
+	r.stateInput = input.Session
+	result := agentactivitybiz.ActivityStateReportResult{State: r.stateResult}
+	if input.Turn != nil {
+		result.Turn = agentactivitybiz.Turn{
+			WorkspaceID:    input.Turn.WorkspaceID,
+			AgentSessionID: input.Turn.AgentSessionID,
+			TurnID:         input.Turn.TurnID,
+			Phase:          input.Turn.Phase,
+			Outcome:        input.Turn.Outcome,
+		}
+		result.TurnAccepted = true
+	}
+	if input.Interaction != nil {
+		result.Interaction = agentactivitybiz.Interaction{
+			WorkspaceID:    input.Interaction.WorkspaceID,
+			AgentSessionID: input.Interaction.AgentSessionID,
+			RequestID:      input.Interaction.RequestID,
+			TurnID:         input.Interaction.TurnID,
+			Kind:           input.Interaction.Kind,
+			Status:         input.Interaction.Status,
+		}
+		result.InteractionAccepted = true
+	}
+	return result, nil
+}
+
 func (*activityProjectionRepoStub) UpdateSessionPinned(context.Context, string, string, bool) (agentactivitybiz.Session, bool, error) {
 	return agentactivitybiz.Session{}, false, nil
 }
@@ -6112,8 +5447,68 @@ func (*activityProjectionRepoStub) UpdateSessionTitle(context.Context, string, s
 	return agentactivitybiz.Session{}, false, nil
 }
 
-func (*activityProjectionRepoStub) GetTurn(context.Context, string, string, string) (agentactivitybiz.Turn, bool, error) {
+func (r *activityProjectionRepoStub) GetTurn(context.Context, string, string, string) (agentactivitybiz.Turn, bool, error) {
+	return r.turnResult, r.turnFound, r.turnErr
+}
+
+func (*activityProjectionRepoStub) GetLatestTurn(context.Context, string, string) (agentactivitybiz.Turn, bool, error) {
 	return agentactivitybiz.Turn{}, false, nil
+}
+
+func (*activityProjectionRepoStub) ListLatestTurns(context.Context, string, []string) (map[string]agentactivitybiz.Turn, error) {
+	return map[string]agentactivitybiz.Turn{}, nil
+}
+
+func (*activityProjectionRepoStub) ListTurnsBySession(context.Context, string, map[string]string) (map[string]agentactivitybiz.Turn, error) {
+	return map[string]agentactivitybiz.Turn{}, nil
+}
+
+func (*activityProjectionRepoStub) ListPendingInteractionsBySession(context.Context, string, []string) (map[string][]agentactivitybiz.Interaction, error) {
+	return map[string][]agentactivitybiz.Interaction{}, nil
+}
+
+func (*activityProjectionRepoStub) ListLatestTurnInteractions(context.Context, string, []string) (map[string][]agentactivitybiz.Interaction, error) {
+	return map[string][]agentactivitybiz.Interaction{}, nil
+}
+
+func (*activityProjectionRepoStub) PrepareRuntimeOperation(context.Context, agentactivitybiz.RuntimeOperationPrepare) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return agentactivitybiz.RuntimeOperation{}, false, nil
+}
+
+func (*activityProjectionRepoStub) GetRuntimeOperation(context.Context, string, string) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return agentactivitybiz.RuntimeOperation{}, false, nil
+}
+
+func (*activityProjectionRepoStub) ListClaimableRuntimeOperations(context.Context, agentactivitybiz.ListClaimableRuntimeOperationsInput) ([]agentactivitybiz.RuntimeOperation, error) {
+	return nil, nil
+}
+
+func (*activityProjectionRepoStub) ClaimRuntimeOperationLease(context.Context, agentactivitybiz.ClaimRuntimeOperationLeaseInput) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return agentactivitybiz.RuntimeOperation{}, false, nil
+}
+
+func (*activityProjectionRepoStub) ReleaseOrFailRuntimeOperation(context.Context, agentactivitybiz.ReleaseOrFailRuntimeOperationInput) (agentactivitybiz.RuntimeOperation, bool, error) {
+	return agentactivitybiz.RuntimeOperation{}, false, nil
+}
+
+func (*activityProjectionRepoStub) RequeueLeasedRuntimeOperationsOnStartup(context.Context, int64) (int64, error) {
+	return 0, nil
+}
+
+func (*activityProjectionRepoStub) CompleteInteractiveRuntimeOperation(context.Context, agentactivitybiz.CompleteInteractiveRuntimeOperationInput) (agentactivitybiz.RuntimeOperationCompletion, bool, error) {
+	return agentactivitybiz.RuntimeOperationCompletion{}, false, nil
+}
+
+func (*activityProjectionRepoStub) CompleteCancelRuntimeOperation(context.Context, agentactivitybiz.CompleteCancelRuntimeOperationInput) (agentactivitybiz.RuntimeOperationCompletion, bool, error) {
+	return agentactivitybiz.RuntimeOperationCompletion{}, false, nil
+}
+
+func (*activityProjectionRepoStub) ListPendingRuntimeOperationEvents(context.Context, string, int) ([]agentactivitybiz.RuntimeOperationEvent, error) {
+	return nil, nil
+}
+
+func (*activityProjectionRepoStub) MarkRuntimeOperationEventPublished(context.Context, string, int64, int64) (bool, error) {
+	return false, nil
 }
 
 func (*activityProjectionRepoStub) ListSessionTurns(context.Context, string, string) ([]agentactivitybiz.Turn, error) {
@@ -6130,8 +5525,8 @@ func (*activityProjectionRepoStub) RecordTurnTransition(_ context.Context, trans
 	}, true, nil
 }
 
-func (*activityProjectionRepoStub) SettleStaleTurns(context.Context) ([]agentactivitybiz.StaleTurnSettlement, error) {
-	return nil, nil
+func (r *activityProjectionRepoStub) SettleStaleTurns(context.Context) ([]agentactivitybiz.StaleTurnSettlement, error) {
+	return nil, r.settleStaleErr
 }
 
 func (*activityProjectionRepoStub) UpsertInteraction(_ context.Context, upsert agentactivitybiz.InteractionUpsert) (agentactivitybiz.Interaction, bool, error) {

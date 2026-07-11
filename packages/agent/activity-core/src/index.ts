@@ -1,5 +1,9 @@
 export type { AgentActivityAdapter } from "./adapter.ts";
 export {
+  normalizeAgentActivitySession,
+  type AgentActivitySessionInput
+} from "./sessionNormalization.ts";
+export {
   AGENT_CAPABILITY_KEYS,
   hasAgentCapability,
   resolveAgentActivityCapability,
@@ -28,21 +32,10 @@ export {
   type LoadAllAgentSessionMessagesResult
 } from "./pagination.ts";
 export {
-  deriveSubmitAvailability,
-  DERIVED_SUBMIT_BLOCK_REASONS,
-  isLiveTurnLifecyclePhase,
-  resolveSubmitAvailability,
-  isWaitingTurnLifecyclePhase,
-  LIVE_TURN_LIFECYCLE_PHASES,
   normalizeAgentActivityDisplayStatus,
-  runtimeContextHasLiveBackgroundAgents,
-  type DerivedSubmitAvailability,
-  type DeriveSubmitAvailabilityInput,
-  type ResolveSubmitAvailabilityInput,
-  resolveLatestAgentActivityMessageDisplayStatus,
+  selectCanonicalAgentActivitySessions,
   selectNeedsAttentionCount,
-  selectNeedsAttentionItems,
-  selectSessionDisplayStatuses
+  selectNeedsAttentionItems
 } from "./selectors.ts";
 export {
   resolveAgentActivityUsage,
@@ -79,23 +72,81 @@ export type {
   EngineScheduler
 } from "./engine/types.ts";
 export { AGENT_SESSION_ENGINE_LOCAL_ORIGIN } from "./engine/types.ts";
+export { selectWorkspaceReconcileState } from "./engine/engineRuntime.selectors.ts";
 export {
+  selectAttentionReadState,
+  selectSessionAttention
+} from "./engine/attentionReadState.selectors.ts";
+export type {
+  AttentionCompletionKind,
+  AttentionReadCommand,
+  AttentionReadIntent,
+  AttentionReadRecord,
+  AttentionReadState
+} from "./engine/attentionReadState.types.ts";
+export {
+  selectEngineActiveTurn,
   selectEngineCancelState,
   selectEngineCancelPending,
   selectEngineHasPendingInteractions,
+  selectEngineInteractionsForSession,
+  selectEngineInteraction,
+  selectEngineInteractionResponse,
+  selectEngineInteractionResponseError,
+  selectEngineLatestTurn,
+  selectEnginePendingInteractions,
   selectEngineSession,
+  selectEngineSessionIsRespondingToInteraction,
+  selectEngineSessionSettingsUpdate,
   selectEngineSessionError,
-  selectEngineSessionLifecycleRecord,
-  selectEngineSubmitAvailability
+  selectEngineSessionOperation,
+  selectEngineSubmitAvailability,
+  selectEngineTurnsForSession,
+  selectEngineTurn,
+  selectWorkspaceAgentConsumerCounts,
+  selectWorkspaceAgentConsumerSession,
+  selectWorkspaceAgentConsumerSessions
+} from "./engine/sessionLifecycle.selectors.ts";
+export {
+  canonicalInteractionKey,
+  canonicalTurnKey
+} from "./engine/sessionEntityKeys.ts";
+export type {
+  WorkspaceAgentConsumerCounts,
+  WorkspaceAgentConsumerSession
 } from "./engine/sessionLifecycle.selectors.ts";
 export type {
+  CanonicalAgentSession,
+  InteractionRespondCommand,
+  InteractionResponseState,
+  InteractionResponseStatus,
   SessionCancelState,
   SessionCancelStatus,
-  SessionLifecycleRecord,
+  SessionOperationState,
+  SessionSettingsUpdateState,
+  SessionSettingsUpdateStatus,
   SessionLifecycleState,
   TurnCancelCommand
 } from "./engine/sessionLifecycle.types.ts";
+export type {
+  PlanDecisionIntent,
+  PlanDecisionRecord,
+  PlanDecisionState,
+  PlanDecisionStatus,
+  PlanSubmitDecisionCommand
+} from "./engine/planDecision.types.ts";
 export {
+  selectPlanDecisionForTurn,
+  selectPlanTurnDismissed
+} from "./engine/planDecision.selectors.ts";
+export { selectEngineAvailableCommands } from "./engine/sessionCommands.selectors.ts";
+export type {
+  AgentSessionAvailableCommand,
+  SessionCommandsIntent,
+  SessionCommandsState
+} from "./engine/sessionCommands.types.ts";
+export {
+  selectEngineHasQueuedPrompts,
   selectEngineHasVisibleQueuedSubmit,
   selectEnginePromptQueueError,
   selectEnginePromptQueue,
@@ -113,7 +164,6 @@ export type {
 } from "./engine/promptQueue.types.ts";
 export type {
   ActivityMessagesReceivedIntent,
-  AgentSessionActivationResult,
   PendingActivationIntentRecord,
   PendingActivationStatus,
   PendingIntentsIntent,
@@ -125,6 +175,7 @@ export type {
   SessionActivationFailureClearedIntent,
   SessionActivationFailureRecordedIntent,
   SessionActivationRequestedIntent,
+  SessionActivationSettingsPatchedIntent,
   SessionUnactivateCommand,
   SessionUnactivationRequestedIntent,
   SubmitCanceledIntent,
@@ -133,6 +184,8 @@ export type {
 } from "./engine/pendingIntents.types.ts";
 export {
   pendingSubmitRecordListsEqual,
+  selectPendingActivationByRequestId,
+  selectPendingActivations,
   sessionActivationPresentationMapsEqual,
   selectLatestActivationForSession,
   selectLatestPendingSubmitForSession,
@@ -152,11 +205,11 @@ export type {
   SessionReconcileState
 } from "./engine/sessionReconcile.types.ts";
 export type {
+  AgentActivityActivateSessionResult,
+  AgentActivityActivationMode,
+  AgentActivityActivationStatus,
   AgentActivityDisplayStatus,
-  AgentActivityCancelReason,
-  AgentActivityCancelSessionInput,
   AgentActivityCancelTurnInput,
-  AgentActivityCancelSessionResult,
   AgentActivityGoalControlAction,
   AgentActivityGoalControlInput,
   AgentActivityGoalControlResult,
@@ -173,7 +226,6 @@ export type {
   AgentActivityCreateSessionInput,
   AgentActivityDeleteSessionInput,
   AgentActivityDeleteSessionResult,
-  AgentActivityCompletedCommand,
   AgentActivityMessage,
   AgentActivityMessageSemantics,
   AgentActivityLoadComposerOptionsInput,
@@ -186,18 +238,25 @@ export type {
   AgentPromptContentBlock,
   AgentActivitySendInput,
   AgentActivitySendInputResult,
-  AgentActivityStatePatch,
   AgentActivitySession,
+  AgentActivitySessionBackgroundAgents,
+  AgentActivitySessionCapabilities,
+  AgentActivitySessionGoal,
+  AgentActivitySessionPermissionConfig,
+  AgentActivitySessionSettings,
   AgentActivitySessionEventEnvelope,
   AgentActivitySessionList,
-  AgentActivitySessionStatus,
-  AgentActivitySubmitAvailability,
   AgentActivitySubmitInteractiveInput,
+  AgentActivitySubmitInteractiveResult,
   AgentActivitySnapshot,
-  AgentActivityTurnLifecycle,
+  AgentActivitySubmitDiagnostics,
   AgentActivityTurn,
   AgentActivityTurnCancelResponse,
   AgentActivityInteraction,
   AgentActivityUpdatedApplyResult,
   AgentActivityUpdatedEvent
 } from "./types.ts";
+export {
+  workspaceAgentSessionLastError,
+  workspaceAgentSessionStatus
+} from "./workspaceAgentSessionProjection.ts";
