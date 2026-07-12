@@ -3912,7 +3912,10 @@ type WorkspaceAgentSession struct {
 
 	// UpdatedAtUnixMs Protocol v2. Unix milliseconds replacement for updatedAt.
 	UpdatedAtUnixMs int64 `json:"updatedAtUnixMs"`
-	Visible         bool  `json:"visible"`
+
+	// Usage Protocol v2. Typed context-window and quota usage projected from provider runtime state.
+	Usage   *WorkspaceAgentUsage `json:"usage"`
+	Visible bool                 `json:"visible"`
 }
 
 // WorkspaceAgentSessionAttachmentResponse defines model for WorkspaceAgentSessionAttachmentResponse.
@@ -4098,6 +4101,25 @@ type WorkspaceAgentTurnOutcome string
 
 // WorkspaceAgentTurnPhase Protocol v2 closed turn phase vocabulary. submitted -> running -> waiting (interactions) -> settling -> settled.
 type WorkspaceAgentTurnPhase string
+
+// WorkspaceAgentUsage defines model for WorkspaceAgentUsage.
+type WorkspaceAgentUsage struct {
+	ContextWindow *WorkspaceAgentUsageContextWindow `json:"contextWindow"`
+	Quotas        []WorkspaceAgentUsageQuota        `json:"quotas"`
+}
+
+// WorkspaceAgentUsageContextWindow defines model for WorkspaceAgentUsageContextWindow.
+type WorkspaceAgentUsageContextWindow struct {
+	TotalTokens int64 `json:"totalTokens"`
+	UsedTokens  int64 `json:"usedTokens"`
+}
+
+// WorkspaceAgentUsageQuota defines model for WorkspaceAgentUsageQuota.
+type WorkspaceAgentUsageQuota struct {
+	PercentRemaining float64 `json:"percentRemaining"`
+	QuotaType        string  `json:"quotaType"`
+	ResetsAtUnixMs   *int64  `json:"resetsAtUnixMs"`
+}
 
 // WorkspaceApp defines model for WorkspaceApp.
 type WorkspaceApp struct {

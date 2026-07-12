@@ -1280,6 +1280,10 @@ export type WorkspaceAgentSession = {
    */
   capabilities: WorkspaceAgentCapabilities | null;
   /**
+   * Protocol v2. Typed context-window and quota usage projected from provider runtime state.
+   */
+  usage: WorkspaceAgentUsage | null;
+  /**
    * Protocol v2. Explicit field extracted from runtimeContext.
    */
   backgroundAgents: WorkspaceAgentBackgroundAgents | null;
@@ -1424,6 +1428,22 @@ export type WorkspaceAgentCapabilities = {
   permissionModeChangeDeferred: boolean;
   review: boolean;
   resumeRunningTurn: boolean;
+};
+
+export type WorkspaceAgentUsageContextWindow = {
+  usedTokens: number;
+  totalTokens: number;
+};
+
+export type WorkspaceAgentUsageQuota = {
+  quotaType: string;
+  percentRemaining: number;
+  resetsAtUnixMs: number | null;
+};
+
+export type WorkspaceAgentUsage = {
+  contextWindow: WorkspaceAgentUsageContextWindow | null;
+  quotas: Array<WorkspaceAgentUsageQuota>;
 };
 
 export type WorkspaceAgentBackgroundAgentItem = {

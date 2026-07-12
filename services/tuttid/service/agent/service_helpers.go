@@ -82,6 +82,21 @@ func cloneSession(session Session) Session {
 func cloneSessionMetadata(metadata agentactivitybiz.SessionMetadata) agentactivitybiz.SessionMetadata {
 	cloned := metadata
 	cloned.Capabilities = append([]string(nil), metadata.Capabilities...)
+	if metadata.Usage != nil {
+		value := *metadata.Usage
+		if metadata.Usage.ContextWindow != nil {
+			contextWindow := *metadata.Usage.ContextWindow
+			value.ContextWindow = &contextWindow
+		}
+		value.Quotas = append([]agentactivitybiz.SessionUsageQuota(nil), metadata.Usage.Quotas...)
+		for index := range value.Quotas {
+			if metadata.Usage.Quotas[index].ResetsAtUnixMS != nil {
+				resetsAtUnixMS := *metadata.Usage.Quotas[index].ResetsAtUnixMS
+				value.Quotas[index].ResetsAtUnixMS = &resetsAtUnixMS
+			}
+		}
+		cloned.Usage = &value
+	}
 	if metadata.BackgroundAgents != nil {
 		value := *metadata.BackgroundAgents
 		value.Items = append([]agentactivitybiz.SessionBackgroundAgentItem(nil), metadata.BackgroundAgents.Items...)

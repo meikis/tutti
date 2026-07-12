@@ -97,6 +97,10 @@ test("desktop agent activity adapter maps typed canonical session control fields
         ]
       },
       settings: { model: "gpt-5", planMode: true },
+      usage: {
+        contextWindow: { usedTokens: 7_460, totalTokens: 200_000 },
+        quotas: []
+      },
       updatedAtUnixMs: 20
     })
   );
@@ -110,6 +114,10 @@ test("desktop agent activity adapter maps typed canonical session control fields
   assert.equal(session.imported, true);
   assert.equal(session.permissionConfig?.defaultValue, "ask");
   assert.deepEqual(session.settings, { model: "gpt-5", planMode: true });
+  assert.deepEqual(session.usage, {
+    contextWindow: { usedTokens: 7_460, totalTokens: 200_000 },
+    quotas: []
+  });
   assert.equal(session.updatedAtUnixMs, 20);
   assert.equal("runtimeContext" in session, false);
   assert.equal("lastError" in session, false);
@@ -1510,6 +1518,7 @@ function createSession(
     settings: {},
     title: "Agent session",
     updatedAtUnixMs,
+    usage: null,
     visible: true,
     ...canonicalOverrides,
     latestTurnInteractions: canonicalOverrides.latestTurnInteractions ?? [],

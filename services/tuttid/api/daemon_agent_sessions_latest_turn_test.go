@@ -38,7 +38,11 @@ func TestGeneratedAgentSessionIncludesIndependentLatestTurnProjection(t *testing
 		LatestTurn:             &latest,
 		LatestTurnInteractions: latestInteractions,
 		Metadata: agentactivitybiz.SessionMetadata{
-			Capabilities:     []string{"planMode", "planImplementation"},
+			Capabilities: []string{"planMode", "planImplementation"},
+			Usage: &agentactivitybiz.SessionUsage{
+				ContextWindow: &agentactivitybiz.SessionUsageContextWindow{UsedTokens: 7_460, TotalTokens: 200_000},
+				Quotas:        []agentactivitybiz.SessionUsageQuota{},
+			},
 			BackgroundAgents: &agentactivitybiz.SessionBackgroundAgents{Count: 0, Items: []agentactivitybiz.SessionBackgroundAgentItem{}},
 			Goal:             &agentactivitybiz.SessionGoal{Objective: "ship", Status: "active"},
 			Imported:         true,
@@ -56,6 +60,7 @@ func TestGeneratedAgentSessionIncludesIndependentLatestTurnProjection(t *testing
 		t.Fatalf("latest turn interactions = %#v", generated.LatestTurnInteractions)
 	}
 	if generated.PendingInteractions == nil || generated.Capabilities == nil || !generated.Capabilities.PlanMode ||
+		generated.Usage == nil || generated.Usage.ContextWindow == nil || generated.Usage.ContextWindow.UsedTokens != 7_460 ||
 		generated.BackgroundAgents == nil || generated.Goal == nil || !generated.Imported {
 		t.Fatalf("v2 session fields = %#v", generated)
 	}

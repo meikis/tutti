@@ -223,6 +223,7 @@ function createSession(id: string, status: string): WorkspaceAgentSession {
     settings: {},
     title: "Session",
     updatedAtUnixMs: 2,
+    usage: null,
     visible: true
   };
 }

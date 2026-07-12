@@ -488,6 +488,7 @@ export function agentActivitySessionFromTuttidSession(
     capabilities: session.capabilities
       ? structuredClone(session.capabilities)
       : null,
+    usage: session.usage ? structuredClone(session.usage) : null,
     backgroundAgents: session.backgroundAgents
       ? structuredClone(session.backgroundAgents)
       : null,

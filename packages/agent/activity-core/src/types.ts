@@ -25,6 +25,7 @@ export interface AgentActivitySession {
   settings: AgentActivitySessionSettings;
   permissionConfig: AgentActivitySessionPermissionConfig;
   capabilities: AgentActivitySessionCapabilities | null;
+  usage: AgentActivitySessionUsage | null;
   backgroundAgents: AgentActivitySessionBackgroundAgents | null;
   goal: AgentActivitySessionGoal | null;
   imported: boolean;
@@ -410,6 +411,7 @@ import type {
   WorkspaceAgentInteractionKind,
   WorkspaceAgentInteractionStatus,
   WorkspaceAgentSessionGoal,
+  WorkspaceAgentUsage,
   WorkspaceAgentTurnCancelResponse,
   WorkspaceAgentTurnOutcome,
   WorkspaceAgentTurnPhase
@@ -446,6 +448,7 @@ export type AgentActivitySessionCapabilities = WorkspaceAgentCapabilities;
 export type AgentActivitySessionBackgroundAgents =
   WorkspaceAgentBackgroundAgents;
 export type AgentActivitySessionGoal = WorkspaceAgentSessionGoal;
+export type AgentActivitySessionUsage = WorkspaceAgentUsage;
 export type AgentActivityTurnCancelResponse = WorkspaceAgentTurnCancelResponse;
 
 export interface AgentActivityCancelTurnInput {
