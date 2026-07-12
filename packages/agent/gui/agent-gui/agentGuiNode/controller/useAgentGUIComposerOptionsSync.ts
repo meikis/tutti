@@ -34,7 +34,7 @@ export function useAgentGUIComposerOptionsSync(input: {
   >;
   isComposerHome: boolean;
   isComposerHomeRef: RefObject<boolean>;
-  isCreatingConversationRef: RefObject<boolean>;
+  isCreatingConversation: boolean;
   loadDraftComposerOptionsRef: RefObject<() => void>;
   loadSessionState(agentSessionId: string, cause?: unknown): void;
   previewMode: boolean;
@@ -56,7 +56,7 @@ export function useAgentGUIComposerOptionsSync(input: {
 }) {
   const loadComposerOptionsForTarget = useCallback(
     (targetData: AgentGUIComposerTargetData, options?: { force?: boolean }) => {
-      if (input.isCreatingConversationRef.current) return;
+      if (input.isCreatingConversation) return;
       const settings = readNodeDefaultDraftSettings({
         data: targetData.data,
         defaultReasoningEffort: input.defaultReasoningEffort,
@@ -80,6 +80,7 @@ export function useAgentGUIComposerOptionsSync(input: {
     [
       input.agentActivityRuntime,
       input.defaultReasoningEffort,
+      input.isCreatingConversation,
       input.workspaceId,
       input.workspacePath
     ]
@@ -167,6 +168,7 @@ export function useAgentGUIComposerOptionsSync(input: {
     input.composerTargetData.agentTargetId,
     input.composerTargetData.provider,
     input.isComposerHome,
+    input.isCreatingConversation,
     input.previewMode,
     input.providerComposerOptions?.behavior?.prewarmDraftSession,
     loadDraftComposerOptions

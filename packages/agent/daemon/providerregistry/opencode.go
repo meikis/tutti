@@ -93,6 +93,15 @@ func openCodeDescriptor() ProviderDescriptor {
 				Model:     "model",
 				Reasoning: "effort",
 			},
+			SlashCommandPolicy: SlashCommandPolicyDescriptor{
+				FallbackCommands: []string{"compact", "goal", "review"},
+				CommandEffects: []SlashCommandEffectDescriptor{
+					{Command: "compact", Effect: SlashCommandEffectSubmitImmediate},
+					{Command: "review", Effect: SlashCommandEffectShowReviewPicker},
+					{Command: "goal", Effect: SlashCommandEffectActivateGoalMode},
+					{Command: "plan", Effect: SlashCommandEffectTogglePlanMode},
+				},
+			},
 		},
 		Target: TargetDescriptor{
 			ID:            OpenCodeTargetID,

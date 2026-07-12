@@ -94,6 +94,25 @@ func TestOpenCodeComposerProfileComesFromProviderDescriptor(t *testing.T) {
 	}
 }
 
+func TestOpenCodeSlashCommandPolicyComesFromProviderDescriptor(t *testing.T) {
+	policy := composerSlashCommandPolicy(agentprovider.OpenCode)
+	if policy == nil {
+		t.Fatal("slash command policy missing")
+	}
+	if !reflect.DeepEqual(policy.FallbackCommands, []string{"compact", "goal", "review"}) {
+		t.Fatalf("fallbackCommands = %#v", policy.FallbackCommands)
+	}
+	want := []providerregistry.SlashCommandEffectDescriptor{
+		{Command: "compact", Effect: providerregistry.SlashCommandEffectSubmitImmediate},
+		{Command: "review", Effect: providerregistry.SlashCommandEffectShowReviewPicker},
+		{Command: "goal", Effect: providerregistry.SlashCommandEffectActivateGoalMode},
+		{Command: "plan", Effect: providerregistry.SlashCommandEffectTogglePlanMode},
+	}
+	if !reflect.DeepEqual(policy.CommandEffects, want) {
+		t.Fatalf("commandEffects = %#v, want %#v", policy.CommandEffects, want)
+	}
+}
+
 func TestOpenCodeModelCatalogListerUsesDescriptorRuntimeCommand(t *testing.T) {
 	descriptor, ok := providerregistry.Find(agentprovider.OpenCode)
 	if !ok {

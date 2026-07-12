@@ -6668,6 +6668,7 @@ components:
         - latestTurn
         - pendingInteractions
         - capabilities
+        - usage
         - backgroundAgents
         - goal
         - imported
@@ -6734,6 +6735,13 @@ components:
           description: >-
             Protocol v2. Daemon-issued capability descriptor; clients must
             branch on capabilities, never on provider identity.
+        usage:
+          allOf:
+            - $ref: "#/components/schemas/WorkspaceAgentUsage"
+          nullable: true
+          description: >-
+            Protocol v2. Typed context-window and quota usage projected from
+            provider runtime state.
         backgroundAgents:
           allOf:
             - $ref: "#/components/schemas/WorkspaceAgentBackgroundAgents"
@@ -7046,6 +7054,57 @@ components:
           type: boolean
         resumeRunningTurn:
           type: boolean
+    WorkspaceAgentUsageContextWindow:
+      type: object
+      additionalProperties: false
+      required:
+        - usedTokens
+        - totalTokens
+      properties:
+        usedTokens:
+          type: integer
+          format: int64
+          minimum: 0
+        totalTokens:
+          type: integer
+          format: int64
+          minimum: 1
+    WorkspaceAgentUsageQuota:
+      type: object
+      additionalProperties: false
+      required:
+        - quotaType
+        - percentRemaining
+        - resetsAtUnixMs
+      properties:
+        quotaType:
+          type: string
+          minLength: 1
+        percentRemaining:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+        resetsAtUnixMs:
+          type: integer
+          format: int64
+          nullable: true
+          minimum: 0
+    WorkspaceAgentUsage:
+      type: object
+      additionalProperties: false
+      required:
+        - contextWindow
+        - quotas
+      properties:
+        contextWindow:
+          allOf:
+            - $ref: "#/components/schemas/WorkspaceAgentUsageContextWindow"
+          nullable: true
+        quotas:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkspaceAgentUsageQuota"
     WorkspaceAgentBackgroundAgentItem:
       type: object
       additionalProperties: false

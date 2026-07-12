@@ -135,6 +135,7 @@ export function cloneAgentActivitySession(
     capabilities: cloneJSONValue(
       session.capabilities
     ) as AgentActivitySession["capabilities"],
+    usage: cloneJSONValue(session.usage) as AgentActivitySession["usage"],
     backgroundAgents: cloneJSONValue(
       session.backgroundAgents
     ) as AgentActivitySession["backgroundAgents"],

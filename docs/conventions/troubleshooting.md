@@ -408,47 +408,95 @@ Use this shape for new entries:
   [composer_live_model_discovery.go](../../services/tuttid/service/agent/composer_live_model_discovery.go)
   [composer_live_model_cache.go](../../services/tuttid/service/agent/composer_live_model_cache.go)
 
-### Claude SDK context window shows 200k for 1M models
+### Agent slash palette only shows Browser
 
 - Symptom:
-  Claude Code GUI usage shows a 200k context window for a model that should have
-  1M context, such as Claude Sonnet 5. The inverse can also happen after a model
-  switch: a 200k model such as Haiku keeps showing the prior 1M total.
+  Typing `/` in a Claude Code, Codex, or OpenCode composer shows only the
+  Browser capability. Provider commands such as `compact`, `status`, `goal`,
+  `review`, or `plan` are missing.
 - Quick checks:
-  Inspect the session runtime context for `usage.contextWindow.totalTokens`,
-  then trace the Claude SDK sidecar `usage_updated` payload and daemon
-  `agent_session.claude_sdk.usage_update` log. If the payload keys include
+  Call the provider composer-options endpoint and inspect
+  `slashCommandPolicy`. If Codex or Claude returns a policy but the UI still
+  shows only Browser, trace the new-session creation guard and the
+  target-scoped composer-options cache. If one provider returns no policy,
+  inspect its provider registry descriptor.
+- Root cause:
+  Composer-options loading can be intentionally skipped while a new session is
+  being created. A mount-time creation ref that never follows current engine
+  state leaves loading permanently disabled after creation settles. Browser
+  still appears because it is independently projected from session
+  capabilities. A provider descriptor missing its slash policy produces the
+  same symptom for that provider even when loading succeeds.
+- Fix:
+  Keep the creation guard synchronized with current engine state and reload
+  composer options on the creating-to-settled transition. Keep fallback
+  commands and local effects in the provider registry descriptor; do not add
+  provider-name branches in Agent GUI.
+- Validation:
+  Cover creation settling followed by a composer-options request, provider
+  descriptor policy projection, and slash palette composition alongside the
+  Browser capability. Run Agent GUI, provider registry, and agent service
+  tests.
+- References:
+  [agent-activity-packages.md](../architecture/agent-activity-packages.md)
+  [useAgentGUIComposerOptionsSync.ts](../../packages/agent/gui/agent-gui/agentGuiNode/controller/useAgentGUIComposerOptionsSync.ts)
+  [opencode.go](../../packages/agent/daemon/providerregistry/opencode.go)
+
+### Agent GUI context usage is absent or has the wrong total
+
+- Symptom:
+  The Agent GUI composer never shows context usage even though provider usage
+  logs are present. Alternatively, Claude Code GUI usage shows a 200k context
+  window for a model that should have 1M context, or a 200k model keeps showing
+  the prior 1M total after a model switch.
+- Quick checks:
+  Trace the provider update first: use
+  `agent_session.claude_sdk.usage_update` for Claude SDK and
+  `agent_session.acp.usage_update` for ACP providers. Then inspect the daemon
+  session response for its typed `usage.contextWindow` field and confirm the
+  desktop canonical session preserves it. If provider logs contain nonzero
+  used and total tokens but the API field is null, inspect the runtime-context
+  split into typed session metadata. If the API field is populated but the
+  footer is absent, inspect the desktop adapter and the active canonical
+  session passed to the composer capability projection. For Claude, if the
+  payload keys include
   `modelUsage` but `raw_total_tokens` is `0`, the daemon did not parse the
   model-usage context window. If `previous_context_model` and
   `current_context_model` differ but `current_total_tokens` equals
   `previous_total_tokens`, daemon usage normalization reused a stale context
-  window across models. If switching models without sending a message makes the
-  usage entry disappear, inspect whether a forced session-control reload
-  returned `runtimeContext` without `usage` and replaced the active control
-  state.
+  window across models.
 - Root cause:
-  AgentGUI only renders `runtimeContext.usage`; the total comes from the daemon
-  and Claude SDK sidecar. Claude SDK result messages expose model usage as a
-  map keyed by model id, for example
+  Protocol v2 intentionally removed raw `runtimeContext` from the public
+  session model. If the refactor removes that legacy field without adding a
+  typed `usage` field across persistence, API generation, the desktop adapter,
+  and the canonical session, the provider still records correct telemetry but
+  Agent GUI has no public data to render. A wrong Claude total is a separate
+  normalization failure: Claude SDK result messages expose model usage as a map
+  keyed by model id, for example
   `modelUsage["claude-sonnet-5"].contextWindow`. If either sidecar or daemon
   only parses array-shaped `modelUsage`, the context-window total is missing and
   daemon normalization falls back to 200k.
 - Fix:
+  Define usage in the protocol-v2 OpenAPI contract and carry it as typed durable
+  session metadata through the generated client, desktop adapter, canonical
+  activity session, and composer projection. Keep raw runtime context private
+  to provider recovery; do not restore a GUI runtime-context dependency.
   Parse `modelUsage` recursively as both arrays and maps before using fallback
   context-window values. Track the model associated with a cached context
   window, and only reuse the previous total for the same model or when the model
-  is unknown. Treat `runtimeContext.usage` as incremental telemetry in AgentGUI
-  reload races: a full session-control snapshot that omits usage should not
-  clear the previous usage display. Do not hard-code alias-to-model mappings in
-  Tutti.
+  is unknown. Do not hard-code alias-to-model mappings in Tutti.
 - Validation:
+  Cover runtime-context splitting and metadata persistence, generated API
+  projection, desktop canonical-session adaptation, activity-core usage
+  resolution, and the composer hook.
   Add sidecar and daemon coverage with map-shaped `modelUsage` carrying
   `contextWindow: 1_000_000`, plus daemon coverage for Haiku -> Sonnet5 -> Haiku
-  usage updates where the last payload lacks `totalTokens`. Add AgentGUI
-  coverage for session-control reloads that omit `runtimeContext.usage`. Then
-  run the Claude SDK sidecar tests, daemon Go tests, AgentGUI tests, and
-  typechecks.
+  usage updates where the last payload lacks `totalTokens`. Then run the Claude
+  SDK sidecar tests, daemon Go tests, AgentGUI tests, and typechecks.
 - References:
+  [agent-activity-packages.md](../architecture/agent-activity-packages.md)
+  [session_metadata.go](../../packages/agent/store-sqlite/session_metadata.go)
+  [desktopAgentActivityAdapter.ts](../../apps/desktop/src/renderer/src/features/workspace-agent/services/desktopAgentActivityAdapter.ts)
   [main.ts](../../packages/agent/claude-sdk-sidecar/src/main.ts)
   [main.test.ts](../../packages/agent/claude-sdk-sidecar/src/main.test.ts)
   [claude_sdk_adapter.go](../../packages/agent/daemon/runtime/claude_sdk_adapter.go)
@@ -2393,6 +2441,40 @@ target app`. Compare `/Applications/Tutti.app/Contents/Info.plist` with the
   changes.
 - References:
   [desktopAgentGUILinkActions.ts](../../apps/desktop/src/renderer/src/features/workspace-agent/services/desktopAgentGUILinkActions.ts)
+
+### Standard ACP tools show generic cards and no-project file links do nothing
+
+- Symptom:
+  OpenCode or another standard ACP provider completes tool calls, but Agent GUI
+  renders generic raw-payload cards instead of terminal, edit, read, search, or
+  todo UI. In a session without a selected project, clicking an absolute HTML
+  or source-file path in an assistant message has no effect.
+- Quick checks:
+  Inspect persisted tool payloads. If `toolName` contains a command, absolute
+  path, or result sentence while `input.kind`, `input.title`, or `rawInput`
+  identifies the actual operation, canonicalization happened too late. For file
+  links, compare the selected project root with the durable session cwd.
+- Root cause:
+  Standard ACP terminal updates may replace the display title with dynamic
+  output. Persisting that title as tool identity prevents shared specialized
+  renderers from matching the call. Older events may also retain protocol
+  envelopes under `rawInput`, `rawOutput`, and output metadata. Separately,
+  requiring a selected project root discards valid link actions for no-project
+  sessions even though their cwd is authoritative.
+- Fix:
+  Canonicalize standard ACP tools before persistence, retain the started call's
+  identity through terminal updates, and promote protocol envelopes into the
+  shared tool payload. Keep a provider-neutral historical projection for rows
+  already stored in the old shape. Resolve conversation files against the
+  selected project root or, when absent, the session cwd.
+- Validation:
+  Cover dynamic ACP start/terminal titles, historical payload projection,
+  specialized renderer data, direct link resolution, and a transcript click
+  from a no-project session. Run the Agent GUI tests and daemon runtime tests.
+- References:
+  [agent-gui-node.md](../architecture/agent-gui-node.md)
+  [acp_tool_normalizer.go](../../packages/agent/daemon/runtime/acp_tool_normalizer.go)
+  [workspaceLinkActions.ts](../../packages/agent/gui/actions/workspaceLinkActions.ts)
 
 ### Imported sessions trigger fresh-completion indicators
 

@@ -131,9 +131,13 @@ timeline, synchronization, summary, and message-overlay modules. Working and
 completion decisions derive from canonical `activeTurn` and `latestTurn`
 state, not from legacy session-level lifecycle mirrors.
 Canonical sessions also carry typed `settings`, `permissionConfig`,
-`capabilities`, `backgroundAgents`, `goal`, and `imported` fields from the
-daemon. Desktop adapters preserve those fields and must not recreate them from
-`runtimeContext`, `lastError`, or module-global per-session defaults. Existing
+`capabilities`, `usage`, `backgroundAgents`, `goal`, and `imported` fields from
+the daemon. Desktop adapters preserve those fields and must not recreate them
+from `runtimeContext`, `lastError`, or module-global per-session defaults.
+Provider context-window and quota updates enter the daemon at the runtime
+adapter boundary, are split into typed durable session metadata, and reach
+Agent GUI through the protocol-v2 `usage` field. GUI projections must not read
+provider-private runtime context to render usage. Existing
 session control state is read from the daemon; pre-session edits remain in the
 engine-owned activation/draft record until the daemon confirms the session.
 `AgentHostWorkspaceAgent*` types may only appear in compatibility or projection
@@ -178,7 +182,7 @@ prompts remain ordinary durable interaction responses and use the existing
 
 Protocol-v2 session responses expose `activeTurnId` (required and nullable),
 `pendingInteractions` (required and never null), independent `activeTurn` /
-`latestTurn` projections, typed capabilities/background-agent/goal/import
+`latestTurn` projections, typed capabilities/usage/background-agent/goal/import
 fields, and Unix-millisecond timestamps. They do not expose legacy session
 status, turn lifecycle, submit availability, last error, ISO timestamps, or
 the raw runtime context. SQLite migrations split typed session metadata from
@@ -326,6 +330,18 @@ or reasoning selection while live metadata is still arriving. Because the
 effective settings are request-dependent, composer-options cache freshness and
 in-flight reuse include both normalized `cwd` and normalized requested settings;
 target/provider identity alone is not a complete cache key.
+
+Composer-options loading may be suppressed while a new-session activation is
+pending, but that guard follows the current engine state rather than a
+mount-time snapshot. The transition from creating to settled must trigger a
+fresh target-scoped load so model, reasoning, skill, and slash-command metadata
+cannot remain absent for the lifetime of the node. Before the first
+target-scoped composer-options snapshot arrives, configurable-setting support is
+unknown rather than unsupported: the composer footer renders disabled loading
+controls for permission and model/reasoning selection, then replaces or removes
+them according to the authoritative snapshot. Slash command fallback and effect
+policy remain provider-descriptor-owned; every supported provider that exposes
+local fallback commands declares them in its registry descriptor.
 
 `AgentActivityCreateSessionInput.providerTargetRef` is an optional opaque
 host-owned legacy reference for selecting which target under the real provider

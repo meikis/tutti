@@ -40,6 +40,16 @@ const CURSOR_POLICY = {
   commandEffects: [{ command: "plan", effect: "togglePlanMode" }]
 } as const;
 
+const OPENCODE_POLICY = {
+  fallbackCommands: ["compact", "goal", "review"],
+  commandEffects: [
+    { command: "compact", effect: "submitImmediate" },
+    { command: "review", effect: "showReviewPicker" },
+    { command: "goal", effect: "activateGoalMode" },
+    { command: "plan", effect: "togglePlanMode" }
+  ]
+} as const;
+
 describe("agentSlashCommandProviderPolicy", () => {
   const reviewPickerProviders = ["codex", "claude-code"] as const;
 
@@ -61,6 +71,18 @@ describe("agentSlashCommandProviderPolicy", () => {
       name: "browser",
       aliases: ["浏览器"]
     });
+  });
+
+  it("keeps OpenCode descriptor commands beside browser capability entries", () => {
+    expect(
+      resolveSlashCommandsForProvider({
+        provider: "opencode",
+        policy: OPENCODE_POLICY,
+        commands: [],
+        planSupported: true,
+        browserSupported: true
+      }).map((command) => command.name)
+    ).toEqual(["compact", "goal", "review", "plan", "browser"]);
   });
 
   it("fills a canonical browser token from Chinese and English slash capability names", () => {

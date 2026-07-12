@@ -258,7 +258,6 @@ export function useAgentGUINodeController({
   } = sessionEngineState;
   const latestPendingNewActivation = pendingNewActivationProjection;
   const isCreatingConversation = hasPendingNewActivation;
-  const isCreatingConversationRef = useRef(isCreatingConversation);
   // Bridges submitInteractivePrompt
   // updateComposerSettings (defined later); assigned right after the
   // callback's definition.
@@ -606,7 +605,7 @@ export function useAgentGUINodeController({
       draftSettingsBySessionIdRef,
       isComposerHome,
       isComposerHomeRef,
-      isCreatingConversationRef,
+      isCreatingConversation,
       loadDraftComposerOptionsRef,
       loadSessionState,
       previewMode,

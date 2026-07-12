@@ -36,6 +36,7 @@ export function normalizeAgentActivitySession(
       modes: []
     },
     capabilities: source.capabilities ?? null,
+    usage: source.usage ?? null,
     backgroundAgents: source.backgroundAgents ?? null,
     goal: source.goal ?? null,
     imported: source.imported ?? false,

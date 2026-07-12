@@ -12,8 +12,25 @@ type SessionMetadata struct {
 	Visible          bool                     `json:"visible"`
 	Imported         bool                     `json:"imported"`
 	Capabilities     []string                 `json:"capabilities"`
+	Usage            *SessionUsage            `json:"usage,omitempty"`
 	BackgroundAgents *SessionBackgroundAgents `json:"backgroundAgents,omitempty"`
 	Goal             *SessionGoal             `json:"goal,omitempty"`
+}
+
+type SessionUsage struct {
+	ContextWindow *SessionUsageContextWindow `json:"contextWindow"`
+	Quotas        []SessionUsageQuota        `json:"quotas"`
+}
+
+type SessionUsageContextWindow struct {
+	UsedTokens  int64 `json:"usedTokens"`
+	TotalTokens int64 `json:"totalTokens"`
+}
+
+type SessionUsageQuota struct {
+	QuotaType        string  `json:"quotaType"`
+	PercentRemaining float64 `json:"percentRemaining"`
+	ResetsAtUnixMS   *int64  `json:"resetsAtUnixMs"`
 }
 
 type SessionBackgroundAgents struct {
@@ -42,7 +59,7 @@ type SessionGoal struct {
 	Tokens     int64  `json:"tokens,omitempty"`
 }
 
-var sessionMetadataRuntimeContextKeys = []string{"visible", "imported", "capabilities", "backgroundAgents", "goal"}
+var sessionMetadataRuntimeContextKeys = []string{"visible", "imported", "capabilities", "usage", "backgroundAgents", "goal"}
 
 func splitSessionRuntimeContext(runtimeContext map[string]any) (SessionMetadata, map[string]any, error) {
 	metadata := SessionMetadata{Visible: true, Capabilities: []string{}}
@@ -62,6 +79,19 @@ func splitSessionRuntimeContext(runtimeContext map[string]any) (SessionMetadata,
 			seenCapabilities[value] = struct{}{}
 			metadata.Capabilities = append(metadata.Capabilities, value)
 		}
+	}
+	if raw := runtimeContext["usage"]; raw != nil {
+		var value SessionUsage
+		if err := remarshalJSON(raw, &value); err != nil {
+			return SessionMetadata{}, nil, err
+		}
+		if value.Quotas == nil {
+			value.Quotas = []SessionUsageQuota{}
+		}
+		if err := validateSessionUsage(value); err != nil {
+			return SessionMetadata{}, nil, err
+		}
+		metadata.Usage = &value
 	}
 	if raw := runtimeContext["backgroundAgents"]; raw != nil {
 		var value SessionBackgroundAgents
@@ -159,6 +189,24 @@ func validateSessionGoal(value SessionGoal) error {
 	return nil
 }
 
+func validateSessionUsage(value SessionUsage) error {
+	if value.ContextWindow == nil && len(value.Quotas) == 0 {
+		return fmt.Errorf("session usage requires a context window or quotas")
+	}
+	if value.ContextWindow != nil && (value.ContextWindow.UsedTokens < 0 || value.ContextWindow.TotalTokens <= 0) {
+		return fmt.Errorf("session usage context tokens must be non-negative with a positive total")
+	}
+	for _, quota := range value.Quotas {
+		if strings.TrimSpace(quota.QuotaType) == "" || quota.PercentRemaining < 0 || quota.PercentRemaining > 100 {
+			return fmt.Errorf("session usage quota is invalid")
+		}
+		if quota.ResetsAtUnixMS != nil && *quota.ResetsAtUnixMS < 0 {
+			return fmt.Errorf("session usage quota reset time must be non-negative")
+		}
+	}
+	return nil
+}
+
 func jsonStringSlice(raw any) []string {
 	switch values := raw.(type) {
 	case []string:
@@ -195,6 +243,9 @@ func unmarshalSessionMetadata(raw string) (SessionMetadata, error) {
 	if value.Capabilities == nil {
 		value.Capabilities = []string{}
 	}
+	if value.Usage != nil && value.Usage.Quotas == nil {
+		value.Usage.Quotas = []SessionUsageQuota{}
+	}
 	if err != nil {
 		return SessionMetadata{}, err
 	}
@@ -220,6 +271,11 @@ func validateSessionMetadata(value SessionMetadata) error {
 			return err
 		}
 	}
+	if value.Usage != nil {
+		if err := validateSessionUsage(*value.Usage); err != nil {
+			return err
+		}
+	}
 	if value.Goal != nil {
 		if err := validateSessionGoal(*value.Goal); err != nil {
 			return err
@@ -236,6 +292,13 @@ func joinSessionRuntimeContext(metadata SessionMetadata, internal map[string]any
 	result["visible"] = metadata.Visible
 	result["imported"] = metadata.Imported
 	result["capabilities"] = append([]string(nil), metadata.Capabilities...)
+	if metadata.Usage != nil {
+		var value map[string]any
+		if err := remarshalJSON(metadata.Usage, &value); err != nil {
+			return nil, err
+		}
+		result["usage"] = value
+	}
 	if metadata.BackgroundAgents != nil {
 		var value map[string]any
 		if err := remarshalJSON(metadata.BackgroundAgents, &value); err != nil {

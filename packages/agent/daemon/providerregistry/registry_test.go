@@ -1,6 +1,9 @@
 package providerregistry
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestMigratedCodexDescriptorIsComplete(t *testing.T) {
 	if err := ValidateMigrated(); err != nil {
@@ -151,6 +154,10 @@ func TestMigratedOpenCodeDescriptorIsComplete(t *testing.T) {
 		descriptor.ComposerProfile.ConfigOptionIDs.Model != "model" ||
 		descriptor.ComposerProfile.ConfigOptionIDs.Reasoning != "effort" {
 		t.Fatalf("ComposerProfile = %#v", descriptor.ComposerProfile)
+	}
+	if !slices.Equal(descriptor.ComposerProfile.SlashCommandPolicy.FallbackCommands, []string{"compact", "goal", "review"}) ||
+		len(descriptor.ComposerProfile.SlashCommandPolicy.CommandEffects) != 4 {
+		t.Fatalf("SlashCommandPolicy = %#v", descriptor.ComposerProfile.SlashCommandPolicy)
 	}
 	if descriptor.Target.ID != OpenCodeTargetID || descriptor.Events.TurnLifecycleProjection != TurnLifecycleProjectionExplicit {
 		t.Fatalf("target/events = %#v %#v", descriptor.Target, descriptor.Events)

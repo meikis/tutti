@@ -121,6 +121,8 @@ export function useAgentGUIComposerCapabilities(
       (resolvedPromptImagesSupported ?? true) &&
       selectedModelImageInputSupported,
     providerComposerOptions,
-    usage: resolveAgentActivityUsage({ sessionRuntimeContext: null })
+    usage: resolveAgentActivityUsage({
+      sessionUsage: input.activeEngineSession?.usage ?? null
+    })
   };
 }

@@ -38,6 +38,7 @@ test("normalizes a transport session into the complete canonical contract", () =
     startedAtUnixMs: 0,
     title: "Session",
     updatedAtUnixMs: 42,
+    usage: null,
     visible: true,
     workspaceId: "workspace-1"
   });

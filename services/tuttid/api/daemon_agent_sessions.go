@@ -704,6 +704,7 @@ func generatedAgentSession(session agentservice.Session) tuttigenerated.Workspac
 		Settings:               generatedSettings,
 		Title:                  session.Title,
 		UpdatedAtUnixMs:        updatedAtUnixMS,
+		Usage:                  generatedAgentSessionUsage(session.Metadata.Usage),
 		Visible:                session.Visible,
 	}
 }

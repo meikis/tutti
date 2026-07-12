@@ -5,7 +5,13 @@ import "testing"
 func TestSplitSessionRuntimeContextSeparatesPublicMetadataFromProviderPrivateState(t *testing.T) {
 	metadata, internal, err := splitSessionRuntimeContext(map[string]any{
 		"visible": false, "imported": true,
-		"capabilities":     []any{"planMode", "interrupt"},
+		"capabilities": []any{"planMode", "interrupt"},
+		"usage": map[string]any{
+			"contextWindow": map[string]any{"usedTokens": 33_168, "totalTokens": 400_000},
+			"quotas": []any{map[string]any{
+				"quotaType": "weekly", "percentRemaining": 75.5, "resetsAtUnixMs": 1_750_003_600_000,
+			}},
+		},
 		"backgroundAgents": map[string]any{"count": 0, "items": []any{}},
 		"goal":             map[string]any{"objective": "ship", "status": "active"},
 		"providerConfig":   map[string]any{"threadId": "thread-1"},
@@ -14,6 +20,7 @@ func TestSplitSessionRuntimeContextSeparatesPublicMetadataFromProviderPrivateSta
 		t.Fatal(err)
 	}
 	if metadata.Visible || !metadata.Imported || len(metadata.Capabilities) != 2 ||
+		metadata.Usage == nil || metadata.Usage.ContextWindow == nil || metadata.Usage.ContextWindow.UsedTokens != 33_168 ||
 		metadata.BackgroundAgents == nil || metadata.Goal == nil || metadata.Goal.Objective != "ship" {
 		t.Fatalf("metadata=%#v", metadata)
 	}

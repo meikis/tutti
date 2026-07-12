@@ -33,6 +33,9 @@ type SessionSectionPage = agentstore.SessionSectionPage
 
 type Session = agentstore.Session
 type SessionMetadata = agentstore.SessionMetadata
+type SessionUsage = agentstore.SessionUsage
+type SessionUsageContextWindow = agentstore.SessionUsageContextWindow
+type SessionUsageQuota = agentstore.SessionUsageQuota
 type SessionBackgroundAgents = agentstore.SessionBackgroundAgents
 type SessionBackgroundAgentItem = agentstore.SessionBackgroundAgentItem
 type SessionGoal = agentstore.SessionGoal

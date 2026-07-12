@@ -49,6 +49,23 @@ func generatedAgentSessionCapabilities(raw []string) *tuttigenerated.WorkspaceAg
 	return &capabilities
 }
 
+func generatedAgentSessionUsage(raw *agentactivitybiz.SessionUsage) *tuttigenerated.WorkspaceAgentUsage {
+	var result tuttigenerated.WorkspaceAgentUsage
+	if !decodeTypedAgentSessionField(raw, &result) {
+		return nil
+	}
+	if result.ContextWindow == nil && len(result.Quotas) == 0 {
+		return nil
+	}
+	if result.ContextWindow != nil && (result.ContextWindow.UsedTokens < 0 || result.ContextWindow.TotalTokens <= 0) {
+		return nil
+	}
+	if result.Quotas == nil {
+		result.Quotas = []tuttigenerated.WorkspaceAgentUsageQuota{}
+	}
+	return &result
+}
+
 func generatedAgentSessionBackgroundAgents(raw *agentactivitybiz.SessionBackgroundAgents) *tuttigenerated.WorkspaceAgentBackgroundAgents {
 	var result tuttigenerated.WorkspaceAgentBackgroundAgents
 	if !decodeTypedAgentSessionField(raw, &result) || result.Count < 0 || result.Items == nil {
