@@ -11736,9 +11736,15 @@ export function useAgentGUINodeController({
     const isResumeNotLocalRecovery =
       isResumeSessionNotLocalErrorCode(activationErrorCode) ||
       activeConversationResumeUnavailable;
+    // The import marker rides on the conversation summary when the list
+    // snapshot carried runtimeContext, and on the session state's persisted
+    // runtimeContext otherwise (transient summaries drop it).
+    const isImportedConversation =
+      activeConversation?.isImported === true ||
+      runtimeContext?.imported === true;
     const recoveryMessage = isResumeNotLocalRecovery
       ? translate(
-          activeConversation?.isImported
+          isImportedConversation
             ? "messages.agentImportedSessionResumeUnavailable"
             : "messages.agentResumeSessionNotLocal"
         )
