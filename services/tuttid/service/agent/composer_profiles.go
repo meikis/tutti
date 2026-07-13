@@ -43,6 +43,8 @@ type composerProfile struct {
 	SlashCommandPolicy       providerregistry.SlashCommandPolicyDescriptor
 	// ReasoningEffort: the composer exposes a reasoning-effort selector.
 	ReasoningEffort bool
+	// ReasoningEffortOptions selects the descriptor-owned source of the list.
+	ReasoningEffortOptions providerregistry.ReasoningEffortOptionsKind
 	// DefaultReasoningEffort seeds the selector when nothing is persisted.
 	DefaultReasoningEffort string
 	// ReasoningEffortValues is the closed, ordered value list exposed by the
@@ -72,6 +74,7 @@ type composerProfile struct {
 	// SkillInvocation controls how discovered skills are invoked in the GUI.
 	SkillKind               string
 	SkillInvocation         string
+	SkillConfigDirSuffix    string
 	Behavior                providerregistry.ComposerBehaviorDescriptor
 	ModelCapabilityRuleKind providerregistry.ModelCapabilityRuleKind
 }
@@ -110,6 +113,7 @@ func composerProfileFromDescriptor(provider providerregistry.ProviderDescriptor)
 			CommandCatalogAuthoritative: descriptor.SlashCommandPolicy.CommandCatalogAuthoritative,
 		},
 		ReasoningEffort:          descriptor.ReasoningEffort,
+		ReasoningEffortOptions:   descriptor.ReasoningEffortOptions,
 		ReasoningEffortValues:    append([]string(nil), descriptor.ReasoningEffortValues...),
 		DefaultReasoningEffort:   strings.TrimSpace(descriptor.DefaultReasoningEffort),
 		Speed:                    descriptor.Speed,
@@ -123,6 +127,7 @@ func composerProfileFromDescriptor(provider providerregistry.ProviderDescriptor)
 		PermissionConfigOptionID: strings.TrimSpace(descriptor.ConfigOptionIDs.Permission),
 		SkillKind:                strings.TrimSpace(string(descriptor.Skills.Kind)),
 		SkillInvocation:          strings.TrimSpace(string(descriptor.Skills.Invocation)),
+		SkillConfigDirSuffix:     strings.TrimSpace(descriptor.Skills.ConfigDirSuffix),
 		Behavior:                 descriptor.Behavior,
 		ModelCapabilityRuleKind:  descriptor.ModelCapabilityRuleKind,
 	}

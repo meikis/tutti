@@ -378,6 +378,15 @@ func Validate(descriptor ProviderDescriptor) error {
 	default:
 		return fmt.Errorf("provider %q model catalog kind %q is unsupported", providerID, descriptor.ComposerProfile.ModelCatalog)
 	}
+	switch descriptor.ComposerProfile.ConfiguredModelOverride {
+	case "":
+	case ConfiguredModelOverrideCodexCustomProvider:
+		if descriptor.ComposerProfile.ModelCatalog != ModelCatalogKindCodexCLI {
+			return fmt.Errorf("provider %q codex custom-provider override requires the Codex model catalog", providerID)
+		}
+	default:
+		return fmt.Errorf("provider %q configured model override %q is unsupported", providerID, descriptor.ComposerProfile.ConfiguredModelOverride)
+	}
 	switch descriptor.ComposerProfile.CapabilityCatalog.Kind {
 	case "", CapabilityCatalogKindCodexAppServer:
 	default:
@@ -388,14 +397,44 @@ func Validate(descriptor ProviderDescriptor) error {
 		if descriptor.ComposerProfile.Skills.Invocation != "" {
 			return fmt.Errorf("provider %q skill invocation requires a skill kind", providerID)
 		}
+		if strings.TrimSpace(descriptor.ComposerProfile.Skills.ConfigDirSuffix) != "" {
+			return fmt.Errorf("provider %q skill config directory suffix requires a skill kind", providerID)
+		}
 	case SkillKindCodex, SkillKindClaudeCode, SkillKindCursor, SkillKindOpenCode:
 		switch descriptor.ComposerProfile.Skills.Invocation {
 		case SkillInvocationPromptItem, SkillInvocationTextTrigger:
 		default:
 			return fmt.Errorf("provider %q skill invocation %q is unsupported", providerID, descriptor.ComposerProfile.Skills.Invocation)
 		}
+		configDirSuffix := strings.TrimSpace(descriptor.ComposerProfile.Skills.ConfigDirSuffix)
+		if descriptor.ComposerProfile.Skills.Kind == SkillKindOpenCode {
+			if configDirSuffix == "" {
+				return fmt.Errorf("provider %q OpenCode skills require a config directory suffix", providerID)
+			}
+		} else if configDirSuffix != "" {
+			return fmt.Errorf("provider %q skill config directory suffix is only supported by OpenCode skills", providerID)
+		}
 	default:
 		return fmt.Errorf("provider %q skill kind %q is unsupported", providerID, descriptor.ComposerProfile.Skills.Kind)
+	}
+	if descriptor.ComposerProfile.ReasoningEffort {
+		switch descriptor.ComposerProfile.ReasoningEffortOptions {
+		case ReasoningEffortOptionsStatic:
+			if len(descriptor.ComposerProfile.ReasoningEffortValues) == 0 {
+				return fmt.Errorf("provider %q static reasoning options require values", providerID)
+			}
+		case ReasoningEffortOptionsModelCatalog:
+			if descriptor.ComposerProfile.ModelCatalog == "" {
+				return fmt.Errorf("provider %q model-catalog reasoning options require a model catalog", providerID)
+			}
+			if len(descriptor.ComposerProfile.ReasoningEffortValues) != 0 {
+				return fmt.Errorf("provider %q model-catalog reasoning options cannot declare static values", providerID)
+			}
+		default:
+			return fmt.Errorf("provider %q reasoning option source %q is unsupported", providerID, descriptor.ComposerProfile.ReasoningEffortOptions)
+		}
+	} else if descriptor.ComposerProfile.ReasoningEffortOptions != "" {
+		return fmt.Errorf("provider %q reasoning option source requires reasoning support", providerID)
 	}
 	if err := validateUniqueNonBlankStrings(descriptor.ComposerProfile.Capabilities); err != nil {
 		return fmt.Errorf("provider %q capabilities: %w", providerID, err)

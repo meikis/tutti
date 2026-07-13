@@ -136,6 +136,22 @@
   background: rgb(0 0 0 / 0%);
 }
 
+.tsh-zoom-dialog[data-closing="true"] {
+  animation: tsh-zoom-dialog-close 180ms ease-out forwards;
+}
+
+@keyframes tsh-zoom-dialog-close {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tsh-zoom-dialog[data-closing="true"] {
+    animation-duration: 1ms;
+  }
+}
+
 .tsh-zoom-dialog [data-rmiz-btn-unzoom] {
   position: fixed;
   top: max(20px, calc(var(--cove-titlebar-reserve, 0px) + 10px));

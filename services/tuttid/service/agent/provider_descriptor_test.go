@@ -13,8 +13,11 @@ func TestCodexComposerProfileComesFromProviderDescriptor(t *testing.T) {
 	if !profile.ModelSelection || !profile.UsesModelCatalog || profile.ModelCatalog != "codex-cli" {
 		t.Fatalf("model profile = %#v", profile)
 	}
-	if !reflect.DeepEqual(profile.ReasoningEffortValues, []string{"low", "medium", "high", "xhigh"}) {
-		t.Fatalf("reasoning values = %#v", profile.ReasoningEffortValues)
+	if len(profile.ReasoningEffortValues) != 0 {
+		t.Fatalf("model-catalog reasoning values must not have a static fallback: %#v", profile.ReasoningEffortValues)
+	}
+	if profile.ReasoningEffortOptions != providerregistry.ReasoningEffortOptionsModelCatalog {
+		t.Fatalf("reasoning option source = %q", profile.ReasoningEffortOptions)
 	}
 	if reasoningConfigOptionID(agentprovider.Codex) != "reasoning_effort" {
 		t.Fatalf("reasoning config option = %q", reasoningConfigOptionID(agentprovider.Codex))
@@ -33,7 +36,8 @@ func TestCodexComposerProfileComesFromProviderDescriptor(t *testing.T) {
 func TestClaudeCodeComposerProfileComesFromProviderDescriptor(t *testing.T) {
 	profile := composerProfileFor(agentprovider.ClaudeCode)
 	if profile.LiveModelDiscoveryKind != providerregistry.LiveModelDiscoveryKindClaudeSDK ||
-		!profile.LiveModelProbeSession || profile.SkillKind != "claude-code" {
+		!profile.LiveModelProbeSession || profile.SkillKind != "claude-code" ||
+		profile.ReasoningEffortOptions != providerregistry.ReasoningEffortOptionsStatic {
 		t.Fatalf("claude composer profile = %#v", profile)
 	}
 	if !profile.SlashCommandPolicy.CommandCatalogAuthoritative ||
@@ -70,7 +74,7 @@ func TestCodexModelCatalogSpecComesFromProviderDescriptor(t *testing.T) {
 	if spec.source != "codex-cli" {
 		t.Fatalf("source = %q", spec.source)
 	}
-	if spec.lister == nil || spec.configuredDefaultModel == nil {
+	if spec.lister == nil || spec.configuredDefaultModel == nil || spec.configuredModelOnly == nil || spec.configuredModelSource != "codex-configured-model" {
 		t.Fatalf("catalog spec incomplete: %#v", spec)
 	}
 }
@@ -83,6 +87,9 @@ func TestOpenCodeComposerProfileComesFromProviderDescriptor(t *testing.T) {
 	}
 	if !reflect.DeepEqual(profile.ReasoningEffortValues, []string{"low", "medium", "high", "xhigh"}) {
 		t.Fatalf("opencode reasoning values = %#v", profile.ReasoningEffortValues)
+	}
+	if profile.ReasoningEffortOptions != providerregistry.ReasoningEffortOptionsStatic || profile.SkillConfigDirSuffix != "opencode" {
+		t.Fatalf("opencode strategy profile = %#v", profile)
 	}
 	if reasoningConfigOptionID(agentprovider.OpenCode) != "effort" {
 		t.Fatalf("opencode reasoning config option = %q", reasoningConfigOptionID(agentprovider.OpenCode))

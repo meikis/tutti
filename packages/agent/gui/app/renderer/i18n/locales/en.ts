@@ -1,4 +1,5 @@
 import { enAgentGuiProviderIdentity } from "./en.agentGuiProviderIdentity.ts";
+import { enAgentGuiSlashPalette } from "./en.agentGuiSlashPalette.ts";
 import { enMessages } from "./en.messages.ts";
 import { enSettingsPanel } from "./en.settingsPanel.ts";
 import { enWebsiteNode } from "./en.websiteNode.ts";
@@ -928,15 +929,7 @@ export const en = {
       relativeTimeDays: "{{count}} d",
       relativeTimeMonths: "{{count}} mo",
       relativeTimeYears: "{{count}} y",
-      slashCommandPalette: "Slash commands",
-      skillPickerPalette: "Skills",
-      slashPaletteCommandsGroup: "Commands",
-      slashPaletteCapabilitiesGroup: "Capabilities",
-      slashPaletteCapabilitiesLoading: "Loading capabilities…",
-      slashPaletteSkillsGroup: "Skills",
-      slashPalettePluginsGroup: "Plugins",
-      slashPaletteConnectorsGroup: "Connectors",
-      slashPaletteMcpGroup: "MCP",
+      ...enAgentGuiSlashPalette,
       slashCommandCompactLabel: "compact",
       slashCommandContextLabel: "context",
       slashCommandFastLabel: "fast",

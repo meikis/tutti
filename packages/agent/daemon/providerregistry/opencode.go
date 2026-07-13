@@ -83,6 +83,7 @@ func openCodeDescriptor() ProviderDescriptor {
 			ModelCatalog:           ModelCatalogKindOpenCodeCLI,
 			ReasoningEffort:        true,
 			ReasoningEffortValues:  []string{"low", "medium", "high", "xhigh"},
+			ReasoningEffortOptions: ReasoningEffortOptionsStatic,
 			DefaultReasoningEffort: "high",
 			Capabilities: []string{
 				CapabilityImageInput,
@@ -94,7 +95,7 @@ func openCodeDescriptor() ProviderDescriptor {
 				Model:     "model",
 				Reasoning: "effort",
 			},
-			Skills: SkillDescriptor{Kind: SkillKindOpenCode, Invocation: SkillInvocationTextTrigger},
+			Skills: SkillDescriptor{Kind: SkillKindOpenCode, Invocation: SkillInvocationTextTrigger, ConfigDirSuffix: "opencode"},
 			SlashCommandPolicy: SlashCommandPolicyDescriptor{
 				FallbackCommands: []string{"compact", "goal", "review"},
 				CommandEffects: []SlashCommandEffectDescriptor{
@@ -117,6 +118,6 @@ func openCodeDescriptor() ProviderDescriptor {
 			TurnLifecycleProjection: TurnLifecycleProjectionExplicit,
 		},
 		Sidecar: SidecarDescriptor{ExecutionEnvironment: SidecarExecutionEnvironmentLocalIPC},
-		Desktop: DesktopIntegrationDescriptor{Managed: true, ManagedOrder: 5, StatusProbePriority: 5, VisibilityGate: DesktopVisibilityGateOpenCodePreview},
+		Desktop: DesktopIntegrationDescriptor{Managed: true, ManagedOrder: 5, StatusProbePriority: 5, VisibilityGate: DesktopVisibilityGateOpenCodePreview, DefaultProviderEligible: true, DefaultProviderPriority: 4},
 	}
 }

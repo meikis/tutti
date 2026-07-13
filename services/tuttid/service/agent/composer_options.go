@@ -181,10 +181,17 @@ func (s *Service) GetComposerOptions(ctx context.Context, input ComposerOptionsI
 		runtimeContext["capabilityCatalogErrors"] = capabilityErrors
 	}
 	if composerOptionsProviderUsesModelCatalog(provider) {
-		if catalogOptions, source, ok := composerModelOptionsFromCatalog(ctx, s.ModelCatalog, provider, effectiveSettings.Model); ok {
-			modelOptions = s.enrichModelCapabilityOptions(ctx, provider, catalogOptions)
+		if catalogProjection, ok := composerModelOptionsFromCatalog(ctx, s.ModelCatalog, provider, effectiveSettings.Model); ok {
+			modelOptions = s.enrichModelCapabilityOptions(ctx, provider, catalogProjection.ModelOptions)
 			runtimeContext["configOptions"] = composerConfigOptions(provider, effectiveSettings, modelOptions)
-			runtimeContext["modelCatalogSource"] = source
+			runtimeContext["modelCatalogSource"] = catalogProjection.Source
+			if len(catalogProjection.ReasoningProfiles) > 0 {
+				runtimeContext["modelReasoningOptionsByModel"] = composerModelReasoningOptionsRuntimeContext(
+					provider,
+					locale,
+					catalogProjection.ReasoningProfiles,
+				)
+			}
 		}
 	}
 	options := ComposerOptions{
@@ -584,9 +591,15 @@ func composerModelConfig(provider string, selected string, options []ComposerCon
 	}
 }
 
-func composerModelOptionsFromCatalog(ctx context.Context, catalog AgentModelCatalog, provider string, selectedModel string) ([]ComposerConfigOptionValue, string, bool) {
+type composerModelCatalogProjection struct {
+	ModelOptions      []ComposerConfigOptionValue
+	ReasoningProfiles map[string]composerModelReasoningProfile
+	Source            string
+}
+
+func composerModelOptionsFromCatalog(ctx context.Context, catalog AgentModelCatalog, provider string, selectedModel string) (composerModelCatalogProjection, bool) {
 	if catalog == nil {
-		return nil, "", false
+		return composerModelCatalogProjection{}, false
 	}
 	result, err := catalog.ListModels(ctx, provider)
 	if err != nil {
@@ -597,9 +610,10 @@ func composerModelOptionsFromCatalog(ctx context.Context, catalog AgentModelCata
 			"provider", provider,
 			"error", err,
 		)
-		return nil, "", false
+		return composerModelCatalogProjection{}, false
 	}
 	options := make([]ComposerConfigOptionValue, 0, len(result.Models)+1)
+	reasoningProfiles := make(map[string]composerModelReasoningProfile)
 	for _, model := range result.Models {
 		id := strings.TrimSpace(model.ID)
 		if id == "" {
@@ -619,12 +633,25 @@ func composerModelOptionsFromCatalog(ctx context.Context, catalog AgentModelCata
 			Description:        strings.TrimSpace(model.Description),
 			SupportsImageInput: model.SupportsImageInput,
 		})
+		if model.ReasoningEffortsAdvertised {
+			reasoningProfiles[id] = composerModelReasoningProfile{
+				DefaultReasoningEffort: strings.TrimSpace(model.DefaultReasoningEffort),
+				ReasoningEfforts: append(
+					[]AgentModelReasoningEffortOption(nil),
+					model.SupportedReasoningEfforts...,
+				),
+			}
+		}
 	}
 	selected := strings.TrimSpace(selectedModel)
 	if selected != "" && !containsModelOption(options, selected) {
 		options = append(options, ComposerConfigOptionValue{ID: selected, Label: selected, Value: selected})
 	}
-	return options, strings.TrimSpace(result.Source), true
+	return composerModelCatalogProjection{
+		ModelOptions:      options,
+		ReasoningProfiles: reasoningProfiles,
+		Source:            strings.TrimSpace(result.Source),
+	}, true
 }
 
 func containsModelOption(options []ComposerConfigOptionValue, value string) bool {

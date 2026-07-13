@@ -1566,7 +1566,16 @@ func TestServiceCreateRejectsInvalidCatalogModelBeforePreparingRuntime(t *testin
 			Provider: "codex",
 			Source:   "codex-cli",
 			Models: []AgentModelOption{
-				{ID: "gpt-5", DisplayName: "GPT-5"},
+				{
+					ID:                         "gpt-5",
+					DisplayName:                "GPT-5",
+					DefaultReasoningEffort:     "minimal",
+					ReasoningEffortsAdvertised: true,
+					SupportedReasoningEfforts: []AgentModelReasoningEffortOption{
+						{Value: "minimal"},
+						{Value: "high"},
+					},
+				},
 				{ID: "gpt-5.1", DisplayName: "GPT-5.1"},
 			},
 		},
@@ -2692,6 +2701,14 @@ func TestServiceGetsComposerOptionsFromCodexModelCatalog(t *testing.T) {
 	if options.RuntimeContext["modelCatalogSource"] != "codex-cli" {
 		t.Fatalf("modelCatalogSource = %#v, want codex-cli", options.RuntimeContext["modelCatalogSource"])
 	}
+	reasoningProfiles, ok := options.RuntimeContext["modelReasoningOptionsByModel"].(map[string]any)
+	if !ok {
+		t.Fatalf("modelReasoningOptionsByModel = %#v", options.RuntimeContext["modelReasoningOptionsByModel"])
+	}
+	gpt5Reasoning, ok := reasoningProfiles["gpt-5"].(map[string]any)
+	if !ok || gpt5Reasoning["defaultValue"] != "minimal" {
+		t.Fatalf("gpt-5 reasoning profile = %#v", reasoningProfiles["gpt-5"])
+	}
 	if len(runtime.sessions) != 0 {
 		t.Fatalf("runtime sessions = %d, want no started sessions", len(runtime.sessions))
 	}
@@ -2850,7 +2867,7 @@ func TestServiceGetsComposerOptionsWithResolvedCodexDefaultModel(t *testing.T) {
 	}
 }
 
-func TestServiceGetsComposerOptionsNormalizesCodexMinimalReasoningEffort(t *testing.T) {
+func TestServiceGetsComposerOptionsPreservesCodexModelCatalogReasoningEffort(t *testing.T) {
 	runtime := newFakeRuntime()
 	service := newIsolatedAgentService(runtime)
 	service.CapabilityLister = &recordingComposerCapabilityLister{}
@@ -2864,8 +2881,8 @@ func TestServiceGetsComposerOptionsNormalizesCodexMinimalReasoningEffort(t *test
 	if err != nil {
 		t.Fatalf("GetComposerOptions returned error: %v", err)
 	}
-	if options.EffectiveSettings.ReasoningEffort != "high" {
-		t.Fatalf("effectiveSettings.reasoningEffort = %q, want high", options.EffectiveSettings.ReasoningEffort)
+	if options.EffectiveSettings.ReasoningEffort != "minimal" {
+		t.Fatalf("effectiveSettings.reasoningEffort = %q, want minimal", options.EffectiveSettings.ReasoningEffort)
 	}
 	configOptions, ok := options.RuntimeContext["configOptions"].([]map[string]any)
 	if !ok || len(configOptions) < 1 {
@@ -2885,10 +2902,8 @@ func TestServiceGetsComposerOptionsNormalizesCodexMinimalReasoningEffort(t *test
 	if !ok {
 		t.Fatalf("reasoning options = %#v", reasoningOption["options"])
 	}
-	for _, option := range reasoningOptions {
-		if option["value"] == "minimal" {
-			t.Fatalf("reasoning options = %#v, want codex minimal filtered out", reasoningOptions)
-		}
+	if len(reasoningOptions) != 1 || reasoningOptions[0]["value"] != "minimal" {
+		t.Fatalf("reasoning options = %#v, want selected model-catalog value preserved", reasoningOptions)
 	}
 }
 
@@ -3429,7 +3444,7 @@ func TestServiceGetsComposerOptionsLeavesUnresolvedProviderModelUnset(t *testing
 	}
 }
 
-func TestServiceUpdateSettingsNormalizesCodexMinimalReasoningEffort(t *testing.T) {
+func TestServiceUpdateSettingsPreservesCodexModelCatalogReasoningEffort(t *testing.T) {
 	runtime := newFakeRuntime()
 	runtime.sessions["ws-1:session-1"] = ProviderRuntimeSession{
 		ID:          "session-1",
@@ -3449,8 +3464,8 @@ func TestServiceUpdateSettingsNormalizesCodexMinimalReasoningEffort(t *testing.T
 	if err != nil {
 		t.Fatalf("UpdateSettings returned error: %v", err)
 	}
-	if session.Settings == nil || session.Settings.ReasoningEffort != "high" {
-		t.Fatalf("session settings = %#v, want reasoningEffort high", session.Settings)
+	if session.Settings == nil || session.Settings.ReasoningEffort != "minimal" {
+		t.Fatalf("session settings = %#v, want reasoningEffort minimal", session.Settings)
 	}
 }
 

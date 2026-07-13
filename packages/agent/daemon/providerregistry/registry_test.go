@@ -115,9 +115,9 @@ func TestMigratedProviderDesktopIntegrationIsDescriptorOwned(t *testing.T) {
 	want := map[string]DesktopIntegrationDescriptor{
 		CodexProviderID:      {Managed: true, ManagedOrder: 2, StatusProbePriority: 1, UsageProbeKind: DesktopUsageProbeCodex, DeveloperLogs: true, DefaultProviderEligible: true, DefaultProviderPriority: 1},
 		ClaudeCodeProviderID: {Managed: true, ManagedOrder: 1, StatusProbePriority: 2, UsageProbeKind: DesktopUsageProbeClaudeCode, DeveloperLogs: true, DefaultProviderEligible: true, DefaultProviderPriority: 2},
-		CursorProviderID:     {Managed: true, ManagedOrder: 3, StatusProbePriority: 3, VisibilityGate: DesktopVisibilityGateCursorPreview, RuntimeProbeFallback: DesktopRuntimeProbeFallbackDirect, DeveloperLogs: true},
+		CursorProviderID:     {Managed: true, ManagedOrder: 3, StatusProbePriority: 3, VisibilityGate: DesktopVisibilityGateCursorPreview, RuntimeProbeFallback: DesktopRuntimeProbeFallbackDirect, DeveloperLogs: true, DefaultProviderEligible: true, DefaultProviderPriority: 3},
 		TuttiAgentProviderID: {Managed: true, ManagedOrder: 4, StatusProbePriority: 4, VisibilityGate: DesktopVisibilityGateTuttiAgent, InstallBootstrap: true, RefreshOnAccountChange: true},
-		OpenCodeProviderID:   {Managed: true, ManagedOrder: 5, StatusProbePriority: 5, VisibilityGate: DesktopVisibilityGateOpenCodePreview},
+		OpenCodeProviderID:   {Managed: true, ManagedOrder: 5, StatusProbePriority: 5, VisibilityGate: DesktopVisibilityGateOpenCodePreview, DefaultProviderEligible: true, DefaultProviderPriority: 4},
 		NexightProviderID:    {},
 		HermesProviderID:     {Managed: true, ManagedOrder: 6, StatusProbePriority: 6},
 		OpenClawProviderID:   {Managed: true, ManagedOrder: 7, StatusProbePriority: 7, UnavailableDockOrderOffset: 200},
@@ -291,6 +291,12 @@ func TestValidateRejectsUnsupportedDescriptorStrategies(t *testing.T) {
 		{name: "installer kind", mutate: func(value *ProviderDescriptor) { value.Status.Install.Kind = "poison" }},
 		{name: "installer package mismatch", mutate: func(value *ProviderDescriptor) { value.Status.Install.PackageName = "poison" }},
 		{name: "model catalog kind", mutate: func(value *ProviderDescriptor) { value.ComposerProfile.ModelCatalog = "poison" }},
+		{name: "model catalog with static reasoning values", mutate: func(value *ProviderDescriptor) {
+			value.ComposerProfile.ReasoningEffortValues = []string{"high"}
+		}},
+		{name: "config directory suffix on non-OpenCode skills", mutate: func(value *ProviderDescriptor) {
+			value.ComposerProfile.Skills.ConfigDirSuffix = "codex"
+		}},
 		{name: "capability catalog kind", mutate: func(value *ProviderDescriptor) { value.ComposerProfile.CapabilityCatalog.Kind = "poison" }},
 		{name: "target launch ref type", mutate: func(value *ProviderDescriptor) { value.Target.LaunchRefType = "poison" }},
 		{name: "blank event alias", mutate: func(value *ProviderDescriptor) { value.Events.Aliases = []string{" "} }},
@@ -364,6 +370,9 @@ func TestValidateRejectsInvalidStandardACPDescriptorStrategies(t *testing.T) {
 		}},
 		{name: "unsupported auth fingerprint", mutate: func(value *ProviderDescriptor) {
 			value.Status.AuthWatch.ContentFingerprint = "poison"
+		}},
+		{name: "missing OpenCode skill config directory suffix", mutate: func(value *ProviderDescriptor) {
+			value.ComposerProfile.Skills.ConfigDirSuffix = ""
 		}},
 	}
 	for _, test := range tests {

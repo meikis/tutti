@@ -78,8 +78,8 @@ export const generatedProviderIdentityCatalog = [
       refreshOnAccountChange: false,
       unavailableDockOrderOffset: 0,
       developerLogs: true,
-      defaultProviderEligible: false,
-      defaultProviderPriority: 0
+      defaultProviderEligible: true,
+      defaultProviderPriority: 3
     }
   },
   {
@@ -91,7 +91,7 @@ export const generatedProviderIdentityCatalog = [
     target: {
       id: "local:tutti-agent",
       launchRefType: "local_cli",
-      enabled: true,
+      enabled: false,
       sortOrder: 40
     },
     desktop: {
@@ -132,8 +132,8 @@ export const generatedProviderIdentityCatalog = [
       refreshOnAccountChange: false,
       unavailableDockOrderOffset: 0,
       developerLogs: false,
-      defaultProviderEligible: false,
-      defaultProviderPriority: 0
+      defaultProviderEligible: true,
+      defaultProviderPriority: 4
     }
   },
   {

@@ -285,8 +285,9 @@ const (
 )
 
 type SkillDescriptor struct {
-	Kind       SkillKind
-	Invocation SkillInvocation
+	Kind            SkillKind
+	Invocation      SkillInvocation
+	ConfigDirSuffix string
 }
 
 type ModelCatalogKind string
@@ -296,6 +297,17 @@ const (
 	ModelCatalogKindOpenCodeCLI ModelCatalogKind = "opencode-cli"
 	ModelCatalogKindTuttiCLI    ModelCatalogKind = "tutti-agent-cli"
 )
+
+type ReasoningEffortOptionsKind string
+
+const (
+	ReasoningEffortOptionsStatic       ReasoningEffortOptionsKind = "static"
+	ReasoningEffortOptionsModelCatalog ReasoningEffortOptionsKind = "model_catalog"
+)
+
+type ConfiguredModelOverrideKind string
+
+const ConfiguredModelOverrideCodexCustomProvider ConfiguredModelOverrideKind = "codex_custom_provider"
 
 // CapabilityCatalogKind identifies the protocol used to discover the
 // provider's dynamic composer capabilities.
@@ -368,7 +380,9 @@ type ComposerProfileDescriptor struct {
 	ModelCatalog            ModelCatalogKind
 	ReasoningEffort         bool
 	ReasoningEffortValues   []string
+	ReasoningEffortOptions  ReasoningEffortOptionsKind
 	DefaultReasoningEffort  string
+	ConfiguredModelOverride ConfiguredModelOverrideKind
 	Speed                   bool
 	Capabilities            []string
 	PermissionConfigurable  bool

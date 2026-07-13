@@ -7,7 +7,6 @@ import {
   type WheelEvent,
   useCallback,
   useEffect,
-  useRef,
   useState
 } from "react";
 import { createPortal } from "react-dom";
@@ -71,7 +70,6 @@ export function ZoomableImage({
   const [isWheelZooming, setIsWheelZooming] = useState(false);
   const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
   const [isImagePreviewClosing, setIsImagePreviewClosing] = useState(false);
-  const closePreviewTimerRef = useRef<number | null>(null);
   const imagePreviewZoomPercent = Math.round(imagePreviewZoom * 100);
   const canZoomOut = imagePreviewZoom > IMAGE_PREVIEW_ZOOM_MIN;
   const canZoomIn = imagePreviewZoom < IMAGE_PREVIEW_ZOOM_MAX;
@@ -80,56 +78,31 @@ export function ZoomableImage({
     setContextMenuPosition(null);
   }, []);
 
-  const finishClosePreviewImage = useCallback((): void => {
-    if (closePreviewTimerRef.current !== null) {
-      window.clearTimeout(closePreviewTimerRef.current);
-      closePreviewTimerRef.current = null;
-    }
+  const finishClosePreviewImage = (): void => {
     setIsImagePreviewOpen(false);
     setIsImagePreviewClosing(false);
     setIsWheelZooming(false);
     setImagePreviewZoom(1);
-  }, []);
+  };
 
-  const closePreviewImage = useCallback((): void => {
+  const closePreviewImage = (): void => {
     if (!isImagePreviewOpen) {
       return;
-    }
-    if (closePreviewTimerRef.current !== null) {
-      window.clearTimeout(closePreviewTimerRef.current);
     }
     setIsImagePreviewClosing(true);
     setIsWheelZooming(false);
     setImagePreviewZoom(1);
     closeContextMenu();
-    // timing: keep the image mounted until the 180ms close transition finishes.
-    closePreviewTimerRef.current = window.setTimeout(
-      finishClosePreviewImage,
-      180
-    );
-  }, [closeContextMenu, finishClosePreviewImage, isImagePreviewOpen]);
+  };
 
-  const openPreviewImage = useCallback((): void => {
+  const openPreviewImage = (): void => {
     if (!actionSource) {
       return;
-    }
-    if (closePreviewTimerRef.current !== null) {
-      window.clearTimeout(closePreviewTimerRef.current);
-      closePreviewTimerRef.current = null;
     }
     closeContextMenu();
     setIsImagePreviewClosing(false);
     setIsImagePreviewOpen(true);
-  }, [actionSource, closeContextMenu]);
-
-  useEffect(
-    () => () => {
-      if (closePreviewTimerRef.current !== null) {
-        window.clearTimeout(closePreviewTimerRef.current);
-      }
-    },
-    []
-  );
+  };
 
   useEffect(() => {
     if (!contextMenuPosition) {
@@ -143,34 +116,6 @@ export function ZoomableImage({
       document.removeEventListener("scroll", closeContextMenu, true);
     };
   }, [closeContextMenu, contextMenuPosition]);
-
-  useEffect(() => {
-    if (!isImagePreviewOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: globalThis.KeyboardEvent): void => {
-      if (event.key !== "Escape") {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      closePreviewImage();
-    };
-
-    document.addEventListener("keydown", handleKeyDown, true);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown, true);
-    };
-  }, [closePreviewImage, isImagePreviewOpen]);
-
-  useEffect(() => {
-    if (!copyStatus || copyStatus.busy) {
-      return;
-    }
-    const timer = setTimeout(() => setCopyStatus(null), 1600);
-    return () => clearTimeout(timer);
-  }, [copyStatus]);
 
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLElement>): void => {
@@ -373,10 +318,20 @@ export function ZoomableImage({
         ? createPortal(
             <div
               aria-modal="true"
+              autoFocus
               className="tsh-zoom-dialog nodrag tsh-desktop-no-drag"
+              data-closing={isImagePreviewClosing ? "true" : undefined}
               data-rmiz-modal=""
               role="dialog"
               tabIndex={-1}
+              onAnimationEnd={(event) => {
+                if (
+                  isImagePreviewClosing &&
+                  event.currentTarget === event.target
+                ) {
+                  finishClosePreviewImage();
+                }
+              }}
               onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
                 if (event.key === "Escape") {
                   closePreviewImage();

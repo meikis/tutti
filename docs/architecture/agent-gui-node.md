@@ -347,6 +347,10 @@ OpenClaw, OpenCode, or Tutti Agent identity to select behavior. Provider-owned
 wire adapters may translate their own protocol, but shared policy belongs in a
 typed descriptor or selector. Unknown providers produce an explicit unsupported
 result; they do not silently inherit another provider's behavior.
+Reasoning-option ownership, configured-model override behavior, and native
+skill config-directory suffixes are descriptor strategies as well. Composer
+and model-catalog services dispatch on those typed strategies; they must not
+recover the same policy from provider-name comparisons or path literals.
 
 Generated GUI identity data is presentation metadata only. A provider target
 is host-supplied launch authority with a real provider identity and opaque target

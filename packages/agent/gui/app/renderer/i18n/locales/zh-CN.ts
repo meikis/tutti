@@ -1,6 +1,7 @@
 import type { TranslationDictionary } from "./schema.ts";
 
 import { zhCNAgentGuiProviderIdentity } from "./zh-CN.agentGuiProviderIdentity.ts";
+import { zhCNAgentGuiSlashPalette } from "./zh-CN.agentGuiSlashPalette.ts";
 import { zhCNMessages } from "./zh-CN.messages.ts";
 import { zhCNSettingsPanel } from "./zh-CN.settingsPanel.ts";
 import { zhCNWebsiteNode } from "./zh-CN.websiteNode.ts";
@@ -861,15 +862,7 @@ export const zhCN = {
       relativeTimeDays: "{{count}} 天",
       relativeTimeMonths: "{{count}} 个月",
       relativeTimeYears: "{{count}} 年",
-      slashCommandPalette: "斜杠菜单",
-      skillPickerPalette: "技能",
-      slashPaletteCommandsGroup: "命令",
-      slashPaletteCapabilitiesGroup: "能力",
-      slashPaletteCapabilitiesLoading: "能力加载中…",
-      slashPaletteSkillsGroup: "技能",
-      slashPalettePluginsGroup: "插件",
-      slashPaletteConnectorsGroup: "连接器",
-      slashPaletteMcpGroup: "MCP",
+      ...zhCNAgentGuiSlashPalette,
       slashCommandCompactLabel: "压缩",
       slashCommandContextLabel: "上下文",
       slashCommandFastLabel: "快速",

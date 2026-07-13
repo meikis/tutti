@@ -64,7 +64,7 @@ func composerSkillDiscoveryPlan(provider string, cwd string, env []string) ([]co
 	case providerregistry.SkillKindCursor:
 		return cursorComposerSkillRoots(cwd, env), cursorSkillTrigger
 	case providerregistry.SkillKindOpenCode:
-		return openCodeComposerSkillRoots(cwd, env), openCodeSkillTrigger
+		return openCodeComposerSkillRoots(cwd, env, profile.SkillConfigDirSuffix), openCodeSkillTrigger
 	default:
 		return nil, nil
 	}
@@ -134,7 +134,7 @@ func cursorComposerSkillRoots(cwd string, env []string) []composerSkillRoot {
 	return roots
 }
 
-func openCodeComposerSkillRoots(cwd string, env []string) []composerSkillRoot {
+func openCodeComposerSkillRoots(cwd string, env []string, configDirSuffix string) []composerSkillRoot {
 	roots := make([]composerSkillRoot, 0)
 	roots = append(roots, ancestorSkillRoots(cwd, ".opencode", "skills", composerSkillSourceProject)...)
 	roots = append(roots, ancestorSkillRoots(cwd, ".claude", "skills", composerSkillSourceProject)...)
@@ -153,7 +153,7 @@ func openCodeComposerSkillRoots(cwd string, env []string) []composerSkillRoot {
 			sourceKind: composerSkillSourcePersonal,
 		})
 	}
-	if configDir := openCodeConfigDir(env); configDir != "" {
+	if configDir := openCodeConfigDir(env, configDirSuffix); configDir != "" {
 		roots = append(roots, composerSkillRoot{
 			path:       filepath.Join(configDir, "skills"),
 			sourceKind: composerSkillSourcePersonal,
@@ -162,13 +162,14 @@ func openCodeComposerSkillRoots(cwd string, env []string) []composerSkillRoot {
 	return roots
 }
 
-func openCodeConfigDir(env []string) string {
+func openCodeConfigDir(env []string, configDirSuffix string) string {
 	configDir := envValue(env, "OPENCODE_CONFIG_DIR")
 	if configDir == "" {
 		return ""
 	}
-	if filepath.Base(filepath.Clean(configDir)) != "opencode" {
-		configDir = filepath.Join(configDir, "opencode")
+	configDirSuffix = strings.TrimSpace(configDirSuffix)
+	if configDirSuffix != "" && filepath.Base(filepath.Clean(configDir)) != configDirSuffix {
+		configDir = filepath.Join(configDir, configDirSuffix)
 	}
 	return configDir
 }
