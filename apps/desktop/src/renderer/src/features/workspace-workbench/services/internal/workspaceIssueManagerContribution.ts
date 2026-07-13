@@ -32,6 +32,7 @@ import type { IReporterService } from "../../../analytics/services/reporterServi
 import {
   requestWorkspaceAgentGuiLaunch,
   type AgentProviderStatusService,
+  type IAgentsService,
   type IWorkspaceAgentActivityService,
   type WorkspaceAgentPromptSessionService
 } from "@renderer/features/workspace-agent";
@@ -62,7 +63,7 @@ export function createWorkspaceIssueManagerContribution(input: {
     DesktopPlatformApi,
     "homeDirectory" | "os" | "resolveDroppedPaths"
   >;
-  agents?: readonly AgentGUIAgent[];
+  agentsService: Pick<IAgentsService, "getSnapshot" | "subscribe">;
   richTextAtService: IDesktopRichTextAtService;
   runtimeApi: DesktopRuntimeApi;
   reporterService?: Pick<IReporterService, "trackEvents">;
@@ -76,11 +77,18 @@ export function createWorkspaceIssueManagerContribution(input: {
       getOptions: () =>
         resolveIssueManagerReadyAgentTargetOptions(
           input.agentProviderStatusService.getSnapshot().statuses,
-          input.agents,
+          input.agentsService.getSnapshot().agents,
           input.defaultAgentProvider
         ),
-      subscribe: (listener) =>
-        input.agentProviderStatusService.subscribe(listener)
+      subscribe: (listener) => {
+        const unsubscribeProviderStatuses =
+          input.agentProviderStatusService.subscribe(listener);
+        const unsubscribeAgents = input.agentsService.subscribe(listener);
+        return () => {
+          unsubscribeProviderStatuses();
+          unsubscribeAgents();
+        };
+      }
     },
     agentSessionCreator: input.workspaceAgentPromptSessionService,
     eventStreamClient: input.eventStreamClient,

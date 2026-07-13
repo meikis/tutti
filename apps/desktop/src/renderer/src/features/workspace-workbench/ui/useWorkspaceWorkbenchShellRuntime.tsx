@@ -5,7 +5,7 @@ import {
   useRef,
   useSyncExternalStore
 } from "react";
-import type { AgentGUIProvider, AgentGUIAgent } from "@tutti-os/agent-gui";
+import type { AgentGUIProvider } from "@tutti-os/agent-gui";
 import { useService } from "@tutti-os/infra/di";
 import type {
   WorkspaceAgentProvider,
@@ -73,7 +73,6 @@ export interface WorkspaceWorkbenchShellRuntime {
     onConfirm: () => void;
     request: WorkbenchHostCloseDialogRequest | null;
   };
-  defaultAgentTargetId: string | null;
   dockIconStyle: DesktopDockIconStyle;
   dockPlacement: WorkbenchDockPlacement;
   defaultAgentProvider: WorkspaceAgentProvider;
@@ -141,14 +140,6 @@ export function useWorkspaceWorkbenchShellRuntime({
   const agentsService = useService(IAgentsService);
   const workspaceFileManagerService = useWorkspaceFileManagerService();
   const workbenchHostService = useWorkspaceWorkbenchHostService();
-  const agentsSnapshot = useSyncExternalStore(
-    (listener) => agentsService.subscribe(listener),
-    () => agentsService.getSnapshot(),
-    () => agentsService.getSnapshot()
-  );
-  const agentGuiAgentsLoading = agentsSnapshot.capturedAtUnixMs === null;
-  // The daemon /agents directory is the complete new-entry source of truth.
-  const resolvedAgentGuiAgents = agentsSnapshot.agents;
   const comingSoonAgentProviders = useMemo<readonly AgentGUIProvider[]>(
     () => [
       ...(desktopPreferencesState.enableCursorAgent ? [] : ["cursor" as const]),
@@ -160,14 +151,6 @@ export function useWorkspaceWorkbenchShellRuntime({
       desktopPreferencesState.enableCursorAgent,
       desktopPreferencesState.enableOpenCodeAgent
     ]
-  );
-  const defaultAgentTargetId = useMemo(
-    () =>
-      resolveDefaultAgentTargetId({
-        defaultProvider: desktopPreferencesState.defaultAgentProvider,
-        agents: resolvedAgentGuiAgents
-      }),
-    [desktopPreferencesState.defaultAgentProvider, resolvedAgentGuiAgents]
   );
   const reporterService = useService(IReporterService);
   const wallpaperRevision = useSyncExternalStore(
@@ -203,9 +186,6 @@ export function useWorkspaceWorkbenchShellRuntime({
           appCenterRevision: appCenterState.revision,
           createHostInput: hostSession.createHostInput,
           defaultAgentProvider: desktopPreferencesState.defaultAgentProvider,
-          defaultAgentTargetId: defaultAgentTargetId,
-          agents: resolvedAgentGuiAgents,
-          agentsLoading: agentGuiAgentsLoading,
           comingSoonAgentProviders,
           dockIconStyle: desktopPreferencesState.dockIconStyle,
           i18n: workbenchDesktopI18n,
@@ -337,9 +317,6 @@ export function useWorkspaceWorkbenchShellRuntime({
       appCenterRevision: appCenterState.revision,
       createHostInput: hostSession.createHostInput,
       defaultAgentProvider: desktopPreferencesState.defaultAgentProvider,
-      defaultAgentTargetId: defaultAgentTargetId,
-      agents: resolvedAgentGuiAgents,
-      agentsLoading: agentGuiAgentsLoading,
       comingSoonAgentProviders,
       dockIconStyle: desktopPreferencesState.dockIconStyle,
       i18n: workbenchDesktopI18n,
@@ -353,10 +330,7 @@ export function useWorkspaceWorkbenchShellRuntime({
   }, [
     appI18n,
     appCenterState.revision,
-    agentGuiAgentsLoading,
     comingSoonAgentProviders,
-    defaultAgentTargetId,
-    resolvedAgentGuiAgents,
     desktopPreferencesState.defaultAgentProvider,
     desktopPreferencesState.dockIconStyle,
     desktopPreferencesState.theme.appearance,
@@ -495,7 +469,6 @@ export function useWorkspaceWorkbenchShellRuntime({
       onConfirm: shellRuntimeController.closeDialog.confirm,
       request: shellRuntimeSnapshot.closeDialog.request
     },
-    defaultAgentTargetId,
     dockIconStyle: desktopPreferencesState.dockIconStyle,
     dockPlacement: desktopPreferencesState.dockPlacement,
     defaultAgentProvider: desktopPreferencesState.defaultAgentProvider,
@@ -533,25 +506,6 @@ export function useWorkspaceWorkbenchShellRuntime({
     workbenchWindowSnapping: desktopPreferencesState.workbenchWindowSnapping,
     workbenchHostService
   };
-}
-
-function resolveDefaultAgentTargetId(input: {
-  agents?: readonly AgentGUIAgent[];
-  defaultProvider?: string | null;
-}): string | null {
-  const defaultProvider = input.defaultProvider?.trim() ?? "";
-  const agents = input.agents ?? [];
-  return (
-    agents.find(
-      (agent) =>
-        defaultProvider !== "" &&
-        agent.provider === defaultProvider &&
-        agent.availability.status === "ready"
-    )?.agentTargetId ??
-    agents.find((agent) => agent.availability.status === "ready")
-      ?.agentTargetId ??
-    null
-  );
 }
 
 function closeWorkspaceAppWebviews(

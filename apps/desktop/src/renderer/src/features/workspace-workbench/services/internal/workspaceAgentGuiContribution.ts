@@ -1,4 +1,9 @@
-import { createElement, type CSSProperties, type ReactNode } from "react";
+import {
+  createElement,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode
+} from "react";
 import type {
   AgentGUIProvider,
   AgentGUIAllAgentsPresentation,
@@ -33,7 +38,10 @@ import type {
 } from "@preload/types";
 import type { IDesktopRichTextAtService } from "@renderer/features/rich-text-at";
 import type { IWorkspaceAppCenterService } from "@renderer/features/workspace-app-center";
-import type { IWorkspaceAgentActivityService } from "@renderer/features/workspace-agent";
+import type {
+  IAgentsService,
+  IWorkspaceAgentActivityService
+} from "@renderer/features/workspace-agent";
 import type { IWorkspaceUserProjectService } from "@renderer/features/workspace-user-project";
 import type { IWorkspaceFileManagerService } from "@renderer/features/workspace-file-manager";
 import type { IReporterService } from "@renderer/features/analytics";
@@ -68,15 +76,13 @@ export function createWorkspaceAgentGuiContribution(input: {
     typeof createAgentGuiWorkbenchContribution
   >[0]["unifiedDockIconUrl"];
   defaultAgentProvider?: string | null;
-  defaultAgentTargetId?: string | null;
   hostFilesApi: DesktopHostFilesApi;
   hostWindowApi: Pick<DesktopHostWindowApi, "openAgentWindow">;
   i18n: WorkspaceWorkbenchDesktopI18nRuntime;
   onCapabilitySettingsRequest?: Parameters<
     typeof DesktopAgentGUIWorkbenchBody
   >[0]["onCapabilitySettingsRequest"];
-  agents: readonly AgentGUIAgent[];
-  agentsLoading?: boolean;
+  agentsService: Pick<IAgentsService, "getSnapshot" | "subscribe">;
   allAgentsPresentation?: AgentGUIAllAgentsPresentation | null;
   renderAgentsEmpty?: AgentGUIAgentsEmptyRenderer;
   comingSoonAgentProviders?: readonly AgentGUIProvider[];
@@ -93,9 +99,21 @@ export function createWorkspaceAgentGuiContribution(input: {
   workspaceUserProjectService: IWorkspaceUserProjectService;
   workspaceId: string;
 }): WorkbenchContribution {
+  const readAgentDirectory = () => {
+    const snapshot = input.agentsService.getSnapshot();
+    return {
+      agents: snapshot.agents,
+      agentsLoading: snapshot.capturedAtUnixMs === null,
+      defaultAgentTargetId: resolveDefaultAgentTargetId({
+        agents: snapshot.agents,
+        defaultProvider: input.defaultAgentProvider
+      })
+    };
+  };
+  const initialAgentDirectory = readAgentDirectory();
   const defaultAgentProvider = isWorkspaceAgentGuiProviderEnabledForNewEntry(
     input.defaultAgentProvider,
-    input.agents
+    initialAgentDirectory.agents
   )
     ? input.defaultAgentProvider
     : null;
@@ -145,7 +163,7 @@ export function createWorkspaceAgentGuiContribution(input: {
     >[1],
     options?: { previewMode?: boolean }
   ) =>
-    createElement(DesktopAgentGUIWorkbenchBody, {
+    createElement(DesktopWorkspaceAgentGUIWorkbenchBody, {
       agentActivityRuntime: agentGUIWorkbenchHostInput.agentActivityRuntime,
       agentHostApi: agentGUIWorkbenchHostInput.agentHostApi,
       appCenterService: input.appCenterService,
@@ -163,12 +181,11 @@ export function createWorkspaceAgentGuiContribution(input: {
       },
       onStateChange: (...args) => helpers.onStateChange(...args),
       previewMode: options?.previewMode,
-      agents: input.agents,
-      agentsLoading: input.agentsLoading,
+      agentsService: input.agentsService,
       allAgentsPresentation: input.allAgentsPresentation,
       renderAgentsEmpty: input.renderAgentsEmpty,
       comingSoonAgentProviders: input.comingSoonAgentProviders,
-      defaultAgentTargetId: input.defaultAgentTargetId,
+      defaultAgentProvider: input.defaultAgentProvider,
       contextMentionProviders:
         agentGUIWorkbenchHostInput.contextMentionProviders,
       runtimeApi: input.runtimeApi,
@@ -213,22 +230,30 @@ export function createWorkspaceAgentGuiContribution(input: {
     unifiedDockIconUrl: input.unifiedDockIconUrl,
     frame: workspaceAgentGuiNodeFrame,
     defaultProvider: defaultAgentProvider,
-    defaultAgentTargetId: input.defaultAgentTargetId,
+    defaultAgentTargetId: initialAgentDirectory.defaultAgentTargetId,
     providerAvailability: resolveWorkspaceAgentGuiProviderAvailability(
       input.agentProviderStatusService
     ),
-    agents: input.agents,
-    agentsLoading: input.agentsLoading,
-    resolveDockLaunchPayload: () =>
-      resolveAgentGuiUnifiedDockLaunchPayload({
-        defaultProvider: defaultAgentProvider,
-        defaultAgentTargetId: input.defaultAgentTargetId,
+    agents: undefined,
+    resolveDockLaunchPayload: () => {
+      const agentDirectory = readAgentDirectory();
+      const currentDefaultProvider =
+        isWorkspaceAgentGuiProviderEnabledForNewEntry(
+          input.defaultAgentProvider,
+          agentDirectory.agents
+        )
+          ? input.defaultAgentProvider
+          : null;
+      return resolveAgentGuiUnifiedDockLaunchPayload({
+        defaultProvider: currentDefaultProvider,
+        defaultAgentTargetId: agentDirectory.defaultAgentTargetId,
         providerAvailability: resolveWorkspaceAgentGuiProviderAvailability(
           input.agentProviderStatusService
         ),
-        agentsLoading: input.agentsLoading,
-        agents: input.agents
-      }),
+        agentsLoading: agentDirectory.agentsLoading,
+        agents: agentDirectory.agents
+      });
+    },
     renderBody: (context, helpers) =>
       renderAgentGuiWorkbenchBody(context, helpers),
     onOpenDetachedWindow: (request) => {
@@ -243,7 +268,7 @@ export function createWorkspaceAgentGuiContribution(input: {
         agentSessionId: request.agentSessionId,
         agentTargetId: request.agentTargetId,
         providerStatusSnapshot: input.agentProviderStatusService.getSnapshot(),
-        agents: request.agents,
+        agents: input.agentsService.getSnapshot().agents,
         provider: request.provider,
         workspaceId: request.workspaceId
       });
@@ -275,12 +300,59 @@ export function createWorkspaceAgentGuiContribution(input: {
     resolveDockPopupIdentity: (state) =>
       resolveWorkspaceAgentGuiDockPopupIdentity(state, {
         dockIconUrls: input.dockIconUrls,
-        agents: input.agents,
+        agents: input.agentsService.getSnapshot().agents,
         workspaceAgentActivityService: input.workspaceAgentActivityService,
         workspaceId: input.workspaceId
       }),
     workspaceId: input.workspaceId
   });
+}
+
+type DesktopWorkspaceAgentGUIWorkbenchBodyProps = Omit<
+  Parameters<typeof DesktopAgentGUIWorkbenchBody>[0],
+  "agents" | "agentsLoading" | "defaultAgentTargetId"
+> & {
+  agentsService: Pick<IAgentsService, "getSnapshot" | "subscribe">;
+  defaultAgentProvider?: string | null;
+};
+
+function DesktopWorkspaceAgentGUIWorkbenchBody({
+  agentsService,
+  defaultAgentProvider,
+  ...props
+}: DesktopWorkspaceAgentGUIWorkbenchBodyProps): ReactNode {
+  const snapshot = useSyncExternalStore(
+    (listener) => agentsService.subscribe(listener),
+    () => agentsService.getSnapshot(),
+    () => agentsService.getSnapshot()
+  );
+  return createElement(DesktopAgentGUIWorkbenchBody, {
+    ...props,
+    agents: snapshot.agents,
+    agentsLoading: snapshot.capturedAtUnixMs === null,
+    defaultAgentTargetId: resolveDefaultAgentTargetId({
+      agents: snapshot.agents,
+      defaultProvider: defaultAgentProvider
+    })
+  });
+}
+
+function resolveDefaultAgentTargetId(input: {
+  agents: readonly AgentGUIAgent[];
+  defaultProvider?: string | null;
+}): string | null {
+  const defaultProvider = input.defaultProvider?.trim() ?? "";
+  return (
+    input.agents.find(
+      (agent) =>
+        defaultProvider !== "" &&
+        agent.provider === defaultProvider &&
+        agent.availability.status === "ready"
+    )?.agentTargetId ??
+    input.agents.find((agent) => agent.availability.status === "ready")
+      ?.agentTargetId ??
+    null
+  );
 }
 
 function isWorkspaceAgentGuiProviderEnabledForNewEntry(

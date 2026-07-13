@@ -4,6 +4,7 @@ import { resolveAgentGUIProviderCatalogIdentity } from "@tutti-os/agent-gui/prov
 import type { AgentProviderStatus } from "@tutti-os/client-tuttid-ts";
 import type {
   AgentProviderStatusService,
+  IAgentsService,
   IWorkspaceAgentActivityService
 } from "@renderer/features/workspace-agent";
 import {
@@ -30,8 +31,8 @@ const agentProviderDockBaseOrder = new Map<WorkspaceAgentGuiProvider, number>(
 
 export function createWorkspaceAgentProviderDockStateSource(input: {
   agentProviderStatusService: AgentProviderStatusService;
+  agentsService: Pick<IAgentsService, "getSnapshot" | "subscribe">;
   i18n: WorkspaceWorkbenchDesktopI18nRuntime;
-  agents?: readonly AgentGUIAgent[];
   /** Feature gate: providers reported hidden never render a dock entry. */
   isAgentProviderHidden?: (provider: WorkspaceAgentGuiProvider) => boolean;
   subscribeAgentProviderVisibility?: (listener: () => void) => () => void;
@@ -47,7 +48,12 @@ export function createWorkspaceAgentProviderDockStateSource(input: {
       if (!provider) {
         return null;
       }
-      if (isAgentProviderHiddenByTargets(provider, input.agents)) {
+      if (
+        isAgentProviderHiddenByTargets(
+          provider,
+          input.agentsService.getSnapshot().agents
+        )
+      ) {
         return {
           visibility: "never"
         };
@@ -117,6 +123,7 @@ export function createWorkspaceAgentProviderDockStateSource(input: {
       void input.agentProviderStatusService.ensureLoaded().catch(() => {});
       const unsubscribeProviderStatus =
         input.agentProviderStatusService.subscribe(listener);
+      const unsubscribeAgents = input.agentsService.subscribe(listener);
       const unsubscribeAgentActivity =
         input.workspaceAgentActivityService && input.workspaceId
           ? input.workspaceAgentActivityService.subscribe(
@@ -130,6 +137,7 @@ export function createWorkspaceAgentProviderDockStateSource(input: {
         input.subscribeAgentProviderVisibility?.(listener);
       return () => {
         unsubscribeProviderStatus();
+        unsubscribeAgents();
         unsubscribeAgentActivity?.();
         unsubscribeProviderVisibility?.();
       };
