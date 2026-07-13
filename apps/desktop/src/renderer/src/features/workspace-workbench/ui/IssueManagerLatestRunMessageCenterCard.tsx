@@ -6,17 +6,15 @@ import {
   useState,
   type JSX
 } from "react";
-import {
-  AgentGuiI18nProvider,
-  dispatchAgentPlanPromptAction,
-  useEngineSelector
-} from "@tutti-os/agent-gui";
+import { AgentGuiI18nProvider } from "@tutti-os/agent-gui/i18n";
 import {
   buildWorkspaceAgentMessageCenterModelFromEngine,
   selectWorkspaceAgentMessageCenterPresentation,
   workspaceAgentMessageCenterPromptStatus,
   workspaceAgentMessageCenterPresentationEqual,
   WorkspaceAgentMessageCenterCard,
+  dispatchAgentPlanPromptAction,
+  useEngineSelector,
   type WorkspaceAgentMessageCenterCardProps,
   type WorkspaceAgentMessageCenterItem
 } from "@tutti-os/agent-gui/agent-message-center";

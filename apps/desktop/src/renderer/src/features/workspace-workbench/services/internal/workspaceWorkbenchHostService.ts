@@ -60,10 +60,10 @@ import {
 } from "../../../workspace-agent/services/workspaceAgentPromptSessionService.interface.ts";
 import {
   createWorkspaceAppCenterDockEntries,
-  IWorkspaceAppCenterService,
   reportWorkspaceAppOpenedFromDockEntry
-} from "@renderer/features/workspace-app-center";
-import { createDesktopAgentGeneratedFileMentionProvider } from "@renderer/features/workspace-agent";
+} from "@renderer/features/workspace-app-center/services/workspaceAppCenterContribution.ts";
+import { IWorkspaceAppCenterService } from "@renderer/features/workspace-app-center/services/workspaceAppCenterService.interface.ts";
+import { createDesktopAgentGeneratedFileMentionProvider } from "@renderer/features/workspace-agent/services/createDesktopAgentGeneratedFileMentionProvider.ts";
 import { IWorkspaceFileManagerService } from "../../../workspace-file-manager/services/workspaceFileManagerService.interface.ts";
 import { createDesktopWorkspaceFileReferenceAdapter } from "../../../workspace-file-manager/services/createDesktopWorkspaceFileReferenceAdapter.ts";
 import { IWorkspaceUserProjectService } from "../../../workspace-user-project/services/workspaceUserProjectService.interface.ts";

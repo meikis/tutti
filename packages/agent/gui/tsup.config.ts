@@ -5,6 +5,11 @@ export default defineConfig({
   dts: true,
   entry: {
     index: "index.ts",
+    "agent-gui": "AgentGUI.tsx",
+    agents: "agents.ts",
+    "custom-mention": "custom-mention.ts",
+    "dock-icons": "dockIcons.ts",
+    "mention-search": "agent-gui/agentGuiNode/AgentMentionSearchController.ts",
     "agent-message-center/index": "agent-message-center/index.ts",
     "agent-conversation/index": "agent-conversation/index.ts",
     "agent-env/index": "shared/agentEnv/index.ts",

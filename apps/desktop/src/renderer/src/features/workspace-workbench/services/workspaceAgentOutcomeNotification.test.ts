@@ -59,6 +59,7 @@ test("controller treats settled turns already in the engine as history", () => {
 
 test("controller notifies a new turn that first appears settled in one engine batch", () => {
   const engine = createTestEngine();
+  markWorkspaceReconcileReady(engine);
   const harness = createOutcomeNotificationHarness(engine);
 
   dispatchSession(engine);
@@ -68,14 +69,18 @@ test("controller notifies a new turn that first appears settled in one engine ba
   harness.controller.dispose();
 });
 
-test("controller baselines settled turns received during initial hydration", async () => {
+test("controller baselines settled turns received during initial hydration", () => {
   const engine = createTestEngine();
+  const harness = createOutcomeNotificationHarness(engine);
+
+  requestWorkspaceReconcile(engine);
   dispatchSession(engine);
   dispatchTurn(engine, "settled", "completed", "historical-turn");
-  const harness = createOutcomeNotificationHarness(engine);
   assert.equal(harness.notifications.length, 0);
 
-  await Promise.resolve();
+  completeWorkspaceReconcile(engine);
+  assert.equal(harness.notifications.length, 0);
+
   dispatchTurn(engine, "running", undefined, "new-turn");
   dispatchTurn(engine, "settled", "completed", "new-turn");
   assert.equal(harness.notifications.length, 1);
@@ -85,6 +90,7 @@ test("controller baselines settled turns received during initial hydration", asy
 test("controller notifies once for a canonical running to settled transition", () => {
   const engine = createTestEngine();
   dispatchSession(engine);
+  markWorkspaceReconcileReady(engine);
   const harness = createOutcomeNotificationHarness(engine);
 
   dispatchTurn(engine, "running");
@@ -124,6 +130,7 @@ test("controller notifies once for a canonical running to settled transition", (
 test("message updates only cache titles and never synthesize outcomes", () => {
   const engine = createTestEngine();
   dispatchSession(engine);
+  markWorkspaceReconcileReady(engine);
   const harness = createOutcomeNotificationHarness(engine);
 
   harness.events[0]?.(
@@ -141,6 +148,7 @@ test("message updates only cache titles and never synthesize outcomes", () => {
 test("controller uses the canonical engine session title", () => {
   const engine = createTestEngine();
   dispatchSession(engine);
+  markWorkspaceReconcileReady(engine);
   const harness = createOutcomeNotificationHarness(engine);
 
   dispatchTurn(engine, "running");
@@ -180,6 +188,30 @@ function dispatchTurn(
     turn: canonicalTurn(phase, outcome, turnId),
     type: "turn/upserted"
   });
+}
+
+function requestWorkspaceReconcile(engine: AgentSessionEngine): void {
+  engine.dispatch({
+    type: "workspace/reconcileRequested",
+    workspaceId: "ws-1"
+  });
+}
+
+function completeWorkspaceReconcile(engine: AgentSessionEngine): void {
+  const commandId =
+    engine.getSnapshot().engineRuntime.workspaceReconcile.commandId;
+  assert.ok(commandId);
+  engine.dispatch({
+    commandId,
+    commandType: "engine/reconcileWorkspace",
+    outcome: "succeeded",
+    type: "engine/commandResult"
+  });
+}
+
+function markWorkspaceReconcileReady(engine: AgentSessionEngine): void {
+  requestWorkspaceReconcile(engine);
+  completeWorkspaceReconcile(engine);
 }
 
 function canonicalSession() {

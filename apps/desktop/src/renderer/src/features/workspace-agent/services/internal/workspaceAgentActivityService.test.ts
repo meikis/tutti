@@ -28,6 +28,40 @@ test("WorkspaceAgentActivityService starts one canonical workspace load when the
   );
 });
 
+test("WorkspaceAgentActivityService coalesces concurrent workspace loads", async () => {
+  let listCalls = 0;
+  let resolveList!: (value: {
+    hasMore: false;
+    sessions: [];
+    workspaceId: string;
+  }) => void;
+  const listResult = new Promise<{
+    hasMore: false;
+    sessions: [];
+    workspaceId: string;
+  }>((resolve) => {
+    resolveList = resolve;
+  });
+  const service = new WorkspaceAgentActivityService({
+    tuttidClient: {
+      listWorkspaceAgentSessions: async () => {
+        listCalls += 1;
+        return listResult;
+      }
+    } as unknown as TuttidClient,
+    runtimeApi: { logTerminalDiagnostic: async () => {} }
+  });
+
+  const first = service.load("ws-1");
+  const second = service.load("ws-1");
+  assert.equal(first, second);
+  assert.equal(listCalls, 1);
+
+  resolveList({ hasMore: false, sessions: [], workspaceId: "ws-1" });
+  await Promise.all([first, second]);
+  assert.equal(listCalls, 1);
+});
+
 test("WorkspaceAgentActivityService.sendInput preserves the authoritative ready response", async () => {
   const readySession = workspaceAgentSession({ status: "ready" });
   const service = new WorkspaceAgentActivityService({

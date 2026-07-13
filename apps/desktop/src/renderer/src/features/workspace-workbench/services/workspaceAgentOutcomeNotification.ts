@@ -71,6 +71,8 @@ export function createWorkspaceAgentOutcomeNotificationController(
   const engine =
     input.workspaceAgentActivityService.getSessionEngine(workspaceId);
   const settledTurns = new Set<string>();
+  let hasAuthoritativeBaseline =
+    engine.getSnapshot().engineRuntime.workspaceReconcile.status === "ready";
 
   const inspectEngineState = (
     state: AgentSessionEngineState,
@@ -107,9 +109,18 @@ export function createWorkspaceAgentOutcomeNotificationController(
     }
   };
 
-  // Existing settled turns are baseline history, not new outcomes.
+  // A newly-created workspace engine starts empty and hydrates asynchronously.
+  // Do not treat that empty pre-reconcile state as the history boundary: the
+  // first authoritative snapshot can contain many previously settled turns.
+  // Seed them into the baseline only after the initial reconcile completes.
   inspectEngineState(engine.getSnapshot(), false);
   const unsubscribeEngine = engine.subscribe((state) => {
+    if (!hasAuthoritativeBaseline) {
+      if (state.engineRuntime.workspaceReconcile.status !== "ready") return;
+      inspectEngineState(state, false);
+      hasAuthoritativeBaseline = true;
+      return;
+    }
     inspectEngineState(state, true);
   });
   return {

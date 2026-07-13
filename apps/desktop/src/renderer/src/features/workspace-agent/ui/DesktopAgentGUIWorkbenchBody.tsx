@@ -8,7 +8,7 @@ import {
   useState,
   type JSX
 } from "react";
-import { AgentGUI } from "@tutti-os/agent-gui";
+import { AgentGUI } from "@tutti-os/agent-gui/agent-gui";
 import type { AgentGUIProps, AgentHostInputApi } from "@tutti-os/agent-gui";
 import {
   AGENT_GUI_WORKBENCH_NEW_CONVERSATION_EVENT,
@@ -64,6 +64,7 @@ export { DESKTOP_AGENT_GUI_CONVERSATION_RAIL_TOGGLE_EVENT } from "./desktopAgent
 export type { DesktopAgentGUIConversationRailToggleDetail } from "./desktopAgentGUIWorkbenchModel.ts";
 import { useDesktopAgentGUIContextMentions } from "./useDesktopAgentGUIContextMentions.ts";
 import { useDesktopAgentGUIReadiness } from "./useDesktopAgentGUIReadiness.ts";
+import { preloadDesktopAgentGuiMentionBrowse } from "../services/preloadDesktopAgentGuiMentionBrowse.ts";
 
 function DesktopAgentGUIWorkbenchBodyImpl({
   agentActivityRuntime,
@@ -130,6 +131,13 @@ function DesktopAgentGUIWorkbenchBodyImpl({
       previewMode,
       workspaceId
     });
+  useEffect(() => {
+    preloadDesktopAgentGuiMentionBrowse({
+      agentActivityRuntime,
+      baseProviders: effectiveContextMentionProviders,
+      workspaceId
+    });
+  }, [agentActivityRuntime, effectiveContextMentionProviders, workspaceId]);
   const rawWorkbenchStateSource = useMemo(
     () => context.externalNodeState ?? context.node.data.runtimeNodeState,
     [context.externalNodeState, context.node.data.runtimeNodeState]

@@ -6,6 +6,11 @@
   "types": "./index.ts",
   "exports": {
     ".": "./index.ts",
+    "./agent-gui": "./AgentGUI.tsx",
+    "./agents": "./agents.ts",
+    "./custom-mention": "./custom-mention.ts",
+    "./dock-icons": "./dockIcons.ts",
+    "./mention-search": "./agent-gui/agentGuiNode/AgentMentionSearchController.ts",
     "./agent-message-center": "./agent-message-center/index.ts",
     "./agent-conversation": "./agent-conversation/index.ts",
     "./agent-env": "./shared/agentEnv/index.ts",
@@ -106,6 +111,26 @@
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
       },
+      "./agent-gui": {
+        "types": "./dist/agent-gui.d.ts",
+        "import": "./dist/agent-gui.js"
+      },
+      "./agents": {
+        "types": "./dist/agents.d.ts",
+        "import": "./dist/agents.js"
+      },
+      "./custom-mention": {
+        "types": "./dist/custom-mention.d.ts",
+        "import": "./dist/custom-mention.js"
+      },
+      "./dock-icons": {
+        "types": "./dist/dock-icons.d.ts",
+        "import": "./dist/dock-icons.js"
+      },
+      "./mention-search": {
+        "types": "./dist/mention-search.d.ts",
+        "import": "./dist/mention-search.js"
+      },
       "./agent-message-center": {
         "types": "./dist/agent-message-center/index.d.ts",
         "import": "./dist/agent-message-center/index.js"
@@ -183,8 +208,23 @@
     "types": "./dist/index.d.ts",
     "typesVersions": {
       "*": {
+        "agent-gui": [
+          "./dist/agent-gui.d.ts"
+        ],
+        "agents": [
+          "./dist/agents.d.ts"
+        ],
         "agent-message-center": [
           "./dist/agent-message-center/index.d.ts"
+        ],
+        "custom-mention": [
+          "./dist/custom-mention.d.ts"
+        ],
+        "dock-icons": [
+          "./dist/dock-icons.d.ts"
+        ],
+        "mention-search": [
+          "./dist/mention-search.d.ts"
         ],
         "agent-conversation": [
           "./dist/agent-conversation/index.d.ts"

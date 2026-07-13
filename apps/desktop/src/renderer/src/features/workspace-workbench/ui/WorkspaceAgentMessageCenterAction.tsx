@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  dispatchAgentPlanPromptAction,
-  useEngineSelector
-} from "@tutti-os/agent-gui";
-import {
   AgentInteractivePromptSurface,
   buildWorkspaceAgentInteractivePromptLabels,
   buildWorkspaceAgentMessageCenterModelFromEngine,
@@ -13,6 +9,8 @@ import {
   workspaceAgentMessageCenterPromptStatus,
   workspaceAgentMessageCenterPresentationEqual,
   WorkspaceAgentMessageCenterPanel,
+  dispatchAgentPlanPromptAction,
+  useEngineSelector,
   type WorkspaceAgentMessageCenterItem,
   type WorkspaceAgentMessageCenterModel
 } from "@tutti-os/agent-gui/agent-message-center";
@@ -41,7 +39,7 @@ import { useService } from "@tutti-os/infra/di";
 import { MessageCenterOpenedReporter } from "@renderer/features/analytics/reporters/message-center-opened/messageCenterOpenedReporter.ts";
 import { MessageCenterNotificationActionedReporter } from "@renderer/features/analytics/reporters/message-center-notification-actioned/messageCenterNotificationActionedReporter.ts";
 import { IReporterService } from "@renderer/features/analytics";
-import { IWorkspaceAgentActivityService } from "@renderer/features/workspace-agent";
+import { IWorkspaceAgentActivityService } from "@renderer/features/workspace-agent/services/workspaceAgentActivityService.interface.ts";
 import { runDesktopAgentGUILinkAction } from "@renderer/features/workspace-agent/services/desktopAgentGUILinkActions.ts";
 import { useTranslation } from "@renderer/i18n";
 import { cn } from "@renderer/lib/format";

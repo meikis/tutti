@@ -1,5 +1,6 @@
 import { createElement } from "react";
-import { agentGuiDockIconUrls, type AgentGUIAgent } from "@tutti-os/agent-gui";
+import type { AgentGUIAgent } from "@tutti-os/agent-gui";
+import { agentGuiDockIconUrls } from "@tutti-os/agent-gui/dock-icons";
 import { createRichTextMentionHref } from "@tutti-os/ui-rich-text/core";
 import type {
   AgentProviderStatus,
@@ -30,12 +31,12 @@ import {
 } from "@renderer/features/workspace-issue-manager";
 import type { IReporterService } from "../../../analytics/services/reporterService.interface.ts";
 import {
-  requestWorkspaceAgentGuiLaunch,
   type AgentProviderStatusService,
   type IAgentsService,
   type IWorkspaceAgentActivityService,
   type WorkspaceAgentPromptSessionService
 } from "@renderer/features/workspace-agent";
+import { requestWorkspaceAgentGuiLaunch } from "@renderer/features/workspace-agent/services/workspaceAgentGuiLaunchCoordinator.ts";
 import { runDesktopAgentGUILinkAction } from "@renderer/features/workspace-agent/services/desktopAgentGUILinkActions.ts";
 import { normalizeDesktopAgentGUIProvider } from "@renderer/features/workspace-agent/desktopAgentGUINodeState";
 import { type IDesktopRichTextAtService } from "@renderer/features/rich-text-at";

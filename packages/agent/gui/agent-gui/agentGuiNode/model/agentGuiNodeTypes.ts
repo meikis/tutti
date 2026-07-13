@@ -131,7 +131,7 @@ export interface AgentComposerDraftLargeText {
  * regular file chip, and so the codex-style "read this file" instruction is
  * materialized only for these blocks at send time.
  */
-export const AGENT_PASTED_TEXT_BLOCK_KIND = "pasted-text";
+export { AGENT_PASTED_TEXT_BLOCK_KIND } from "../../../shared/pastedTextKinds";
 
 /**
  * Provider id of the custom mention kind used to render a pasted-text chip in
@@ -139,7 +139,7 @@ export const AGENT_PASTED_TEXT_BLOCK_KIND = "pasted-text";
  * the landed archive path + size so the host can render the chip and open a
  * preview on click. Registered via registerAgentCustomMentionKind.
  */
-export const AGENT_PASTED_TEXT_MENTION_KIND = "pasted-text";
+export { AGENT_PASTED_TEXT_MENTION_KIND } from "../../../shared/pastedTextKinds";
 
 export interface AgentComposerDraft {
   prompt: string;

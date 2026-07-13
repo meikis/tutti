@@ -1,6 +1,7 @@
 import {
   createElement,
-  useSyncExternalStore,
+  lazy,
+  Suspense,
   type CSSProperties,
   type ReactNode
 } from "react";
@@ -45,13 +46,10 @@ import type {
 import type { IWorkspaceUserProjectService } from "@renderer/features/workspace-user-project";
 import type { IWorkspaceFileManagerService } from "@renderer/features/workspace-file-manager";
 import type { IReporterService } from "@renderer/features/analytics";
-import {
-  createDesktopAgentGUIWorkbenchHostInput,
-  DesktopAgentGUIWorkbenchBody,
-  preloadDesktopAgentGuiMentionBrowse,
-  requestWorkspaceAgentGuiLaunch,
-  type AgentProviderStatusService
-} from "@renderer/features/workspace-agent";
+import { createDesktopAgentGUIWorkbenchHostInput } from "@renderer/features/workspace-agent/services/createDesktopAgentGUIWorkbenchHostInput.ts";
+import { requestWorkspaceAgentGuiLaunch } from "@renderer/features/workspace-agent/services/workspaceAgentGuiLaunchCoordinator.ts";
+import type { IAgentProviderStatusService as AgentProviderStatusService } from "@renderer/features/workspace-agent/services/agentProviderStatusService.interface.ts";
+import type { DesktopAgentGUIWorkbenchBodyProps } from "@renderer/features/workspace-agent/ui/desktopAgentGUIWorkbenchModel.ts";
 import { runDesktopAgentGUILinkAction } from "@renderer/features/workspace-agent/services/desktopAgentGUILinkActions.ts";
 import {
   workspaceWorkbenchDesktopI18nKeys,
@@ -61,7 +59,14 @@ import { requestWorkspaceBrowserLaunch } from "../workspaceBrowserLaunchCoordina
 import { requestWorkspaceFilesLaunch } from "../workspaceFilesLaunchCoordinator.ts";
 import { requestWorkspaceIssueManagerLaunch } from "../workspaceIssueManagerLaunchCoordinator.ts";
 import { requestGroupChatLaunch } from "../groupChatLaunchCoordinator.ts";
+import { useExternalStoreValue } from "../../ui/useExternalStoreValue.ts";
 import { workspaceAgentGuiNodeFrame } from "./workspaceWorkbenchComposition.ts";
+
+const LazyDesktopAgentGUIWorkbenchBody = lazy(() =>
+  import("@renderer/features/workspace-agent/ui/DesktopAgentGUIWorkbenchBody.tsx").then(
+    (module) => ({ default: module.DesktopAgentGUIWorkbenchBody })
+  )
+);
 
 export function createWorkspaceAgentGuiContribution(input: {
   agentProviderStatusService: AgentProviderStatusService;
@@ -79,9 +84,7 @@ export function createWorkspaceAgentGuiContribution(input: {
   hostFilesApi: DesktopHostFilesApi;
   hostWindowApi: Pick<DesktopHostWindowApi, "openAgentWindow">;
   i18n: WorkspaceWorkbenchDesktopI18nRuntime;
-  onCapabilitySettingsRequest?: Parameters<
-    typeof DesktopAgentGUIWorkbenchBody
-  >[0]["onCapabilitySettingsRequest"];
+  onCapabilitySettingsRequest?: DesktopAgentGUIWorkbenchBodyProps["onCapabilitySettingsRequest"];
   agentsService: Pick<IAgentsService, "getSnapshot" | "subscribe">;
   allAgentsPresentation?: AgentGUIAllAgentsPresentation | null;
   renderAgentsEmpty?: AgentGUIAgentsEmptyRenderer;
@@ -129,16 +132,8 @@ export function createWorkspaceAgentGuiContribution(input: {
     workspaceUserProjectService: input.workspaceUserProjectService,
     workspaceId: input.workspaceId
   });
-  // Warm the @-mention browse cache at workspace startup (this factory runs once
-  // per workspace, before the agent GUI is opened) so the first palette open is
-  // instant rather than waiting for a focus-driven preload.
-  preloadDesktopAgentGuiMentionBrowse({
-    workspaceId: input.workspaceId,
-    baseProviders: agentGUIWorkbenchHostInput.contextMentionProviders,
-    agentActivityRuntime: agentGUIWorkbenchHostInput.agentActivityRuntime
-  });
   const handleLinkAction: NonNullable<
-    Parameters<typeof DesktopAgentGUIWorkbenchBody>[0]["onLinkAction"]
+    DesktopAgentGUIWorkbenchBodyProps["onLinkAction"]
   > = (action) => {
     void runDesktopAgentGUILinkAction(action, {
       homeDirectory: input.platformApi.homeDirectory,
@@ -264,11 +259,15 @@ export function createWorkspaceAgentGuiContribution(input: {
       // providers it's still missing in the background (see
       // StandaloneAgentWindow's own ensureAll effect); hydrate only ever
       // merges in new data, so a partial hand-off here is safe.
+      const agentDirectory = input.agentsService.getSnapshot();
       input.hostWindowApi.openAgentWindow({
         agentSessionId: request.agentSessionId,
         agentTargetId: request.agentTargetId,
         providerStatusSnapshot: input.agentProviderStatusService.getSnapshot(),
-        agents: input.agentsService.getSnapshot().agents,
+        agents:
+          agentDirectory.capturedAtUnixMs === null
+            ? undefined
+            : agentDirectory.agents,
         provider: request.provider,
         workspaceId: request.workspaceId
       });
@@ -309,7 +308,7 @@ export function createWorkspaceAgentGuiContribution(input: {
 }
 
 type DesktopWorkspaceAgentGUIWorkbenchBodyProps = Omit<
-  Parameters<typeof DesktopAgentGUIWorkbenchBody>[0],
+  DesktopAgentGUIWorkbenchBodyProps,
   "agents" | "agentsLoading" | "defaultAgentTargetId"
 > & {
   agentsService: Pick<IAgentsService, "getSnapshot" | "subscribe">;
@@ -321,20 +320,28 @@ function DesktopWorkspaceAgentGUIWorkbenchBody({
   defaultAgentProvider,
   ...props
 }: DesktopWorkspaceAgentGUIWorkbenchBodyProps): ReactNode {
-  const snapshot = useSyncExternalStore(
+  const snapshot = useExternalStoreValue(
     (listener) => agentsService.subscribe(listener),
     () => agentsService.getSnapshot(),
     () => agentsService.getSnapshot()
   );
-  return createElement(DesktopAgentGUIWorkbenchBody, {
-    ...props,
-    agents: snapshot.agents,
-    agentsLoading: snapshot.capturedAtUnixMs === null,
-    defaultAgentTargetId: resolveDefaultAgentTargetId({
+  return createElement(
+    Suspense,
+    {
+      fallback: createElement("div", {
+        className: "h-full min-h-0 bg-background"
+      })
+    },
+    createElement(LazyDesktopAgentGUIWorkbenchBody, {
+      ...props,
       agents: snapshot.agents,
-      defaultProvider: defaultAgentProvider
+      agentsLoading: snapshot.capturedAtUnixMs === null,
+      defaultAgentTargetId: resolveDefaultAgentTargetId({
+        agents: snapshot.agents,
+        defaultProvider: defaultAgentProvider
+      })
     })
-  });
+  );
 }
 
 function resolveDefaultAgentTargetId(input: {

@@ -5,18 +5,18 @@ import {
   useReducer,
   useRef,
   useState,
-  useSyncExternalStore,
   type CSSProperties,
   type ReactNode
 } from "react";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
-import { dispatchAgentPlanPromptAction } from "@tutti-os/agent-gui";
 import {
   buildWorkspaceAgentMessageCenterModelFromEngine,
   selectWorkspaceAgentMessageCenterPresentation,
   stabilizeWorkspaceAgentMessageCenterModel,
   workspaceAgentMessageCenterPromptStatus,
   WorkspaceAgentMessageCenterPanel,
+  dispatchAgentPlanPromptAction,
+  useEngineSelector,
   type WorkspaceAgentMessageCenterModel,
   type WorkspaceAgentMessageCenterPresentation
 } from "@tutti-os/agent-gui/agent-message-center";
@@ -61,6 +61,7 @@ import {
 } from "./standaloneAgentToolWorkbench.ts";
 import { standaloneAgentBrowserDefaultUrl } from "./standaloneAgentToolWorkbench.ts";
 import { StandaloneAgentAppCenterToolPanel } from "./StandaloneAgentAppCenterToolPanel.tsx";
+import { useExternalStoreValue } from "./useExternalStoreValue.ts";
 
 const browserNodeLoadFailedI18nKey: BrowserNodeI18nKey = "loadFailed";
 const terminalCloseGuardDescriptionI18nKey: TerminalNodeI18nKey =
@@ -112,7 +113,7 @@ export function StandaloneAgentToolSidebar({
     undefined,
     createStandaloneAgentToolSidebarState
   );
-  const activitySnapshot = useSyncExternalStore(
+  const activitySnapshot = useExternalStoreValue(
     (listener) => activityService.subscribe(workspaceId, listener),
     () => activityService.getSnapshot(workspaceId),
     () => activityService.getSnapshot(workspaceId)
@@ -121,18 +122,10 @@ export function StandaloneAgentToolSidebar({
     () => activityService.getSessionEngine(workspaceId),
     [activityService, workspaceId]
   );
-  const engineSnapshot = useSyncExternalStore(
-    (listener) => sessionEngine.subscribe(listener),
-    () => sessionEngine.getSnapshot(),
-    () => sessionEngine.getSnapshot()
+  const messageCenterPresentation = useEngineSelector(
+    sessionEngine,
+    selectWorkspaceAgentMessageCenterPresentation
   );
-  const messageCenterPresentation = useMemo(
-    () => selectWorkspaceAgentMessageCenterPresentation(engineSnapshot),
-    [engineSnapshot]
-  );
-  useEffect(() => {
-    void activityService.load(workspaceId);
-  }, [activityService, workspaceId]);
   const messageCenterModelRef = useRef<WorkspaceAgentMessageCenterModel | null>(
     null
   );
@@ -701,7 +694,7 @@ function StandaloneAgentBrowserToolPanel({
     [appI18n, browserApi, nodeId]
   );
   const [activationFailed, setActivationFailed] = useState(false);
-  const runtimeState = useSyncExternalStore(
+  const runtimeState = useExternalStoreValue(
     feature.runtimeStore.subscribe,
     () => feature.runtimeStore.getNodeState(nodeId),
     () => feature.runtimeStore.getNodeState(nodeId)
@@ -788,7 +781,7 @@ function StandaloneAgentTerminalPanel({
   const [launchError, setLaunchError] = useState(false);
   const launchPromiseRef = useRef<Promise<void> | null>(null);
   const directHost = useMemo(createStandaloneAgentDirectToolHost, []);
-  const externalState = useSyncExternalStore(
+  const externalState = useExternalStoreValue(
     runtime?.subscribe ?? emptySubscribe,
     () => runtime?.getExternalState(sessionId) ?? null,
     () => null

@@ -6,7 +6,7 @@ import {
   useState,
   useSyncExternalStore
 } from "react";
-import { agentGuiDockIconUrls } from "@tutti-os/agent-gui";
+import { agentGuiDockIconUrls } from "@tutti-os/agent-gui/dock-icons";
 import type { WorkspaceAgentProvider } from "@tutti-os/client-tuttid-ts";
 import {
   Button,

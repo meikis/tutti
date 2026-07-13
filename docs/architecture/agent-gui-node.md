@@ -349,6 +349,17 @@ standalone Agent header, present that state as a compact non-drag control: an
 available update downloads, downloading shows progress, and a downloaded update
 offers restart-and-install. Do not keep an update-check failure permanently in
 the focused Agent header.
+Desktop renderer startup is route-split. OS workspace chrome and the standalone
+Agent window are separate dynamic entries; neither route may statically import
+the other route's body through a feature barrel. Workbench Agent contribution
+registration keeps only its lightweight node and dock descriptor on the OS
+cold path. The full `DesktopAgentGUIWorkbenchBody`, rich-text editor, mention
+search controller, and AgentGUI presentation graph load when an Agent surface
+is required. Entering standalone Agent mode starts a dynamic preload of that
+body while allowing the lightweight standalone shell to render independently;
+the body fetch must not block the shell, and OS mode must not trigger it.
+Startup optimizations such as mention browse warming must begin from the
+mounted AgentGUI lifecycle, never from workspace contribution registration.
 File activation in the standalone Agent window must use the host-owned right
 Files sidebar. Conversation links and workspace-reference preview requests open
 that panel and pass a reveal intent so the reusable file manager selects and
@@ -369,14 +380,18 @@ presentation remains reserved for workspace overlays.
 Its header trigger must reuse the OS Message Center status-pet asset while
 `model.counts.working` is positive and show that working count in the top-right
 badge; zero working sessions restore the static Message icon and omit the badge.
-The standalone tool chrome must load the workspace activity snapshot when it
-mounts, not only after Message Center opens, so a separately created Agent
-window immediately reconciles already-running sessions. Outcome notification
-subscriptions must also start that workspace's activity event stream. When an
-event arrives before the session is cached and requires HTTP reconciliation,
-preserve the original `state_patch` for session-event consumers; rebuilding it
-from session state can discard `turn.outcome` or `turnId` and suppress the
-completed/failed foreground toast.
+The workspace-owned activity service starts one canonical reconcile when its
+engine is created, before Message Center opens, so a separately created Agent
+window immediately reconciles already-running sessions. Panels and sidebars do
+not start a second initial load; concurrent explicit loads share one in-flight
+result. Outcome notification subscriptions must also start that workspace's
+activity event stream. They remain in baseline mode until the first
+authoritative workspace reconcile reaches `ready`, seed all historical settled
+turn ids without notifying, and only then emit notifications for new settled
+turns. When an event arrives before the session is cached and requires HTTP
+reconciliation, preserve the original `state_patch` for session-event
+consumers; rebuilding it from session state can discard `turn.outcome` or
+`turnId` and suppress the completed/failed foreground toast.
 Browser and Terminal tool bodies must mount the existing OS node UI directly:
 `BrowserNode` in the right panel and `TerminalNode` in the bottom tray. Do not
 nest another `WorkbenchHost` inside the standalone shell; the nested canvas can
@@ -1853,7 +1868,11 @@ loaded (including `[]`), and failed. Hosts may cache successful empty results,
 but a failed request must clear its cache so a later load can retry; it must not
 be converted into an authoritative empty directory. Window/bootstrap transport
 must serialize an explicit `agents: []` so detached windows preserve this
-distinction instead of reverting to loading.
+distinction instead of reverting to loading. Conversely, a source snapshot
+whose capture timestamp is still null must omit `agents`; serializing its
+temporary empty array would falsely convert loading into a successful empty
+directory and can display a coming-soon/unavailable state before discovery has
+run.
 
 The public directory entry owns its presentation and availability:
 

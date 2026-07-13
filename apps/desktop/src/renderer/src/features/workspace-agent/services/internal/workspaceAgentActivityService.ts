@@ -38,6 +38,34 @@ import {
 } from "./workspaceAgentActivityDiagnostics.ts";
 import { reportAgentSubmitTraceDiagnostic } from "../desktopAgentRuntimeSubmitDiagnostics.ts";
 
+function waitForPromiseWithSignal<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal
+): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) {
+    return Promise.reject(
+      signal.reason ?? new Error("workspace_reconcile_aborted")
+    );
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      reject(signal.reason ?? new Error("workspace_reconcile_aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    void promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      }
+    );
+  });
+}
+
 export interface WorkspaceAgentActivityServiceDependencies {
   eventStreamClient?: TuttidEventStreamClient;
   hostFilesApi?: Pick<
@@ -59,6 +87,10 @@ export class WorkspaceAgentActivityService
   readonly _serviceBrand = undefined;
 
   private readonly dependencies: WorkspaceAgentActivityServiceDependencies;
+  private readonly workspaceLoadsInFlight = new Map<
+    string,
+    Promise<AgentActivitySnapshot>
+  >();
   constructor(dependencies: WorkspaceAgentActivityServiceDependencies) {
     super(dependencies);
     // Temporary instrumentation: surface activity-store anomalies (version
@@ -92,6 +124,9 @@ export class WorkspaceAgentActivityService
     signal?: AbortSignal
   ): Promise<AgentActivitySnapshot> {
     const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+    const inFlight = this.workspaceLoadsInFlight.get(normalizedWorkspaceId);
+    if (inFlight) return waitForPromiseWithSignal(inFlight, signal);
+
     const entry = this.controllerEntry(normalizedWorkspaceId);
     this.reportReconcileTrace({
       agentSessionId: null,
@@ -101,30 +136,44 @@ export class WorkspaceAgentActivityService
         cachedSessionCount: entry.controller.getSnapshot().sessions.length
       }
     });
-    entry.engine.dispatch({
-      retry: true,
-      type: "workspace/reconcileRequested",
-      workspaceId: normalizedWorkspaceId
-    });
-    return this.waitForWorkspaceReconcile(entry, signal).then((snapshot) => {
-      this.reportReconcileTrace({
-        agentSessionId: null,
-        traceEvent: "load.resolved",
-        workspaceId: normalizedWorkspaceId,
-        fields: {
-          newestSession: agentActivitySessionReconcileDiagnosticDetails(
-            snapshot.sessions[0] ?? null
-          ),
-          sessionCount: snapshot.sessions.length
+    if (
+      entry.engine.getSnapshot().engineRuntime.workspaceReconcile.status !==
+      "loading"
+    ) {
+      entry.engine.dispatch({
+        retry: true,
+        type: "workspace/reconcileRequested",
+        workspaceId: normalizedWorkspaceId
+      });
+    }
+    const loadPromise = this.waitForWorkspaceReconcile(entry)
+      .then((snapshot) => {
+        this.reportReconcileTrace({
+          agentSessionId: null,
+          traceEvent: "load.resolved",
+          workspaceId: normalizedWorkspaceId,
+          fields: {
+            newestSession: agentActivitySessionReconcileDiagnosticDetails(
+              snapshot.sessions[0] ?? null
+            ),
+            sessionCount: snapshot.sessions.length
+          }
+        });
+        return snapshot;
+      })
+      .finally(() => {
+        if (
+          this.workspaceLoadsInFlight.get(normalizedWorkspaceId) === loadPromise
+        ) {
+          this.workspaceLoadsInFlight.delete(normalizedWorkspaceId);
         }
       });
-      return snapshot;
-    });
+    this.workspaceLoadsInFlight.set(normalizedWorkspaceId, loadPromise);
+    return waitForPromiseWithSignal(loadPromise, signal);
   }
 
   private waitForWorkspaceReconcile(
-    entry: WorkspaceAgentActivityControllerEntry,
-    signal?: AbortSignal
+    entry: WorkspaceAgentActivityControllerEntry
   ): Promise<AgentActivitySnapshot> {
     return new Promise((resolve, reject) => {
       let unsubscribe = () => {};
@@ -148,12 +197,7 @@ export class WorkspaceAgentActivityService
           );
         }
       };
-      const onAbort = () => {
-        unsubscribe();
-        reject(signal?.reason ?? new Error("workspace_reconcile_aborted"));
-      };
       unsubscribe = entry.engine.subscribe(settle);
-      signal?.addEventListener("abort", onAbort, { once: true });
       settle();
     });
   }
