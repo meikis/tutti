@@ -32,7 +32,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/klauspost/compress/zstd"
@@ -62,9 +61,11 @@ const (
 	claudeSDKPackageName     = "claude-agent-sdk"
 )
 
-// claudeBinaryProvisionMu serializes EnsureClaudeCodeBinary within this
-// process; the file-based install lock arbitrates across processes.
-var claudeBinaryProvisionMu sync.Mutex
+// claudeBinaryProvisionSem serializes EnsureClaudeCodeBinary within this
+// process (the file-based install lock arbitrates across processes). A
+// 1-slot channel instead of a mutex so waiters stay cancellable through
+// their context.
+var claudeBinaryProvisionSem = make(chan struct{}, 1)
 
 type ClaudeCodeBinaryStatus struct {
 	// Path is the provisioned executable, empty when provisioning was skipped.
@@ -148,8 +149,12 @@ func (s Service) EnsureClaudeCodeBinary(ctx context.Context) (ClaudeCodeBinarySt
 	// In-process serialization first: two goroutines of the same daemon would
 	// otherwise race Recover/Acquire on the same PID-keyed lock file (the file
 	// lock only arbitrates between processes).
-	claudeBinaryProvisionMu.Lock()
-	defer claudeBinaryProvisionMu.Unlock()
+	select {
+	case claudeBinaryProvisionSem <- struct{}{}:
+		defer func() { <-claudeBinaryProvisionSem }()
+	case <-ctx.Done():
+		return ClaudeCodeBinaryStatus{}, ctx.Err()
+	}
 
 	lock := newInstallCommandLock(claudeCodeBinaryLockCommand)
 	// Self-heal an orphaned lock (daemon crash mid-provisioning) before
