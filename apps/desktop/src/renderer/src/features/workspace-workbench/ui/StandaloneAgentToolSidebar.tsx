@@ -66,7 +66,7 @@ import { useExternalStoreValue } from "./useExternalStoreValue.ts";
 const browserNodeLoadFailedI18nKey: BrowserNodeI18nKey = "loadFailed";
 const terminalCloseGuardDescriptionI18nKey: TerminalNodeI18nKey =
   "closeGuard.description";
-const standaloneAgentToolPanelContentMountDelayMs = 260;
+const standaloneAgentToolPanelContentMountDelayMs = 160;
 
 interface StandaloneAgentToolSidebarProps {
   activityService: WorkspaceAgentActivityService;
@@ -211,27 +211,6 @@ export function StandaloneAgentToolSidebar({
     mainContentMinWidthPx,
     resizeWindowContentWidth
   });
-  const resizeAnimationFrameRef = useRef<number | null>(null);
-  const scheduleResizeForPanel = useCallback(
-    (panel: StandaloneAgentToolPanelId | null) => {
-      if (resizeAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(resizeAnimationFrameRef.current);
-      }
-      resizeAnimationFrameRef.current = window.requestAnimationFrame(() => {
-        resizeAnimationFrameRef.current = null;
-        void resizeForPanel(panel);
-      });
-    },
-    [resizeForPanel]
-  );
-  useEffect(
-    () => () => {
-      if (resizeAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(resizeAnimationFrameRef.current);
-      }
-    },
-    []
-  );
   useEffect(() => {
     if (!activePanel || contentReadyPanels.includes(activePanel)) {
       return;
@@ -260,8 +239,8 @@ export function StandaloneAgentToolSidebar({
     }
     lastHandledAppOpenIdRef.current = normalizedAppOpenId;
     dispatch({ panel: "apps", type: "open-panel" });
-    scheduleResizeForPanel("apps");
-  }, [appOpenId, scheduleResizeForPanel]);
+    void resizeForPanel("apps");
+  }, [appOpenId, resizeForPanel]);
   useEffect(() => {
     if (
       !fileOpenRequest ||
@@ -271,12 +250,12 @@ export function StandaloneAgentToolSidebar({
     }
     lastHandledFileOpenRequestRef.current = fileOpenRequest.requestID;
     dispatch({ panel: "files", type: "open-panel" });
-    scheduleResizeForPanel("files");
-  }, [fileOpenRequest, scheduleResizeForPanel]);
+    void resizeForPanel("files");
+  }, [fileOpenRequest, resizeForPanel]);
   const closePanel = useCallback(() => {
     dispatch({ type: "close" });
-    scheduleResizeForPanel(null);
-  }, [scheduleResizeForPanel]);
+    void resizeForPanel(null);
+  }, [resizeForPanel]);
   const selectTool = useCallback(
     (panel: StandaloneAgentToolLauncherPanelId) => {
       if (panel === "terminal") {
@@ -284,17 +263,17 @@ export function StandaloneAgentToolSidebar({
         return;
       }
       dispatch({ panel, type: "select-tool" });
-      scheduleResizeForPanel(panel);
+      void resizeForPanel(panel);
     },
-    [scheduleResizeForPanel]
+    [resizeForPanel]
   );
   const togglePanel = useCallback(
     (panel: Exclude<StandaloneAgentToolPanelId, "browser">) => {
       const nextPanel = activePanel === panel ? null : panel;
       dispatch({ panel, type: "toggle-panel" });
-      scheduleResizeForPanel(nextPanel);
+      void resizeForPanel(nextPanel);
     },
-    [activePanel, scheduleResizeForPanel]
+    [activePanel, resizeForPanel]
   );
 
   return (
@@ -319,7 +298,7 @@ export function StandaloneAgentToolSidebar({
           <aside
             aria-hidden={activePanel === null}
             className={cn(
-              "relative h-full min-h-0 shrink-0 overflow-hidden transition-[width] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none",
+              "relative h-full min-h-0 shrink-0 overflow-hidden [contain:layout_paint]",
               activePanel !== null && "border-l border-[var(--border-1)]",
               activePanel === null && "pointer-events-none"
             )}
@@ -332,6 +311,8 @@ export function StandaloneAgentToolSidebar({
             <div
               className={cn(
                 "absolute inset-y-0 right-0 flex flex-col bg-[var(--background-fronted)]",
+                activePanel !== null &&
+                  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-full motion-safe:duration-150 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:animate-none",
                 activePanel === null && "invisible"
               )}
               style={{ width: `${activePanelWidth}px` } as CSSProperties}

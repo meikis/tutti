@@ -237,3 +237,70 @@
 - References:
   [main.tsx](../../../apps/desktop/src/renderer/src/main.tsx)
   [whyDidYouRender.ts](../../../apps/desktop/src/renderer/src/lib/whyDidYouRender.ts)
+
+### Dense list panel stutters when mounted or resized
+
+- Symptom:
+  Opening a card or row-heavy Workbench panel pauses before it becomes
+  interactive, or resizing the panel produces repeated layout work even though
+  the visible content is simple.
+- Quick checks:
+  Record a Chrome Performance trace and inspect the opening interval for
+  repeated `ResizeObserver` callbacks, animation-frame callbacks, layout reads,
+  and React commits. Search repeated item components for per-item observers,
+  global `resize` listeners, and reads such as `scrollWidth`, `clientWidth`,
+  `scrollHeight`, or `clientHeight`. Count these subscriptions per rendered
+  item instead of evaluating only one card in isolation.
+- Root cause:
+  A text-overflow tooltip or similar decoration can create an observer and an
+  initial layout measurement for every repeated text node. Mounting the whole
+  list then schedules many layout reads and state updates together. Permanent
+  `will-change` hints on every item can add avoidable compositing work at the
+  same time.
+- Fix:
+  When overflow state is needed only to decide whether an interaction tooltip
+  should open, measure on pointer or focus interaction and reuse a pure overflow
+  predicate. Keep continuous observation only when the UI must react while it
+  remains visible; in that case prefer one owner-level observer over one
+  observer per repeated child. Do not leave `will-change` on idle list items.
+- Validation:
+  Verify the panel mounts without item-level observer callbacks, then confirm
+  truncated and non-truncated text still show the correct tooltip after a
+  resize. Run the owning package tests, renderer boundary checks, and the
+  desktop production build.
+- References:
+  [AppCard.tsx](../../../packages/workspace/app-center/src/ui/AppCard.tsx)
+  [appCardTextOverflow.ts](../../../packages/workspace/app-center/src/ui/appCardTextOverflow.ts)
+
+### Adjacent sidebar animation repeatedly reflows its content and message flow
+
+- Symptom:
+  Opening or closing a right sidebar stutters for the full duration of its slide
+  animation. A Performance trace shows repeated layout and paint work in both
+  the sidebar and its adjacent message flow even when the panel body was mounted
+  lazily.
+- Quick checks:
+  Inspect the flex or grid boundary shared by the main content and sidebar.
+  Search the animated shell for `transition-[width]`, `flex-basis`, layout-bound
+  keyframes, permanent `will-change` hints, and native window bounds animation.
+  If a sidebar contains responsive grids, confirm its available width is not
+  changing on every animation frame.
+- Root cause:
+  Animating a sidebar's layout width makes the browser recompute both sibling
+  layout trees every frame. Running an Electron native bounds animation at the
+  same time changes the renderer viewport too, so the two animations can cause
+  additional message-flow reflow even when they have matching durations.
+- Fix:
+  Commit the final sidebar width and native window bounds once. Keep the panel
+  beside the main content in normal layout, isolate its subtree with layout and
+  paint containment, and use only `transform` or `opacity` for the optional
+  fixed-size inner-panel entrance. Delay expensive first-use content until that
+  compositor entrance completes, then retain it while hidden.
+- Validation:
+  Add a structural regression test that rejects layout-property transitions and
+  native bounds animation. Re-record the opening trace and confirm the interval
+  no longer contains a layout task for every animation frame, then run desktop
+  tests, typecheck, renderer boundaries, and the production build.
+- References:
+  [StandaloneAgentToolSidebar.tsx](../../../apps/desktop/src/renderer/src/features/workspace-workbench/ui/StandaloneAgentToolSidebar.tsx)
+  [standaloneAgentWindowBounds.ts](../../../apps/desktop/src/main/windows/standaloneAgentWindowBounds.ts)

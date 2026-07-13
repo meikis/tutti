@@ -323,15 +323,17 @@ and the sidebar remains adjacent; it must not become an absolutely positioned
 overlay above the transcript. Width added from the panel's left separator is
 also reserved by layout and does not change the native window bounds. Closing
 the panel restores the captured baseline width.
-Opening must be renderer-first: update the active panel immediately, let the
-clipped width transition begin, and defer the host-window resize request until
-the next animation frame. Do not await native IPC before showing the panel.
-Files, Browser, Apps, and other expensive first-use bodies mount after the
-outer width transition, then remain mounted while hidden for instant later
-switches. macOS may use Electron's native bounds animation in parallel; other
-platforms apply the same resolved bounds without requesting unsupported native
-animation. Respect `prefers-reduced-motion` by removing the CSS transition and
-the content-mount delay.
+Opening must stay renderer-first, but it must not animate layout dimensions.
+Update the active panel and send the host-window resize request in the same
+interaction turn without awaiting IPC. The outer flex sidebar takes its final
+resolved width in one layout, and the native window applies its final bounds
+without Electron bounds animation. A visual entrance may animate only the
+fixed-size inner panel with compositor-friendly `transform` and `opacity`; do
+not transition `width`, `flex-basis`, or another property that repeatedly
+reflows the sidebar and message flow. Files, Browser, Apps, and other expensive
+first-use bodies mount after that compositor entrance, then remain mounted
+while hidden for instant later switches. Respect `prefers-reduced-motion` by
+removing the compositor animation and the content-mount delay.
 Header tool actions must use the workbench header's secondary accessory slot so
 the session title and controls share one layout row. Do not absolutely position
 those actions over the title; narrow windows must truncate the title before any

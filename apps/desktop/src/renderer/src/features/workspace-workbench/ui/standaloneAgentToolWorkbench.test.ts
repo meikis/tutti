@@ -86,22 +86,24 @@ test("standalone Agent right sidebar reserves layout space and reveals requested
   );
 });
 
-test("standalone Agent right sidebar animates its shell before mounting heavy content", () => {
+test("standalone Agent right sidebar keeps layout animation off the render hot path", () => {
+  assert.doesNotMatch(standaloneAgentToolSidebarSource, /transition-\[width\]/);
+  assert.doesNotMatch(
+    standaloneAgentToolSidebarSource,
+    /will-change-\[width\]/
+  );
+  assert.match(standaloneAgentToolSidebarSource, /\[contain:layout_paint\]/);
   assert.match(
     standaloneAgentToolSidebarSource,
-    /overflow-hidden transition-\[width\] duration-\[260ms\] ease-\[cubic-bezier\(0\.22,1,0\.36,1\)\]/
+    /motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-full/
   );
   assert.match(
     standaloneAgentToolSidebarSource,
-    /motion-reduce:transition-none/
+    /dispatch\(\{ panel, type: "select-tool" \}\);\s*void resizeForPanel\(panel\)/
   );
   assert.match(
     standaloneAgentToolSidebarSource,
-    /dispatch\(\{ panel, type: "select-tool" \}\);\s*scheduleResizeForPanel\(panel\)/
-  );
-  assert.match(
-    standaloneAgentToolSidebarSource,
-    /standaloneAgentToolPanelContentMountDelayMs = 260/
+    /standaloneAgentToolPanelContentMountDelayMs = 160/
   );
   assert.match(
     standaloneAgentToolSidebarSource,
