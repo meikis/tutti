@@ -9139,63 +9139,6 @@ html[data-theme="light"] [data-message-center-item-id].agent-gui-edge-glow {
     both;
 }
 
-.agent-gui-node__empty-hero-icon-rail {
-  display: flex;
-  width: min(216px, 44vw);
-  height: 64px;
-  align-items: center;
-  overflow: hidden;
-  object-fit: unset;
-}
-
-.agent-gui-node__empty-hero-icon-rail-scroller {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 8px 20px;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  scroll-snap-type: x proximity;
-  mask-image: linear-gradient(
-    90deg,
-    transparent 0,
-    #000 24px,
-    #000 calc(100% - 24px),
-    transparent 100%
-  );
-}
-
-.agent-gui-node__empty-hero-icon-rail-scroller::-webkit-scrollbar {
-  display: none;
-}
-
-.agent-gui-node__empty-hero-icon-rail-item {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
-  place-items: center;
-  scroll-snap-align: center;
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-}
-
-.agent-gui-node__empty-hero-icon-rail-item:hover {
-  transform: translateY(-1px);
-}
-
-.agent-gui-node__empty-hero-icon-rail-item > img {
-  display: block;
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-}
-
 /* Empty-hero agent carousel ("All" tab): a three.js ring of same-sized agent
    records (see agentGuiHeroCarouselScene.ts). Records farther around the ring
    genuinely shrink and fade with perspective; visuals live on the canvas,
