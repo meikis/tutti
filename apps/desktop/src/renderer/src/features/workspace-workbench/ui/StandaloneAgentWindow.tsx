@@ -23,11 +23,8 @@ import {
 import { resolveAgentGuiSessionProviderIconUrl } from "@tutti-os/agent-gui/agentGuiSessionProviderIconUrls";
 import type {
   WorkbenchContribution,
-  WorkbenchDockPreviewCache,
-  WorkbenchFrame,
   WorkbenchHostHandle,
-  WorkbenchHostNodeBodyContext,
-  WorkbenchSize
+  WorkbenchHostNodeBodyContext
 } from "@tutti-os/workbench-surface";
 import type { I18nRuntime } from "@tutti-os/ui-i18n-runtime";
 import { createDesktopAgentGUIWorkbenchHostInput } from "@renderer/features/workspace-agent/services/createDesktopAgentGUIWorkbenchHostInput.ts";
@@ -59,6 +56,13 @@ import { AppUpdateStatus } from "@renderer/features/app-update";
 import { StandaloneAgentToolSidebar } from "./StandaloneAgentToolSidebar";
 import type { StandaloneAgentFileOpenRequest } from "./StandaloneAgentToolSidebar";
 import { useWorkspaceSettingsService } from "./useWorkspaceSettingsService";
+import { StandaloneAgentStartupShell } from "./StandaloneAgentStartupShell.tsx";
+import {
+  createStandaloneAgentDockPreviewCache,
+  createStandaloneAgentHost,
+  readStandaloneAgentWindowFrame,
+  readStandaloneAgentWindowMaximizedState
+} from "./standaloneAgentWindowHost.ts";
 
 import type { WorkspaceWorkbenchCapabilitySettingsTarget } from "../services/workspaceWorkbenchHostService.interface";
 
@@ -187,9 +191,9 @@ export function StandaloneAgentWindow({
       agentProviderStatusService.hydrate(providerStatusBootstrapSnapshot);
     }
   }
-  const [frame, setFrame] = useState(() => readWindowFrameRect());
+  const [frame, setFrame] = useState(readStandaloneAgentWindowFrame);
   const [isWindowMaximized, setIsWindowMaximized] = useState(
-    readWindowMaximizedState
+    readStandaloneAgentWindowMaximizedState
   );
   const [agents, setAgents] = useState<
     Awaited<ReturnType<typeof agentsService.load>>["agents"] | null
@@ -322,7 +326,7 @@ export function StandaloneAgentWindow({
     ]
   );
   const dockPreviewCache = useMemo(
-    () => createDockPreviewCache(desktopApi.dockPreviewCache),
+    () => createStandaloneAgentDockPreviewCache(desktopApi.dockPreviewCache),
     [desktopApi.dockPreviewCache]
   );
   const instanceId = useMemo(
@@ -406,7 +410,7 @@ export function StandaloneAgentWindow({
 
   useEffect(() => {
     const handleResize = () => {
-      setFrame(readWindowFrameRect());
+      setFrame(readStandaloneAgentWindowFrame());
     };
     window.addEventListener("resize", handleResize);
     return () => {
@@ -626,7 +630,7 @@ export function StandaloneAgentWindow({
         resizeWindowContentWidth={resizeStandaloneAgentWindowContentWidth}
         workspaceId={workspaceId}
       >
-        <Suspense fallback={<div className="h-full min-h-0 bg-background" />}>
+        <Suspense fallback={<StandaloneAgentStartupShell scope="body" />}>
           <LazyDesktopAgentGUIWorkbenchBody
             agentActivityRuntime={agentGuiHostInput.agentActivityRuntime}
             agentHostApi={agentGuiHostInput.agentHostApi}
@@ -752,92 +756,4 @@ function readStandaloneNodeProvider(
 ): DesktopAgentGUIProvider {
   const provider = (state as { provider?: unknown }).provider;
   return isDesktopAgentGUIProvider(provider) ? provider : fallbackProvider;
-}
-
-function readWindowSize(): WorkbenchSize {
-  return {
-    height: Math.max(1, window.innerHeight),
-    width: Math.max(1, window.innerWidth)
-  };
-}
-
-function readWindowFrameRect(): WorkbenchFrame {
-  return {
-    ...readWindowSize(),
-    x: 0,
-    y: 0
-  };
-}
-
-function readWindowMaximizedState(): boolean {
-  return (
-    typeof document !== "undefined" &&
-    document.documentElement.dataset.tuttiWindowMaximized === "true"
-  );
-}
-
-function createDockPreviewCache(
-  api: DesktopApi["dockPreviewCache"]
-): WorkbenchDockPreviewCache {
-  const pendingWriteKeys = new Set<string>();
-  return {
-    read(key) {
-      return api.read({ key }).catch(() => null);
-    },
-    write({ key, previewImageUrl }) {
-      const writeKey = JSON.stringify(key);
-      if (pendingWriteKeys.has(writeKey)) {
-        return;
-      }
-      pendingWriteKeys.add(writeKey);
-      void api
-        .write({ dataUrl: previewImageUrl, key })
-        .catch(() => {})
-        .finally(() => {
-          pendingWriteKeys.delete(writeKey);
-        });
-    }
-  };
-}
-
-function createStandaloneAgentHost(input: {
-  clearActivation(nodeId: string, sequence: number): void;
-}): WorkbenchHostHandle {
-  const snapshot = {
-    activeDragNodeId: null,
-    activeResizeNodeId: null,
-    activeSnapTarget: null,
-    lockedLayout: null,
-    layoutConstraints: {
-      minHeight: 0,
-      minWidth: 0,
-      safeArea: { bottom: 0, left: 0, right: 0, top: 0 },
-      surfacePadding: 0
-    },
-    nodes: [],
-    nodeStack: [],
-    surfaceSize: readWindowSize()
-  };
-  return {
-    activateNode: () => undefined,
-    clearNodeActivation: input.clearActivation,
-    closeNode: () => undefined,
-    collectWindowCloseEffects: async () => [],
-    dispose: () => undefined,
-    exitFullscreenNode: () => undefined,
-    focusNode: () => undefined,
-    getSnapshot: () => ({
-      ...snapshot,
-      surfaceSize: readWindowSize()
-    }),
-    launchNode: async () => null,
-    load: async () => undefined,
-    minimizeNode: () => undefined,
-    reconcileProjectedNodes: () => undefined,
-    requestNodeClose: () => undefined,
-    setNodeRuntimeState: () => undefined,
-    setNodeSizeConstraints: () => undefined,
-    setNodeTitle: () => undefined,
-    setSnapshotNodeState: () => undefined
-  };
 }

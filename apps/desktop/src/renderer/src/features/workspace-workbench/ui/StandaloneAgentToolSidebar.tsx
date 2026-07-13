@@ -23,6 +23,7 @@ import {
   CloseIcon,
   MaximizeIcon,
   RestoreIcon,
+  Spinner,
   cn
 } from "@tutti-os/ui-system";
 import type { WorkspaceAgentActivityService } from "@renderer/features/workspace-agent";
@@ -405,6 +406,10 @@ export function StandaloneAgentToolSidebar({
                           workspaceId={workspaceId}
                         />
                       </div>
+                    ) : activePanel === panel ? (
+                      <ToolSidebarLoadingState
+                        label={i18n.t("common.loading")}
+                      />
                     ) : null}
                   </div>
                 ))}
@@ -416,6 +421,7 @@ export function StandaloneAgentToolSidebar({
           <StandaloneAgentTerminalPanel
             closeLabel={`${copy.close} ${copy.terminal}`}
             contributions={contributions}
+            loadingLabel={i18n.t("common.loading")}
             onClose={() => dispatch({ type: "toggle-terminal" })}
             open={state.terminalOpen}
             setToolHost={toolHostGroup.setHost}
@@ -461,7 +467,9 @@ function ToolSidebarPanel({
 }): ReactNode {
   if (panel === "files") {
     return (
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={<ToolSidebarLoadingState label={i18n.t("common.loading")} />}
+      >
         <LazyWorkspaceFileManagerPane
           className="h-full"
           revealIntent={fileOpenRequest}
@@ -472,7 +480,9 @@ function ToolSidebarPanel({
   }
   if (panel === "apps") {
     return (
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={<ToolSidebarLoadingState label={i18n.t("common.loading")} />}
+      >
         <LazyStandaloneAgentAppCenterToolPanel
           active={active}
           backLabel={i18n.t("workspace.appCenter.backToApps")}
@@ -487,7 +497,9 @@ function ToolSidebarPanel({
   }
   if (panel === "messages") {
     return (
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={<ToolSidebarLoadingState label={i18n.t("common.loading")} />}
+      >
         <LazyStandaloneAgentMessageCenterToolPanel
           activityService={activityService}
           i18n={i18n}
@@ -506,20 +518,37 @@ function ToolSidebarPanel({
         appI18n={appI18n}
         browserApi={browserApi}
         hidden={!active}
+        loadingLabel={i18n.t("common.loading")}
       />
     ) : null;
   }
   return null;
 }
 
+function ToolSidebarLoadingState({ label }: { label: string }): ReactNode {
+  return (
+    <div
+      aria-busy="true"
+      className="flex h-full min-h-0 items-center justify-center"
+    >
+      <Spinner className="text-[var(--text-tertiary)]" size={18} />
+      <span className="sr-only" role="status">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function StandaloneAgentBrowserToolPanel({
   appI18n,
   browserApi,
-  hidden
+  hidden,
+  loadingLabel
 }: {
   appI18n: I18nRuntime<string>;
   browserApi: DesktopBrowserApi;
   hidden: boolean;
+  loadingLabel: string;
 }): ReactNode {
   const [nodeId] = useState(createStandaloneAgentBrowserNodeId);
   const feature = useMemo(
@@ -561,7 +590,7 @@ function StandaloneAgentBrowserToolPanel({
       className="relative h-full min-h-0 overflow-hidden"
       data-standalone-agent-browser-surface="true"
     >
-      <Suspense fallback={null}>
+      <Suspense fallback={<ToolSidebarLoadingState label={loadingLabel} />}>
         <LazyBrowserNode
           defaultUrl={standaloneAgentBrowserDefaultUrl}
           feature={feature}
@@ -593,6 +622,7 @@ function createStandaloneAgentBrowserNodeId(): string {
 function StandaloneAgentTerminalPanel({
   closeLabel,
   contributions,
+  loadingLabel,
   onClose,
   open,
   setToolHost,
@@ -600,6 +630,7 @@ function StandaloneAgentTerminalPanel({
 }: {
   closeLabel: string;
   contributions: readonly WorkbenchContribution[] | undefined;
+  loadingLabel: string;
   onClose: () => void;
   open: boolean;
   setToolHost: (
@@ -728,7 +759,7 @@ function StandaloneAgentTerminalPanel({
         data-standalone-agent-terminal-surface="true"
       >
         {runtime && sessionId ? (
-          <Suspense fallback={null}>
+          <Suspense fallback={<ToolSidebarLoadingState label={loadingLabel} />}>
             <LazyTerminalNode
               externalState={externalState}
               feature={runtime.feature}
@@ -744,7 +775,9 @@ function StandaloneAgentTerminalPanel({
           >
             {unavailableLabel}
           </div>
-        ) : null}
+        ) : (
+          <ToolSidebarLoadingState label={loadingLabel} />
+        )}
       </div>
     </section>
   );

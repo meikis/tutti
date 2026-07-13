@@ -380,6 +380,25 @@ search controller, and AgentGUI presentation graph load when an Agent surface
 is required. Entering standalone Agent mode starts a dynamic preload of that
 body while allowing the lightweight standalone shell to render independently;
 the body fetch must not block the shell, and OS mode must not trigger it.
+Every blocking boundary before the real AgentGUI controller mounts uses that
+same startup-shell geometry: the route-level Suspense fallback, workspace
+catalog hydration, workbench host-session binding, and the lazy AgentGUI body.
+The full-window variant keeps the header, provider rail, conversation-rail
+skeleton, and empty-home hero composer visible; after the real header mounts,
+the body-only variant preserves that new-conversation geometry without
+duplicating chrome. The hero placeholder mirrors the real composer's input
+shell, control footer, project row, and prompt-tips row so its height does not
+jump when AgentGUI takes over. It also preserves the real centered-timeline
+wrapper, the multi-agent carousel slot used before target resolution, and the
+home-suggestion wrapping geometry; approximating only the inner card causes the
+whole hero group to shift when AgentGUI takes over. Startup must not imply that
+a conversation is already active by showing the bottom-docked history composer
+or a message timeline.
+The startup hero composer is visibly present but non-interactive until the real
+controller owns draft and send state. Do not introduce a second temporary draft
+owner just to make the fallback editable. Optional right-side
+tool bodies show a local busy state during their intentional mount delay,
+dynamic import, and runtime/session startup instead of exposing an empty panel.
 Standalone-only settings, environment, import, and account surfaces are also
 non-critical to the conversation first frame. Load their presentation modules
 behind local Suspense boundaries; panel-host listeners may mount immediately
