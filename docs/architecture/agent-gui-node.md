@@ -236,6 +236,10 @@ must derive the reasoning options from the currently presented model and
 re-resolve an unsupported prior effort to that model's advertised default.
 Do not render the provider-level reasoning list when a profile exists for the
 selected model.
+Reasoning values are an extensible provider vocabulary. Known shared values may
+use AgentGUI's canonical labels, while unrecognized values must preserve the
+localized option label supplied by the composer-options contract instead of
+rendering the raw protocol value or adding provider/model branches in the UI.
 If restored node data has a stale `provider` that disagrees with a resolvable
 `agentTargetId`, the target's provider wins for empty-composer settings and
 launch preparation.
@@ -307,6 +311,12 @@ active tab strip and its add menu for files, terminal, browser, apps, and
 messages.
 Opening a tool mounts it as a tab and selecting another tab only changes the
 visible projection; this state is not durable AgentGUI session data.
+The Files tool tab remains the file-navigation surface. Opening a previewable
+file from it adds a sibling file-preview tab keyed by the file path, keeps the
+Files tab mounted, and focuses an existing matching preview tab instead of
+duplicating it. File-preview tabs reuse the workspace file-preview contribution
+for loading, rendering, editing, and saving; the standalone shell owns only the
+UI-local tab descriptor and active-tab projection.
 Unified empty-home readiness is a host-projected, agent-scoped gate,
 not a durable session rule. Desktop may subscribe to its
 `agentProviderStatusService`, merge runtime status into `/agents` availability,
@@ -543,11 +553,13 @@ not start a second initial load; concurrent explicit loads share one in-flight
 result. Outcome notification subscriptions must also start that workspace's
 activity event stream. They remain in baseline mode until the first
 authoritative workspace reconcile reaches `ready`, seed all historical settled
-turn ids without notifying, and only then emit notifications for new settled
-turns. When an event arrives before the session is cached and requires HTTP
-reconciliation, preserve the original `state_patch` for session-event
-consumers; rebuilding it from session state can discard `turn.outcome` or
-`turnId` and suppress the completed/failed foreground toast.
+turn ids without notifying, and only then emit notifications for settled turns
+backed by a live `turn_update`. A session-level reconcile can hydrate historical
+settled turns after that bounded baseline; first appearance in the engine is not
+notification causality. When an event arrives before the session is cached and
+requires HTTP reconciliation, preserve the original `state_patch` for
+session-event consumers; rebuilding it from session state can discard
+`turn.outcome` or `turnId` and suppress the completed/failed foreground toast.
 Browser and Terminal tool bodies must mount the existing OS node UI directly:
 `BrowserNode` in the right panel and `TerminalNode` in the bottom tray. Do not
 nest another `WorkbenchHost` inside the standalone shell; the nested canvas can
@@ -594,6 +606,19 @@ run the normal cwd/user-project grouping so the selected row remains visible in
 the matching project group. This overlay must stay out of canonical pagination
 state and be de-duplicated by conversation id when the real paginated row later
 arrives; session detail/state load owns true not-found handling.
+Once a user selection becomes the active intent, rail pagination or bounded-list
+absence must not demote it into requested/resolving fallback. Only an explicit
+replacement, home transition, deletion, or authoritative not-found result may
+clear that selection.
+Selecting any rail row whose detail is not cached must enter the engine-owned
+session reconcile lifecycle and request state plus messages as one semantic
+load. Detail availability is explicit: `loading`, `ready`, `not_found`, or
+`error`. The skeleton follows the reconcile record, `ready` with zero rows is a
+valid empty detail, and only an authoritative tombstone/not-found result may
+show the unavailable state. Once authoritative not-found wins, presentation
+must suppress any previously projected transcript rows instead of mixing stale
+content with unavailable-state layout. An empty message projection is not
+evidence that loading finished or that the session is gone.
 
 Agent GUI is organized by vertical behavior rather than one controller with
 horizontal helper piles. A vertical module owns its projection, commands,

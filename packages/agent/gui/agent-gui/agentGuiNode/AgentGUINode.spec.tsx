@@ -1406,6 +1406,91 @@ describe("AgentGUINode", () => {
     ).toHaveLength(3);
   });
 
+  it("shows canonical session usage in slash status without a provider probe", () => {
+    mockViewModel = createViewModel({
+      activeConversationId: "session-1",
+      draftPrompt: "/status",
+      usage: {
+        usedTokens: 27_685,
+        totalTokens: 121_600,
+        percentUsed: 23,
+        quotas: [
+          {
+            quotaType: "session",
+            percentRemaining: 100,
+            resetText: "5h reset"
+          }
+        ]
+      },
+      sessionChrome: {
+        auth: null,
+        approval: null,
+        recovery: null,
+        rawState: normalizeAgentActivitySession({
+          activeTurnId: null,
+          latestTurnInteractions: [],
+          pendingInteractions: [],
+          workspaceId: "room-1",
+          agentSessionId: "session-1",
+          provider: "codex",
+          cwd: "/workspace",
+          title: "Codex",
+          updatedAtUnixMs: 1
+        })
+      }
+    });
+
+    const { container } = renderAgentGUINode();
+    fireEvent.submit(container.querySelector("form")!);
+
+    const panel = screen.getByTestId("agent-gui-slash-status-panel");
+    expect(panel).toHaveTextContent("77% left (27,685 used / 121,600)");
+    expect(panel).toHaveTextContent("5h limit");
+    expect(panel).toHaveTextContent("100% left");
+  });
+
+  it("requests provider usage when slash status opens before a session exists", () => {
+    const onAgentProbeRefreshRequest = vi.fn();
+    mockViewModel = createViewModel({ draftPrompt: "/status" });
+
+    const { container } = renderAgentGUINode({
+      onAgentProbeRefreshRequest
+    });
+    fireEvent.submit(container.querySelector("form")!);
+
+    expect(onAgentProbeRefreshRequest).toHaveBeenCalledWith(
+      "codex",
+      "agent-gui:agent-gui-1"
+    );
+  });
+
+  it("keeps unavailable limits visible after an empty usage probe resolves", () => {
+    mockViewModel = createViewModel({ draftPrompt: "/status" });
+
+    const { container } = renderAgentGUINode({
+      workspaceAgentProbes: {
+        isLoadingAvailability: false,
+        isLoadingUsage: false,
+        snapshot: {
+          workspaceId: "room-1",
+          capturedAtUnixMs: 1,
+          providers: [
+            {
+              provider: "codex",
+              availability: { status: "available", detailsVisible: false },
+              usage: { capturedAtUnixMs: 1, quotas: [] }
+            }
+          ]
+        }
+      }
+    });
+    fireEvent.submit(container.querySelector("form")!);
+
+    expect(
+      screen.getByTestId("agent-gui-slash-status-panel")
+    ).toHaveTextContent("Rate limits unavailable");
+  });
+
   it("shows Claude Code slash status limits from provider probes", () => {
     mockViewModel = createViewModel({
       activeConversationId: "session-1",
@@ -1985,6 +2070,7 @@ describe("AgentGUINode", () => {
       updatedAtUnixMs: 1
     };
     mockViewModel = createViewModel({
+      availability: "not_found",
       conversations: [conversation],
       activeConversation: conversation,
       activeConversationId: "session-1"
@@ -2007,6 +2093,55 @@ describe("AgentGUINode", () => {
     );
   });
 
+  it("hides hydrated transcript rows after authoritative not found", () => {
+    const conversation = {
+      id: "session-1",
+      provider: "codex" as const,
+      title: "Session 1",
+      status: "ready" as const,
+      cwd: "/workspace",
+      updatedAtUnixMs: 1
+    };
+    mockViewModel = createViewModel({
+      availability: "not_found",
+      conversations: [conversation],
+      activeConversation: conversation,
+      activeConversationId: "session-1",
+      conversationDetail: detailViewModel()
+    });
+
+    renderAgentGUINode();
+
+    expect(
+      screen.getByTestId("agent-gui-unavailable-chat-empty")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Please inspect this")).not.toBeInTheDocument();
+    expect(screen.queryByText("I will check it.")).not.toBeInTheDocument();
+  });
+
+  it("treats a ready conversation with no rows as valid empty detail", () => {
+    const conversation = {
+      id: "session-1",
+      provider: "codex" as const,
+      title: "Session 1",
+      status: "ready" as const,
+      cwd: "/workspace",
+      updatedAtUnixMs: 1
+    };
+    mockViewModel = createViewModel({
+      availability: "ready",
+      conversations: [conversation],
+      activeConversation: conversation,
+      activeConversationId: "session-1"
+    });
+
+    renderAgentGUINode();
+
+    expect(
+      screen.queryByTestId("agent-gui-unavailable-chat-empty")
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the timeline skeleton instead of unavailable empty while active conversation messages are loading", () => {
     const conversation = {
       id: "session-1",
@@ -2017,6 +2152,7 @@ describe("AgentGUINode", () => {
       updatedAtUnixMs: 1
     };
     mockViewModel = createViewModel({
+      availability: "loading",
       conversations: [conversation],
       activeConversation: conversation,
       activeConversationId: "session-1",
@@ -7351,6 +7487,7 @@ function createViewModel(
     availableSkills: [],
     draftPrompt,
     draftContent,
+    availability: "ready",
     isLoadingConversations: false,
     isLoadingMessages: false,
     isLoadingOlderMessages: false,
