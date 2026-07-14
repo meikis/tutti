@@ -16,6 +16,7 @@ import {
   sanitizeComposerSettingsForTarget
 } from "./agentGuiController.composerPresentation";
 import {
+  clearSubmittedDraftIfUnchanged,
   resolveSameProviderActiveSessionModel,
   toRuntimeSendContent
 } from "./agentGuiController.draftMessageHelpers";
@@ -49,6 +50,7 @@ export function useAgentGUINewConversationActivation(
     onDataChangeRef,
     selectedProjectPathRef,
     draftByScopeKeyRef,
+    setDraftByScopeKey,
     submittedDraftSnapshotsRef,
     draftSettingsBySessionIdRef,
     agentActivityRuntime,
@@ -183,10 +185,12 @@ export function useAgentGUINewConversationActivation(
       const sourceScopeKey = resolveAgentComposerDraftScopeKey({});
       const submittedDraft =
         draftByScopeKeyRef.current[sourceScopeKey] ?? emptyAgentComposerDraft();
-      submittedDraftSnapshotsRef.current[submitTrace.clientSubmitId] = {
+      const submittedSnapshot = {
         sourceScopeKey,
         content: snapshotAgentComposerDraft(submittedDraft)
       };
+      submittedDraftSnapshotsRef.current[submitTrace.clientSubmitId] =
+        submittedSnapshot;
       reportAgentSubmitTraceDiagnostic({
         event: "activation.requested",
         runtime: agentActivityRuntime,
@@ -206,6 +210,18 @@ export function useAgentGUINewConversationActivation(
         title: initialConversationTitle,
         settings
       });
+      // Clear the home composer optimistically at hand-off, mirroring the
+      // existing-session path. The snapshot is retained so a failed activation
+      // can restore the draft (see the activation-settlement effect in the
+      // conversation-selection controller).
+      setDraftByScopeKey((current) => {
+        const next = clearSubmittedDraftIfUnchanged({
+          drafts: current,
+          snapshot: submittedSnapshot
+        });
+        draftByScopeKeyRef.current = next;
+        return next;
+      });
     },
     [
       activeSessionState,
@@ -223,6 +239,7 @@ export function useAgentGUINewConversationActivation(
       agentActivityRuntime,
       isConversationStale,
       latestPendingNewActivation,
+      setDraftByScopeKey,
       workspaceId
     ]
   );

@@ -35,7 +35,8 @@ import {
 } from "../../../shared/agentConversation/planImplementationPresentation";
 import {
   clearSubmittedDraftIfUnchanged,
-  deleteUnacceptedSubmittedDraftSnapshot,
+  resolveSubmittedDraftSettleAction,
+  restoreSubmittedDraftIfEmpty,
   GOAL_CLEAR_PROMPT,
   toRuntimeSendContent
 } from "./agentGuiController.draftMessageHelpers";
@@ -277,12 +278,13 @@ export function useAgentGUISubmitInteractionActions(
           submitTrace.clientSubmitId
         )
       );
-      const accepted = selectPendingSubmitsForSession(
-        sessionEngine.getSnapshot(),
-        agentSessionId
-      ).some((record) => record.clientSubmitId === submitTrace.clientSubmitId);
       submitTrace.queued = queued;
-      if (queued) {
+      setDetailError(null);
+      // Clear the composer optimistically the instant the prompt is handed off,
+      // whether it was queued behind a busy turn or sent straight to an idle
+      // session. The snapshot is retained so a rejected send can be restored by
+      // the submit-settlement effect below.
+      if (options?.trackDraft === true) {
         const snapshot =
           submittedDraftSnapshotsRef.current[submitTrace.clientSubmitId];
         if (snapshot) {
@@ -295,18 +297,7 @@ export function useAgentGUISubmitInteractionActions(
             return next;
           });
         }
-        delete submittedDraftSnapshotsRef.current[submitTrace.clientSubmitId];
-        setDetailError(null);
       }
-      if (!queued) {
-        setDetailError(null);
-      }
-      deleteUnacceptedSubmittedDraftSnapshot({
-        snapshots: submittedDraftSnapshotsRef.current,
-        clientSubmitId: submitTrace.clientSubmitId,
-        accepted,
-        queued
-      });
       reportAgentSubmitTraceDiagnostic({
         event: "send_input.requested",
         runtime: agentActivityRuntime,
@@ -319,7 +310,7 @@ export function useAgentGUISubmitInteractionActions(
         workspaceId
       });
     },
-    [agentActivityRuntime, sessionEngine, workspaceId]
+    [agentActivityRuntime, sessionEngine, setDraftByScopeKey, workspaceId]
   );
 
   useEffect(() => {
@@ -328,19 +319,14 @@ export function useAgentGUISubmitInteractionActions(
 
   useEffect(() => {
     for (const record of pendingSubmitRecords) {
-      if (
-        record.status !== "accepted" &&
-        record.status !== "confirmed" &&
-        record.status !== "failed"
-      ) {
-        continue;
-      }
+      const action = resolveSubmittedDraftSettleAction(record.status);
+      if (action === "retain") continue;
       const snapshot =
         submittedDraftSnapshotsRef.current[record.clientSubmitId];
       if (!snapshot) continue;
-      if (record.status !== "failed") {
+      if (action === "restore") {
         setDraftByScopeKey((current) => {
-          const next = clearSubmittedDraftIfUnchanged({
+          const next = restoreSubmittedDraftIfEmpty({
             drafts: current,
             snapshot
           });

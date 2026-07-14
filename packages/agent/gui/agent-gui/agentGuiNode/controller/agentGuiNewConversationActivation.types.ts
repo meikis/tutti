@@ -34,6 +34,9 @@ export interface UseAgentGUINewConversationActivationInput {
   >;
   selectedProjectPathRef: RefObject<string | null>;
   draftByScopeKeyRef: RefObject<Record<string, AgentComposerDraft>>;
+  setDraftByScopeKey: Dispatch<
+    SetStateAction<Record<string, AgentComposerDraft>>
+  >;
   submittedDraftSnapshotsRef: RefObject<Record<string, SubmittedDraftSnapshot>>;
   draftSettingsBySessionIdRef: RefObject<
     Record<string, AgentSessionComposerSettings>

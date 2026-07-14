@@ -13,7 +13,10 @@ import type {
   SubmittedDraftSnapshot
 } from "../model/agentGuiNodeTypes";
 import { useEngineSelector } from "../../../shared/engine/useEngineSelector";
-import { clearSubmittedDraftIfUnchanged } from "./agentGuiController.draftMessageHelpers";
+import {
+  resolveSubmittedDraftSettleAction,
+  restoreSubmittedDraftIfEmpty
+} from "./agentGuiController.draftMessageHelpers";
 import {
   reportAgentGUIActiveConversationCleared,
   reportAgentGUIConversationListProjectionSkipped
@@ -285,19 +288,16 @@ export function useAgentGUIConversationSelectionController(
 
   useEffect(() => {
     for (const record of activationRecords) {
+      if (record.mode !== "new") continue;
       const clientSubmitId = record.clientSubmitId?.trim() ?? "";
-      if (
-        record.mode !== "new" ||
-        !clientSubmitId ||
-        (record.status !== "confirmed" && record.status !== "failed")
-      ) {
-        continue;
-      }
+      if (!clientSubmitId) continue;
+      const action = resolveSubmittedDraftSettleAction(record.status);
+      if (action === "retain") continue;
       const snapshot = submittedDraftSnapshotsRef.current[clientSubmitId];
       if (!snapshot) continue;
-      if (record.status === "confirmed") {
+      if (action === "restore") {
         setDraftByScopeKey((current) => {
-          const next = clearSubmittedDraftIfUnchanged({
+          const next = restoreSubmittedDraftIfEmpty({
             drafts: current,
             snapshot
           });
