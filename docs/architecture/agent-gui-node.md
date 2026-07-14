@@ -741,7 +741,10 @@ provider-specific rendering branches.
 Conversation file links use the selected project root when one exists. For a
 no-project session, the durable session cwd is the file-resolution root. This
 keeps link navigation attached to session identity instead of requiring project
-selection state.
+selection state. Every transcript file surface, including markdown links and
+turn-summary projection/actions, must pass the selected project root as
+`workspaceRoot` and the durable session cwd as `basePath`; do not substitute a
+synthetic `/` root or drop the cwd when no project root is selected.
 
 ## Desktop Host Boundary
 
