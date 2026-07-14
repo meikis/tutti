@@ -2593,6 +2593,12 @@ For `source=app` references, readonly and markdown renderers should hydrate the
 icon from the same `workspaceAppIcons` appId/workspaceId table used by ordinary
 `workspace-app` mentions.
 
+After an app artifact reference is submitted into the conversation timeline,
+clicking its readonly or markdown chip routes the reference's app id through the
+existing `open-workspace-app` host action. The composer keeps its narrower draft
+behavior: clicking the same reference before submission reopens the artifact
+picker at that source instead of launching the app.
+
 System file drag-and-drop uses the same composer mention path as the reference
 picker. `@tutti-os/agent-gui` receives a host-injected dropped-file resolver
 that returns host-local `WorkspaceFileReference` values with `hostPath`,
