@@ -90,6 +90,7 @@ function createViewModel(): AgentGUINodeViewModel {
       listError: null
     },
     detail: {
+      availability: "ready",
       isLoadingMessages: false,
       isLoadingOlderMessages: false,
       hasOlderMessages: false,

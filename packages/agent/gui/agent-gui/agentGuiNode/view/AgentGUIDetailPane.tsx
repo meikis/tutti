@@ -82,6 +82,8 @@ export interface AgentGUIDetailPaneProps {
   isAgentProviderReady: boolean;
   slashStatusLimits: readonly AgentComposerSlashStatusLimit[];
   slashStatusLimitsLoading: boolean;
+  slashStatusLimitsUnavailable: boolean;
+  onSlashStatusOpen?: AgentComposerProps["onSlashStatusOpen"];
   onLinkAction?: (action: WorkspaceLinkAction) => void;
   onHandoffConversation?: AgentGUINodeViewProps["onHandoffConversation"];
   capabilityMenuState?: AgentComposerProps["capabilityMenuState"];
@@ -177,6 +179,8 @@ export const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
   isAgentProviderReady,
   slashStatusLimits,
   slashStatusLimitsLoading,
+  slashStatusLimitsUnavailable,
+  onSlashStatusOpen,
   onLinkAction,
   onHandoffConversation,
   capabilityMenuState,
@@ -255,6 +259,7 @@ export const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
     labels,
     slashStatusLimits,
     slashStatusLimitsLoading,
+    slashStatusLimitsUnavailable,
     viewModel
   });
   const handleInterruptCurrentTurn = useCallback(() => {
@@ -418,6 +423,7 @@ export const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       currentUserId: viewModel.shell.currentUserId,
       provider: composerProvider,
       slashStatus,
+      onSlashStatusOpen,
       usage: viewModel.detail.usage,
       draftContent: viewModel.composer.draftContent,
       availableCommands: viewModel.composer.availableCommands,
@@ -530,6 +536,7 @@ export const AgentGUIDetailPane = memo(function AgentGUIDetailPane({
       labels.providerSwitchLabel,
       labels,
       onHandoffConversation,
+      onSlashStatusOpen,
       previewMode,
       workspaceReferencePickerOpen,
       composerActivePrompt,

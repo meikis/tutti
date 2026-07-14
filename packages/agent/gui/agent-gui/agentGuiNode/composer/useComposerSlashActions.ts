@@ -65,6 +65,7 @@ type Props = Pick<
   | "onSubmit"
   | "onSubmitGuidance"
   | "onCapabilitySettingsRequest"
+  | "onSlashStatusOpen"
   | "onPromptImagesUnsupported"
   | "onRequestGitBranches"
 >;
@@ -73,6 +74,7 @@ interface UseComposerSlashActionsInput extends Props {
   draftContent: AgentComposerDraft;
   selectedProjectPath: string;
   slashStatusAgentSessionId: string | null;
+  isSlashStatusPanelOpen: boolean;
   slashCommandPolicy: AgentComposerProps["composerSettings"]["slashCommandPolicy"];
   skillQueryMatch: TriggerMatch;
   promptBeforeSelection: string;
@@ -119,11 +121,13 @@ export function useComposerSlashActions(input: UseComposerSlashActionsInput) {
     onSubmit,
     onSubmitGuidance,
     onCapabilitySettingsRequest,
+    onSlashStatusOpen,
     onPromptImagesUnsupported,
     onRequestGitBranches,
     draftContent,
     selectedProjectPath,
     slashStatusAgentSessionId,
+    isSlashStatusPanelOpen,
     slashCommandPolicy,
     skillQueryMatch,
     promptBeforeSelection,
@@ -224,6 +228,9 @@ export function useComposerSlashActions(input: UseComposerSlashActionsInput) {
       if (effect.kind === "showStatus") {
         clearSlashCommandDraft();
         setIsReviewPickerOpen(false);
+        if (!isSlashStatusPanelOpen) {
+          onSlashStatusOpen?.();
+        }
         setIsSlashStatusPanelOpen((current) => !current);
         return;
       }
@@ -307,7 +314,9 @@ export function useComposerSlashActions(input: UseComposerSlashActionsInput) {
       composerSettings.selectedSpeedValue,
       composerSettings.supportsSpeed,
       draftContent,
+      isSlashStatusPanelOpen,
       onDraftContentChange,
+      onSlashStatusOpen,
       onSettingsChange,
       onSubmit,
       settingsControlsDisabled
