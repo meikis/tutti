@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { createLocalAgentGUIAgentTarget } from "../../../agentTargets";
 import {
   AGENT_GUI_PROVIDER_RAIL_PREFERENCES_STORAGE_KEY,
   agentGUIProviderRailOrderStorageKey,
   applyAgentGUIProviderRailOrder,
   applyAgentGUIProviderRailVisibility,
+  agentGUIRunningTargetIds,
   changeAgentGUIProviderManagerVisibility,
   normalizeAgentGUIProviderRailHiddenTargetIds,
   parseAgentGUIProviderRailOrder,
@@ -85,6 +87,37 @@ describe("agent gui provider rail order", () => {
     ).toEqual([cursor, claude]);
   });
 
+  it("projects working and waiting conversations to protected agent targets", () => {
+    const codex = createLocalAgentGUIAgentTarget("codex");
+    const claude = createLocalAgentGUIAgentTarget("claude-code");
+    const conversation = {
+      cwd: "/workspace",
+      id: "session-codex",
+      provider: "codex" as const,
+      status: "working" as const,
+      title: "Codex run",
+      updatedAtUnixMs: 1
+    };
+
+    expect(
+      agentGUIRunningTargetIds({
+        activeConversation: conversation,
+        agentTargets: [codex, claude],
+        conversations: [
+          { ...conversation, agentTargetId: codex.targetId },
+          {
+            ...conversation,
+            agentTargetId: null,
+            id: "session-claude",
+            provider: "claude-code",
+            status: "waiting"
+          },
+          { ...conversation, id: "session-ready", status: "ready" }
+        ]
+      })
+    ).toEqual([codex.targetId, claude.targetId]);
+  });
+
   it("recovers the first target when stored preferences hide every target", () => {
     expect(
       normalizeAgentGUIProviderRailHiddenTargetIds(
@@ -150,6 +183,23 @@ describe("agent gui provider rail order", () => {
       changeAgentGUIProviderManagerVisibility({
         currentTargetIds: ["codex", "claude"],
         preferences,
+        targetId: "codex",
+        visible: false
+      })
+    ).toBe(preferences);
+  });
+
+  it("refuses to hide a running target", () => {
+    const preferences = {
+      hiddenTargetIds: [],
+      order: ["codex", "claude"]
+    };
+
+    expect(
+      changeAgentGUIProviderManagerVisibility({
+        currentTargetIds: ["codex", "claude"],
+        preferences,
+        runningTargetIds: ["codex"],
         targetId: "codex",
         visible: false
       })

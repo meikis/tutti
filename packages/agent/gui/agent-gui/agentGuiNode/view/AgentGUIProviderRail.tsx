@@ -1,7 +1,6 @@
 import {
   memo,
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -21,17 +20,13 @@ import type {
   AgentGUIProviderRailAllPresentation
 } from "../../../types";
 import {
-  AGENT_GUI_PROVIDER_RAIL_PREFERENCES_EVENT,
-  agentGUIProviderRailOrderStorageKey,
   applyAgentGUIProviderRailOrder,
   applyAgentGUIProviderRailVisibility,
+  agentGUIRunningTargetIds,
   changeAgentGUIProviderManagerVisibility,
   normalizeAgentGUIProviderRailHiddenTargetIds,
-  parseAgentGUIProviderRailPreferences,
   reorderAgentGUIProviderRailOrder,
-  serializeAgentGUIProviderRailPreferences,
-  type AgentGUIProviderManagerDropPlacement,
-  type AgentGUIProviderRailPreferences
+  type AgentGUIProviderManagerDropPlacement
 } from "../model/agentGuiProviderRailOrder";
 import type { AgentGUINodeViewModel } from "../model/agentGuiNodeTypes";
 import type {
@@ -46,6 +41,7 @@ import {
 } from "./AgentGUIEmptyState";
 import styles from "../AgentGUINode.styles";
 import { AgentGUIProviderManagerDialog } from "./AgentGUIProviderManagerDialog";
+import { useAgentGUIProviderRailPreferences } from "./useAgentGUIProviderRailPreferences";
 
 const agentGUIProviderRailCatalog = [
   ...migratedAgentGUIProviderIdentityCatalog
@@ -159,7 +155,10 @@ function agentGUIProviderRailTargetsAreFullLocalFallback(
 }
 
 interface AgentGUIProviderRailProps {
+  activeConversation: AgentGUINodeViewModel["rail"]["activeConversation"];
+  activeConversationId: string | null;
   conversationFilter: AgentGUINodeViewModel["rail"]["conversationFilter"];
+  conversations: AgentGUINodeViewModel["rail"]["conversations"];
   labels: AgentGUIViewLabels;
   managerOpen: boolean;
   onManagerOpenChange: (open: boolean) => void;
@@ -172,6 +171,7 @@ interface AgentGUIProviderRailProps {
   providerRailAllPresentation?: AgentGUIProviderRailAllPresentation | null;
   comingSoonProviders: AgentGUINodeViewModel["rail"]["comingSoonProviders"];
   onRequestComposerFocus: () => void;
+  onSelectHomeComposerAgentTarget: AgentGUINodeViewProps["actions"]["selectHomeComposerAgentTarget"];
   onSelectConversationFilterTarget: AgentGUINodeViewProps["actions"]["selectConversationFilterTarget"];
   onUpdateConversationFilter: (
     filter: AgentGUINodeViewModel["rail"]["conversationFilter"]
@@ -187,7 +187,10 @@ type AgentGUIProviderRailDragState = {
 };
 
 export const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
+  activeConversation,
+  activeConversationId,
   conversationFilter,
+  conversations,
   labels,
   managerOpen,
   onManagerOpenChange,
@@ -200,16 +203,15 @@ export const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
   providerRailAllPresentation,
   comingSoonProviders,
   onRequestComposerFocus,
+  onSelectHomeComposerAgentTarget,
   onSelectConversationFilterTarget,
   onUpdateConversationFilter
 }: AgentGUIProviderRailProps): React.JSX.Element {
   "use memo";
-  const providerRailPreferencesStorageKey =
-    agentGUIProviderRailOrderStorageKey();
-  const [providerRailPreferences, setProviderRailPreferences] =
-    useState<AgentGUIProviderRailPreferences>(() =>
-      readAgentGUIProviderRailPreferences(providerRailPreferencesStorageKey)
-    );
+  const {
+    persistPreferences: persistProviderRailPreferences,
+    preferences: providerRailPreferences
+  } = useAgentGUIProviderRailPreferences();
   const [dragState, setDragState] =
     useState<AgentGUIProviderRailDragState | null>(null);
   const dragStateRef = useRef<AgentGUIProviderRailDragState | null>(null);
@@ -219,45 +221,6 @@ export const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
       setDragState(nextDragState);
     },
     []
-  );
-
-  useEffect(() => {
-    const refreshPreferences = () => {
-      setProviderRailPreferences(
-        readAgentGUIProviderRailPreferences(providerRailPreferencesStorageKey)
-      );
-    };
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === providerRailPreferencesStorageKey) {
-        refreshPreferences();
-      }
-    };
-    globalThis.addEventListener?.("storage", handleStorage);
-    globalThis.addEventListener?.(
-      AGENT_GUI_PROVIDER_RAIL_PREFERENCES_EVENT,
-      refreshPreferences
-    );
-    return () => {
-      globalThis.removeEventListener?.("storage", handleStorage);
-      globalThis.removeEventListener?.(
-        AGENT_GUI_PROVIDER_RAIL_PREFERENCES_EVENT,
-        refreshPreferences
-      );
-    };
-  }, [providerRailPreferencesStorageKey]);
-
-  const persistProviderRailPreferences = useCallback(
-    (nextPreferences: AgentGUIProviderRailPreferences) => {
-      setProviderRailPreferences(nextPreferences);
-      globalThis.localStorage?.setItem(
-        providerRailPreferencesStorageKey,
-        serializeAgentGUIProviderRailPreferences(nextPreferences)
-      );
-      globalThis.dispatchEvent?.(
-        new Event(AGENT_GUI_PROVIDER_RAIL_PREFERENCES_EVENT)
-      );
-    },
-    [providerRailPreferencesStorageKey]
   );
 
   const railProviderTargets = useMemo(
@@ -316,6 +279,11 @@ export const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
           ...providerRailPreferences,
           hiddenTargetIds: effectiveHiddenTargetIds
         };
+  const runningTargetIds = agentGUIRunningTargetIds({
+    activeConversation,
+    agentTargets: providerTiles,
+    conversations
+  });
   const visibleProviderTiles = useMemo(
     () =>
       applyAgentGUIProviderRailVisibility(
@@ -545,6 +513,7 @@ export const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
       currentTargetIds: providerTiles.map((target) => target.targetId),
       placement,
       preferences: effectiveProviderRailPreferences,
+      runningTargetIds,
       targetId,
       visible
     });
@@ -552,6 +521,30 @@ export const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
       return;
     }
     persistProviderRailPreferences(nextPreferences);
+    const selectedTargetIds = new Set(
+      [selectedAgentTarget?.targetId, selectedAgentTarget?.agentTargetId]
+        .map((candidateId) => candidateId?.trim() ?? "")
+        .filter(Boolean)
+    );
+    if (
+      !visible &&
+      activeConversationId === null &&
+      selectedTargetIds.has(targetId)
+    ) {
+      const fallbackTargets = applyAgentGUIProviderRailVisibility(
+        providerTiles,
+        nextPreferences.hiddenTargetIds
+      );
+      const fallbackTarget =
+        fallbackTargets.find((target) => target.disabled !== true) ??
+        fallbackTargets[0];
+      if (fallbackTarget && fallbackTarget.targetId !== targetId) {
+        onSelectHomeComposerAgentTarget({
+          provider: fallbackTarget.provider,
+          agentTargetId: fallbackTarget.targetId
+        });
+      }
+    }
     if (
       !visible &&
       providerTiles.some(
@@ -628,6 +621,7 @@ export const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
       onOpenChange={onManagerOpenChange}
       onVisibilityChange={changeProviderManagerVisibility}
       open={managerOpen}
+      runningTargetIds={runningTargetIds}
       targets={providerTiles}
     />
   );
@@ -789,11 +783,3 @@ export const AgentGUIProviderRail = memo(function AgentGUIProviderRail({
     </div>
   );
 });
-
-function readAgentGUIProviderRailPreferences(
-  storageKey: string
-): AgentGUIProviderRailPreferences {
-  return parseAgentGUIProviderRailPreferences(
-    globalThis.localStorage?.getItem(storageKey)
-  );
-}

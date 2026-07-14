@@ -157,6 +157,7 @@ export interface AgentGUIViewLabels {
   manageAgentsNoAvailable: string;
   manageAgentsNoDisabled: string;
   manageAgentsKeepOneAvailable: string;
+  manageAgentsRunningBlocked: (agent: string) => string;
   removeAgentFromSidebar: (agent: string) => string;
   addAgentToSidebar: (agent: string) => string;
   dragAgentToReorder: (agent: string) => string;

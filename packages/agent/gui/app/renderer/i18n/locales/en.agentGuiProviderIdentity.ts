@@ -16,6 +16,8 @@ export const enAgentGuiProviderIdentity = {
   manageAgentsNoAvailable: "Add an agent from the disabled list below.",
   manageAgentsNoDisabled: "No disabled agents.",
   manageAgentsKeepOneAvailable: "Keep at least one agent available.",
+  manageAgentsRunningBlocked:
+    "{{agent}} is running and can't be disabled. Wait for it to finish and try again.",
   removeAgentFromSidebar: "Remove {{agent}} from sidebar",
   addAgentToSidebar: "Add {{agent}} to sidebar",
   dragAgentToReorder: "Drag {{agent}} to reorder"

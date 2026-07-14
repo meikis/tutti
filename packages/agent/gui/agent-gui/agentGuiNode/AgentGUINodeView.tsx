@@ -577,7 +577,10 @@ export function AgentGUINodeView({
             inert={conversationRailCollapsed ? true : undefined}
           >
             <AgentGUIProviderRail
+              activeConversation={viewModel.rail.activeConversation}
+              activeConversationId={viewModel.rail.activeConversationId}
               conversationFilter={viewModel.rail.conversationFilter}
+              conversations={viewModel.rail.conversations}
               labels={labels}
               previewMode={previewMode}
               selectedAgentTarget={viewModel.rail.selectedAgentTarget}
@@ -589,6 +592,9 @@ export function AgentGUINodeView({
               comingSoonProviders={viewModel.rail.comingSoonProviders}
               managerOpen={providerManagerOpen}
               onManagerOpenChange={setProviderManagerOpen}
+              onSelectHomeComposerAgentTarget={
+                actions.selectHomeComposerAgentTarget
+              }
               onSelectConversationFilterTarget={
                 actions.selectConversationFilterTarget
               }

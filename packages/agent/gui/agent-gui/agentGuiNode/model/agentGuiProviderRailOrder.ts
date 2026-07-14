@@ -1,4 +1,5 @@
 import type { AgentGUIAgentTarget } from "../../../types";
+import type { AgentGUIConversationSummary } from "./agentGuiConversationTypes";
 
 export const AGENT_GUI_PROVIDER_RAIL_PREFERENCES_STORAGE_KEY =
   "agent-gui:provider-rail-preferences";
@@ -14,6 +15,11 @@ export interface AgentGUIProviderRailPreferences {
 export interface AgentGUIProviderManagerDropPlacement {
   overTargetId: string;
   position: "before" | "after";
+}
+
+export interface AgentGUIManagedHomeTargetProjection {
+  agentTargets: readonly AgentGUIAgentTarget[];
+  selectedAgentTarget: AgentGUIAgentTarget | null;
 }
 
 const emptyAgentGUIProviderRailPreferences: AgentGUIProviderRailPreferences = {
@@ -155,6 +161,79 @@ export function applyAgentGUIProviderRailVisibility<
   return targets.filter((target) => !hidden.has(target.targetId));
 }
 
+export function agentGUIRunningTargetIds(input: {
+  activeConversation?: AgentGUIConversationSummary | null;
+  agentTargets: readonly AgentGUIAgentTarget[];
+  conversations: readonly AgentGUIConversationSummary[];
+}): readonly string[] {
+  const runningTargetIds = new Set<string>();
+  const seenConversationIds = new Set<string>();
+  for (const conversation of [
+    ...input.conversations,
+    ...(input.activeConversation ? [input.activeConversation] : [])
+  ]) {
+    if (
+      seenConversationIds.has(conversation.id) ||
+      (conversation.status !== "working" && conversation.status !== "waiting")
+    ) {
+      continue;
+    }
+    seenConversationIds.add(conversation.id);
+    const agentTargetId = conversation.agentTargetId?.trim() ?? "";
+    for (const target of input.agentTargets) {
+      const targetMatches = agentTargetId
+        ? target.targetId === agentTargetId ||
+          target.agentTargetId === agentTargetId
+        : target.provider === conversation.provider;
+      if (targetMatches) {
+        runningTargetIds.add(target.targetId);
+      }
+    }
+  }
+  return [...runningTargetIds];
+}
+
+export function projectAgentGUIManagedHomeTargets(input: {
+  agentTargets: readonly AgentGUIAgentTarget[];
+  preferences: AgentGUIProviderRailPreferences;
+  selectedAgentTarget: AgentGUIAgentTarget | null;
+}): AgentGUIManagedHomeTargetProjection {
+  const agentTargets = applyAgentGUIProviderRailVisibility(
+    applyAgentGUIProviderRailOrder(input.agentTargets, input.preferences.order),
+    input.preferences.hiddenTargetIds
+  );
+  const selectedAgentTarget = input.selectedAgentTarget;
+  if (!selectedAgentTarget) {
+    return { agentTargets, selectedAgentTarget: null };
+  }
+  const selectedTargetIds = new Set(
+    [selectedAgentTarget.targetId, selectedAgentTarget.agentTargetId]
+      .map((targetId) => targetId?.trim() ?? "")
+      .filter(Boolean)
+  );
+  if (
+    !input.preferences.hiddenTargetIds.some((targetId) =>
+      selectedTargetIds.has(targetId)
+    )
+  ) {
+    return { agentTargets, selectedAgentTarget };
+  }
+  return {
+    agentTargets,
+    selectedAgentTarget:
+      agentTargets.find(
+        (target) =>
+          selectedTargetIds.has(target.targetId) ||
+          (target.agentTargetId
+            ? selectedTargetIds.has(target.agentTargetId)
+            : false)
+      ) ??
+      agentTargets.find((target) => target.disabled !== true) ??
+      agentTargets[0] ??
+      selectedAgentTarget
+  };
+}
+
 export function normalizeAgentGUIProviderRailHiddenTargetIds(
   currentTargetIds: readonly string[],
   hiddenTargetIds: readonly string[]
@@ -211,6 +290,7 @@ export function changeAgentGUIProviderManagerVisibility(input: {
   currentTargetIds: readonly string[];
   placement?: AgentGUIProviderManagerDropPlacement;
   preferences: AgentGUIProviderRailPreferences;
+  runningTargetIds?: readonly string[];
   targetId: string;
   visible: boolean;
 }): AgentGUIProviderRailPreferences {
@@ -219,6 +299,14 @@ export function changeAgentGUIProviderManagerVisibility(input: {
   );
   const targetId = input.targetId.trim();
   if (!targetId || !currentTargetIds.includes(targetId)) {
+    return input.preferences;
+  }
+  if (
+    !input.visible &&
+    sanitizeAgentGUIProviderRailOrder(input.runningTargetIds ?? []).includes(
+      targetId
+    )
+  ) {
     return input.preferences;
   }
   const hiddenTargetIds = new Set(

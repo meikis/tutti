@@ -250,15 +250,24 @@ Agent rail ordering and visibility are also UI-local chrome state. Drag sorting
 and the rail management dialog persist one device-local order and hidden-target
 set in browser-local storage; they must not write those preferences into
 controller state, session state, or durable AgentGUI node data. The management
-dialog changes only rail presentation and never installs, removes, enables, or
-disables a real agent target. Hiding the selected target returns the rail filter
-to `All`. The manager presents available and hidden targets as separate icon
-grids. A long press enters a local edit mode for removal. Both grids are drop
-zones: same-grid drops reorder, and cross-grid drops atomically change local
-visibility and order. The pending drop position mirrors the provider rail by
-shifting the target tile aside and showing the same brand-color insertion line;
-the previewed before/after position is also the position committed on drop. At
-least one target must remain available, so both the remove action and an
+dialog changes only presentation and never installs, removes, enables, or
+disables a real agent target. The provider rail and empty-home new-conversation
+carousel and agent selector consume the same ordered visible-target projection,
+so manager changes update all new-conversation affordances immediately. If the
+selected empty-home target becomes hidden, the home composer moves to the first
+remaining visible target; active sessions keep their recorded target identity.
+Targets with a canonical `working` or `waiting` conversation cannot be hidden;
+the manager blocks the remove action and immediately shows a deduplicated,
+localized explanation when the target enters the hidden drop zone, without
+writing the local preference. Hiding the selected rail target otherwise returns
+the rail filter to `All`. The manager
+presents available and hidden targets as separate icon grids. A long press
+enters a local edit mode for removal. Both grids are drop zones: same-grid drops
+reorder, and cross-grid drops atomically change local visibility and order. The
+pending drop position mirrors the provider rail by shifting the target tile
+aside and showing the same brand-color insertion line; the previewed
+before/after position is also the position committed on drop. At least one
+target must remain available, so both the remove action and an
 available-to-hidden drop enforce that invariant. These gestures still update
 only the same local chrome preference. The manager keeps each target tile's
 outer hit box layout-stable, shifts only its inner visual content, and renders a

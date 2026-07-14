@@ -14,7 +14,8 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  toast
 } from "@tutti-os/ui-system";
 import type { AgentGUINodeViewModel } from "../model/agentGuiNodeTypes";
 import type { AgentGUIViewLabels } from "../AgentGUINodeView";
@@ -53,6 +54,7 @@ interface AgentGUIProviderManagerDialogProps {
     placement?: ProviderManagerDropPlacement
   ) => void;
   open: boolean;
+  runningTargetIds: readonly string[];
   targets: readonly ProviderRailTarget[];
 }
 
@@ -66,9 +68,11 @@ export function AgentGUIProviderManagerDialog({
   onOpenChange,
   onVisibilityChange,
   open,
+  runningTargetIds,
   targets
 }: AgentGUIProviderManagerDialogProps): React.JSX.Element {
   const hidden = new Set(hiddenTargetIds);
+  const running = new Set(runningTargetIds);
   const availableTargets = targets.filter(
     (target) => !hidden.has(target.targetId)
   );
@@ -91,6 +95,14 @@ export function AgentGUIProviderManagerDialog({
   );
   const longPressOriginRef = useRef<{ x: number; y: number } | null>(null);
   const finalAvailableAgent = availableTargets.length === 1;
+
+  const showRunningAgentBlocked = (targetId: string) => {
+    const target = targets.find((candidate) => candidate.targetId === targetId);
+    const label = target?.label.trim() || target?.provider || targetId;
+    toast.error(labels.manageAgentsRunningBlocked(label), {
+      id: `agent-gui-provider-manager-running:${targetId}`
+    });
+  };
 
   const cancelLongPress = () => {
     setLongPressTargetId(null);
@@ -197,7 +209,7 @@ export function AgentGUIProviderManagerDialog({
     !(
       dragged.source === "available" &&
       zone === "disabled" &&
-      finalAvailableAgent
+      (finalAvailableAgent || running.has(dragged.targetId))
     );
 
   const startDrag = (
@@ -223,6 +235,9 @@ export function AgentGUIProviderManagerDialog({
     updateDragPreview(null);
     if (!canDropIntoZone(dragged, zone)) {
       event.dataTransfer.dropEffect = "none";
+      if (zone === "disabled" && running.has(dragged.targetId)) {
+        showRunningAgentBlocked(dragged.targetId);
+      }
       return;
     }
     event.preventDefault();
@@ -280,6 +295,9 @@ export function AgentGUIProviderManagerDialog({
     if (!canDropIntoZone(dragged, zone)) {
       event.dataTransfer.dropEffect = "none";
       updateDragPreview(null);
+      if (zone === "disabled" && running.has(dragged.targetId)) {
+        showRunningAgentBlocked(dragged.targetId);
+      }
       return;
     }
     event.preventDefault();
@@ -353,8 +371,11 @@ export function AgentGUIProviderManagerDialog({
     clearDrag();
   };
 
-  const availableDropBlocked =
-    dragState?.source === "available" && finalAvailableAgent;
+  const disabledDropBlocked =
+    dragState?.source === "available" &&
+    (finalAvailableAgent || running.has(dragState.targetId));
+  const disabledDropBlockedByRunning =
+    dragState?.source === "available" && running.has(dragState.targetId);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -405,6 +426,7 @@ export function AgentGUIProviderManagerDialog({
               >
                 {availableTargets.map((target) => {
                   const label = target.label.trim() || target.provider;
+                  const targetRunning = running.has(target.targetId);
                   return (
                     <div
                       aria-label={labels.dragAgentToReorder(label)}
@@ -427,6 +449,7 @@ export function AgentGUIProviderManagerDialog({
                           ? "true"
                           : undefined
                       }
+                      data-running={targetRunning ? "true" : undefined}
                       data-testid="agent-gui-provider-manager-tile"
                       draggable
                       key={target.targetId}
@@ -475,16 +498,22 @@ export function AgentGUIProviderManagerDialog({
                         <Button
                           aria-label={labels.removeAgentFromSidebar(label)}
                           className="absolute right-0.5 top-0 z-10 size-5 rounded-full bg-[var(--background-panel)] p-0 text-[var(--state-danger)] shadow-sm hover:bg-[var(--transparency-hover)] hover:text-[var(--state-danger-hover)]"
-                          disabled={finalAvailableAgent}
+                          disabled={finalAvailableAgent && !targetRunning}
                           onClick={(event) => {
                             event.stopPropagation();
+                            if (targetRunning) {
+                              showRunningAgentBlocked(target.targetId);
+                              return;
+                            }
                             onVisibilityChange(target.targetId, false);
                           }}
                           size="icon-xs"
                           title={
-                            finalAvailableAgent
-                              ? labels.manageAgentsKeepOneAvailable
-                              : undefined
+                            targetRunning
+                              ? labels.manageAgentsRunningBlocked(label)
+                              : finalAvailableAgent
+                                ? labels.manageAgentsKeepOneAvailable
+                                : undefined
                           }
                           type="button"
                           variant="ghost"
@@ -518,12 +547,12 @@ export function AgentGUIProviderManagerDialog({
             aria-labelledby="agent-manager-disabled-heading"
             className="agent-gui-provider-manager-drop-zone mt-3 rounded-[10px] border-t border-[var(--border-1)] p-2 pt-4"
             data-drop-active={
-              dragOverZone === "disabled" && !availableDropBlocked
+              dragOverZone === "disabled" && !disabledDropBlocked
                 ? "true"
                 : undefined
             }
             data-drop-blocked={
-              dragOverZone === "disabled" && availableDropBlocked
+              dragOverZone === "disabled" && disabledDropBlocked
                 ? "true"
                 : undefined
             }
@@ -531,8 +560,14 @@ export function AgentGUIProviderManagerDialog({
             onDragOver={(event) => dragOverDropZone(event, "disabled")}
             onDrop={(event) => dropIntoZone(event, "disabled")}
             title={
-              availableDropBlocked
-                ? labels.manageAgentsKeepOneAvailable
+              disabledDropBlocked
+                ? disabledDropBlockedByRunning
+                  ? labels.manageAgentsRunningBlocked(
+                      targets.find(
+                        (target) => target.targetId === dragState?.targetId
+                      )?.label ?? ""
+                    )
+                  : labels.manageAgentsKeepOneAvailable
                 : undefined
             }
           >

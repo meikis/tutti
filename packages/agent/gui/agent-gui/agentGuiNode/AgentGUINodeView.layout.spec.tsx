@@ -87,6 +87,10 @@ const statusDotMock = vi.hoisted(() => ({
   }>
 }));
 
+const agentManagerToastMock = vi.hoisted(() => ({
+  error: vi.fn()
+}));
+
 function ensurePointerCaptureApi(): void {
   const elementPrototype = Element.prototype as Element & {
     hasPointerCapture?: (pointerId: number) => boolean;
@@ -253,6 +257,10 @@ vi.mock("@tutti-os/ui-system", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tutti-os/ui-system")>();
   return {
     ...actual,
+    toast: {
+      ...actual.toast,
+      error: agentManagerToastMock.error
+    },
     StatusDot: (props: {
       ariaLabel?: string;
       pulse?: boolean;
@@ -289,6 +297,7 @@ describe("AgentGUINodeView layout persistence", () => {
     verticalPaneRenderMock.railCommits = 0;
     verticalPaneRenderMock.timelineCommits = 0;
     statusDotMock.calls = [];
+    agentManagerToastMock.error.mockReset();
     globalThis.localStorage.clear();
     vi.useRealTimers();
   });
@@ -1491,6 +1500,82 @@ describe("AgentGUINodeView layout persistence", () => {
     ).toBe("local:claude-code");
   });
 
+  it("blocks disabling a running Agent by action or cross-grid drag", () => {
+    const codexTarget = createLocalAgentGUIAgentTarget("codex");
+    const claudeTarget = createLocalAgentGUIAgentTarget("claude-code");
+    const workingConversation = createConversationSummary("session-working", {
+      agentTargetId: codexTarget.targetId,
+      provider: "codex",
+      status: "working"
+    });
+    renderAgentGUINodeView({
+      viewModel: {
+        ...createViewModel(),
+        activeConversation: workingConversation,
+        activeConversationId: workingConversation.id,
+        agentTargets: [codexTarget, claudeTarget],
+        conversations: [workingConversation],
+        providerRailMode: "exact"
+      }
+    });
+
+    fireEvent.click(screen.getByTitle("agentConfig"));
+    fireEvent.click(screen.getByRole("button", { name: "manageAgents" }));
+    const codexTile = screen
+      .getAllByTestId("agent-gui-provider-manager-tile")
+      .find(
+        (tile) =>
+          tile.getAttribute("data-agent-target-id") === codexTarget.targetId
+      )!;
+    fireEvent.keyDown(codexTile, { key: "Enter" });
+    expect(codexTile).toHaveAttribute("data-running", "true");
+
+    const removeButton = screen.getByRole("button", {
+      name: "removeAgentFromSidebar:Codex"
+    });
+    expect(removeButton).not.toBeDisabled();
+    expect(removeButton).toHaveAttribute(
+      "title",
+      "manageAgentsRunningBlocked:Codex"
+    );
+    fireEvent.click(removeButton);
+
+    expect(agentManagerToastMock.error).toHaveBeenCalledWith(
+      "manageAgentsRunningBlocked:Codex",
+      { id: "agent-gui-provider-manager-running:local:codex" }
+    );
+    expect(
+      parseAgentGUIProviderRailPreferences(
+        globalThis.localStorage.getItem(agentGUIProviderRailOrderStorageKey())
+      ).hiddenTargetIds
+    ).toEqual([]);
+
+    const dataTransfer = createDataTransferStub();
+    const disabledDropZone = screen.getByTestId(
+      "agent-gui-provider-manager-disabled-drop-zone"
+    );
+    fireEvent.dragStart(codexTile, { dataTransfer });
+    fireEvent.dragOver(disabledDropZone, { dataTransfer });
+    expect(disabledDropZone).toHaveAttribute("data-drop-blocked", "true");
+    expect(agentManagerToastMock.error).toHaveBeenCalledTimes(2);
+    fireEvent.drop(disabledDropZone, { dataTransfer });
+
+    expect(agentManagerToastMock.error).toHaveBeenCalledTimes(2);
+    expect(
+      screen
+        .getAllByTestId("agent-gui-provider-manager-tile")
+        .some(
+          (tile) =>
+            tile.getAttribute("data-agent-target-id") === codexTarget.targetId
+        )
+    ).toBe(true);
+    expect(
+      parseAgentGUIProviderRailPreferences(
+        globalThis.localStorage.getItem(agentGUIProviderRailOrderStorageKey())
+      ).hiddenTargetIds
+    ).toEqual([]);
+  });
+
   it("keeps the final exact-mode agent available", () => {
     const codexTarget = createLocalAgentGUIAgentTarget("codex");
     renderAgentGUINodeView({
@@ -1931,6 +2016,166 @@ describe("AgentGUINodeView layout persistence", () => {
     ).not.toBeInTheDocument();
 
     expect(actions.selectHomeComposerAgentTarget).not.toHaveBeenCalled();
+  });
+
+  it("keeps the empty-home carousel and provider select in sync with Agent management", async () => {
+    const codexTarget = createLocalAgentGUIAgentTarget("codex");
+    const claudeTarget = createLocalAgentGUIAgentTarget("claude-code");
+    const cursorTarget = createLocalAgentGUIAgentTarget("cursor");
+    renderAgentGUINodeView({
+      labels: {
+        ...createLabels(),
+        empty: "What can Claude Code help you with?",
+        emptyProvider: "Claude Code"
+      },
+      viewModel: {
+        ...createViewModel(),
+        selectedAgentTarget: claudeTarget,
+        agentTargets: [codexTarget, claudeTarget, cursorTarget]
+      }
+    });
+
+    fireEvent.click(screen.getByTitle("agentConfig"));
+    fireEvent.click(screen.getByRole("button", { name: "manageAgents" }));
+    const availableGrid = screen.getByRole("list", {
+      name: "manageAgentsAvailable"
+    });
+    const codexManagerTile = within(availableGrid).getAllByTestId(
+      "agent-gui-provider-manager-tile"
+    )[0]!;
+    fireEvent.pointerDown(codexManagerTile, {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+      pointerId: 1
+    });
+    fireEvent.animationEnd(codexManagerTile, {
+      animationName: "agent-gui-provider-manager-long-press"
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "removeAgentFromSidebar:Codex" })
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Switch provider: Codex" })
+    ).toBeNull();
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "manageAgentsTitle" })
+      ).getByRole("button", { name: "Close" })
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "manageAgentsTitle" })
+      ).toBeNull();
+    });
+
+    const providerSelect = screen.getByRole("combobox", {
+      name: "Switch provider"
+    });
+    fireEvent.keyDown(providerSelect, { key: "ArrowDown" });
+    expect(screen.queryByRole("option", { name: "Codex" })).toBeNull();
+    expect(
+      await screen.findByRole("option", { name: "Claude Code" })
+    ).toBeVisible();
+    expect(screen.getByRole("option", { name: "Cursor" })).toBeVisible();
+    fireEvent.keyDown(providerSelect, { key: "Escape" });
+
+    fireEvent.click(screen.getByTitle("agentConfig"));
+    fireEvent.click(screen.getByRole("button", { name: "manageAgents" }));
+    const reopenedAvailableGrid = screen.getByRole("list", {
+      name: "manageAgentsAvailable"
+    });
+    fireEvent.keyDown(
+      within(reopenedAvailableGrid).getAllByTestId(
+        "agent-gui-provider-manager-tile"
+      )[0]!,
+      { key: "Enter" }
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "addAgentToSidebar:Codex" })
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "manageAgentsTitle" })
+      ).getByRole("button", { name: "Close" })
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "manageAgentsTitle" })
+      ).toBeNull();
+    });
+
+    fireEvent.keyDown(
+      screen.getByRole("combobox", { name: "Switch provider" }),
+      { key: "ArrowDown" }
+    );
+    expect(await screen.findByRole("option", { name: "Codex" })).toBeVisible();
+  });
+
+  it("falls back to a visible Agent when the selected empty-home Agent is hidden", async () => {
+    const actions = createActions();
+    const codexTarget = createLocalAgentGUIAgentTarget("codex");
+    const claudeTarget = createLocalAgentGUIAgentTarget("claude-code");
+    renderAgentGUINodeView({
+      actions,
+      labels: {
+        ...createLabels(),
+        empty: "What can Codex help you with?",
+        emptyProvider: "Codex"
+      },
+      viewModel: {
+        ...createViewModel(),
+        selectedAgentTarget: codexTarget,
+        agentTargets: [codexTarget, claudeTarget]
+      }
+    });
+
+    fireEvent.click(screen.getByTitle("agentConfig"));
+    fireEvent.click(screen.getByRole("button", { name: "manageAgents" }));
+    const availableGrid = screen.getByRole("list", {
+      name: "manageAgentsAvailable"
+    });
+    const codexManagerTile = within(availableGrid).getAllByTestId(
+      "agent-gui-provider-manager-tile"
+    )[0]!;
+    fireEvent.pointerDown(codexManagerTile, {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+      pointerId: 1
+    });
+    fireEvent.animationEnd(codexManagerTile, {
+      animationName: "agent-gui-provider-manager-long-press"
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "removeAgentFromSidebar:Codex" })
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "manageAgentsTitle" })
+      ).getByRole("button", { name: "Close" })
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "manageAgentsTitle" })
+      ).toBeNull();
+    });
+
+    expect(
+      screen.getByRole("heading", {
+        name: "What can Claude Code help you with?"
+      })
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Switch provider: Codex" })
+    ).toBeNull();
+    await waitFor(() => {
+      expect(actions.selectHomeComposerAgentTarget).toHaveBeenCalledWith({
+        provider: "claude-code",
+        agentTargetId: claudeTarget.targetId
+      });
+    });
   });
 
   it("requests composer focus after switching the empty hero provider select", async () => {
@@ -6202,6 +6447,8 @@ function createLabels(): AgentGUIViewLabels {
     manageAgentsNoAvailable: "manageAgentsNoAvailable",
     manageAgentsNoDisabled: "manageAgentsNoDisabled",
     manageAgentsKeepOneAvailable: "manageAgentsKeepOneAvailable",
+    manageAgentsRunningBlocked: (agent: string) =>
+      `manageAgentsRunningBlocked:${agent}`,
     removeAgentFromSidebar: (agent: string) =>
       `removeAgentFromSidebar:${agent}`,
     addAgentToSidebar: (agent: string) => `addAgentToSidebar:${agent}`,

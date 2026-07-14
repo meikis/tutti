@@ -16,6 +16,8 @@ export const zhCNAgentGuiProviderIdentity = {
   manageAgentsNoAvailable: "可从下方停用列表添加 Agent。",
   manageAgentsNoDisabled: "暂无停用 Agent。",
   manageAgentsKeepOneAvailable: "至少保留一个可用 Agent。",
+  manageAgentsRunningBlocked:
+    "{{agent}} 正在运行，暂时无法停用。请等待任务结束后再试。",
   removeAgentFromSidebar: "从左侧栏移除 {{agent}}",
   addAgentToSidebar: "将 {{agent}} 添加到左侧栏",
   dragAgentToReorder: "拖拽 {{agent}} 调整顺序"

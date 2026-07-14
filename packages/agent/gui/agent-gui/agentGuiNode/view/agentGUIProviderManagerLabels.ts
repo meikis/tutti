@@ -11,6 +11,7 @@ type AgentGUIProviderManagerLabels = Pick<
   | "manageAgentsNoAvailable"
   | "manageAgentsNoDisabled"
   | "manageAgentsKeepOneAvailable"
+  | "manageAgentsRunningBlocked"
   | "removeAgentFromSidebar"
   | "addAgentToSidebar"
   | "dragAgentToReorder"
@@ -30,6 +31,8 @@ export function agentGUIProviderManagerLabels(
     manageAgentsKeepOneAvailable: t(
       "agentHost.agentGui.manageAgentsKeepOneAvailable"
     ),
+    manageAgentsRunningBlocked: (agent) =>
+      t("agentHost.agentGui.manageAgentsRunningBlocked", { agent }),
     removeAgentFromSidebar: (agent) =>
       t("agentHost.agentGui.removeAgentFromSidebar", { agent }),
     addAgentToSidebar: (agent) =>
