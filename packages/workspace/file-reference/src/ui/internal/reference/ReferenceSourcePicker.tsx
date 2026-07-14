@@ -188,6 +188,9 @@ export function ReferenceSourcePicker({
     onConfirm,
     onConfirmBundles
   });
+  const hasVisibleContent = view.isQuery
+    ? view.searchResults.length > 0
+    : view.currentEntries.length > 0;
 
   // 文件类型筛选已下沉为查询参数(view.activeFilters);此处只做切换/清空的转发。
   const activeFilterSet = new Set(view.activeFilters);
@@ -523,7 +526,7 @@ export function ReferenceSourcePicker({
                         <Feedback>
                           <Spinner size={16} />
                         </Feedback>
-                      ) : view.contentError ? (
+                      ) : view.contentError && !hasVisibleContent ? (
                         <ContentError copy={copy} />
                       ) : view.isQuery ? (
                         // 查询态(关键词或筛选):扁平结果
@@ -572,6 +575,9 @@ export function ReferenceSourcePicker({
                           />
                         ))
                       )}
+                      {view.contentError && hasVisibleContent ? (
+                        <ContentError copy={copy} inline />
+                      ) : null}
                       {view.hasMore && (view.isQuery || hasSelectedGroup) ? (
                         <Button
                           className="mt-1 w-full"
@@ -756,6 +762,9 @@ export function ReferenceSourceContentPane({
     onClose: noopVoid,
     onConfirm: noopVoid
   });
+  const hasVisibleContent = view.isQuery
+    ? view.searchResults.length > 0
+    : view.currentEntries.length > 0;
   useEffect(() => {
     if (!initialNodeRef) {
       return;
@@ -975,7 +984,7 @@ export function ReferenceSourceContentPane({
               <Feedback>
                 <Spinner size={16} />
               </Feedback>
-            ) : view.contentError ? (
+            ) : view.contentError && !hasVisibleContent ? (
               <ContentError copy={copy} />
             ) : view.isQuery ? (
               view.searchResults.length === 0 ? (
@@ -1018,6 +1027,9 @@ export function ReferenceSourceContentPane({
                 />
               ))
             )}
+            {view.contentError && hasVisibleContent ? (
+              <ContentError copy={copy} inline />
+            ) : null}
             {view.hasMore && (view.isQuery || hasSelectedGroup) ? (
               <Button
                 className="mt-1 w-full"
@@ -1745,21 +1757,27 @@ function Feedback({ children }: { children: ReactNode }): JSX.Element {
 }
 
 function ContentError({
-  copy
+  copy,
+  inline = false
 }: {
   copy: WorkspaceFileReferenceCopy;
+  inline?: boolean;
 }): JSX.Element {
-  return (
-    <Feedback>
-      <div
-        className="flex max-w-sm flex-col items-center gap-2 text-[var(--state-danger)]"
-        role="alert"
-      >
-        <WarningLinedIcon className="size-5" />
-        <span>{copy.t("referencePicker.loadError")}</span>
-      </div>
-    </Feedback>
+  const content = (
+    <div
+      className="flex max-w-sm items-center gap-2 text-[var(--state-danger)]"
+      role="alert"
+    >
+      <WarningLinedIcon className="size-5 shrink-0" />
+      <span>{copy.t("referencePicker.loadError")}</span>
+    </div>
   );
+  if (inline) {
+    return (
+      <div className="flex justify-center px-4 py-3 text-[13px]">{content}</div>
+    );
+  }
+  return <Feedback>{content}</Feedback>;
 }
 
 /**

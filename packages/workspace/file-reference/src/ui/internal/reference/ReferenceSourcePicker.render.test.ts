@@ -106,6 +106,34 @@ test("reference source picker renders shared folder icons and content errors", a
       dom.window.document.querySelector('[role="alert"]')?.textContent,
       "referencePicker.loadError"
     );
+
+    (
+      globalThis as { __referenceSourcePickerView?: unknown }
+    ).__referenceSourcePickerView = {
+      ...createFolderOnlyView(folderNode),
+      contentError: new Error("load more failed")
+    };
+    await act(async () => {
+      root?.render(
+        createElement(ReferenceSourcePicker, {
+          aggregator: {},
+          copy: createCopy(),
+          onClose() {},
+          onConfirm() {},
+          open: true,
+          workspaceId: "workspace-reference-inline-error-test"
+        } as unknown as ReferenceSourcePickerProps)
+      );
+    });
+
+    assert.match(
+      dom.window.document.body.textContent ?? "",
+      /Workspace folder/
+    );
+    assert.equal(
+      dom.window.document.querySelector('[role="alert"]')?.textContent,
+      "referencePicker.loadError"
+    );
   } finally {
     if (root) {
       await act(async () => {

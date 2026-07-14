@@ -202,6 +202,7 @@ CREATE TABLE IF NOT EXISTS workspace_agent_session_forks (
   provider TEXT NOT NULL DEFAULT '',
   fork_turn_id TEXT NOT NULL DEFAULT '',
   fork_request_id TEXT NOT NULL DEFAULT '',
+  fork_request_fingerprint TEXT NOT NULL DEFAULT '',
   forked_at_unix_ms INTEGER NOT NULL,
   PRIMARY KEY (workspace_id, child_agent_session_id),
   UNIQUE (workspace_id, fork_request_id),
@@ -281,18 +282,21 @@ not one atomic transaction.
 2. Return an existing result if `(workspaceID, requestId)` has already completed.
 3. Load the parent session and verify provider is `codex`.
 4. Verify the parent has a non-empty `providerSessionId`.
-5. Validate `lastTurnId` when present:
+5. Verify the parent session is idle (`ready` or `completed`). Reject a
+   `working` parent before calling the provider so a whole-conversation fork
+   cannot race an active turn.
+6. Validate `lastTurnId` when present:
    - it must exist in parent messages or provider turns;
    - it must not identify an in-progress turn.
-6. Resolve child `agentSessionId`.
-7. Resolve child title with the default title rules.
-8. Resolve effective settings and cwd.
-9. Call `RuntimeController.Fork`.
-10. Persist child `workspace_agent_sessions`.
-11. Persist `workspace_agent_session_forks`.
-12. Persist child messages from provider-derived history or fallback copy.
-13. Publish activity/session events.
-14. Return the child session and lineage response.
+7. Resolve child `agentSessionId`.
+8. Resolve child title with the default title rules.
+9. Resolve effective settings and cwd.
+10. Call `RuntimeController.Fork`.
+11. Persist child `workspace_agent_sessions`.
+12. Persist `workspace_agent_session_forks`.
+13. Persist child messages from provider-derived history or fallback copy.
+14. Publish activity/session events.
+15. Return the child session and lineage response.
 
 If provider fork succeeds but local persistence fails, tuttid returns failure
 and logs the orphan provider thread id with enough context for cleanup or
@@ -327,6 +331,7 @@ Use stable app error codes:
 - `agent.fork_unsupported_provider`: provider has no fork implementation.
 - `agent.fork_parent_not_found`: source session is missing.
 - `agent.fork_provider_session_missing`: parent has no provider session id.
+- `agent.fork_session_not_idle`: parent has an active turn.
 - `agent.fork_turn_not_found`: `lastTurnId` was not found.
 - `agent.fork_turn_in_progress`: `lastTurnId` identifies an active turn.
 - `agent.fork_target_conflict`: requested child session id already exists.
@@ -339,7 +344,7 @@ HTTP mapping:
 
 - `400` for invalid input and missing/invalid `lastTurnId`.
 - `404` for missing parent session.
-- `409` for active turn, target conflict, or request conflict.
+- `409` for a non-idle parent, active turn, target conflict, or request conflict.
 - `422` for unsupported provider.
 - `502` for provider fork failure.
 - `503` for unavailable runtime or storage dependencies.
@@ -356,6 +361,7 @@ Backend unit tests:
 - Service applies title rule `<parent title>(fork<num>)`.
 - Service increments fork number for repeated direct forks.
 - Service respects explicit child title.
+- Service rejects a whole-conversation fork while the parent is working.
 - Service rejects in-progress turn fork.
 - Service handles idempotent request replay.
 - Service rejects request id reuse with different parameters.

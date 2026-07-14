@@ -5,6 +5,7 @@ package workspace
 import (
 	"bufio"
 	"context"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -14,10 +15,9 @@ import (
 	workspacefiles "github.com/tutti-os/tutti/packages/workspace/files"
 )
 
-// recentCandidateCap bounds how many Spotlight hits we date-stamp and sort.
-// Spotlight returns matches unordered, so we over-fetch candidates, read each
-// one's last-used date, then keep the newest `limit`.
-const recentCandidateCap = 400
+// mdlsPathBatchSize keeps the argv for each metadata lookup comfortably below
+// the platform limit while still avoiding one process per candidate.
+const mdlsPathBatchSize = 200
 
 // recentLookupTimeout bounds the external Spotlight calls so a slow index never
 // stalls the picker.
@@ -107,8 +107,8 @@ type recentCandidate struct {
 }
 
 // spotlightRecentCandidates returns Finder-compatible recent, non-folder paths
-// under rootPath, capped to recentCandidateCap. Order is Spotlight's (unranked
-// by date here).
+// under rootPath. Spotlight does not rank these results by last-used date, so
+// every candidate must survive until spotlightLastUsedDates sorts them.
 func spotlightRecentCandidates(ctx context.Context, rootPath string) ([]string, error) {
 	cmd := exec.CommandContext(
 		ctx,
@@ -121,8 +121,12 @@ func spotlightRecentCandidates(ctx context.Context, rootPath string) ([]string, 
 		return nil, err
 	}
 
-	paths := make([]string, 0, recentCandidateCap)
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	return parseSpotlightRecentCandidates(strings.NewReader(string(output)))
+}
+
+func parseSpotlightRecentCandidates(reader io.Reader) ([]string, error) {
+	paths := make([]string, 0)
+	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		path := strings.TrimSpace(scanner.Text())
@@ -130,9 +134,9 @@ func spotlightRecentCandidates(ctx context.Context, rootPath string) ([]string, 
 			continue
 		}
 		paths = append(paths, path)
-		if len(paths) >= recentCandidateCap {
-			break
-		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 	return paths, nil
 }
@@ -144,6 +148,18 @@ func spotlightLastUsedDates(ctx context.Context, paths []string) []recentCandida
 	if len(paths) == 0 {
 		return nil
 	}
+	dated := make([]recentCandidate, 0, len(paths))
+	for start := 0; start < len(paths); start += mdlsPathBatchSize {
+		end := min(start+mdlsPathBatchSize, len(paths))
+		dated = append(dated, spotlightLastUsedDatesBatch(ctx, paths[start:end])...)
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return dated
+}
+
+func spotlightLastUsedDatesBatch(ctx context.Context, paths []string) []recentCandidate {
 	args := append([]string{"-name", "kMDItemLastUsedDate"}, paths...)
 	output, err := exec.CommandContext(ctx, "mdls", args...).Output()
 	if err != nil {

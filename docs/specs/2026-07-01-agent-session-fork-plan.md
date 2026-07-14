@@ -34,6 +34,8 @@
   - Add `Controller.Fork`.
 - `packages/agent/daemon/runtime/codex_appserver_adapter.go`
   - Implement Codex `thread/fork`.
+- `packages/agent/daemon/runtime/acp_fork_errors.go`
+  - Add fork-specific provider error classification and user-facing messages.
 - `packages/agent/daemon/runtime/codex_appserver_adapter_test.go`
   - Runtime tests for `thread/fork` request/response mapping.
 - `services/tuttid/api/openapi/tuttid.v1.yaml`
@@ -156,8 +158,11 @@ type ForkLineage struct {
 	Provider                 string
 	ForkTurnID               string
 	ForkRequestID            string
+	ForkRequestFingerprint   string
 	ForkedAtUnixMS           int64
 }
+
+var ErrForkRequestIDConflict = errors.New("agent session fork request id already exists")
 ```
 
 Add a new migration id after the current workspace agent activity migrations:
@@ -178,6 +183,7 @@ CREATE TABLE IF NOT EXISTS workspace_agent_session_forks (
   provider TEXT NOT NULL DEFAULT '',
   fork_turn_id TEXT NOT NULL DEFAULT '',
   fork_request_id TEXT NOT NULL DEFAULT '',
+  fork_request_fingerprint TEXT NOT NULL DEFAULT '',
   forked_at_unix_ms INTEGER NOT NULL,
   PRIMARY KEY (workspace_id, child_agent_session_id),
   UNIQUE (workspace_id, fork_request_id),
@@ -220,8 +226,8 @@ func (s *SQLiteStore) InsertAgentSessionFork(ctx context.Context, fork agentacti
 INSERT INTO workspace_agent_session_forks (
   workspace_id, child_agent_session_id, parent_agent_session_id,
   child_provider_session_id, parent_provider_session_id, provider,
-  fork_turn_id, fork_request_id, forked_at_unix_ms
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+  fork_turn_id, fork_request_id, fork_request_fingerprint, forked_at_unix_ms
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		strings.TrimSpace(fork.WorkspaceID),
 		strings.TrimSpace(fork.ChildAgentSessionID),
 		strings.TrimSpace(fork.ParentAgentSessionID),
@@ -230,9 +236,16 @@ INSERT INTO workspace_agent_session_forks (
 		strings.TrimSpace(fork.Provider),
 		strings.TrimSpace(fork.ForkTurnID),
 		strings.TrimSpace(fork.ForkRequestID),
+		strings.TrimSpace(fork.ForkRequestFingerprint),
 		fork.ForkedAtUnixMS,
 	)
 	if err != nil {
+		if isSQLiteUniqueConstraintError(err) && strings.Contains(
+			err.Error(),
+			"workspace_agent_session_forks.workspace_id, workspace_agent_session_forks.fork_request_id",
+		) {
+			return fmt.Errorf("%w: %v", agentactivitybiz.ErrForkRequestIDConflict, err)
+		}
 		return fmt.Errorf("insert workspace agent session fork: %w", err)
 	}
 	return nil
@@ -242,7 +255,7 @@ func (s *SQLiteStore) GetAgentSessionForkByRequestID(ctx context.Context, worksp
 	return s.scanAgentSessionFork(ctx, `
 SELECT workspace_id, child_agent_session_id, parent_agent_session_id,
        child_provider_session_id, parent_provider_session_id, provider,
-       fork_turn_id, fork_request_id, forked_at_unix_ms
+       fork_turn_id, fork_request_id, fork_request_fingerprint, forked_at_unix_ms
 FROM workspace_agent_session_forks
 WHERE workspace_id = ? AND fork_request_id = ?;`,
 		strings.TrimSpace(workspaceID),
@@ -254,7 +267,7 @@ func (s *SQLiteStore) ListAgentSessionForksByParent(ctx context.Context, workspa
 	rows, err := s.db.QueryContext(ctx, `
 SELECT workspace_id, child_agent_session_id, parent_agent_session_id,
        child_provider_session_id, parent_provider_session_id, provider,
-       fork_turn_id, fork_request_id, forked_at_unix_ms
+       fork_turn_id, fork_request_id, fork_request_fingerprint, forked_at_unix_ms
 FROM workspace_agent_session_forks
 WHERE workspace_id = ? AND parent_agent_session_id = ?
 ORDER BY forked_at_unix_ms ASC, child_agent_session_id ASC;`,
@@ -306,6 +319,7 @@ func scanAgentSessionForkRow(row agentSessionForkScanner) (agentactivitybiz.Fork
 		&fork.Provider,
 		&fork.ForkTurnID,
 		&fork.ForkRequestID,
+		&fork.ForkRequestFingerprint,
 		&fork.ForkedAtUnixMS,
 	); err != nil {
 		return agentactivitybiz.ForkLineage{}, fmt.Errorf("scan workspace agent session fork: %w", err)
@@ -313,6 +327,11 @@ func scanAgentSessionForkRow(row agentSessionForkScanner) (agentactivitybiz.Fork
 	return fork, nil
 }
 ```
+
+Add a storage test that inserts the same `fork_request_id` twice and asserts
+`errors.Is(err, agentactivitybiz.ErrForkRequestIDConflict)`. Add a separate
+test that forces a non-unique database error and asserts it is _not_ classified
+as a request conflict.
 
 - [ ] **Step 5: Run storage tests**
 
@@ -376,8 +395,16 @@ func TestCodexAppServerAdapterFork(t *testing.T) {
 	if result.Session.ProviderSessionID == "" || result.Session.ProviderSessionID == "thread-parent" {
 		t.Fatalf("child provider session id = %q", result.Session.ProviderSessionID)
 	}
+	if len(result.Messages) == 0 || result.Messages[0].TurnID != "turn-1" {
+		t.Fatalf("fork messages = %#v, want provider-derived child history", result.Messages)
+	}
 }
 ```
+
+Script the fork response with turns, and add a second test where `thread/fork`
+returns no turns: the adapter must call `thread/read` with `includeTurns: true`
+and return the projected child history. Also cover the case where both provider
+responses omit turns so the service can exercise its parent-cache fallback.
 
 - [ ] **Step 2: Run test and verify it fails**
 
@@ -413,10 +440,23 @@ type ForkLineage struct {
 	ForkedAtUnixMS           int64  `json:"forkedAtUnixMs"`
 }
 
+type ForkMessage struct {
+	MessageID         string
+	TurnID            string
+	Role              string
+	Kind              string
+	Status            string
+	Payload           map[string]any
+	OccurredAtUnixMS  int64
+	StartedAtUnixMS   int64
+	CompletedAtUnixMS int64
+}
+
 type ForkResult struct {
-	Session Session     `json:"session"`
-	Events  []Event     `json:"events,omitempty"`
-	Fork    ForkLineage `json:"fork"`
+	Session  Session       `json:"session"`
+	Messages []ForkMessage `json:"messages,omitempty"`
+	Events   []Event       `json:"events,omitempty"`
+	Fork     ForkLineage   `json:"fork"`
 }
 ```
 
@@ -468,7 +508,7 @@ Add `Fork` near `Resume` in `codex_appserver_adapter.go`:
 func (a *CodexAppServerAdapter) Fork(ctx context.Context, input ForkInput) (result ForkResult, err error) {
 	source := input.Source
 	if strings.TrimSpace(source.ProviderSessionID) == "" {
-		return ForkResult{}, missingProviderSessionResumeError(source)
+		return ForkResult{}, missingProviderSessionForkError(source)
 	}
 	target := source
 	target.AgentSessionID = strings.TrimSpace(input.TargetAgentSessionID)
@@ -519,13 +559,29 @@ func (a *CodexAppServerAdapter) Fork(ctx context.Context, input ForkInput) (resu
 			return err
 		})
 	if err != nil {
-		return ForkResult{}, classifyACPResumeError(source, appServerMethodThreadFork, err)
+		return ForkResult{}, classifyACPForkError(source, err)
 	}
 	threadID, err := appServerThreadID(threadResult)
 	if err != nil {
 		return ForkResult{}, err
 	}
 	target.ProviderSessionID = threadID
+	messages, err := appServerForkMessages(threadResult)
+	if err != nil {
+		return ForkResult{}, classifyACPForkError(source, err)
+	}
+	if len(messages) == 0 {
+		readResult, readErr := trace.Call(ctx, client, acpStartCallTimeout, appServerMethodThreadRead, map[string]any{
+			"threadId":    threadID,
+			"includeTurns": true,
+		}, nil)
+		if readErr == nil {
+			messages, err = appServerForkMessages(readResult)
+			if err != nil {
+				return ForkResult{}, classifyACPForkError(source, err)
+			}
+		}
+	}
 	target.Status = SessionStatusReady
 	target.CreatedAtUnixMS = unixMS(now())
 	target.UpdatedAtUnixMS = target.CreatedAtUnixMS
@@ -556,8 +612,9 @@ func (a *CodexAppServerAdapter) Fork(ctx context.Context, input ForkInput) (resu
 		"permissionModeId": target.PermissionModeID,
 	})}
 	return ForkResult{
-		Session: target,
-		Events:  events,
+		Session:  target,
+		Messages: messages,
+		Events:   events,
 		Fork: ForkLineage{
 			SourceAgentSessionID:    source.AgentSessionID,
 			TargetAgentSessionID:    target.AgentSessionID,
@@ -570,6 +627,36 @@ func (a *CodexAppServerAdapter) Fork(ctx context.Context, input ForkInput) (resu
 	}, nil
 }
 ```
+
+Add `acp_fork_errors.go` instead of reusing the resume helpers:
+
+```go
+func missingProviderSessionForkError(session Session) error {
+	return &AppError{
+		Code:    AppErrorForkProviderSessionMissing,
+		Message: "Agent provider session cannot be forked because its provider id is missing.",
+	}
+}
+
+func classifyACPForkError(session Session, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &AppError{
+		Code:         AppErrorForkProviderFailed,
+		Message:      "Agent provider session could not be forked.",
+		DebugMessage: fmt.Sprintf("ACP thread/fork failed: room_id=%s provider=%s agent_session_id=%s provider_session_id=%s cause=%v",
+			strings.TrimSpace(session.RoomID), strings.TrimSpace(session.Provider),
+			strings.TrimSpace(session.AgentSessionID), strings.TrimSpace(session.ProviderSessionID), err),
+		Cause: err,
+	}
+}
+```
+
+Add the two fork-specific app error constants and mapping tests. Do not route
+`thread/fork` through `classifyACPResumeError`: its supported-method check is
+resume-only and its `agent.resume_session_not_local` copy is incorrect for a
+fork operation.
 
 - [ ] **Step 6: Run runtime tests**
 
@@ -659,6 +746,23 @@ func TestServiceForkCreatesChildSessionWithGeneratedTitle(t *testing.T) {
 }
 ```
 
+Add focused tests before implementing the service:
+
+- `TestServiceForkRejectsWorkingParent` asserts the runtime is not called and
+  returns `ErrForkSessionNotIdle`.
+- `TestServiceForkRejectsUnknownLastTurn` and
+  `TestServiceForkRejectsInProgressLastTurn` cover the two typed turn errors.
+- `TestServiceForkPersistsProviderMessages` verifies provider-derived messages
+  are written under the child session.
+- `TestServiceForkFallsBackToCompletedParentMessages` verifies the inclusive
+  boundary, exclusion of active/optimistic messages, and child-local versions.
+- `TestServiceForkClassifiesOnlyRequestIDUniqueViolationAsConflict` injects a
+  UNIQUE request-id error and a generic disk error and expects conflict vs.
+  persistence failure respectively.
+- `TestServiceForkRejectsRequestIDReuseWithDifferentParameters` verifies the
+  idempotency key cannot silently return a child created for another source or
+  boundary.
+
 - [ ] **Step 2: Run service test and verify it fails**
 
 Run:
@@ -703,6 +807,8 @@ type ForkStore interface {
 	InsertAgentSessionFork(context.Context, agentactivitybiz.ForkLineage) error
 	GetAgentSessionForkByRequestID(context.Context, string, string) (agentactivitybiz.ForkLineage, bool, error)
 	ListAgentSessionForksByParent(context.Context, string, string) ([]agentactivitybiz.ForkLineage, error)
+	ReportSessionState(context.Context, agentactivitybiz.SessionStateReport) (agentactivitybiz.StateReportResult, error)
+	ReportSessionMessages(context.Context, agentactivitybiz.SessionMessageReport) (agentactivitybiz.MessageReportResult, error)
 }
 ```
 
@@ -734,9 +840,22 @@ type RuntimeForkLineage struct {
 	ForkedAtUnixMS          int64
 }
 
+type RuntimeMessage struct {
+	MessageID         string
+	TurnID            string
+	Role              string
+	Kind              string
+	Status            string
+	Payload           map[string]any
+	OccurredAtUnixMS  int64
+	StartedAtUnixMS   int64
+	CompletedAtUnixMS int64
+}
+
 type RuntimeForkResult struct {
-	Session RuntimeSession
-	Fork    RuntimeForkLineage
+	Session  RuntimeSession
+	Messages []RuntimeMessage
+	Fork     RuntimeForkLineage
 }
 ```
 
@@ -767,7 +886,11 @@ import (
 var (
 	ErrForkUnsupportedProvider      = errors.New("agent session fork is unsupported for provider")
 	ErrForkProviderSessionMissing   = errors.New("agent session fork provider session id is missing")
+	ErrForkSessionNotIdle           = errors.New("agent session fork parent is not idle")
+	ErrForkTurnNotFound             = errors.New("agent session fork turn was not found")
+	ErrForkTurnInProgress           = errors.New("agent session fork turn is in progress")
 	ErrForkRequestConflict          = errors.New("agent session fork request conflicts with existing fork")
+	ErrForkPersistenceFailed        = errors.New("agent session fork local persistence failed")
 )
 
 func (s *Service) Fork(ctx context.Context, workspaceID string, sourceAgentSessionID string, input ForkSessionInput) (ForkSessionResult, error) {
@@ -780,9 +903,13 @@ func (s *Service) Fork(ctx context.Context, workspaceID string, sourceAgentSessi
 	if s.ForkStore == nil || s.SessionReader == nil {
 		return ForkSessionResult{}, ErrSessionNotFound
 	}
+	requestFingerprint := forkRequestFingerprint(sourceAgentSessionID, input)
 	if existing, ok, err := s.ForkStore.GetAgentSessionForkByRequestID(ctx, workspaceID, requestID); err != nil {
 		return ForkSessionResult{}, err
 	} else if ok {
+		if existing.ForkRequestFingerprint != requestFingerprint {
+			return ForkSessionResult{}, ErrForkRequestConflict
+		}
 		session, err := s.Get(ctx, workspaceID, existing.ChildAgentSessionID)
 		if err != nil {
 			return ForkSessionResult{}, err
@@ -798,6 +925,22 @@ func (s *Service) Fork(ctx context.Context, workspaceID string, sourceAgentSessi
 	}
 	if strings.TrimSpace(parent.ProviderSessionID) == "" {
 		return ForkSessionResult{}, ErrForkProviderSessionMissing
+	}
+	if parent.Status != "ready" && parent.Status != "completed" {
+		return ForkSessionResult{}, ErrForkSessionNotIdle
+	}
+	lastTurnID := strings.TrimSpace(input.LastTurnID)
+	if lastTurnID != "" {
+		turn, ok, err := s.lookupPersistedTurn(ctx, workspaceID, parent.ID, lastTurnID)
+		if err != nil {
+			return ForkSessionResult{}, err
+		}
+		if !ok {
+			return ForkSessionResult{}, ErrForkTurnNotFound
+		}
+		if turn.Phase != agentactivitybiz.TurnPhaseSettled {
+			return ForkSessionResult{}, ErrForkTurnInProgress
+		}
 	}
 	targetID := strings.TrimSpace(input.TargetAgentSessionID)
 	if targetID == "" {
@@ -815,7 +958,7 @@ func (s *Service) Fork(ctx context.Context, workspaceID string, sourceAgentSessi
 		SourceProviderSessionID: parent.ProviderSessionID,
 		Cwd:                     parent.Cwd,
 		Settings:                parent.Settings,
-		LastTurnID:              strings.TrimSpace(input.LastTurnID),
+		LastTurnID:              lastTurnID,
 		Title:                   title,
 		Visible:                 input.Visible,
 	})
@@ -830,19 +973,51 @@ func (s *Service) Fork(ctx context.Context, workspaceID string, sourceAgentSessi
 		ChildProviderSessionID:   runtimeResult.Session.ProviderSessionID,
 		ParentProviderSessionID:  parent.ProviderSessionID,
 		Provider:                 parent.Provider,
-		ForkTurnID:               strings.TrimSpace(input.LastTurnID),
+		ForkTurnID:               lastTurnID,
 		ForkRequestID:            requestID,
+		ForkRequestFingerprint:   requestFingerprint,
 		ForkedAtUnixMS:           forkedAt,
 	}
+	messages, messageSource, err := s.resolveForkMessages(ctx, parent, lastTurnID, runtimeResult.Messages)
+	if err != nil {
+		return ForkSessionResult{}, fmt.Errorf("%w: %v", ErrForkPersistenceFailed, err)
+	}
+	if err := s.persistForkedSession(ctx, runtimeResult.Session, parent, messageSource); err != nil {
+		return ForkSessionResult{}, fmt.Errorf("%w: %v", ErrForkPersistenceFailed, err)
+	}
 	if err := s.ForkStore.InsertAgentSessionFork(ctx, lineage); err != nil {
-		return ForkSessionResult{}, fmt.Errorf("%w: %v", ErrForkRequestConflict, err)
+		if errors.Is(err, agentactivitybiz.ErrForkRequestIDConflict) {
+			return ForkSessionResult{}, fmt.Errorf("%w: %v", ErrForkRequestConflict, err)
+		}
+		return ForkSessionResult{}, fmt.Errorf("%w: %v", ErrForkPersistenceFailed, err)
+	}
+	if err := s.persistForkMessages(ctx, runtimeResult.Session.ID, messages); err != nil {
+		return ForkSessionResult{}, fmt.Errorf("%w: %v", ErrForkPersistenceFailed, err)
 	}
 	session := serviceSession(runtimeResult.Session, s.controller().CanResume(runtimeResumeInputFromRuntimeSession(runtimeResult.Session)))
 	return ForkSessionResult{Session: session, Fork: serviceForkLineage(lineage)}, nil
 }
 ```
 
-Include helpers `nextForkTitle`, `directForkNumberFromLineage`, and `serviceForkLineage`.
+Include helpers `nextForkTitle`, `directForkNumberFromLineage`, and
+`serviceForkLineage`. Compute `forkRequestFingerprint` as a canonical hash of
+the normalized source id, optional target id, turn boundary, explicit title,
+visibility, and settings override; exclude `requestId` itself. Also add:
+
+- `resolveForkMessages`: prefer `runtimeResult.Messages`; otherwise page through
+  parent cached messages, keep only settled turns, and stop inclusively at
+  `lastTurnID` when present.
+- `persistForkedSession`: write the child session and
+  `runtimeContext.forkMessageSource` before returning success.
+- `persistForkMessages`: re-scope message ids to the child session and assign
+  child-local monotonically increasing versions before calling
+  `ReportSessionMessages` in bounded batches.
+
+The store must translate only the SQLite UNIQUE violation for
+`(workspace_id, fork_request_id)` to
+`agentactivitybiz.ErrForkRequestIDConflict`; all other SQL, disk, timeout, and
+message-write failures remain persistence errors. Log the orphan provider
+thread id on every post-provider persistence failure.
 
 - [ ] **Step 5: Run service tests**
 
@@ -1081,6 +1256,14 @@ func (api DaemonAPI) ForkWorkspaceAgentSession(ctx context.Context, request tutt
 	}, nil
 }
 ```
+
+`writeForkWorkspaceAgentSessionError` must preserve the design's stable error
+codes and status classes: invalid or unknown turn → `400`, missing parent →
+`404`, non-idle parent / in-progress turn / target or request conflict → `409`,
+unsupported provider → `422`, provider fork failure → `502`, and storage or
+runtime dependency/persistence failure → `503`. Add one API test per mapping,
+including distinct assertions for `agent.fork_request_conflict` and
+`agent.fork_persistence_failed`.
 
 - [ ] **Step 6: Run API and generated checks**
 
