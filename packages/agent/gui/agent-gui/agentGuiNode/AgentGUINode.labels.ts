@@ -9,7 +9,6 @@ import type { AgentGUIViewLabels } from "./AgentGUINodeView";
 import { agentGUIProviderManagerLabels } from "./view/agentGUIProviderManagerLabels";
 
 const TASK_CENTER_WORKSPACE_APP_ID = "issue-manager";
-
 function buildAgentHomeSuggestions(
   t: TranslateFn,
   workspaceId: string,
@@ -104,6 +103,7 @@ const workspaceFileReferenceLocaleKeyByPickerKey: Record<string, string> = {
   "referencePicker.loadMoreGroups":
     "agentHost.agentGui.referencePicker.loadMoreGroups",
   "referencePicker.loading": "agentHost.agentGui.referencePicker.loading",
+  "referencePicker.loadError": "agentHost.agentGui.referencePicker.loadError",
   "referencePicker.previewBinary":
     "agentHost.agentGui.referencePicker.previewBinary",
   "referencePicker.previewDecodeFailed":
