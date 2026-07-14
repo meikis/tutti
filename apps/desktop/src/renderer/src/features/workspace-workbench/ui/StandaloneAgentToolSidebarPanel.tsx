@@ -8,10 +8,7 @@ import type { WorkspaceAgentActivityService } from "@renderer/features/workspace
 import type { DesktopBrowserApi } from "@preload/types";
 import type { useTranslation } from "@renderer/i18n";
 import type { StandaloneAgentIssueManagerOpenRequest } from "../services/standaloneAgentIssueManagerLaunch.ts";
-import type {
-  StandaloneAgentSharedToolPanelId,
-  StandaloneAgentToolPanelId
-} from "./standaloneAgentToolSidebarModel.ts";
+import type { StandaloneAgentToolTab } from "./standaloneAgentToolSidebarModel.ts";
 import { StandaloneAgentBrowserToolPanel } from "./StandaloneAgentBrowserToolPanel.tsx";
 import { StandaloneAgentToolLoadingState } from "./StandaloneAgentToolLoadingState.tsx";
 
@@ -50,7 +47,6 @@ const LazyStandaloneAgentTerminalPanel = lazy(() =>
     })
   )
 );
-
 export interface StandaloneAgentFileOpenRequest {
   path: string;
   requestID: string;
@@ -63,13 +59,14 @@ export function StandaloneAgentToolSidebarPanel({
   browserApi,
   contributions,
   fileOpenRequest,
+  instanceId,
   issueManagerOpenRequest,
   i18n,
   locale,
   messageCenterOpen,
   onCloseMessageCenter,
   onOpenMessageCenterChat,
-  panel,
+  tab,
   setToolHost,
   workspaceId
 }: {
@@ -79,6 +76,7 @@ export function StandaloneAgentToolSidebarPanel({
   browserApi?: DesktopBrowserApi;
   contributions: readonly WorkbenchContribution[] | undefined;
   fileOpenRequest: StandaloneAgentFileOpenRequest | null;
+  instanceId: string;
   issueManagerOpenRequest: StandaloneAgentIssueManagerOpenRequest | null;
   i18n: I18nRuntime<string>;
   locale: ReturnType<typeof useTranslation>["locale"];
@@ -88,13 +86,11 @@ export function StandaloneAgentToolSidebarPanel({
     agentSessionId: string;
     provider: string;
   }) => void;
-  panel: StandaloneAgentToolPanelId;
-  setToolHost: (
-    panel: StandaloneAgentSharedToolPanelId,
-    host: WorkbenchHostHandle | null
-  ) => void;
+  tab: StandaloneAgentToolTab;
+  setToolHost: (instanceId: string, host: WorkbenchHostHandle | null) => void;
   workspaceId: string;
 }): ReactNode {
+  const panel = tab.panel;
   if (panel === "files") {
     return (
       <Suspense
@@ -105,6 +101,7 @@ export function StandaloneAgentToolSidebarPanel({
         <LazyWorkspaceFileManagerPane
           className="h-full"
           revealIntent={fileOpenRequest}
+          showInternalOpenWithActions={false}
           showPreviewPanel={false}
           workspaceID={workspaceId}
         />
@@ -189,6 +186,7 @@ export function StandaloneAgentToolSidebarPanel({
       >
         <LazyStandaloneAgentTerminalPanel
           contributions={contributions}
+          instanceId={instanceId}
           loadingLabel={i18n.t("common.loading")}
           open={active}
           setToolHost={setToolHost}

@@ -573,6 +573,45 @@ Turn state, loading, cancel, restore, rail projection, event updates, imports, a
   [controller.go](../../../packages/agent/daemon/runtime/controller.go)
   [controller_test.go](../../../packages/agent/daemon/runtime/controller_test.go)
 
+### Claude Code cancel leaves Write/tool cards stuck in progress
+
+- Symptom:
+  User stops a Claude Code turn while a tool such as Write is running. The turn
+  settles as canceled/interrupted, but the transcript still shows the tool as
+  in progress.
+- Quick checks:
+  Compare durable tool-call message status with turn outcome. If the turn is
+  interrupted/canceled and the open `tool_call` is still `running`, the Claude
+  SDK turn lifecycle did not finish dangling calls. Confirm Codex/ACP cancel of
+  the same shape closes open tools via `acpTurnNormalizer.FinishInterrupted`.
+- Root cause:
+  Claude Code SDK projected tool events without owning the shared turn event
+  lifecycle (`acpTurnNormalizer`). Cancel and sidecar `turn_canceled` settled
+  the turn without `Finish*`, so open tools never received a terminal
+  `call.failed`.
+- Fix:
+  Attach per-turn `acpTurnNormalizer` on the Claude SDK session. Track
+  `call.started/completed/failed` against that normalizer, and call
+  `FinishInterrupted` / `FinishFailed` / `FinishCompleted` as part of turn
+  terminalization (`Cancel`, sidecar `turn_*`, reader failure). Drop late tool
+  events after the turn is already settled.
+  Also: controller Cancel cancels the Exec context before `adapter.Cancel`.
+  Claude Exec unregisters its waiter on that context cancel, so Cancel must
+  finish open tools from the turn-normalizer map (not only live waiters), and
+  the Exec context-canceled path must retain CallFailed events instead of
+  replacing the whole event slice with a bare turn.canceled.
+- Validation:
+  `go test ./packages/agent/daemon/runtime -run 'TestClaudeCodeSDKAdapter(CancelFailsOpenToolCalls|CancelFailsOpenToolsAfterWaiterUnregistered|TurnCanceledFailsOpenToolCalls)'`.
+  Manually: start a long Write on Claude Code, press Stop, confirm the tool
+  card leaves "in progress". Rebuild/restart desktop so the running `tuttid`
+  binary includes the fix.
+- References:
+  [claude_sdk_turn.go](../../../packages/agent/daemon/runtime/claude_sdk_turn.go)
+  [claude_sdk_events.go](../../../packages/agent/daemon/runtime/claude_sdk_events.go)
+  [claude_sdk_execution.go](../../../packages/agent/daemon/runtime/claude_sdk_execution.go)
+  [controller_turn_exec.go](../../../packages/agent/daemon/runtime/controller_turn_exec.go)
+  [acp_turn_normalizer.go](../../../packages/agent/daemon/runtime/acp_turn_normalizer.go)
+
 ### AgentGUI freezes when session history is large
 
 - Symptom:
@@ -701,6 +740,78 @@ Turn state, loading, cancel, restore, rail projection, event updates, imports, a
   [agentGuiConversationListStore.ts](../../../packages/agent/gui/contexts/workspace/presentation/renderer/agentGuiConversationList/agentGuiConversationListStore.ts)
   [workspaceAgentMessageCenterModel.ts](../../../packages/agent/gui/agent-message-center/workspaceAgentMessageCenterModel.ts)
   [workspaceAgentMessageCenterViewModel.ts](../../../packages/agent/gui/agent-message-center/workspaceAgentMessageCenterViewModel.ts)
+
+### Realtime agent completion does not show unread attention
+
+- Symptom:
+  A turn settles while Agent GUI is open, but its conversation row never shows
+  unread-completion attention. Historical sessions may behave correctly and
+  must not acquire attention merely because their snapshot was loaded.
+- Quick checks:
+  Trace the event path into the activity engine. A realtime `turn_update`
+  should trigger an authoritative session fetch and reduce `session/upserted`
+  before `turn/upserted`. Initial, restored, and imported history should enter
+  through `session/snapshotReceived` only. Also confirm the projected desktop
+  session carries the shared local Agent GUI user id used by read-state actions.
+- Root cause:
+  Realtime and historical data lost their provenance when both were folded into
+  a mutable controller snapshot and re-emitted as `session/snapshotReceived`.
+  The attention reducer correctly treats snapshots as non-live, so it recorded
+  the settled completion without producing unread attention; a later live
+  update with the same completion key could no longer recover the transition.
+- Fix:
+  Keep the activity engine as the single mutable owner. Feed pull/bootstrap
+  results through `session/snapshotReceived`, feed authoritative realtime
+  reconciliation through `session/upserted` followed by `turn/upserted`, and
+  use inline message events only for message deltas. Preserve the realtime
+  marker outside the fetched snapshot, and use one shared local identity for
+  session projection and read-state commands.
+- Validation:
+  Run
+  `pnpm --filter @tutti-os/desktop test -- workspaceAgentActivityService.test.ts`
+  and verify the service integration coverage proves that realtime completion
+  becomes unread while a settled historical load remains read.
+- References:
+  [workspaceAgentActivityReconcileBridge.ts](../../../apps/desktop/src/renderer/src/features/workspace-agent/services/internal/workspaceAgentActivityReconcileBridge.ts)
+  [workspaceAgentActivityService.test.ts](../../../apps/desktop/src/renderer/src/features/workspace-agent/services/internal/workspaceAgentActivityService.test.ts)
+  [attentionReadState.reducer.ts](../../../packages/agent/activity-core/src/engine/attentionReadState.reducer.ts)
+
+### Completed agent session stays activating and disables the composer
+
+- Symptom:
+  A new conversation visibly completes and its assistant reply is present, but
+  opening it leaves the composer disabled. Roughly one activation-expiry window
+  later, AgentGUI reports that the agent session could not be started.
+- Quick checks:
+  Correlate activation diagnostics with the authoritative session updates. If
+  the session create and turn both succeeded while the presentation remains
+  `activating` until `engine/intentExpired`, inspect which session intent
+  reached the pending-activation reducer. Also check that a failed realtime
+  session fetch does not consume the live-reconcile marker before a retry.
+- Root cause:
+  An engine migration introduced `session/upserted` for authoritative mutation
+  and realtime results, while pending activation still confirmed only from the
+  historical `session/snapshotReceived` path. The canonical session therefore
+  existed and could render, but the independent activation intent expired and
+  overrode the composer with a false failure. Consuming realtime provenance
+  before a fallible fetch can produce a related retry-only mismatch.
+- Fix:
+  Confirm activation from both authoritative session intents. Preserve the
+  semantic distinction only where it matters: historical snapshots remain
+  neutral for unread attention, while realtime reconciliation additionally
+  emits the live turn update. Move a consumed realtime marker to an in-flight
+  state and restore it after fetch failure until a live session is applied or
+  the session is deleted.
+- Validation:
+  Cover the reducer with a pending activation followed by `session/upserted`.
+  At the desktop service boundary, run a real engine activation through the
+  create result, manually expire its old deadline, and verify the presentation
+  remains active. Also fail the first realtime reconciliation, retry it, and
+  verify the settled turn still gains unread attention.
+- References:
+  [pendingIntents.reducer.ts](../../../packages/agent/activity-core/src/engine/pendingIntents.reducer.ts)
+  [workspaceAgentActivityReconcileBridge.ts](../../../apps/desktop/src/renderer/src/features/workspace-agent/services/internal/workspaceAgentActivityReconcileBridge.ts)
+  [workspaceAgentActivityService.test.ts](../../../apps/desktop/src/renderer/src/features/workspace-agent/services/internal/workspaceAgentActivityService.test.ts)
 
 ### AgentGUI submit clears the composer but creates no session or turn
 

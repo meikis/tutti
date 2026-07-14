@@ -255,6 +255,23 @@ export interface AgentActivityRuntimeUploadPromptContentResult {
   content: AgentActivityRuntimePromptContentBlock[];
 }
 
+/**
+ * Dedicated host boundary for turning an in-memory text paste into a local
+ * prompt asset. The runtime owns persistence and returns a sendable host path;
+ * AgentGUI must not infer this capability from generic file-upload support.
+ */
+export interface AgentActivityRuntimeStagePastedTextInput {
+  name: string;
+  text: string;
+  workspaceId: string;
+}
+
+export interface AgentActivityRuntimeStagePastedTextResult {
+  name: string;
+  path: string;
+  sizeBytes: number;
+}
+
 export interface AgentActivityRuntimeSessionSectionScopeInput {
   agentTargetId?: string | null;
   excludePinned?: boolean;
@@ -387,6 +404,9 @@ export interface AgentActivityRuntime {
   uploadPromptContent?(
     input: AgentActivityRuntimeUploadPromptContentInput
   ): Promise<AgentActivityRuntimeUploadPromptContentResult>;
+  stagePastedText?(
+    input: AgentActivityRuntimeStagePastedTextInput
+  ): Promise<AgentActivityRuntimeStagePastedTextResult>;
   readSessionAttachment?(
     input: AgentActivityRuntimeReadSessionAttachmentInput
   ): Promise<AgentActivityRuntimeSessionAttachment>;

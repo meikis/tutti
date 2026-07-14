@@ -236,6 +236,22 @@ The workspace should use:
 
 Workspace surfaces should be ready to grow in complexity without changing visual dialect every time a new module appears.
 
+### Nested Menus in Constrained Surfaces
+
+Nested menus and menu-like popovers must remain usable in narrow workspace
+windows instead of assuming that the preferred side is always available.
+
+- use the shared viewport menu surface and standard viewport padding
+- prefer the logical forward side, flip to the opposite side when needed, and
+  overlay the parent menu when neither side can fit
+- when a submenu overlays its parent, add a first-row back action so the
+  hierarchy and return path remain explicit
+- cap tall menus to the available viewport height and allow their contents to
+  scroll
+- recompute placement when the viewport or scroll position changes
+- preserve keyboard hierarchy: forward arrow enters the submenu, while back
+  arrow and Escape return focus to its trigger
+
 ### Settings Dialogs
 
 Workspace settings dialogs are compact workbench overlays, not full pages.

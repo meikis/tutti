@@ -91,6 +91,16 @@ All reads go through exported selectors; all writes go through engine commands.
 The engine reconciles optimistic intent with authoritative events by correlation
 ID.
 
+Historical pull and realtime push are distinct engine inputs. Workspace/session
+list pulls dispatch `session/snapshotReceived`; these hydrate history without
+creating unread completion attention. Realtime `message_update` events may fold
+their normalized append-only messages inline. Realtime turn, interaction, and
+legacy state invalidations perform an authoritative session pull, then dispatch
+`session/upserted` followed by `turn/upserted` for the realtime turn. The desktop
+bridge keeps the one-shot realtime provenance outside reducer state while that
+pull is in flight. `AgentActivitySnapshot` is a memoized projection of the
+engine state, not a separately mutable controller snapshot.
+
 Actionable interaction UI has one read path:
 
 ```text
@@ -145,9 +155,10 @@ The Dock popup's New window card is a distinct launch source and must bypass
 dock-entry reuse for AgentGUI, otherwise it collapses into the normal
 restore/focus behavior instead of opening a fresh Agent window.
 Unified dock and launchpad chrome should keep the generic Agent title and
-generic Agent artwork instead of provider-branded entries. Agent window headers
-show the generic Agent title while the conversation rail is expanded. When the
-conversation rail is collapsed, that title area switches to the active session
+generic Agent artwork instead of provider-branded entries. Workbench Agent node
+headers show the generic Agent title while the conversation rail is expanded;
+standalone native Agent window headers omit that redundant app title. When the
+conversation rail is collapsed, the title area switches to the active session
 identity by showing the session's agent icon and conversation title.
 
 AgentGuiNode may expose agent selection in multiple UI-local entry points,
@@ -236,6 +247,10 @@ must derive the reasoning options from the currently presented model and
 re-resolve an unsupported prior effort to that model's advertised default.
 Do not render the provider-level reasoning list when a profile exists for the
 selected model.
+Reasoning values are an extensible provider vocabulary. Known shared values may
+use AgentGUI's canonical labels, while unrecognized values must preserve the
+localized option label supplied by the composer-options contract instead of
+rendering the raw protocol value or adding provider/model branches in the UI.
 If restored node data has a stale `provider` that disagrees with a resolvable
 `agentTargetId`, the target's provider wins for empty-composer settings and
 launch preparation.
@@ -307,6 +322,15 @@ active tab strip and its add menu for files, terminal, browser, apps, and
 messages.
 Opening a tool mounts it as a tab and selecting another tab only changes the
 visible projection; this state is not durable AgentGUI session data.
+The Files tool tab remains the file-navigation surface. Double-clicking a file
+from a standalone Agent window delegates to the desktop host's system-default
+file opener, matching Finder double-click behavior instead of mounting a second
+preview implementation in the tool tabs. Directories continue to navigate
+inside the Files tool. Its Open With submenu likewise omits Tutti's internal
+file-viewer and in-app-browser actions while keeping system applications,
+default-browser handling, and the system application picker. The regular
+workspace window keeps its existing workbench file-preview contribution and
+the full Open With menu.
 Unified empty-home readiness is a host-projected, agent-scoped gate,
 not a durable session rule. Desktop may subscribe to its
 `agentProviderStatusService`, merge runtime status into `/agents` availability,
@@ -543,11 +567,13 @@ not start a second initial load; concurrent explicit loads share one in-flight
 result. Outcome notification subscriptions must also start that workspace's
 activity event stream. They remain in baseline mode until the first
 authoritative workspace reconcile reaches `ready`, seed all historical settled
-turn ids without notifying, and only then emit notifications for new settled
-turns. When an event arrives before the session is cached and requires HTTP
-reconciliation, preserve the original `state_patch` for session-event
-consumers; rebuilding it from session state can discard `turn.outcome` or
-`turnId` and suppress the completed/failed foreground toast.
+turn ids without notifying, and only then emit notifications for settled turns
+backed by a live `turn_update`. A session-level reconcile can hydrate historical
+settled turns after that bounded baseline; first appearance in the engine is not
+notification causality. When an event arrives before the session is cached and
+requires HTTP reconciliation, preserve the original `state_patch` for
+session-event consumers; rebuilding it from session state can discard
+`turn.outcome` or `turnId` and suppress the completed/failed foreground toast.
 Browser and Terminal tool bodies must mount the existing OS node UI directly:
 `BrowserNode` in the right panel and `TerminalNode` in the bottom tray. Do not
 nest another `WorkbenchHost` inside the standalone shell; the nested canvas can
@@ -594,6 +620,19 @@ run the normal cwd/user-project grouping so the selected row remains visible in
 the matching project group. This overlay must stay out of canonical pagination
 state and be de-duplicated by conversation id when the real paginated row later
 arrives; session detail/state load owns true not-found handling.
+Once a user selection becomes the active intent, rail pagination or bounded-list
+absence must not demote it into requested/resolving fallback. Only an explicit
+replacement, home transition, deletion, or authoritative not-found result may
+clear that selection.
+Selecting any rail row whose detail is not cached must enter the engine-owned
+session reconcile lifecycle and request state plus messages as one semantic
+load. Detail availability is explicit: `loading`, `ready`, `not_found`, or
+`error`. The skeleton follows the reconcile record, `ready` with zero rows is a
+valid empty detail, and only an authoritative tombstone/not-found result may
+show the unavailable state. Once authoritative not-found wins, presentation
+must suppress any previously projected transcript rows instead of mixing stale
+content with unavailable-state layout. An empty message projection is not
+evidence that loading finished or that the session is gone.
 
 Agent GUI is organized by vertical behavior rather than one controller with
 horizontal helper piles. A vertical module owns its projection, commands,
@@ -890,6 +929,12 @@ work is a new synthetic turn for AgentGUI lifecycle purposes. The sidecar and
 runtime adapter must publish a turn-start lifecycle patch before transcript or
 tool updates for that synthetic turn; otherwise AgentGuiNode will correctly keep
 the composer idle because the authoritative runtime state is still settled.
+The same adapter path must also publish that synthetic turn's
+completed/failed/canceled terminal through the session event sink. Synthetic
+turns are not submitted through `Exec()`/`ExecAsync()`, so they have no turn
+waiter; dropping waiter-less terminals as "untracked orphans" leaves durable
+`activeTurn` stuck in `running` and AgentGUI keeps showing the processing row
+after the assistant content has already finished.
 
 Do not persist the UI button state. A successful Undo only flips the local
 button to Reapply for the current render. If the page reloads, the source of
@@ -1010,12 +1055,13 @@ AgentGUI / AgentGuiNode mount
   -> useAgentActivitySnapshot(workspaceId)
   -> AgentActivityRuntime.load(workspaceId)
   -> WorkspaceAgentActivityService.load
-  -> AgentActivityController.load
+  -> AgentSessionEngine workspace/reconcileRequested
   -> desktopAgentActivityAdapter.listSessions
   -> tuttid ListWorkspaceAgentSessions
   -> agent.Service.ListFiltered
   -> live RuntimeController sessions + persisted ActivityProjection sessions
-  -> AgentActivityController snapshot
+  -> AgentSessionEngine session/snapshotReceived (historical)
+  -> memoized AgentActivitySnapshot projection
   -> conversation-list projection/store
   -> rail and active-session fallback selection
 ```
@@ -1115,11 +1161,11 @@ activeConversationId changes
   -> session view store / controller detail load
   -> AgentActivityRuntime.listSessionMessages
   -> WorkspaceAgentActivityService.listSessionMessages
-  -> AgentActivityController.listSessionMessages
   -> desktopAgentActivityAdapter.listSessionMessages
   -> tuttid ListWorkspaceAgentSessionMessages
   -> ActivityProjection.ListSessionMessages
-  -> AgentActivityController merges messages into snapshot
+  -> AgentSessionEngine message/snapshotReceived
+  -> memoized AgentActivitySnapshot projection
   -> transcript projection
   -> AgentGUINodeView / AgentConversationFlow
 ```
@@ -1170,7 +1216,7 @@ composer submit with no activeConversationId
   -> clear the submitted home draft if it was not edited in flight
   -> ActivityProjection receives runtime reports
   -> agent.activity.updated events
-  -> AgentActivityController snapshot update
+  -> AgentSessionEngine intents and canonical state update
   -> projection + UI refresh
 ```
 
@@ -1293,8 +1339,9 @@ tuttid agent.Service.Create or SendInput
   -> AgentActivityPublisher.PublishAgentActivityUpdated
   -> event stream topic agent.activity.updated
   -> desktop WorkspaceAgentActivityService event handler
-  -> AgentActivityController.applyActivityUpdatedEvent
-  -> snapshot listener notification
+  -> inline message intent or authoritative session reconcile
+  -> AgentSessionEngine listener notification
+  -> memoized AgentActivitySnapshot projection
   -> AgentGUI projection and render
 ```
 
@@ -1394,20 +1441,23 @@ contract from the ACP path.
 
 ```text
 agent.activity.updated
-  -> WorkspaceAgentActivityService batches update briefly
-  -> state_patch can apply inline to AgentActivityController
-  -> message_update/session_update triggers reconcile fetch when needed
-  -> listSessionMessages and/or getSession updates snapshot
+  -> message_update parses and batches append-only messages inline
+  -> turn_update / interaction_update triggers authoritative session reconcile
+  -> legacy state_patch triggers authoritative state reconcile
+  -> live reconcile dispatches session/upserted then turn/upserted
+  -> historical pull dispatches session/snapshotReceived
+  -> engine projection updates the runtime snapshot
   -> conversation list projection updates rail
   -> session view store updates transcript loading/live state
   -> shared transcript projection updates rows/cards
   -> AgentGUINodeView renders the new view model
 ```
 
-Inline state patches are fast-path updates; message and session updates may
-require a fetch so the controller snapshot remains authoritative. UI code
-should debug both the event payload and the reconcile fetch before treating a
-missing transcript row as a rendering-only bug.
+Only append-only `message_update` payloads use the inline fast path. Turn,
+interaction, and state changes reconcile through the authoritative session
+endpoint so `activeTurnId`, pending interactions, and turn provenance stay
+consistent. UI code should debug both the event payload and the reconcile fetch
+before treating a missing transcript row as a rendering-only bug.
 
 Live display-only clocks in transcript rows, such as running sub-agent elapsed
 time, are UI-local interaction state. Do not derive a running timer solely from
@@ -1463,7 +1513,7 @@ failures on the transcript row that produced them.
 
 ```text
 AgentActivityMessage payloads
-  -> AgentActivityController merge/dedupe by message identity/version
+  -> AgentSessionEngine merge/dedupe by message identity/version
   -> sessionMessagesById snapshot bucket
   -> shared/agentConversation/projection
   -> transcript rows, tool calls, plans, approvals, interactive prompts
@@ -1645,6 +1695,48 @@ composer draft + activeConversationId
   -> can submit / disabled reason / sending state
   -> startConversation or executePrompt
 ```
+
+An unsent composer message is one UI-local `AgentComposerDraftContent` block
+array with exactly one leading text block. Text (including mention/skill
+syntax), images, regular files, and pasted text belong to that same atomic
+value; pasted text is a discriminated file block whose `kind` is
+`pasted-text` and whose in-memory text field is always present. Attachment ids
+and upload progress/errors remain UI metadata on their corresponding blocks.
+Only the submit boundary converts this array to the existing
+`AgentPromptContentBlock[]` runtime contract, so queue, runtime, daemon, and
+persistence protocols do not own a second draft representation.
+
+Draft content identity is independent from provider, model, and the other
+composer settings. On the home composer, content is cached under the normalized
+selected project path (`project:<path>`, or `project:<none>` without a project).
+An existing conversation uses `session:<agentSessionId>`. Switching providers
+within one project therefore preserves the whole message, switching projects
+restores the destination project's message, and returning home from a session
+restores the current project draft instead of the session draft. Provider/target
+default settings, session settings, optimistic setting updates, model
+inheritance, validation, and fallback keep their existing ownership and keys;
+project identity must not be added to those setting caches.
+
+Attachment upload work also owns the draft scope where it started. If the user
+switches projects or sessions before an image or pasted-text upload settles,
+the completion or failure updates the latest draft in the original scope by
+block id; it must not read attachment projections from, or write results into,
+the newly selected scope. Derived attachment arrays used by the composer are
+memoized from the atomic content value and synchronized together so rerenders
+cannot overwrite an optimistic attachment update with an older projection.
+
+Each composer submit records a lightweight snapshot of the source scope and its
+full content array, correlated by `clientSubmitId`; existing-session sends also
+record the destination session because a recovered submit can send a project
+draft to a previously active session. A successful first-message activation
+clears its project scope; an accepted/confirmed existing-session send,
+including a queued or recovered send, clears its recorded source scope. Failure
+or an uncertain state retains the draft. Before clearing, the controller
+compares the complete current array with the snapshot, including attachment
+upload metadata, so edits made while a request is pending are retained as one
+new message. Terminal results, immediate engine rejection, and conversation
+deletion discard snapshots that can no longer resolve. Non-composer control
+sends must not participate in this draft cleanup.
 
 User-visible rules:
 
@@ -1991,9 +2083,11 @@ Runtime capability declarations are also part of this contract. Missing
 capability keys default to enabled for backwards compatibility. Hosts can set
 `capabilities.canCancel`, `canSubmitInteractive`, `canGoalControl`, or
 `canUploadAttachment` to `false` to hide and no-op the corresponding AgentGUI
-UI affordance. `canUploadAttachment` applies to prompt attachment upload paths
-(pasted images, pasted large text, dropped/host-local files) and must not hide
-ordinary `@` references or workspace-reference mention selection.
+UI affordance. `canUploadAttachment` applies to prompt attachment paths and
+must not hide ordinary `@` references or workspace-reference mention
+selection. Large pasted text also requires the explicit optional
+`AgentActivityRuntime.stagePastedText` operation; generic file upload support
+is not sufficient evidence that a host can persist in-memory text.
 When `reportDiagnostic` is omitted, development builds use a low-cost console
 sink for AgentGUI diagnostics such as composer upload/submit state, message page
 requests/resolutions, render-state changes, and caught errors. Hosts can set
@@ -2323,6 +2417,25 @@ unless the paste leaves the caret immediately after the `@` trigger. A bare
 `@` paste may open the mention panel; a complete pasted query such as `@readme`
 should remain plain prompt text until the user explicitly places the caret in
 an active trigger position.
+
+Plain-text paste classification happens before structured mention-HTML
+delegation. Once the trimmed plain-text representation reaches 5,000
+characters, every editor paste entry point must classify it as large text and
+must not insert it inline. The composer creates one `pasted-text` draft item,
+then calls the dedicated `AgentActivityRuntime.stagePastedText` host boundary
+with raw text. The host owns local persistence and returns a managed absolute
+path, display name, and byte size. Do not encode pasted text as a generic
+`uploadPromptContent` file block or infer text-staging support from
+`promptContentUploadSupport.file`; external hosts may accept host paths while
+rejecting inline file bytes.
+
+The pasted-text state machine is `detected -> staging -> landed | failed`.
+Missing host support is a failed attachment state, not an inline fallback. The
+draft keeps the original text in memory so the user may explicitly restore it
+through “Show in text field”; automatic failure recovery must not violate the
+large-paste invariant. Uploading and failed pasted-text items block submission.
+The desktop runtime implements `stagePastedText` through the host prompt-asset
+archive and returns only the managed path metadata to AgentGUI.
 
 `workspace-reference` hrefs are the passive reference contract, not a visual
 metadata store. Do not serialize app icons into the href just to render a chip.

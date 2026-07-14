@@ -70,10 +70,10 @@ test("standalone Agent starts the app runtime lifecycle only when apps open", ()
   );
 });
 
-test("standalone Agent routes files and apps into the right sidebar", () => {
+test("standalone Agent opens files like Finder and routes links into the right sidebar", () => {
   assert.match(
     standaloneWindowSource,
-    /setCanvasFilePreviewLauncher\([\s\S]*?openFileInSidebar\(target\.path\)/
+    /setCanvasFilePreviewLauncher\([\s\S]*?desktopApi\.host\.files\.openFile\(workspaceId, target\.path\)[\s\S]*?return true/
   );
   assert.match(standaloneWindowSource, /workspaceFilePreviewMode: "canvas"/);
   assert.match(
@@ -166,10 +166,11 @@ test("standalone Agent restores the active session title in the window header", 
   );
 });
 
-test("standalone Agent keeps its window title visible", () => {
-  assert.match(
+test("standalone Agent hides the generic app title", () => {
+  assert.match(standaloneWindowSource, /showAppTitle=\{false\}/);
+  assert.doesNotMatch(
     standaloneWindowSource,
-    /showAppTitle\s*\n?\s+title=\{i18n\.t\("workspace\.agentGui\.fallbackAgentLabel"\)\}/
+    /title=\{i18n\.t\("workspace\.agentGui\.fallbackAgentLabel"\)\}/
   );
 });
 

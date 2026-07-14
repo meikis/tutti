@@ -24,6 +24,13 @@ const standaloneAgentToolSidebarPanelSource = readFileSync(
   new URL("./StandaloneAgentToolSidebarPanel.tsx", import.meta.url),
   "utf8"
 );
+const workspaceFileManagerPaneSource = readFileSync(
+  new URL(
+    "../../workspace-file-manager/ui/WorkspaceFileManagerPane.tsx",
+    import.meta.url
+  ),
+  "utf8"
+);
 const standaloneAgentBrowserToolPanelSource = readFileSync(
   new URL("./StandaloneAgentBrowserToolPanel.tsx", import.meta.url),
   "utf8"
@@ -222,7 +229,7 @@ test("standalone Agent panel tabs and tools share the 44-pixel header height", (
 test("standalone Agent panel tab buttons switch the active mounted panel", () => {
   assert.match(
     standaloneAgentToolSidebarSource,
-    /data-standalone-agent-tool-tab=\{panel\}[\s\S]*?role="tab"[\s\S]*?onClick=\{\(\) => onOpenPanel\(panel\)\}/
+    /data-standalone-agent-tool-tab=\{tab\.panel\}[\s\S]*?role="tab"[\s\S]*?onClick=\{\(\) => onOpenPanel\(tab\)\}/
   );
   assert.match(
     standaloneAgentToolSidebarSource,
@@ -233,7 +240,7 @@ test("standalone Agent panel tab buttons switch the active mounted panel", () =>
 test("standalone Agent panel tabs render semantic icons before their labels", () => {
   assert.match(
     standaloneAgentToolSidebarSource,
-    /<ToolSidebarPanelIcon[\s\S]*?className="size-3\.5 shrink-0"[\s\S]*?panel=\{panel\}[\s\S]*?<span className="truncate">\{copy\[panel\]\}<\/span>/
+    /<ToolSidebarTabIcon tab=\{tab\} \/>[\s\S]*?resolveToolTabLabel\(tab, copy\)/
   );
   assert.match(
     standaloneAgentToolSidebarToolbarSource,
@@ -255,14 +262,14 @@ test("standalone Agent selected panel tab uses the fronted background and line-2
   );
   assert.match(
     standaloneAgentToolSidebarSource,
-    /activePanel === panel\s*\? "border-\[var\(--line-2\)\] bg-\[var\(--background-fronted\)\] text-\[var\(--text-primary\)\]"\s*: "border-transparent"/
+    /activeTabId === tab\.id\s*\? "border-\[var\(--line-2\)\] bg-\[var\(--background-fronted\)\] text-\[var\(--text-primary\)\]"\s*: "border-transparent"/
   );
 });
 
 test("standalone Agent terminal menu uses the dedicated lined icon", () => {
   assert.match(
     standaloneAgentToolSidebarToolbarSource,
-    /onOpenPanel\("terminal"\)[\s\S]{0,240}<ToolSidebarPanelIcon[\s\S]*?panel="terminal"/
+    /onAddPanel\("terminal"\)[\s\S]{0,240}<ToolSidebarPanelIcon[\s\S]*?panel="terminal"/
   );
   assert.match(
     standaloneAgentToolSidebarToolbarSource,
@@ -302,11 +309,26 @@ test("standalone Agent right sidebar reserves layout space and reveals requested
   );
   assert.match(
     standaloneAgentToolSidebarSource,
-    /dispatch\(\{ panel: "files", type: "open-panel" \}\)/
+    /fileOpenRequestTabIdRef\.current = filesTabId;[\s\S]*?dispatch\(\{ panel: "files", tabId: filesTabId, type: "open-panel" \}\)/
   );
   assert.match(
     standaloneAgentToolSidebarPanelSource,
     /<LazyWorkspaceFileManagerPane[\s\S]*?revealIntent=\{fileOpenRequest\}[\s\S]*?showPreviewPanel=\{false\}/
+  );
+});
+
+test("standalone Agent hides internal open-with actions without changing the OS default", () => {
+  assert.match(
+    standaloneAgentToolSidebarPanelSource,
+    /<LazyWorkspaceFileManagerPane[\s\S]*?showInternalOpenWithActions=\{false\}/
+  );
+  assert.match(
+    workspaceFileManagerPaneSource,
+    /showInternalOpenWithActions = true/
+  );
+  assert.match(
+    workspaceFileManagerPaneSource,
+    /<WorkspaceFileManager[\s\S]*?showInternalOpenWithActions=\{showInternalOpenWithActions\}/
   );
 });
 
@@ -321,7 +343,7 @@ test("standalone Agent right sidebar transitions renderer-first before mounting 
   );
   assert.match(
     standaloneAgentToolSidebarSource,
-    /dispatch\(\{ panel, type: "open-panel" \}\);\s*scheduleResizeForPanel\(panel\)/
+    /tabId: resolveToolTabId\(state\.mountedTabs, panel\),\s*type: "open-panel"[\s\S]*?scheduleResizeForPanel\(panel\)/
   );
   assert.match(
     standaloneAgentToolSidebarSource,
@@ -333,7 +355,7 @@ test("standalone Agent right sidebar transitions renderer-first before mounting 
   );
   assert.match(
     standaloneAgentToolSidebarSource,
-    /contentReadyPanels\.includes\(panel\)[\s\S]*?motion-safe:animate-in[\s\S]*?<StandaloneAgentToolSidebarPanel/
+    /contentReadyTabIds\.includes\(tab\.id\)[\s\S]*?motion-safe:animate-in[\s\S]*?<StandaloneAgentToolSidebarPanel/
   );
 });
 
@@ -369,7 +391,7 @@ test("standalone Agent toolbar exposes task management in the unified panel", ()
   );
   assert.match(
     standaloneAgentToolSidebarToolbarSource,
-    /onSelect=\{\(\) => onOpenPanel\("tasks"\)\}[\s\S]*?panel="tasks"/
+    /onSelect=\{\(\) => onAddPanel\("tasks"\)\}[\s\S]*?panel="tasks"/
   );
   assert.match(standaloneAgentToolSidebarToolbarSource, /tasks: TaskIcon/);
   assert.match(
@@ -394,7 +416,7 @@ test("standalone Agent toolbar exposes task management in the unified panel", ()
   );
   assert.match(
     standaloneAgentToolSidebarSource,
-    /dispatch\(\{ panel: "tasks", type: "open-panel" \}\)/
+    /const tabId = resolveToolTabId\(state\.mountedTabs, "tasks"\)[\s\S]*?dispatch\(\{ panel: "tasks", tabId, type: "open-panel" \}\)/
   );
   assert.match(
     standaloneAgentIssueManagerToolPanelSource,

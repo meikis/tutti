@@ -4,6 +4,35 @@
 
 Provider discovery, installation, authentication, models, configuration, and runtime reachability.
 
+### Codex `/status` shows a 5h limit for a weekly-only account window
+
+- Symptom:
+  Opening `/status` before starting a Codex conversation labels the only quota
+  as `5h limit`, while the upstream usage response reports a seven-day window.
+  An active conversation may show a different label.
+- Quick checks:
+  Inspect `agent.usage_probe.result` in desktop logs, then inspect the Codex
+  `/wham/usage` response shape. If `primary_window.limit_window_seconds` is
+  `604800` and `secondary_window` is absent, the primary slot is carrying the
+  weekly window. Compare this with daemon app-server telemetry, where the same
+  duration is `windowDurationMins: 10080`.
+- Root cause:
+  Empty-session `/status` loads account quotas through the desktop provider
+  probe, while active sessions receive canonical runtime usage from the daemon.
+  Both paths once inferred quota type from `primary`/`secondary` position, but
+  Codex may put the weekly-only quota in `primary`.
+- Fix:
+  Classify known Codex windows by duration in both mappers: five hours is
+  `session`, seven days is `weekly`. Use the positional type only when duration
+  is missing or unknown. Keep additional named rate limits typed as `model`.
+- Validation:
+  Cover a desktop probe response whose primary and secondary durations are
+  opposite their conventional positions, plus daemon mapper cases for a
+  weekly-only primary window. Verify both empty and active `/status` views.
+- References:
+  [agentProviderUsageProbe.ts](../../../apps/desktop/src/main/agentProviderUsageProbe.ts)
+  [codex_appserver_event_state.go](../../../packages/agent/daemon/runtime/codex_appserver_event_state.go)
+
 ### Provider setup notice flashes after switching to an already-connected agent
 
 - Symptom:
@@ -887,6 +916,35 @@ invalid_grant`. Daemon logs may also show an extra `claude-code` process start
   Cover the commerce RPC error mapping, token-usage envelope, gateway promo
   header, daemon visible-error classification, and rendered plans-page action as
   separate boundary tests.
+
+### OpenCode effort changes fail with `effort not found`
+
+- Symptom:
+  An OpenCode session starts successfully, but changing reasoning effort fails
+  through `session/set_config_option` with `Invalid params: effort not found`.
+  Big-Pickle is a common example.
+- Quick checks:
+  Run `opencode models <provider> --verbose` and inspect the selected model's
+  `variants` object. Compare those keys with the model-specific reasoning
+  profile returned by the composer-options endpoint. Also inspect the live ACP
+  `configOptions[id="effort"]`; a UI option that is absent from both sources
+  must never be submitted.
+- Root cause:
+  OpenCode's top-level `capabilities.reasoning` says the model can reason, but
+  it does not mean the model exposes selectable reasoning variants. Models use
+  different variant sets, and some models return an empty `variants` object.
+  A provider-wide static `low` / `medium` / `high` / `xhigh` list therefore
+  creates controls that the current model cannot honor.
+- Fix:
+  Parse `opencode models --verbose`, preserve an explicitly empty variants
+  profile, clear remembered effort values that are unsupported by the selected
+  model, and refresh composer options after model changes. Before sending a
+  live effort update, require the current ACP descriptor to advertise the exact
+  value.
+- Validation:
+  Cover a model with empty variants, a model with ordered
+  `low` / `medium` / `high` / `max` variants, remembered-setting sanitization,
+  and runtime rejection before any ACP call for an unadvertised value.
 
 ### Agent slash palette only shows Browser
 

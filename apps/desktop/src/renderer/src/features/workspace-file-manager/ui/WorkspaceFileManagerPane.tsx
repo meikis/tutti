@@ -29,6 +29,7 @@ interface WorkspaceFileManagerPaneProps {
     requestID: string;
   } | null;
   restoredState?: WorkspaceFileManagerPersistedState | null;
+  showInternalOpenWithActions?: boolean;
   showPreviewPanel?: boolean;
   workspaceID: string;
 }
@@ -37,6 +38,7 @@ export function WorkspaceFileManagerPane({
   className,
   revealIntent = null,
   restoredState = null,
+  showInternalOpenWithActions = true,
   showPreviewPanel = true,
   workspaceID
 }: WorkspaceFileManagerPaneProps) {
@@ -171,6 +173,7 @@ export function WorkspaceFileManagerPane({
       resolveEntryIconUrl={resolveEntryIconUrl}
       renderExternalLocationContent={renderExternalLocationContent}
       session={session}
+      showInternalOpenWithActions={showInternalOpenWithActions}
       showPreviewPanel={showPreviewPanel}
       surface="embedded"
     />

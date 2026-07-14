@@ -16,6 +16,7 @@ import {
 import type { WorkspaceAgentSessionDetailViewModel } from "../../shared/workspaceAgentSessionDetailViewModel";
 import type { AgentPromptContentBlock } from "../../shared/contracts/dto";
 import type { AgentGUINodeViewModel } from "./model/agentGuiNodeTypes";
+import { buildAgentComposerDraft } from "./model/agentComposerDraft";
 import {
   flattenAgentGUINodeViewModelFixture,
   groupAgentGUINodeViewModelFixture,
@@ -388,7 +389,7 @@ describe("AgentGUINodeView layout persistence", () => {
           ...initial,
           composer: {
             ...initial.composer,
-            draftContent: { prompt: "x", images: [] },
+            draftContent: buildAgentComposerDraft({ prompt: "x" }),
             draftPrompt: "x"
           }
         }
@@ -1966,7 +1967,7 @@ describe("AgentGUINodeView layout persistence", () => {
     ).toBeInTheDocument();
   });
 
-  it("omits disabled provider options in the empty hero provider select", async () => {
+  it("keeps unavailable Agent options visible and selectable in the empty hero provider select", async () => {
     const actions = createActions();
     const disabledTuttiTarget = {
       ...createLocalAgentGUIAgentTarget("nexight"),
@@ -2009,13 +2010,19 @@ describe("AgentGUINodeView layout persistence", () => {
     expect(await screen.findByRole("option", { name: "Codex" })).toBeVisible();
     expect(screen.getByRole("option", { name: "Claude Code" })).toBeVisible();
     expect(
-      screen.queryByRole("option", { name: "Tutti Agent" })
-    ).not.toBeInTheDocument();
+      screen.getByRole("option", { name: disabledTuttiTarget.label })
+    ).toBeVisible();
     expect(
-      screen.queryByRole("option", { name: "Hermes" })
-    ).not.toBeInTheDocument();
+      screen.getByRole("option", { name: disabledHermesTarget.label })
+    ).toBeVisible();
 
-    expect(actions.selectHomeComposerAgentTarget).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("option", { name: disabledTuttiTarget.label })
+    );
+    expect(actions.selectHomeComposerAgentTarget).toHaveBeenCalledWith({
+      provider: disabledTuttiTarget.provider,
+      agentTargetId: disabledTuttiTarget.targetId
+    });
   });
 
   it("keeps the empty-home carousel and provider select in sync with Agent management", async () => {
@@ -6232,7 +6239,8 @@ function createViewModel(
     availableCommands: [],
     availableSkills: [],
     draftPrompt: "",
-    draftContent: { prompt: "", images: [] },
+    draftContent: buildAgentComposerDraft({ prompt: "" }),
+    availability: "ready",
     isLoadingConversations: false,
     isLoadingMessages: false,
     isLoadingOlderMessages: false,
@@ -6805,17 +6813,19 @@ describe("AgentGUINodeView home suggestions", () => {
       actions: { ...createActions(), updateDraftContent },
       labels: createLabelsWithHomeSuggestions(),
       viewModel: createViewModel({
-        draftContent: { prompt: "", images: [image] }
+        draftContent: buildAgentComposerDraft({ prompt: "", images: [image] })
       })
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Write" }));
     fireEvent.click(screen.getByText("Draft an announcement"));
 
-    expect(updateDraftContent).toHaveBeenCalledWith({
-      prompt: "Draft an announcement",
-      images: [image]
-    });
+    expect(updateDraftContent).toHaveBeenCalledWith(
+      buildAgentComposerDraft({
+        prompt: "Draft an announcement",
+        images: [image]
+      })
+    );
   });
 
   it("inserts the handoff prompt text rather than its display label", () => {
@@ -6831,10 +6841,9 @@ describe("AgentGUINodeView home suggestions", () => {
     );
     fireEvent.click(screen.getByText("Prepare a handoff summary"));
 
-    expect(updateDraftContent).toHaveBeenCalledWith({
-      prompt: "Write a concise handoff summary.",
-      images: []
-    });
+    expect(updateDraftContent).toHaveBeenCalledWith(
+      buildAgentComposerDraft({ prompt: "Write a concise handoff summary." })
+    );
   });
 
   it("does not render the suggestions section when none are provided", () => {

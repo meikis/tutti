@@ -10,7 +10,12 @@ import type { useAgentHostApi } from "../../../agentActivityHost";
 import type { AgentSessionViewRef } from "../../../contexts/workspace/presentation/renderer/agentSessions/useAgentSessionTransport";
 import type { AgentGUINodeData } from "../../../types";
 import type { AgentGUIConversationSummary } from "../model/agentGuiConversationModel";
-import type { AgentComposerDraft } from "../model/agentGuiNodeTypes";
+import type {
+  AgentComposerDraft,
+  SubmittedDraftSnapshot
+} from "../model/agentGuiNodeTypes";
+import { resolveAgentComposerDraftScopeKey } from "../model/agentComposerDraftScope";
+import { deleteSubmittedDraftSnapshotsForScopes } from "./agentGuiController.draftMessageHelpers";
 import { getAgentGUIErrorMessage } from "./agentGuiController.errors";
 import { omitConversationLocalState } from "./agentGuiController.interactiveHelpers";
 import {
@@ -30,9 +35,10 @@ export interface UseAgentGUIConversationBatchDeletionInput {
     agentSessionId: string | null | undefined;
     origin: string;
   };
-  setDraftBySessionId: Dispatch<
+  setDraftByScopeKey: Dispatch<
     SetStateAction<Record<string, AgentComposerDraft>>
   >;
+  submittedDraftSnapshotsRef: RefObject<Record<string, SubmittedDraftSnapshot>>;
   sessionEngine: AgentSessionEngine;
   activeConversationIdRef: RefObject<string | null>;
   markSelectedConversationDetailPending: (
@@ -64,7 +70,8 @@ export function useAgentGUIConversationBatchDeletion(
     setListError,
     deleteAgentSessionView,
     sessionViewRef,
-    setDraftBySessionId,
+    setDraftByScopeKey,
+    submittedDraftSnapshotsRef,
     sessionEngine,
     activeConversationIdRef,
     markSelectedConversationDetailPending,
@@ -86,9 +93,19 @@ export function useAgentGUIConversationBatchDeletion(
       for (const id of targetIds) {
         deleteAgentSessionView(sessionViewRef(id));
       }
-      setDraftBySessionId((current) =>
-        omitConversationLocalState(current, targetIds)
+      const deletedScopeKeys = new Set(
+        [...targetIds].map((agentSessionId) =>
+          resolveAgentComposerDraftScopeKey({ agentSessionId })
+        )
       );
+      setDraftByScopeKey((current) =>
+        omitConversationLocalState(current, deletedScopeKeys)
+      );
+      deleteSubmittedDraftSnapshotsForScopes({
+        snapshots: submittedDraftSnapshotsRef.current,
+        scopeKeys: deletedScopeKeys,
+        targetAgentSessionIds: targetIds
+      });
       for (const id of targetIds) {
         sessionEngine.dispatch({
           agentSessionId: id,

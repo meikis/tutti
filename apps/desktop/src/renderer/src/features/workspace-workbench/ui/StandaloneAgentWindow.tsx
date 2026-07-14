@@ -302,8 +302,8 @@ export function StandaloneAgentWindow({
   const [fileOpenRequest, setFileOpenRequest] =
     useState<StandaloneAgentFileOpenRequest | null>(null);
   const fileOpenRequestSequenceRef = useRef(0);
-  const openFileInSidebar = useCallback((path: string): boolean => {
-    const normalizedPath = path.trim();
+  const openFileInSidebar = useCallback((file: string): boolean => {
+    const normalizedPath = file.trim();
     if (!normalizedPath) {
       return false;
     }
@@ -324,7 +324,10 @@ export function StandaloneAgentWindow({
   useEffect(() => {
     workspaceFileManagerService.setCanvasFilePreviewLauncher(
       workspaceId,
-      (target) => openFileInSidebar(target.path)
+      async (target) => {
+        await desktopApi.host.files.openFile(workspaceId, target.path);
+        return true;
+      }
     );
     workspaceFileManagerService.setPreviewUnsupportedFallbackNotificationEnabled(
       workspaceId,
@@ -336,7 +339,7 @@ export function StandaloneAgentWindow({
         null
       );
     };
-  }, [openFileInSidebar, workspaceFileManagerService, workspaceId]);
+  }, [desktopApi.host.files, workspaceFileManagerService, workspaceId]);
   useEffect(() => {
     workspaceAppCenterService.setWorkspaceAppLauncher(
       async ({ appId, workspaceId: targetWorkspaceId }) => {
@@ -683,8 +686,7 @@ export function StandaloneAgentWindow({
             primaryAccessory={<AppUpdateStatus presentation="standalone" />}
             secondaryAccessory={isContentLoading ? null : toolActions}
             showConversationRailToggle={!isContentLoading}
-            showAppTitle
-            title={i18n.t("workspace.agentGui.fallbackAgentLabel")}
+            showAppTitle={false}
             windowActions={{
               close: () => {
                 void toolWorkbench.requestWindowClose();

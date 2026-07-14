@@ -39,11 +39,12 @@ function createInput(agentActivityRuntime: AgentActivityRuntime) {
     setActiveConversationId: vi.fn(),
     setAgentSessionViewMessagesLoading: vi.fn(),
     setDetailError: vi.fn(),
-    setDraftBySessionId: vi.fn(),
+    setDraftByScopeKey: vi.fn(),
     setIntent: vi.fn(),
     setIsDeletingProjectConversations: vi.fn(),
     setIsLoadingMessages: vi.fn(),
     setListError: vi.fn(),
+    submittedDraftSnapshotsRef: { current: {} },
     workspaceId: "workspace-1"
   };
 }
