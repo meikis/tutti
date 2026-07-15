@@ -62,6 +62,7 @@ App Center, workspace-app lifecycle, App Factory, file references, and File Mana
 - [App Center list requests repeatedly log runtime preload](./workspace-apps-files.md#app-center-list-requests-repeatedly-log-runtime-preload)
 - [Workspace app uninstall fails on cached manifest validation](./workspace-apps-files.md#workspace-app-uninstall-fails-on-cached-manifest-validation)
 - [Workspace app update reopens the old dock window](./workspace-apps-files.md#workspace-app-update-reopens-the-old-dock-window)
+- [Agent inline app opening leaks into the OS App Center](./workspace-apps-files.md#agent-inline-app-opening-leaks-into-the-os-app-center)
 - [Load unpacked project roots with source manifests](./workspace-apps-files.md#load-unpacked-project-roots-with-source-manifests)
 - [Agent GUI app mentions show unavailable workspace apps](./workspace-apps-files.md#agent-gui-app-mentions-show-unavailable-workspace-apps)
 - [Agent generated files under system temp do not open](./workspace-apps-files.md#agent-generated-files-under-system-temp-do-not-open)

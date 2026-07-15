@@ -45,7 +45,10 @@ import {
   type DesktopAgentGUIProvider,
   type DesktopAgentGUIWorkbenchState
 } from "@renderer/features/workspace-agent/desktopAgentGUINodeState.ts";
-import type { IWorkspaceAppCenterService } from "@renderer/features/workspace-app-center";
+import {
+  IWorkspaceAppSurfaceHost,
+  type IWorkspaceAppCenterService
+} from "@renderer/features/workspace-app-center";
 import { useService } from "@tutti-os/infra/di";
 import { IWorkspaceFileManagerService } from "@renderer/features/workspace-file-manager";
 import type {
@@ -81,6 +84,7 @@ import {
 import { StandaloneAgentWindowContentReady } from "./StandaloneAgentWindowContentReady.tsx";
 import { showWorkspaceFileMissingToast } from "../services/workspaceFilesLaunchFeedback.ts";
 import { Toast } from "@renderer/lib/toast";
+import { createStandaloneAgentWorkspaceAppSurfacePresenter } from "../services/standaloneAgentWorkspaceAppSurfacePresenter.ts";
 
 const LazyWorkspaceAccountMenu = lazy(() =>
   import("./WorkspaceAccountMenu").then(({ WorkspaceAccountMenu }) => ({
@@ -149,6 +153,7 @@ export function StandaloneAgentWindow({
 }: StandaloneAgentWindowProps): ReactNode {
   const { i18n } = useTranslation();
   const agentsService = useService(IAgentsService);
+  const workspaceAppSurfaceHost = useService(IWorkspaceAppSurfaceHost);
   const workspaceFileManagerService = useService(IWorkspaceFileManagerService);
   const { service: workspaceSettingsService } = useWorkspaceSettingsService();
   const workspaceId = workspace.id;
@@ -364,40 +369,22 @@ export function StandaloneAgentWindow({
     };
   }, [desktopApi.host.files, workspaceFileManagerService, workspaceId]);
   useEffect(() => {
-    workspaceAppCenterService.setWorkspaceAppLauncher(
-      async ({ appId, workspaceId: targetWorkspaceId }) => {
-        if (targetWorkspaceId !== workspaceId) {
-          return false;
-        }
-        ensureWorkspaceAppPolling();
-        workspaceAppCenterService.setViewState({
-          state: { openAppId: appId },
-          workspaceId
-        });
-        return true;
-      }
+    return workspaceAppSurfaceHost.registerPresenter(
+      createStandaloneAgentWorkspaceAppSurfacePresenter({
+        ensureWorkspaceAppPolling,
+        getViewState: (targetWorkspaceId) =>
+          workspaceAppCenterService.getViewState(targetWorkspaceId),
+        setViewState: (request) =>
+          workspaceAppCenterService.setViewState(request),
+        workspaceId
+      })
     );
-    workspaceAppCenterService.setWorkspaceAppViewCloser(({ appId }) => {
-      if (
-        workspaceAppCenterService.getViewState(workspaceId).openAppId === appId
-      ) {
-        workspaceAppCenterService.setViewState({
-          state: { openAppId: null },
-          workspaceId
-        });
-      }
-    });
-    workspaceAppCenterService.setWorkspaceAppViewOpenChecker(
-      ({ appId, workspaceId: targetWorkspaceId }) =>
-        targetWorkspaceId === workspaceId &&
-        workspaceAppCenterService.getViewState(workspaceId).openAppId === appId
-    );
-    return () => {
-      workspaceAppCenterService.setWorkspaceAppLauncher(null);
-      workspaceAppCenterService.setWorkspaceAppViewCloser(null);
-      workspaceAppCenterService.setWorkspaceAppViewOpenChecker(null);
-    };
-  }, [ensureWorkspaceAppPolling, workspaceAppCenterService, workspaceId]);
+  }, [
+    ensureWorkspaceAppPolling,
+    workspaceAppCenterService,
+    workspaceAppSurfaceHost,
+    workspaceId
+  ]);
   const subscribeAppCenter = useCallback(
     (listener: () => void) => workspaceAppCenterService.subscribe(listener),
     [workspaceAppCenterService]

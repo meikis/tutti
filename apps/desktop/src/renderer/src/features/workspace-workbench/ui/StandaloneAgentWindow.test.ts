@@ -89,7 +89,7 @@ test("standalone Agent starts the app runtime lifecycle only when apps open", ()
   );
   assert.match(
     standaloneWindowSource,
-    /setWorkspaceAppLauncher\([\s\S]*?ensureWorkspaceAppPolling\(\);[\s\S]*?state: \{ openAppId: appId \}/
+    /workspaceAppSurfaceHost\.registerPresenter\([\s\S]*?createStandaloneAgentWorkspaceAppSurfacePresenter\([\s\S]*?ensureWorkspaceAppPolling/
   );
 });
 
@@ -109,7 +109,7 @@ test("standalone Agent opens files like Finder and routes links into the right s
   );
   assert.match(
     standaloneWindowSource,
-    /setWorkspaceAppLauncher\([\s\S]*?state: \{ openAppId: appId \}/
+    /workspaceAppSurfaceHost\.registerPresenter\([\s\S]*?createStandaloneAgentWorkspaceAppSurfacePresenter/
   );
   assert.match(
     standaloneWindowSource,
