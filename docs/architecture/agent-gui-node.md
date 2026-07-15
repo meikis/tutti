@@ -437,7 +437,7 @@ visible. The duplicate reconstructs UI from the shared durable activity source;
 it must not clone or fork AgentGUI session state in the renderer. Place the
 duplicate 25 pixels to the right and 25 pixels below its source, clamped to the
 active display work area, so the new window does not completely cover the
-source window.
+source window when the available work area permits.
 When the conversation rail collapses, the standalone Agent header remains a
 full-width window control surface and keeps its secondary tool actions anchored
 to the right window edge. Content-width caps belong to the conversation body,
