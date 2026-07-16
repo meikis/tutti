@@ -222,12 +222,25 @@ duration label so transcript rows do not re-render on every tick. A settled
 Turn freezes at `settledAtUnixMs`. A successfully completed Turn may start with
 tool calls, thinking, progress, and file summaries collapsed when the
 projection has a distinct final assistant text target independent of copy
-availability. Split presentation rows keep their canonical row identity and
-use separate render keys. Failed, canceled, interrupted, visible-error,
+availability. The disclosure model partitions that Turn in source order rather
+than globally separating user and agent rows: only the initial contiguous user
+prompt stays above the duration header, while mid-Turn guidance, earlier agent
+output, work rows, and final text retain their authoritative chronology. Split
+presentation rows keep their canonical row identity and use separate render
+keys. One Turn-level layout container owns internal row spacing and the outer
+timeline owns inter-Turn spacing, so virtualized and non-virtualized rendering
+have the same hierarchy. Failed, canceled, interrupted, visible-error,
 generated-image, or final-text-free Turns fail open so important output is
 never hidden. Manual disclosure state is UI-local, keyed by session and Turn,
 and may survive conversation switches while the Agent panel remains mounted;
 it is not persisted or written back to the engine.
+
+Generic processing fallback is decided only after transcript normalization has
+removed diagnostic-only notices and merged presentation rows. Canonical live
+Turn timing suppresses that fallback only when a surviving row with the exact
+`activeTurnId` can host the duration header; otherwise projection appends a
+processing row scoped to that active Turn. Rows from an older Turn must not
+suppress the current fallback.
 
 Ordinary consecutive tool calls project into one stable transcript disclosure
 starting with the first call. Working, waiting, completed, and failed updates
