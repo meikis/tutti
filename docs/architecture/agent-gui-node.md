@@ -261,9 +261,11 @@ generic Agent artwork instead of provider-branded entries. Workbench Agent node
 headers show the generic Agent title while the conversation rail is expanded;
 standalone native Agent window headers omit that redundant app title. When the
 conversation rail is collapsed, the title area shows the active conversation's
-agent icon and directory name as soon as a local session id exists; it must not
-wait for provider-side session creation or conversation-title persistence. An
-empty new-conversation home does not show this header identity. The standalone
+agent icon and conversation title as soon as a local session id exists. The
+engine-owned optimistic title bridges conversation-title persistence; the
+localized untitled label, then the Agent directory name, are presentation-only
+fallbacks and must never override an available conversation title. An empty
+new-conversation home does not show this header identity. The standalone
 window keeps engine subscription, identity projection, and header rendering in
 its header vertical module rather than growing the window shell. The conversation
 title remains the detail title while the rail is expanded and the identity used
@@ -1273,6 +1275,13 @@ the user message or after the result settles; AgentGUI needs the sidecar to
 attach a durable `compact_completed` event to the compact command turn rather
 than only the currently active turn.
 
+Claude SDK Result success is the turn lifecycle terminal signal. Best-effort
+context-usage and session-title refreshes run after the sidecar emits that
+terminal event and must never delay it. A context snapshot is invalidated when
+a newer snapshot request starts or the SDK echoes a later root user prompt, so
+a slow control response cannot overwrite usage associated with newer work. A
+delayed title refresh is likewise ignored after a later root prompt begins.
+
 When Claude resumes root work after a child completes, the SDK continuation is
 another provider turn attached to the same canonical root turn. The adapter
 publishes its provider start and terminal facts, while `services/tuttid` keeps
@@ -1805,15 +1814,23 @@ composer submit with activeConversationId
   -> agent.Service.SendInput
   -> validate/prepare prompt content
   -> RuntimeController.Exec
-  -> authoritative session returned
-  -> runtime reports publish agent.activity.updated
+  -> build submitted Turn transition in runtime memory
+  -> ActivityReporter synchronously commits session + submitted Turn
+  -> publish agent.activity.updated and start provider execution
+  -> service reads back the exact durable Turn by returned turnId
+  -> authoritative session + exact Turn returned
   -> snapshot/projection/UI refresh
 ```
 
-The local working patch is a latency bridge only. If the runtime returns a
-ready-looking session while the turn is still being processed, the desktop
-service can preserve optimistic `working` until a later authoritative event
-settles the session.
+The local working patch is a latency bridge only. A successful Turn-producing
+response is a durable acceptance acknowledgement: `turnId` and `turn` are both
+required and identify the exact submitted Turn. Runtime must not publish the
+submitted transition, start provider execution, or return success before the
+atomic session/Turn report commits. If that report fails, it rolls back the
+in-memory active Turn and provisional Session state. Goal control remains a
+separate Turn-less response branch. The renderer may keep a defensive contract
+guard, but must not repair a missing Turn with polling, delay, or a synthetic
+entity.
 
 When an existing conversation is busy, normal composer submits enter the
 workspace engine's prompt queue so the next turn can run after the current one
@@ -1886,6 +1903,7 @@ path must stop instead of creating a shadow session.
 ```text
 tuttid agent.Service.Create or SendInput
   -> RuntimeController.Start / Exec
+  -> submitted Turn durable-acceptance barrier
   -> provider adapter process or ACP connection
   -> provider emits lifecycle, phase, tool, message, prompt, and final events
   -> ActivityProjection.ReportSessionState / ReportSessionMessages
