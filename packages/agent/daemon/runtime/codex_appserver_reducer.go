@@ -195,7 +195,14 @@ func (r codexAppServerReducer) ReduceNotification(
 			asString(params["fromModel"]), asString(params["toModel"]))
 		return emit([]activityshared.Event{appServerSystemNoticeEvent(session, turnID, "system_notice", title, asString(params["reason"]))})
 	case appServerNotifyThreadCompacted:
-		return emit([]activityshared.Event{appServerSystemNoticeEvent(session, turnID, "system_notice", "Context compacted.", "")})
+		if normalizer == nil {
+			return emit([]activityshared.Event{appServerSystemNoticeEvent(session, turnID, "system_notice", appServerContextCompactedTitle, "")})
+		}
+		messageID, shouldEmit := normalizer.CompleteCompactionNotice("compaction:" + turnID)
+		if !shouldEmit {
+			return codexAppServerReduction{}
+		}
+		return emit([]activityshared.Event{appServerCompactionNoticeEvent(session, turnID, messageID, "completed")})
 	case appServerNotifyServerRequestResolved:
 		a.resolvePendingRequestFromProvider(session.AgentSessionID, params)
 		return codexAppServerReduction{}

@@ -7,13 +7,18 @@ import (
 	activityshared "github.com/tutti-os/tutti/packages/agent/daemon/activity/events"
 )
 
-func appServerCompactionNoticeEvent(session Session, turnID string, messageID string, completed bool) activityshared.Event {
-	title := appServerCompactingContextTitle
-	if completed {
+func appServerCompactionNoticeEvent(session Session, turnID string, messageID string, status string) activityshared.Event {
+	title := appServerCompactionInterruptedTitle
+	switch status {
+	case "running":
+		title = appServerCompactingContextTitle
+	case "completed":
 		title = appServerContextCompactedTitle
 	}
 	return appServerSystemNoticeEvent(session, turnID, "system_notice", title, "", map[string]any{
-		"messageId": messageID,
+		"messageId":           messageID,
+		"noticeCommand":       "compact",
+		"noticeCommandStatus": status,
 	})
 }
 
@@ -42,19 +47,24 @@ func (*CodexAppServerAdapter) appServerItemEvents(
 		// (before this notification can even arrive) and tracks its messageId
 		// on the normalizer up front so the transcript row exists even if Codex
 		// app-server never streams item/started at all. When that's already
-		// the case, reuse the pending messageId instead of deriving a new one
-		// from the item id: otherwise item/started would append a second,
+		// the case, reuse the normalizer's stable messageId instead of deriving
+		// a new one from the item id: otherwise item/started would append a second,
 		// unrelated banner row rather than confirming the one already shown.
-		messageID := normalizer.pendingCompactionMessageID
-		alreadyStarted := messageID != ""
-		if messageID == "" {
-			messageID = "compaction:" + firstNonEmpty(asString(item["id"]), turnID)
+		messageID := "compaction:" + firstNonEmpty(asString(item["id"]), turnID)
+		shouldEmit := false
+		if completed {
+			messageID, shouldEmit = normalizer.CompleteCompactionNotice(messageID)
+		} else {
+			messageID, shouldEmit = normalizer.StartCompactionNotice(messageID)
 		}
-		normalizer.TrackCompactionNotice(messageID, completed)
-		if !completed && alreadyStarted {
+		if !shouldEmit {
 			return nil
 		}
-		return []activityshared.Event{appServerCompactionNoticeEvent(session, turnID, messageID, completed)}
+		status := "running"
+		if completed {
+			status = "completed"
+		}
+		return []activityshared.Event{appServerCompactionNoticeEvent(session, turnID, messageID, status)}
 	}
 	switch itemType {
 	case "agentMessage":

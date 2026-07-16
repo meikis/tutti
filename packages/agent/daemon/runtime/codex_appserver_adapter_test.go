@@ -4135,10 +4135,20 @@ func TestCodexAppServerAdapterCompactionBannersShareMessageID(t *testing.T) {
 	if got := completed[0].Payload.Content; got != "Context compacted." {
 		t.Fatalf("completed banner = %q, want %q", got, "Context compacted.")
 	}
+	if got := asString(completed[0].Payload.Metadata["noticeCommandStatus"]); got != "completed" {
+		t.Fatalf("completed banner status = %q, want completed", got)
+	}
 	startedID := asString(started[0].Payload.Metadata["messageId"])
 	completedID := asString(completed[0].Payload.Metadata["messageId"])
 	if startedID == "" || startedID != completedID {
 		t.Fatalf("messageId mismatch: started %q, completed %q", startedID, completedID)
+	}
+	// The explicit provider terminal won first, so a later synthesized turn
+	// terminal must not rewrite the lifecycle to canceled.
+	for _, event := range normalizer.FinishInterrupted(session, "turn-1", "interrupted") {
+		if asString(event.Payload.Metadata["noticeCommand"]) == "compact" {
+			t.Fatalf("completed compaction was overwritten by turn interruption: %#v", event)
+		}
 	}
 }
 
@@ -4170,6 +4180,17 @@ func TestCodexAppServerAdapterCompactionBannerSettlesOnInterrupt(t *testing.T) {
 	if got, want := asString(settled.Payload.Metadata["messageId"]), asString(started[0].Payload.Metadata["messageId"]); got != want || got == "" {
 		t.Fatalf("interrupted banner messageId = %q, want %q", got, want)
 	}
+	if got := asString(settled.Payload.Metadata["noticeCommand"]); got != "compact" {
+		t.Fatalf("interrupted banner command = %q, want compact", got)
+	}
+	if got := asString(settled.Payload.Metadata["noticeCommandStatus"]); got != "canceled" {
+		t.Fatalf("interrupted banner status = %q, want canceled", got)
+	}
+	// The synthesized canceled terminal won first. A provider completion that
+	// was already in flight must be ignored rather than replacing it.
+	if late := adapter.appServerItemEvents(session, "turn-1", item, true, normalizer); len(late) != 0 {
+		t.Fatalf("late compaction completion emitted after cancellation: %#v", late)
+	}
 	// Once settled, later terminal calls must not emit the banner again.
 	if again := normalizer.FinishFailed(session, "turn-1"); len(again) != 0 {
 		for _, event := range again {
@@ -4177,6 +4198,35 @@ func TestCodexAppServerAdapterCompactionBannerSettlesOnInterrupt(t *testing.T) {
 				t.Fatalf("compaction banner settled twice: %#v", again)
 			}
 		}
+	}
+}
+
+func TestCodexAppServerAdapterCompactionBannerSettlesOnFailure(t *testing.T) {
+	t.Parallel()
+
+	adapter := &CodexAppServerAdapter{}
+	session := Session{Provider: "codex", AgentSessionID: "agent-compact", RoomID: "room-compact"}
+	normalizer := newACPTurnNormalizer()
+	item := map[string]any{"type": "contextCompaction", "id": "item-compact-1"}
+
+	if started := adapter.appServerItemEvents(session, "turn-1", item, false, normalizer); len(started) != 1 {
+		t.Fatalf("compaction started events = %d, want 1", len(started))
+	}
+	terminal := normalizer.FinishFailed(session, "turn-1")
+	var settled *activityshared.Event
+	for index := range terminal {
+		if asString(terminal[index].Payload.Metadata["noticeCommand"]) == "compact" {
+			settled = &terminal[index]
+		}
+	}
+	if settled == nil {
+		t.Fatalf("expected failed compaction banner in terminal events; got %#v", terminal)
+	}
+	if got := asString(settled.Payload.Metadata["noticeCommandStatus"]); got != "failed" {
+		t.Fatalf("failed banner status = %q, want failed", got)
+	}
+	if late := adapter.appServerItemEvents(session, "turn-1", item, true, normalizer); len(late) != 0 {
+		t.Fatalf("late compaction completion emitted after failure: %#v", late)
 	}
 }
 
