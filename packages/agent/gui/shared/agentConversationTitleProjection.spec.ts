@@ -38,19 +38,22 @@ describe("resolveAgentGUIConversationTitleLeadingMentionKind", () => {
   });
 
   it("keeps session, app, and Agent references out of rich titles", () => {
-    for (const [displayPrompt, title] of [
-      [
-        "[@Conversation](mention://agent-session/session-1?workspaceId=workspace-1) follow up",
-        "@Conversation follow up"
-      ],
-      [
-        "[@Weather](mention://workspace-app/weather?workspaceId=workspace-1) inspect",
-        "@Weather inspect"
-      ],
-      [
-        "[@Codex](mention://agent-target/local%3Acodex?workspaceId=workspace-1) inspect",
-        "@Codex inspect"
-      ]
+    for (const { displayPrompt, title } of [
+      {
+        displayPrompt:
+          "[@Conversation](mention://agent-session/session-1?workspaceId=workspace-1) follow up",
+        title: "@Conversation follow up"
+      },
+      {
+        displayPrompt:
+          "[@Weather](mention://workspace-app/weather?workspaceId=workspace-1) inspect",
+        title: "@Weather inspect"
+      },
+      {
+        displayPrompt:
+          "[@Codex](mention://agent-target/local%3Acodex?workspaceId=workspace-1) inspect",
+        title: "@Codex inspect"
+      }
     ]) {
       expect(
         resolveAgentGUIConversationTitleDisplayPrompt({
