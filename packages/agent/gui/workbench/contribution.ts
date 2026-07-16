@@ -139,7 +139,6 @@ export function createAgentGuiWorkbenchContribution(
   });
   const frame = input.frame ?? agentGuiWorkbenchDefaultNodeFrame;
   const copy = resolveAgentGuiWorkbenchContributionCopy(input.copy);
-  const instanceIdByAgentTargetId = new Map<string, string>();
   return {
     dockEntries: buildAgentGuiDockEntries({
       agentDirectory: input.agentDirectory,
@@ -177,12 +176,6 @@ export function createAgentGuiWorkbenchContribution(
             state,
             input.agentDirectory
           );
-          if (agent) {
-            instanceIdByAgentTargetId.set(
-              agent.agentTargetId,
-              context.instanceId
-            );
-          }
           return input.renderBody(
             context as WorkbenchHostNodeBodyContext<
               AgentGuiWorkbenchState | null,
@@ -427,8 +420,7 @@ export function createAgentGuiWorkbenchContribution(
         instanceId: descriptorInstanceId,
         openInNewWindow,
         provider,
-        reuseDockEntryNode,
-        reuseExistingSessionNode,
+        reusePolicy,
         targetAgentSessionId
       } = createAgentGuiWorkbenchLaunchDescriptor({
         ...request,
@@ -438,23 +430,16 @@ export function createAgentGuiWorkbenchContribution(
         launchPayload,
         provider
       );
-      const reusableTargetInstanceId =
-        !openInNewWindow && providerTarget.agentTargetId
-          ? (instanceIdByAgentTargetId.get(providerTarget.agentTargetId) ??
-            null)
-          : null;
       // Locate an already-open node currently showing this session (its launch
       // instanceId may differ from the session-keyed one, e.g. a conversation
       // started fresh as a draft) so we focus it instead of opening a duplicate.
       const existingInstanceId =
-        targetAgentSessionId && reuseExistingSessionNode
-          ? nodeStateSource.findInstanceIdByAgentSessionId(targetAgentSessionId)
+        reusePolicy.kind === "current-session"
+          ? nodeStateSource.findInstanceIdByAgentSessionId(
+              reusePolicy.agentSessionId
+            )
           : null;
-      const instanceId =
-        existingInstanceId ?? reusableTargetInstanceId ?? descriptorInstanceId;
-      if (!openInNewWindow && providerTarget.agentTargetId) {
-        instanceIdByAgentTargetId.set(providerTarget.agentTargetId, instanceId);
-      }
+      const instanceId = existingInstanceId ?? descriptorInstanceId;
       const title = copy.nodeTitle;
       const launchAgentTargetId = providerTarget.agentTargetId;
       if (targetAgentSessionId) {
@@ -509,7 +494,7 @@ export function createAgentGuiWorkbenchContribution(
         // (e.g. clicking a completion notification) should just focus it,
         // not reset it back to the default size/position.
         preserveExistingNodeFrame: existingInstanceId !== null,
-        reuseDockEntryNode,
+        reuseDockEntryNode: reusePolicy.kind === "dock-entry",
         title,
         typeId: agentGuiWorkbenchTypeId
       };

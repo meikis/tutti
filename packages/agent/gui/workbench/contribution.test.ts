@@ -339,7 +339,7 @@ describe("agent GUI workbench contribution copy", () => {
     });
   });
 
-  it("clears the active session when prefill launches reuse an agent node", () => {
+  it("opens prefill launches in a fresh node without overwriting an active session", () => {
     const contribution = createTestAgentGuiWorkbenchContribution({
       renderBody: () => null,
       workspaceId: "workspace-1"
@@ -381,7 +381,7 @@ describe("agent GUI workbench contribution copy", () => {
       | null
       | undefined;
 
-    expect(prefillLaunch?.instanceId).toBe(sessionLaunch?.instanceId);
+    expect(prefillLaunch?.instanceId).not.toBe(sessionLaunch?.instanceId);
     expect(
       contribution.externalStateSource?.getSnapshotNodeState?.({
         instanceId: prefillLaunch?.instanceId ?? "",
@@ -392,6 +392,17 @@ describe("agent GUI workbench contribution copy", () => {
       conversationRailCollapsed: false,
       conversationRailWidthPx: null,
       lastActiveAgentSessionId: null
+    });
+    expect(
+      contribution.externalStateSource?.getSnapshotNodeState?.({
+        instanceId: sessionLaunch?.instanceId ?? "",
+        typeId: agentGuiWorkbenchTypeId
+      } as never)
+    ).toEqual({
+      agentTargetId: "local:codex",
+      conversationRailCollapsed: false,
+      conversationRailWidthPx: null,
+      lastActiveAgentSessionId: "session-codex-1"
     });
   });
 
@@ -1095,6 +1106,60 @@ describe("agent GUI workbench contribution copy", () => {
     expect(relaunch?.instanceId).toBe(firstLaunch?.instanceId);
     expect(firstLaunch?.preserveExistingNodeFrame).not.toBe(true);
     expect(relaunch?.preserveExistingNodeFrame).toBe(true);
+  });
+
+  it("keeps different sessions on the same target in different nodes", async () => {
+    const contribution = createTestAgentGuiWorkbenchContribution({
+      renderBody: () => null,
+      workspaceId: "workspace-1"
+    });
+    const baseRequest = {
+      layoutConstraints: testLaunchLayout.layoutConstraints,
+      reason: "host" as const,
+      surfaceSize: testLaunchLayout.surfaceSize,
+      typeId: "agent-gui",
+      workspaceId: "workspace-1"
+    };
+    const launchSession = (agentSessionId: string) =>
+      contribution.onLaunchRequest?.({
+        ...baseRequest,
+        payload: {
+          agentSessionId,
+          agentTargetId: "local:codex",
+          provider: "codex"
+        }
+      });
+
+    const firstSessionLaunch = await launchSession("session-1");
+    const secondSessionLaunch = await launchSession("session-2");
+    const secondSessionRelaunch = await launchSession("session-2");
+
+    expect(firstSessionLaunch?.instanceId).toMatch(/^agent-gui:instance:/);
+    expect(secondSessionLaunch?.instanceId).toMatch(/^agent-gui:instance:/);
+    expect(secondSessionLaunch?.instanceId).not.toBe(
+      firstSessionLaunch?.instanceId
+    );
+    expect(secondSessionRelaunch?.instanceId).toBe(
+      secondSessionLaunch?.instanceId
+    );
+    expect(
+      contribution.externalStateSource?.getSnapshotNodeState?.({
+        instanceId: firstSessionLaunch?.instanceId ?? "",
+        typeId: agentGuiWorkbenchTypeId
+      } as never)
+    ).toMatchObject({
+      agentTargetId: "local:codex",
+      lastActiveAgentSessionId: "session-1"
+    });
+    expect(
+      contribution.externalStateSource?.getSnapshotNodeState?.({
+        instanceId: secondSessionLaunch?.instanceId ?? "",
+        typeId: agentGuiWorkbenchTypeId
+      } as never)
+    ).toMatchObject({
+      agentTargetId: "local:codex",
+      lastActiveAgentSessionId: "session-2"
+    });
   });
 
   it("does not treat a drifted session-keyed window as the requested session", async () => {

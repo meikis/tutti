@@ -144,10 +144,14 @@ export interface AgentGuiWorkbenchLaunchDescriptor {
   instanceId: string;
   openInNewWindow: boolean;
   provider: AgentGuiWorkbenchProvider;
-  reuseDockEntryNode: boolean;
-  reuseExistingSessionNode: boolean;
+  reusePolicy: AgentGuiWorkbenchReusePolicy;
   targetAgentSessionId: string | null;
 }
+
+export type AgentGuiWorkbenchReusePolicy =
+  | { kind: "dock-entry" }
+  | { agentSessionId: string; kind: "current-session" }
+  | { kind: "none" };
 
 export function createAgentGuiWorkbenchLaunchDescriptor(
   request: AgentGuiWorkbenchLaunchRequestInput
@@ -166,13 +170,7 @@ export function createAgentGuiWorkbenchLaunchDescriptor(
       instanceId: createAgentGuiWorkbenchInstanceId(),
       openInNewWindow,
       provider,
-      reuseDockEntryNode:
-        !openInNewWindow &&
-        shouldReuseAgentGuiWorkbenchDockEntryNode({
-          dockEntryId,
-          launchKind: "prefill"
-        }),
-      reuseExistingSessionNode: !openInNewWindow,
+      reusePolicy: { kind: "none" },
       targetAgentSessionId: null
     };
   }
@@ -194,31 +192,13 @@ export function createAgentGuiWorkbenchLaunchDescriptor(
     instanceId,
     openInNewWindow,
     provider,
-    reuseDockEntryNode:
-      !openInNewWindow &&
-      shouldReuseAgentGuiWorkbenchDockEntryNode({
-        dockEntryId,
-        launchKind: targetAgentSessionId ? "session" : "empty"
-      }),
-    reuseExistingSessionNode: !openInNewWindow,
+    reusePolicy: openInNewWindow
+      ? { kind: "none" }
+      : targetAgentSessionId
+        ? { agentSessionId: targetAgentSessionId, kind: "current-session" }
+        : { kind: "dock-entry" },
     targetAgentSessionId
   };
-}
-
-export function shouldReuseAgentGuiWorkbenchDockEntryNode(input: {
-  dockEntryId: string;
-  launchKind: "empty" | "prefill" | "session";
-}): boolean {
-  if (input.launchKind === "empty") {
-    return true;
-  }
-  if (input.launchKind === "session") {
-    return false;
-  }
-  return (
-    agentGuiWorkbenchDockIdentityFromIdentifier(input.dockEntryId)?.kind !==
-    "unifiedAggregate"
-  );
 }
 
 /**

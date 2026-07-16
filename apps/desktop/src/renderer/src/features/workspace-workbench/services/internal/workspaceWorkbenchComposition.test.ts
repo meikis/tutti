@@ -144,7 +144,10 @@ test("workspace agent GUI session launches use container instances", () => {
   assert.equal(descriptor.targetAgentSessionId, "session-2");
   assert.equal(descriptor.dockEntryId, "agent-gui:unified");
   assert.match(descriptor.instanceId, /^agent-gui:instance:/);
-  assert.equal(descriptor.reuseDockEntryNode, false);
+  assert.deepEqual(descriptor.reusePolicy, {
+    agentSessionId: "session-2",
+    kind: "current-session"
+  });
   assert.deepEqual(descriptor.activation, {
     payload: {
       agentSessionId: "session-2"
@@ -165,7 +168,7 @@ test("workspace agent GUI draft launches prefill prompts without binding session
   assert.equal(descriptor.provider, "codex");
   assert.equal(descriptor.targetAgentSessionId, null);
   assert.equal(descriptor.dockEntryId, "agent-gui:unified");
-  assert.equal(descriptor.reuseDockEntryNode, false);
+  assert.deepEqual(descriptor.reusePolicy, { kind: "none" });
   assert.deepEqual(descriptor.activation, {
     payload: {
       draftPrompt: "Review this issue",

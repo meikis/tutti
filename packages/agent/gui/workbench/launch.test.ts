@@ -107,8 +107,10 @@ describe("agent gui workbench launch contract", () => {
       dockEntryId: "agent-gui:unified",
       openInNewWindow: false,
       provider: "codex",
-      reuseDockEntryNode: false,
-      reuseExistingSessionNode: true,
+      reusePolicy: {
+        agentSessionId: "session-2",
+        kind: "current-session"
+      },
       targetAgentSessionId: "session-2"
     });
     expect(descriptor.instanceId).toMatch(/^agent-gui:instance:/);
@@ -127,7 +129,10 @@ describe("agent gui workbench launch contract", () => {
       })
     ).toMatchObject({
       openInNewWindow: false,
-      reuseExistingSessionNode: true,
+      reusePolicy: {
+        agentSessionId: "session-2",
+        kind: "current-session"
+      },
       targetAgentSessionId: "session-2"
     });
   });
@@ -151,8 +156,7 @@ describe("agent gui workbench launch contract", () => {
     });
     expect(descriptor.instanceId).toMatch(/^agent-gui:instance:/);
     expect(descriptor.openInNewWindow).toBe(true);
-    expect(descriptor.reuseDockEntryNode).toBe(false);
-    expect(descriptor.reuseExistingSessionNode).toBe(false);
+    expect(descriptor.reusePolicy).toEqual({ kind: "none" });
     expect(descriptor.targetAgentSessionId).toBe("session-2");
   });
 
@@ -168,7 +172,7 @@ describe("agent gui workbench launch contract", () => {
     expect(descriptor.dockEntryId).toBe("agent-gui:unified");
     expect(descriptor.instanceId).toMatch(/^agent-gui:instance:/);
     expect(descriptor.provider).toBe("claude-code");
-    expect(descriptor.reuseDockEntryNode).toBe(true);
+    expect(descriptor.reusePolicy).toEqual({ kind: "dock-entry" });
   });
 
   it("reuses unified aggregate dock nodes for empty launches", () => {
@@ -184,7 +188,7 @@ describe("agent gui workbench launch contract", () => {
       dockEntryId: "agent-gui:unified",
       openInNewWindow: false,
       provider: "codex",
-      reuseDockEntryNode: true,
+      reusePolicy: { kind: "dock-entry" },
       targetAgentSessionId: null
     });
   });
@@ -203,7 +207,7 @@ describe("agent gui workbench launch contract", () => {
       dockEntryId: "agent-gui:unified",
       openInNewWindow: true,
       provider: "codex",
-      reuseDockEntryNode: false,
+      reusePolicy: { kind: "none" },
       targetAgentSessionId: null
     });
   });
@@ -222,7 +226,7 @@ describe("agent gui workbench launch contract", () => {
       dockEntryId: "agent-gui:unified",
       openInNewWindow: true,
       provider: "codex",
-      reuseDockEntryNode: false,
+      reusePolicy: { kind: "none" },
       targetAgentSessionId: null
     });
   });
@@ -268,8 +272,7 @@ describe("agent gui workbench launch contract", () => {
       },
       dockEntryId: "agent-gui:unified",
       provider: "codex",
-      reuseDockEntryNode: false,
-      reuseExistingSessionNode: true,
+      reusePolicy: { kind: "none" },
       targetAgentSessionId: null
     });
   });
@@ -296,8 +299,7 @@ describe("agent gui workbench launch contract", () => {
       dockEntryId: "agent-gui:unified",
       openInNewWindow: true,
       provider: "codex",
-      reuseDockEntryNode: false,
-      reuseExistingSessionNode: false,
+      reusePolicy: { kind: "none" },
       targetAgentSessionId: null
     });
     expect(descriptor.instanceId).toMatch(/^agent-gui:instance:/);
@@ -331,7 +333,7 @@ describe("agent gui workbench launch contract", () => {
     ).toMatchObject({
       dockEntryId: "agent-gui:unified",
       provider: "codex",
-      reuseDockEntryNode: false,
+      reusePolicy: { kind: "none" },
       targetAgentSessionId: null
     });
 
@@ -347,7 +349,7 @@ describe("agent gui workbench launch contract", () => {
     ).toMatchObject({
       dockEntryId: "agent-gui:unified",
       provider: "claude-code",
-      reuseDockEntryNode: false,
+      reusePolicy: { kind: "none" },
       targetAgentSessionId: null
     });
   });

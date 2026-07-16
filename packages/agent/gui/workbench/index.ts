@@ -48,7 +48,10 @@ export {
   createAgentGuiWorkbenchSessionLaunchRequest,
   resolveAgentGuiWorkbenchLaunchDockEntryId
 } from "./launch.ts";
-export type { AgentGuiWorkbenchLaunchDescriptor } from "./launch.ts";
+export type {
+  AgentGuiWorkbenchLaunchDescriptor,
+  AgentGuiWorkbenchReusePolicy
+} from "./launch.ts";
 export {
   areAgentGuiWorkbenchNodeStatesEqual,
   areAgentGuiWorkbenchStatesEqual,

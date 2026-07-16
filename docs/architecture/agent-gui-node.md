@@ -198,9 +198,12 @@ visibility; an aggregate status, if needed, must be modeled explicitly instead
 of synthesizing an `unified` provider.
 Empty launches from the unified Agent dock entry should set dock-entry reuse so
 the second dock click restores/focuses the existing AgentGUI node; draft
-prefill launches and explicit session launches keep their narrower reuse rules
-so generated drafts and session navigation do not overwrite an unrelated
-window.
+prefill launches always create a fresh opaque node, while explicit session
+launches may reuse only a node whose current state names that exact session.
+Agent target identity must not select a workbench instance: targets describe
+node content, not canvas-container identity. These mutually exclusive reuse
+rules keep generated drafts and session navigation from overwriting an
+unrelated window.
 The Dock popup's New window card is a distinct launch source and must bypass
 dock-entry reuse for AgentGUI, otherwise it collapses into the normal
 restore/focus behavior instead of opening a fresh Agent window.
@@ -504,9 +507,11 @@ the current Tutti workspace surface: `DesktopAgentGUIWorkbenchBody` calls
 already-open node only when workbench node state says that node is currently
 showing the requested session. An instance id from older snapshots is only a
 legacy window identity hint, not proof of the node's current session or target.
-If no current-session match exists, the launch uses an opaque AgentGUI container
-bound to the requested target in contribution-local memory and then activates
-the durable session. The
+If no current-session match exists, the launch creates a fresh opaque AgentGUI
+container, writes the requested target into that node's state, and then
+activates the durable session. AgentGUI must not maintain a parallel
+target-to-instance index because multiple sessions for the same target are
+valid and the Workbench host already owns live canvas-node lookup. The
 explicit new-window action must pass `openInNewWindow` so the descriptor creates
 a fresh opaque AgentGUI instance while still activating the same durable
 session.
