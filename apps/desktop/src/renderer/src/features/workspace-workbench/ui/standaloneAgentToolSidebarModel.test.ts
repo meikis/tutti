@@ -12,6 +12,7 @@ import {
   resolveStandaloneAgentToolSidebarLayoutWidth,
   resolveStandaloneAgentToolSidebarWidth,
   resolveStandaloneAgentToolPanelMaxWidth,
+  shouldResizeStandaloneAgentToolWindow,
   standaloneAgentEmptyToolSidebarWidth,
   standaloneAgentToolPanelDefaultWidthById
 } from "./standaloneAgentToolSidebarModel.ts";
@@ -232,6 +233,31 @@ test("standalone agent tool panels reuse the latest manual width across panels",
       panelWidth: standaloneAgentToolPanelDefaultWidthById.browser
     }),
     standaloneAgentToolPanelDefaultWidthById.browser
+  );
+});
+
+test("standalone agent tool switches skip redundant native window resizes", () => {
+  assert.equal(
+    shouldResizeStandaloneAgentToolWindow({
+      currentWidth: 2_100,
+      requestedWidth: 2_100
+    }),
+    false
+  );
+  assert.equal(
+    shouldResizeStandaloneAgentToolWindow({
+      currentWidth: 2_000,
+      lastResize: { actualWidth: 2_000, requestedWidth: 2_100 },
+      requestedWidth: 2_100
+    }),
+    false
+  );
+  assert.equal(
+    shouldResizeStandaloneAgentToolWindow({
+      currentWidth: 2_000,
+      requestedWidth: 2_100
+    }),
+    true
   );
 });
 

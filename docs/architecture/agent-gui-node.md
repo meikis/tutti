@@ -644,6 +644,10 @@ the host-window resize request until the next animation frame. Do not await
 native IPC before showing the panel. Commit the sidebar's final layout width in
 one step; do not animate `width`, `flex-basis`, or another layout property,
 because that repeatedly reflows both the panel and the adjacent conversation.
+When a tool switch resolves to the current native content width, the host-window
+resize request must be skipped; a previously clamped native width must also be
+treated as settled for the same target so tool switching does not cause a
+redundant resize pulse.
 The sidebar may animate only its fixed-size inner surface with a short
 right-to-left `transform` and opacity entrance. Files, Browser, Apps, and other expensive first-use
 bodies mount after that short compositor entrance, then remain mounted while

@@ -14,6 +14,7 @@ import {
   resolveStandaloneAgentToolPanelPreferredWidth,
   resolveStandaloneAgentToolSidebarLayoutWidth,
   resolveStandaloneAgentToolSidebarWidth,
+  shouldResizeStandaloneAgentToolWindow,
   standaloneAgentToolPanelDefaultWidthById,
   standaloneAgentToolPanelMinWidthById,
   type StandaloneAgentToolPanelId
@@ -62,6 +63,10 @@ export function useStandaloneAgentToolSidebarLayout({
   const baselineViewportWidthRef = useRef<number | null>(null);
   const panelWidthBeforeExpandRef = useRef<Partial<ToolPanelWidths>>({});
   const resizeRequestRef = useRef(0);
+  const lastWindowResizeRef = useRef<{
+    actualWidth: number;
+    requestedWidth: number;
+  } | null>(null);
   const resizeStateRef = useRef<ToolPanelResizeState | null>(null);
   const resizeStyleRef = useRef<{
     cursor: string;
@@ -207,20 +212,32 @@ export function useStandaloneAgentToolSidebarLayout({
             );
 
       if (requestedWidth !== null) {
-        try {
-          const result = await resizeWindowContentWidth(
-            requestedWidth,
-            options?.animateWindow
-          );
-          if (requestId !== resizeRequestRef.current) {
-            return false;
-          }
-          if (result.width > 0) {
-            setViewportWidth(result.width);
-          }
-        } catch {
-          if (requestId !== resizeRequestRef.current) {
-            return false;
+        const currentWidth = window.innerWidth;
+        const shouldResize = shouldResizeStandaloneAgentToolWindow({
+          currentWidth,
+          lastResize: lastWindowResizeRef.current,
+          requestedWidth
+        });
+        if (shouldResize) {
+          try {
+            const result = await resizeWindowContentWidth(
+              requestedWidth,
+              options?.animateWindow
+            );
+            if (requestId !== resizeRequestRef.current) {
+              return false;
+            }
+            if (result.width > 0) {
+              lastWindowResizeRef.current = {
+                actualWidth: result.width,
+                requestedWidth
+              };
+              setViewportWidth(result.width);
+            }
+          } catch {
+            if (requestId !== resizeRequestRef.current) {
+              return false;
+            }
           }
         }
       }

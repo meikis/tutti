@@ -308,6 +308,23 @@ export function resolveStandaloneAgentToolPanelPreferredWidth(input: {
   return input.panelWidth;
 }
 
+export function shouldResizeStandaloneAgentToolWindow(input: {
+  currentWidth: number;
+  lastResize?: {
+    actualWidth: number;
+    requestedWidth: number;
+  } | null;
+  requestedWidth: number;
+}): boolean {
+  if (input.currentWidth === input.requestedWidth) {
+    return false;
+  }
+  return !(
+    input.lastResize?.requestedWidth === input.requestedWidth &&
+    input.lastResize.actualWidth === input.currentWidth
+  );
+}
+
 export function resolveStandaloneAgentToolSidebarLayoutWidth(input: {
   baselineViewportWidth: number;
   panelWidth: number;
