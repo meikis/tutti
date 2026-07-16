@@ -33,7 +33,7 @@ type Repository interface {
 	ListSessionSectionDeletionCandidates(context.Context, ListSessionSectionDeletionCandidatesInput) (SessionSectionDeletionCandidates, bool, error)
 	ListSessionTurns(context.Context, string, string) ([]Turn, error)
 	ListSessions(context.Context, string) ([]Session, bool, error)
-	ListWorkspaceGeneratedFiles(context.Context, ListWorkspaceGeneratedFilesInput) (GeneratedFileList, bool, error)
+	ListWorkspaceGeneratedFileTurns(context.Context, ListWorkspaceGeneratedFileTurnsInput) (GeneratedFileTurnList, bool, error)
 	ListSessionMessages(context.Context, ListSessionMessagesInput) (MessagePage, bool, error)
 	ReportActivityState(context.Context, ActivityStateReport) (ActivityStateReportResult, error)
 	ReportSessionMessages(context.Context, SessionMessageReport) (MessageReportResult, error)
@@ -87,22 +87,30 @@ type ListSessionMessagesInput struct {
 	Order         MessageOrder
 }
 
-type ListWorkspaceGeneratedFilesInput struct {
-	WorkspaceID    string
-	Query          string
-	SessionCwd     string
-	AgentTargetIDs []string
-	Limit          int
-}
-
-type GeneratedFile struct {
-	Path  string
-	Label string
-}
-
-type GeneratedFileList struct {
+type ListWorkspaceGeneratedFileTurnsInput struct {
 	WorkspaceID string
-	Files       []GeneratedFile
+	SectionKey  string
+}
+
+type GeneratedFileTurnChange struct {
+	Path   string
+	Change string
+}
+
+type GeneratedFileTurn struct {
+	AgentSessionID  string
+	AgentTargetID   string
+	TurnID          string
+	CWD             string
+	RailSectionKind string
+	RailProjectPath string
+	SettledAtUnixMS int64
+	Changes         []GeneratedFileTurnChange
+}
+
+type GeneratedFileTurnList struct {
+	WorkspaceID string
+	Turns       []GeneratedFileTurn
 }
 
 type ListSessionSectionInput struct {

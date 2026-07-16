@@ -39,6 +39,7 @@ interface Input {
   workspaceId: string;
   currentUserId?: string | null;
   selectedProjectPath: string;
+  selectedProjectSectionKey: string;
   draftContent: AgentComposerDraft;
   fileMentionSuggestion: AgentFileMentionSuggestionState | null;
   setFileMentionSuggestion: Dispatch<
@@ -84,6 +85,7 @@ export function useComposerMentionActions(input: Input) {
     workspaceId,
     currentUserId,
     selectedProjectPath,
+    selectedProjectSectionKey,
     draftContent,
     fileMentionSuggestion,
     setFileMentionSuggestion,
@@ -378,10 +380,11 @@ export function useComposerMentionActions(input: Input) {
         workspaceId,
         currentUserId,
         query: state.query,
+        sectionKey: selectedProjectSectionKey || null,
         sessionCwd: selectedProjectPath || null
       });
     },
-    [currentUserId, selectedProjectPath, workspaceId]
+    [currentUserId, selectedProjectPath, selectedProjectSectionKey, workspaceId]
   );
 
   useEffect(() => {
