@@ -239,7 +239,11 @@ gap, the pending activation record in `AgentSessionEngine` owns one optimistic
 title projected from the submitted visible prompt; the rail and every header
 read that same record. Optimistic projection and daemon persistence use the same
 whitespace and Markdown-link-label normalization so engine reconciliation does
-not visibly rewrite valid rich-prompt titles. The localized untitled label is
+not visibly rewrite valid rich-prompt titles. In header and conversation-rail
+titles, Agent handoff/session, Agent-target, and workspace-app mentions render
+as normalized `@label` text without a second mention glyph; the active Agent's
+identity icon remains separate, while task and file references may keep their
+compact title markers. The localized untitled label is
 used only when this projection is unavailable, while canonical `session.title`
 remains empty until the daemon establishes it and then takes precedence. Runtime
 owns the initial-title-established bit and persists it in private runtime
@@ -342,7 +346,16 @@ A provider's read-only tier must map to its actual non-writing execution mode,
 not to a planning workflow that can advance into implementation. For Cursor,
 the durable `read-only` tier maps to ACP `ask`, while the independent
 `planMode` flag maps to ACP `plan`; leaving plan mode restores the runtime mode
-derived from the durable permission tier.
+derived from the durable permission tier. OpenCode keeps ACP `build` and `plan`
+exclusively as workflow modes controlled by `planMode`. Its `read-only`, `ask`,
+and `full-access` permission tiers resolve OpenCode ACP permission requests and
+must never call `session/set_mode`. OpenCode's plan agent must retain its edit
+denial even when the independent permission tier is `full-access`; one-shot
+approval choices keep a later live switch to `read-only` enforceable. For
+OpenCode processes launched by AgentGUI, the selected tier is authoritative:
+the adapter merges unrelated `OPENCODE_CONFIG_CONTENT` fields but replaces its
+permission policy and neutralizes `OPENCODE_PERMISSION` so external overrides
+cannot collapse the permission/workflow boundary.
 Host feature switches that disable an agent for new conversations should keep
 the entry present with a non-ready `availability.status` when another surface
 still needs to show it. Filter the entry out only for surfaces that should
