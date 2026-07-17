@@ -340,16 +340,17 @@ func (h *Host) RecoverRuntimeOperations(ctx context.Context) error {
 	}
 }
 
-// Recover fixes startup order as durable runtime operations, then remaining
-// durable coordinators, then unrecoverable stale turns.
+// Recover fixes startup order as durable runtime operations, goal operations,
+// the durable goal reconcile inbox, and only then unrecoverable stale turns.
 func (h *Host) Recover(ctx context.Context) error {
 	if err := h.RecoverRuntimeOperations(ctx); err != nil {
 		return err
 	}
-	if h != nil && h.recovery != nil {
-		if err := h.recovery.RecoverBeforeStaleTurnSettlement(ctx); err != nil {
-			return err
-		}
+	if err := h.RecoverGoalOperations(ctx); err != nil {
+		return err
+	}
+	if err := h.RecoverGoalReconcileInbox(ctx); err != nil {
+		return err
 	}
 	if h != nil && h.staleTurns != nil {
 		return h.staleTurns.SettleStaleTurnsOnStartup(ctx)
