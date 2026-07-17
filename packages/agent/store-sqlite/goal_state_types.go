@@ -30,22 +30,30 @@ var (
 )
 
 type SessionGoalState struct {
-	WorkspaceID        string
-	AgentSessionID     string
-	Desired            map[string]any
-	Observed           map[string]any
-	Revision           int64
-	Tombstoned         bool
-	SyncStatus         string
-	PendingOperationID string
-	LastEvidence       map[string]any
-	LastError          string
-	ObservedAtUnixMS   int64
-	CreatedAtUnixMS    int64
-	UpdatedAtUnixMS    int64
+	// CommitTransactionID is populated only on a successful mutation return;
+	// it is not persisted as goal state.
+	CommitTransactionID string
+	CommitDelta         TransactionDelta
+	WorkspaceID         string
+	AgentSessionID      string
+	Desired             map[string]any
+	Observed            map[string]any
+	Revision            int64
+	Tombstoned          bool
+	SyncStatus          string
+	PendingOperationID  string
+	LastEvidence        map[string]any
+	LastError           string
+	ObservedAtUnixMS    int64
+	CreatedAtUnixMS     int64
+	UpdatedAtUnixMS     int64
 }
 
 type GoalControlOperation struct {
+	// CommitTransactionID is populated only on a successful mutation return;
+	// it is not persisted as operation state.
+	CommitTransactionID     string
+	CommitDelta             TransactionDelta
 	OperationID             string
 	WorkspaceID             string
 	AgentSessionID          string

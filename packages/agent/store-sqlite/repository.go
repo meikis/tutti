@@ -175,6 +175,10 @@ type SessionSectionsPage struct {
 }
 
 type Session struct {
+	// CommitTransactionID is populated only by a successful mutating call and
+	// is not persisted as canonical session state.
+	CommitTransactionID    string
+	CommitDelta            TransactionDelta
 	ID                     string
 	WorkspaceID            string
 	Kind                   string
@@ -225,6 +229,8 @@ type ActivityStateReport struct {
 }
 
 type ActivityStateReportResult struct {
+	TransactionID     string
+	CommitDelta       TransactionDelta
 	State             StateReportResult
 	Turn              Turn
 	TurnAccepted      bool
@@ -399,6 +405,8 @@ type ListSessionInteractionsInput struct {
 // StaleTurnSettlement identifies one turn that startup reconciliation
 // force-settled with outcome interrupted.
 type StaleTurnSettlement struct {
+	TransactionID  string
+	CommitDelta    TransactionDelta
 	WorkspaceID    string
 	AgentSessionID string
 	TurnID         string
@@ -436,6 +444,8 @@ type SessionStateReport struct {
 }
 
 type StateReportResult struct {
+	TransactionID    string
+	CommitDelta      TransactionDelta
 	Accepted         bool
 	StateApplied     bool
 	LastEventUnixMS  int64
@@ -470,6 +480,8 @@ type MessageUpdate struct {
 }
 
 type MessageReportResult struct {
+	TransactionID    string
+	CommitDelta      TransactionDelta
 	AcceptedCount    int
 	LatestVersion    uint64
 	Messages         []Message

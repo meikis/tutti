@@ -15,6 +15,7 @@ import (
 	agentsessionstore "github.com/tutti-os/tutti/packages/agent/daemon/activity"
 	"github.com/tutti-os/tutti/packages/agent/daemon/providerregistry"
 	"github.com/tutti-os/tutti/packages/agent/daemon/titletext"
+	agenthost "github.com/tutti-os/tutti/packages/agent/host"
 	runtimeprep "github.com/tutti-os/tutti/packages/agent/runtimeprep"
 	agentactivitybiz "github.com/tutti-os/tutti/services/tuttid/biz/agentactivity"
 	agenttargetbiz "github.com/tutti-os/tutti/services/tuttid/biz/agenttarget"
@@ -5473,8 +5474,11 @@ type recordingGoalAuditPublisher struct {
 	audits []agentactivitybiz.Message
 }
 
-func (p *recordingGoalAuditPublisher) PublishGoalControlAudit(_ context.Context, _ string, _ string, audit agentactivitybiz.Message) {
-	p.audits = append(p.audits, audit)
+func (p *recordingGoalAuditPublisher) ObserveCommitted(_ context.Context, delta agenthost.CommittedDelta) error {
+	if delta.GoalOperation != nil && delta.GoalOperation.Audit != nil {
+		p.audits = append(p.audits, *delta.GoalOperation.Audit)
+	}
+	return nil
 }
 
 func (*recordingGoalStateStore) CompleteGoalControlOperation(context.Context, agentactivitybiz.GoalControlOperationComplete) (agentactivitybiz.GoalControlOperation, agentactivitybiz.SessionGoalState, bool, error) {
@@ -5577,7 +5581,7 @@ func TestServiceTypedGoalUsesDurableSagaBeforeTurnSubmit(t *testing.T) {
 	}
 	service := newIsolatedAgentService(runtime)
 	service.GoalStateStore = store
-	service.GoalAuditPublisher = publisher
+	service.CommitObserver = publisher
 
 	result, err := service.SendInput(context.Background(), "ws-typed", "session-typed", SendInput{
 		Content:  TextPromptContent("/goal ship it"),
@@ -7631,6 +7635,7 @@ func (f fakeAgentTargetLookup) GetAgentTarget(_ context.Context, id string) (age
 type activityProjectionRepoStub struct {
 	clearResult    agentactivitybiz.ClearSessionsResult
 	settleStaleErr error
+	settlements    []agentactivitybiz.StaleTurnSettlement
 	stateResult    agentactivitybiz.StateReportResult
 	stateInput     agentactivitybiz.SessionStateReport
 	messageInput   agentactivitybiz.SessionMessageReport
@@ -7827,7 +7832,7 @@ func (*activityProjectionRepoStub) RecordTurnTransition(_ context.Context, trans
 }
 
 func (r *activityProjectionRepoStub) SettleStaleTurns(context.Context) ([]agentactivitybiz.StaleTurnSettlement, error) {
-	return nil, r.settleStaleErr
+	return append([]agentactivitybiz.StaleTurnSettlement(nil), r.settlements...), r.settleStaleErr
 }
 
 func (*activityProjectionRepoStub) UpsertInteraction(_ context.Context, upsert agentactivitybiz.InteractionUpsert) (agentactivitybiz.Interaction, agentactivitybiz.InteractionTransitionResult, error) {

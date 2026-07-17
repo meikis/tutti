@@ -368,8 +368,12 @@ func (c *localProcessConnection) readPipe(readers *sync.WaitGroup, reader io.Rea
 }
 
 func (c *localProcessConnection) wait(readers *sync.WaitGroup) {
-	err := c.cmd.Wait()
+	// StdoutPipe/StderrPipe require all reads to finish before Wait. Calling
+	// Wait first can close a short-lived process's pipes before the reader
+	// goroutines enqueue their final frames, making an exit frame overtake (or
+	// entirely lose) stdout in CI.
 	readers.Wait()
+	err := c.cmd.Wait()
 	exitCode := 0
 	if err != nil {
 		exitCode = 1

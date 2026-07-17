@@ -264,27 +264,7 @@ func (p *ActivityProjection) reportSessionState(
 		RequestBodyBytes:  result.RequestBodyBytes,
 	}
 	if notify {
-		p.publishPersistedTurnState(ctx, input, activityResult)
-	}
-	if notify && result.Accepted {
-		p.publishActivityUpdated(
-			ctx,
-			input.WorkspaceID,
-			input.AgentSessionID,
-			"session_reconcile_required",
-			activitySessionUpdateEventPayload(
-				input.WorkspaceID,
-				input.AgentSessionID,
-				result.LastEventUnixMS,
-				canonicalTargetID,
-			),
-		)
-		if result.StateApplied {
-			p.reportFailedRuntimeNodeResult(ctx, input)
-		}
-	}
-	if notify {
-		p.observeSessionState(ctx, input, reply)
+		agenthost.NotifyCommitted(ctx, p, agenthost.ActivityStateDelta(input, reply, activityResult))
 	}
 	return reply, nil
 }
@@ -394,33 +374,12 @@ func (p *ActivityProjection) ReportSessionMessages(
 	if err != nil {
 		return agentsessionstore.ReportSessionMessagesReply{}, err
 	}
-	if result.AcceptedCount > 0 {
-		publishedAgentSessionID := canonicalMessageUpdateSessionID(input.AgentSessionID, result.Messages)
-		for start := 0; start < len(result.Messages); {
-			if strings.TrimSpace(result.Messages[start].Kind) == "session_audit" {
-				p.publishActivityUpdated(ctx, input.WorkspaceID, publishedAgentSessionID, "session_audit", activitySessionAuditEventPayload(input.WorkspaceID, publishedAgentSessionID, result.Messages[start]))
-				start++
-				continue
-			}
-			end := start + 1
-			for end < len(result.Messages) && strings.TrimSpace(result.Messages[end].Kind) != "session_audit" {
-				end++
-			}
-			run := result.Messages[start:end]
-			p.publishActivityUpdated(ctx, input.WorkspaceID, publishedAgentSessionID, "message_update", map[string]any{
-				"acceptedCount": len(run), "agentSessionId": publishedAgentSessionID,
-				"eventType": "message_update", "latestVersion": run[len(run)-1].Version,
-				"messages": activityMessagesEventPayload(run), "workspaceId": strings.TrimSpace(input.WorkspaceID),
-			})
-			start = end
-		}
-	}
 	reply := agentsessionstore.ReportSessionMessagesReply{
 		AcceptedCount:    result.AcceptedCount,
 		LatestVersion:    result.LatestVersion,
 		RequestBodyBytes: result.RequestBodyBytes,
 	}
-	p.observeSessionMessages(ctx, input, reply)
+	agenthost.NotifyCommitted(ctx, p, agenthost.SessionMessagesDelta(input, reply, result))
 	return reply, nil
 }
 
@@ -690,8 +649,8 @@ func (p *ActivityProjection) UpdateSessionPinned(ctx context.Context, workspaceI
 	if !ok {
 		return PersistedSession{}, false, nil
 	}
+	agenthost.NotifyCommitted(ctx, p, agenthost.CanonicalDelta(session.CommitDelta))
 	persisted := persistedSessionFromActivity(session)
-	p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "session_reconcile_required", activitySessionUpdateEventPayload(workspaceID, agentSessionID, persisted.UpdatedAtUnixMS))
 	return persisted, true, nil
 }
 
@@ -714,8 +673,8 @@ func (p *ActivityProjection) UpdateSessionSettings(ctx context.Context, workspac
 	if !ok {
 		return PersistedSession{}, false, nil
 	}
+	agenthost.NotifyCommitted(ctx, p, agenthost.CanonicalDelta(session.CommitDelta))
 	persisted := persistedSessionFromActivity(session)
-	p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "session_reconcile_required", activitySessionUpdateEventPayload(workspaceID, agentSessionID, persisted.UpdatedAtUnixMS))
 	return persisted, true, nil
 }
 
@@ -732,8 +691,8 @@ func (p *ActivityProjection) UpdateSessionTitle(ctx context.Context, workspaceID
 	if !ok {
 		return PersistedSession{}, false, nil
 	}
+	agenthost.NotifyCommitted(ctx, p, agenthost.CanonicalDelta(session.CommitDelta))
 	persisted := persistedSessionFromActivity(session)
-	p.publishActivityUpdated(ctx, workspaceID, agentSessionID, "session_reconcile_required", activitySessionUpdateEventPayload(workspaceID, agentSessionID, persisted.UpdatedAtUnixMS))
 	return persisted, true, nil
 }
 
