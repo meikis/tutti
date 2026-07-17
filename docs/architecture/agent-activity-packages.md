@@ -170,6 +170,25 @@ AgentGUI controller. Fresh first pages are reused for 30 seconds across panel
 remounts and repeated target switches; stale pages remain visible while one
 coalesced background request revalidates the scope. The cache never owns session
 entities, titles, lifecycle, or interaction state.
+Pin and delete are engine mutations, not direct runtime calls from AgentGUI.
+The engine records the pending mutation, emits one semantic command, and feeds
+the command result back through its reducer loop. Successful pin results and
+delete tombstones enter canonical state as follow-up intents in the same engine
+drain. The desktop activity facade may await that engine record, but its command
+port is the only transport executor. Settled mutation records use a bounded
+window; they are workflow evidence, not an unbounded history store.
+When one of those canonical commits changes page membership, the rail query
+controller reloads only the affected first pages. Its public snapshot contains
+both derived engine conversations and daemon membership. The snapshot itself is
+the committed value: the controller keeps it unchanged while draft page requests
+are pending, then rebuilds and publishes it once from the latest engine state and
+resolved membership. The controller does not inspect engine mutation records.
+The view has no independent engine subscription or stale-page cache. A failed
+targeted read leaves the committed snapshot visible and locks
+membership-sensitive actions until an authoritative scoped refresh succeeds.
+Attach compares current canonical membership with the last observed membership
+and invalidates interrupted draft work before bootstrap, so changes completed
+while every panel is closed are revalidated without mutation-history coupling.
 Section first-page reloads should be tied to workspace, rail filter, user
 project, or session membership changes.
 Historical rows already owned by loaded section pages can be absent from a
