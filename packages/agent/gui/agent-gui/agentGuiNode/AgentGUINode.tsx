@@ -1,4 +1,6 @@
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, type ReactNode } from "react";
+import { RichTextMentionServiceProvider } from "@tutti-os/ui-rich-text/editor";
+import type { RichTextMentionService } from "@tutti-os/ui-rich-text/service";
 import { createWorkspaceUserProjectI18nRuntime } from "@tutti-os/workspace-user-project/i18n";
 import { createWorkspaceFileManagerI18nRuntime } from "@tutti-os/workspace-file-manager";
 import { useReferenceProvenanceFilterCatalog } from "@tutti-os/workspace-file-reference/react";
@@ -121,6 +123,7 @@ export const AgentGUINode = memo(function AgentGUINode({
     defaultAgentTargetId = null,
     providerAuthAccountLabels,
     contextMentionProviders,
+    mentionService,
     workspaceAppIcons,
     disabledHomeSuggestions,
     referenceProvenanceFilterCatalog: injectedReferenceProvenanceFilterCatalog,
@@ -539,154 +542,176 @@ export const AgentGUINode = memo(function AgentGUINode({
   ]);
 
   return (
-    <WorkspaceNodeWindow
-      nodeId={nodeId}
-      kind="agentGui"
-      title={windowTitle}
-      titleIcon={null}
-      position={position}
-      width={width}
-      height={height}
-      desktopSize={desktopSize}
-      minSize={minSize}
-      appearance={embedded ? "embedded" : "window"}
-      className="size-full bg-transparent"
-      bodyClassName={`${styles.shell} nodrag size-full min-h-0 min-w-0 !bg-transparent p-0`}
-      hideHeader={embedded}
-      titleAccessory={
-        <span className="inline-flex flex-none items-center gap-1">
-          <AgentProbeInfoPopover
-            lines={agentProbeLines}
-            testId="agent-gui-window-agent-info"
-            className={styles.windowAgentInfo}
-            onOpen={handleAgentProbeInfoOpen}
-          />
-          <CanvasNodeGhostIconButton
-            aria-label={
-              isConversationRailCollapsed
-                ? t("agentHost.agentGui.expandConversationRail")
-                : t("agentHost.agentGui.collapseConversationRail")
-            }
-            title={
-              isConversationRailCollapsed
-                ? t("agentHost.agentGui.expandConversationRail")
-                : t("agentHost.agentGui.collapseConversationRail")
-            }
-            data-testid="agent-gui-toggle-conversation-rail"
-            data-agent-gui-conversation-rail-collapsed={
-              isConversationRailCollapsed ? "true" : "false"
-            }
-            data-agent-gui-conversation-rail-auto-collapsed={
-              isConversationRailAutoCollapsed ? "true" : "false"
-            }
-            onClick={(event) => {
-              event.stopPropagation();
-              handleConversationRailToggle();
-            }}
-          >
-            <CanvasNodePanelLinedIcon
-              width={18}
-              height={18}
-              aria-hidden="true"
+    <AgentGUIMentionServiceBoundary service={mentionService}>
+      <WorkspaceNodeWindow
+        nodeId={nodeId}
+        kind="agentGui"
+        title={windowTitle}
+        titleIcon={null}
+        position={position}
+        width={width}
+        height={height}
+        desktopSize={desktopSize}
+        minSize={minSize}
+        appearance={embedded ? "embedded" : "window"}
+        className="size-full bg-transparent"
+        bodyClassName={`${styles.shell} nodrag size-full min-h-0 min-w-0 !bg-transparent p-0`}
+        hideHeader={embedded}
+        titleAccessory={
+          <span className="inline-flex flex-none items-center gap-1">
+            <AgentProbeInfoPopover
+              lines={agentProbeLines}
+              testId="agent-gui-window-agent-info"
+              className={styles.windowAgentInfo}
+              onOpen={handleAgentProbeInfoOpen}
             />
-          </CanvasNodeGhostIconButton>
-        </span>
-      }
-      onClose={onClose}
-      onResize={onResize}
-      isMaximized={isMaximized}
-      isMuted={isMuted}
-      hideMaximizeButton
-      onMinimize={onMinimize}
-      onToggleMaximize={onToggleMaximize}
-    >
-      {(renderFrame) => {
-        const renderedWidth = renderFrame.size.width;
-        const isRenderedConversationRailCollapsed =
-          isConversationRailCollapsed ||
-          shouldAutoCollapseAgentGUIConversationRail(
-            renderedWidth,
-            railAutoCollapseWidthPx
-          );
+            <CanvasNodeGhostIconButton
+              aria-label={
+                isConversationRailCollapsed
+                  ? t("agentHost.agentGui.expandConversationRail")
+                  : t("agentHost.agentGui.collapseConversationRail")
+              }
+              title={
+                isConversationRailCollapsed
+                  ? t("agentHost.agentGui.expandConversationRail")
+                  : t("agentHost.agentGui.collapseConversationRail")
+              }
+              data-testid="agent-gui-toggle-conversation-rail"
+              data-agent-gui-conversation-rail-collapsed={
+                isConversationRailCollapsed ? "true" : "false"
+              }
+              data-agent-gui-conversation-rail-auto-collapsed={
+                isConversationRailAutoCollapsed ? "true" : "false"
+              }
+              onClick={(event) => {
+                event.stopPropagation();
+                handleConversationRailToggle();
+              }}
+            >
+              <CanvasNodePanelLinedIcon
+                width={18}
+                height={18}
+                aria-hidden="true"
+              />
+            </CanvasNodeGhostIconButton>
+          </span>
+        }
+        onClose={onClose}
+        onResize={onResize}
+        isMaximized={isMaximized}
+        isMuted={isMuted}
+        hideMaximizeButton
+        onMinimize={onMinimize}
+        onToggleMaximize={onToggleMaximize}
+      >
+        {(renderFrame) => {
+          const renderedWidth = renderFrame.size.width;
+          const isRenderedConversationRailCollapsed =
+            isConversationRailCollapsed ||
+            shouldAutoCollapseAgentGUIConversationRail(
+              renderedWidth,
+              railAutoCollapseWidthPx
+            );
 
-        return (
-          <AgentGUINodeView
-            viewModel={viewModel}
-            renderSidebarFooter={renderSidebarFooter}
-            renderProviderRailEmpty={renderProviderRailEmpty}
-            renderProviderUnavailableState={renderProviderUnavailableState}
-            providerRailAllPresentation={providerRailAllPresentation}
-            actions={viewActions}
-            isActive={isActive}
-            isVisible={isVisible}
-            onEngagementEvent={onEngagementEvent}
-            composerFocusRequestSequence={composerFocusRequestSequence}
-            newConversationRequestSequence={newConversationRequestSequence}
-            slashStatusLimits={slashStatusLimits}
-            slashStatusLimitsLoading={
-              workspaceAgentProbes?.isLoadingUsage ?? false
-            }
-            slashStatusLimitsUnavailable={slashStatusLimitsUnavailable}
-            railConfigProvider={railStatusProvider}
-            railSlashStatusLimits={railSlashStatusLimits}
-            slashStatusUsageCapturedAtUnixMs={slashStatusUsageCapturedAtUnixMs}
-            slashStatusUsageDidFail={slashStatusUsageDidFail}
-            slashStatusUsageAttempted={slashStatusUsageAttempted}
-            providerAuthAccountLabels={providerAuthAccountLabels}
-            onAgentConfigMenuOpen={handleAgentConfigMenuOpen}
-            onAgentUsageRefresh={handleAgentUsageRefresh}
-            onSlashStatusOpen={handleAgentProbeInfoOpen}
-            previewMode={previewMode}
-            onLinkAction={handleLinkAction}
-            onHandoffConversation={onHandoffConversation}
-            capabilityMenuState={capabilityMenuState}
-            onCapabilitySettingsRequest={onCapabilitySettingsRequest}
-            onAgentProviderLogin={
-              onAgentProviderLogin ? handleAgentProviderLogin : undefined
-            }
-            accountMenuState={accountMenuState}
-            conversationRailCollapsed={isRenderedConversationRailCollapsed}
-            conversationRailWidthPx={clampAgentGUIConversationRailWidthPx(
-              state.conversationRailWidthPx,
-              renderedWidth
-            )}
-            conversationRailMinWidthPx={
-              AGENT_GUI_CONVERSATION_RAIL_MIN_WIDTH_PX
-            }
-            conversationRailMaxWidthPx={resolveAgentGUIConversationRailMaxWidthPx(
-              renderedWidth
-            )}
-            detailMinWidthPx={AGENT_GUI_DETAIL_MIN_WIDTH_PX}
-            uiLanguage={locale}
-            onWorkspaceFileReferencesAdded={
-              onWorkspaceFileReferencesAdded
-                ? handleWorkspaceFileReferencesAdded
-                : undefined
-            }
-            resolveDroppedFileReferences={resolveDroppedFileReferences}
-            onConversationRailWidthChanged={handleConversationRailWidthChanged}
-            labels={labels}
-            workspaceUserProjectI18n={workspaceUserProjectI18n}
-            workspaceFileManagerCopy={workspaceFileManagerI18n}
-            workspaceFileReferenceAdapter={workspaceFileReferenceAdapter}
-            onOpenConversationWindow={onOpenConversationWindow}
-            onRequestGitBranches={onRequestGitBranches}
-            selectProjectDirectory={selectProjectDirectory}
-            referenceSourceAggregator={referenceSourceAggregator}
-            resolveWorkspaceReferenceEntryIconUrl={
-              resolveWorkspaceReferenceEntryIconUrl
-            }
-            resolveMentionReferenceTarget={resolveMentionReferenceTarget}
-            resolveWorkspaceReferenceInitialTarget={
-              resolveWorkspaceReferenceInitialTarget
-            }
-            workspaceFileReferenceCopy={workspaceFileReferenceCopy}
-            contextMentionProviders={contextMentionProviders}
-            workspaceAppIcons={workspaceAppIcons}
-            referenceProvenanceFilter={referenceProvenanceFilter}
-          />
-        );
-      }}
-    </WorkspaceNodeWindow>
+          return (
+            <AgentGUINodeView
+              viewModel={viewModel}
+              renderSidebarFooter={renderSidebarFooter}
+              renderProviderRailEmpty={renderProviderRailEmpty}
+              renderProviderUnavailableState={renderProviderUnavailableState}
+              providerRailAllPresentation={providerRailAllPresentation}
+              actions={viewActions}
+              isActive={isActive}
+              isVisible={isVisible}
+              onEngagementEvent={onEngagementEvent}
+              composerFocusRequestSequence={composerFocusRequestSequence}
+              newConversationRequestSequence={newConversationRequestSequence}
+              slashStatusLimits={slashStatusLimits}
+              slashStatusLimitsLoading={
+                workspaceAgentProbes?.isLoadingUsage ?? false
+              }
+              slashStatusLimitsUnavailable={slashStatusLimitsUnavailable}
+              railConfigProvider={railStatusProvider}
+              railSlashStatusLimits={railSlashStatusLimits}
+              slashStatusUsageCapturedAtUnixMs={
+                slashStatusUsageCapturedAtUnixMs
+              }
+              slashStatusUsageDidFail={slashStatusUsageDidFail}
+              slashStatusUsageAttempted={slashStatusUsageAttempted}
+              providerAuthAccountLabels={providerAuthAccountLabels}
+              onAgentConfigMenuOpen={handleAgentConfigMenuOpen}
+              onAgentUsageRefresh={handleAgentUsageRefresh}
+              onSlashStatusOpen={handleAgentProbeInfoOpen}
+              previewMode={previewMode}
+              onLinkAction={handleLinkAction}
+              onHandoffConversation={onHandoffConversation}
+              capabilityMenuState={capabilityMenuState}
+              onCapabilitySettingsRequest={onCapabilitySettingsRequest}
+              onAgentProviderLogin={
+                onAgentProviderLogin ? handleAgentProviderLogin : undefined
+              }
+              accountMenuState={accountMenuState}
+              conversationRailCollapsed={isRenderedConversationRailCollapsed}
+              conversationRailWidthPx={clampAgentGUIConversationRailWidthPx(
+                state.conversationRailWidthPx,
+                renderedWidth
+              )}
+              conversationRailMinWidthPx={
+                AGENT_GUI_CONVERSATION_RAIL_MIN_WIDTH_PX
+              }
+              conversationRailMaxWidthPx={resolveAgentGUIConversationRailMaxWidthPx(
+                renderedWidth
+              )}
+              detailMinWidthPx={AGENT_GUI_DETAIL_MIN_WIDTH_PX}
+              uiLanguage={locale}
+              onWorkspaceFileReferencesAdded={
+                onWorkspaceFileReferencesAdded
+                  ? handleWorkspaceFileReferencesAdded
+                  : undefined
+              }
+              resolveDroppedFileReferences={resolveDroppedFileReferences}
+              onConversationRailWidthChanged={
+                handleConversationRailWidthChanged
+              }
+              labels={labels}
+              workspaceUserProjectI18n={workspaceUserProjectI18n}
+              workspaceFileManagerCopy={workspaceFileManagerI18n}
+              workspaceFileReferenceAdapter={workspaceFileReferenceAdapter}
+              onOpenConversationWindow={onOpenConversationWindow}
+              onRequestGitBranches={onRequestGitBranches}
+              selectProjectDirectory={selectProjectDirectory}
+              referenceSourceAggregator={referenceSourceAggregator}
+              resolveWorkspaceReferenceEntryIconUrl={
+                resolveWorkspaceReferenceEntryIconUrl
+              }
+              resolveMentionReferenceTarget={resolveMentionReferenceTarget}
+              resolveWorkspaceReferenceInitialTarget={
+                resolveWorkspaceReferenceInitialTarget
+              }
+              workspaceFileReferenceCopy={workspaceFileReferenceCopy}
+              contextMentionProviders={contextMentionProviders}
+              workspaceAppIcons={workspaceAppIcons}
+              referenceProvenanceFilter={referenceProvenanceFilter}
+            />
+          );
+        }}
+      </WorkspaceNodeWindow>
+    </AgentGUIMentionServiceBoundary>
   );
 }, areAgentGUINodePropsEqual);
+
+function AgentGUIMentionServiceBoundary({
+  children,
+  service
+}: {
+  children: ReactNode;
+  service?: RichTextMentionService;
+}): ReactNode {
+  return service ? (
+    <RichTextMentionServiceProvider service={service}>
+      {children}
+    </RichTextMentionServiceProvider>
+  ) : (
+    children
+  );
+}

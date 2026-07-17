@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from "react";
+import { type JSX } from "react";
 import {
   MentionPill,
   Tooltip,
@@ -16,8 +16,12 @@ import { getWorkspaceReferencePresentation } from "../extensions/workspaceRefere
 import { RichTextMentionReadonly } from "./RichTextMentionReadonly.tsx";
 import { buildRichTextReadonlyInlineSegments } from "./richTextReadonlyContentModel.ts";
 import type { RichTextMentionAttrs } from "../types/mention.ts";
-import type { RichTextMentionResolved } from "../types/mention.ts";
 import type { RichTextTriggerProvider } from "../types/trigger.ts";
+import type { RichTextMentionService } from "../service/index.ts";
+import {
+  useEffectiveRichTextMentionService,
+  useResolvedRichTextMention
+} from "./RichTextMentionServiceProvider.tsx";
 
 export interface RichTextReadonlyWorkspaceReference {
   kind: "file" | "folder";
@@ -29,7 +33,9 @@ export interface RichTextReadonlyContentProps {
   value: string;
   className?: string;
   paragraphClassName?: string;
+  /** @deprecated Prefer mentionService or RichTextMentionServiceProvider. */
   triggerProviders?: readonly RichTextTriggerProvider[];
+  mentionService?: RichTextMentionService;
   onMentionAction?: (mention: RichTextMentionAttrs) => void | Promise<void>;
   onOpenWorkspaceReference?: (
     reference: RichTextReadonlyWorkspaceReference
@@ -44,10 +50,15 @@ export function RichTextReadonlyContent({
   className,
   paragraphClassName,
   triggerProviders,
+  mentionService,
   onMentionAction,
   onOpenWorkspaceReference
 }: RichTextReadonlyContentProps): JSX.Element | null {
   const normalizedValue = normalizeRichTextContent(value).trim();
+  const effectiveMentionService = useEffectiveRichTextMentionService({
+    mentionService,
+    triggerProviders
+  });
 
   if (!normalizedValue) {
     return null;
@@ -67,9 +78,9 @@ export function RichTextReadonlyContent({
         >
           {renderReadonlyInlineMarkdown(
             paragraph,
+            effectiveMentionService,
             onOpenWorkspaceReference,
-            onMentionAction,
-            triggerProviders
+            onMentionAction
           )}
         </p>
       ))}
@@ -79,11 +90,11 @@ export function RichTextReadonlyContent({
 
 function renderReadonlyInlineMarkdown(
   content: string,
+  mentionService: RichTextMentionService,
   onOpenWorkspaceReference?: (
     reference: RichTextReadonlyWorkspaceReference
   ) => void | Promise<void>,
-  onMentionAction?: (mention: RichTextMentionAttrs) => void | Promise<void>,
-  triggerProviders?: readonly RichTextTriggerProvider[]
+  onMentionAction?: (mention: RichTextMentionAttrs) => void | Promise<void>
 ): JSX.Element[] {
   const parts: JSX.Element[] = [];
   const segments = buildRichTextReadonlyInlineSegments(content);
@@ -101,7 +112,7 @@ function renderReadonlyInlineMarkdown(
         label={segment.label}
         onMentionAction={onMentionAction}
         onOpenWorkspaceReference={onOpenWorkspaceReference}
-        triggerProviders={triggerProviders}
+        mentionService={mentionService}
       />
     );
   });
@@ -114,7 +125,7 @@ function RichTextReadonlyInlineLink({
   label,
   onMentionAction,
   onOpenWorkspaceReference,
-  triggerProviders
+  mentionService
 }: {
   href: string;
   label: string;
@@ -122,7 +133,7 @@ function RichTextReadonlyInlineLink({
   onOpenWorkspaceReference?: (
     reference: RichTextReadonlyWorkspaceReference
   ) => void | Promise<void>;
-  triggerProviders?: readonly RichTextTriggerProvider[];
+  mentionService: RichTextMentionService;
 }): JSX.Element {
   const trimmedHref = href.trim();
   const mention = parseRichTextMentionHref(trimmedHref, label);
@@ -138,9 +149,7 @@ function RichTextReadonlyInlineLink({
               }
             : undefined
         }
-        provider={triggerProviders?.find(
-          (provider) => provider.id.trim() === mention.providerId
-        )}
+        mentionService={mentionService}
       />
     );
   }
@@ -183,62 +192,27 @@ function RichTextReadonlyInlineLink({
 function HydratedRichTextMentionReadonly({
   mention,
   onClick,
-  provider
+  mentionService
 }: {
   mention: RichTextMentionAttrs;
   onClick?: (payload: { mention: RichTextMentionAttrs }) => void;
-  provider?: RichTextTriggerProvider;
+  mentionService: RichTextMentionService;
 }): JSX.Element {
-  const [resolved, setResolved] = useState<RichTextMentionResolved | null>(
-    null
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    setResolved(null);
-    const resolveMention = provider?.resolveMention;
-    if (!resolveMention) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void Promise.resolve()
-      .then(() =>
-        resolveMention({
-          providerId: mention.providerId,
-          entityId: mention.entityId,
-          label: mention.label,
-          scope: mention.scope
-        })
-      )
-      .then((nextResolved) => {
-        if (!cancelled) {
-          setResolved(nextResolved);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setResolved(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    mention.entityId,
-    mention.label,
-    mention.providerId,
-    mention.scope,
-    provider
-  ]);
+  const snapshot = useResolvedRichTextMention(mention, mentionService);
+  const resolved =
+    snapshot.state === "ready"
+      ? { state: "active" as const, ...snapshot.resolved }
+      : snapshot.state === "loading"
+        ? { state: "loading" as const }
+        : snapshot.state === "missing"
+          ? { state: "missing" as const }
+          : undefined;
 
   return (
     <RichTextMentionReadonly
       mention={mention}
       onClick={onClick}
-      resolved={resolved ? { state: "active", ...resolved } : undefined}
+      resolved={resolved}
     />
   );
 }

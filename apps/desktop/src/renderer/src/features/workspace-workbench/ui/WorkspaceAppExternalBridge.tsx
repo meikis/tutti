@@ -83,7 +83,8 @@ export function WorkspaceAppExternalBridge({
 }: WorkspaceAppExternalBridgeProps): ReactElement | null {
   const hostService = useWorkspaceWorkbenchHostService();
   const { service: settingsService } = useWorkspaceSettingsService();
-  const { service: appCenterService } = useWorkspaceAppCenterService();
+  const { service: appCenterService, state: appCenterState } =
+    useWorkspaceAppCenterService();
   const workspaceAgentActivityService = useService(
     IWorkspaceAgentActivityService
   );
@@ -142,6 +143,18 @@ export function WorkspaceAppExternalBridge({
     };
   }, [api, userProjectsApi, workspaceId]);
 
+  useEffect(() => {
+    if (!api) return;
+    api.sendEvent({
+      invalidation: {
+        providerIds: ["workspace-app"],
+        revision: appCenterState.revision
+      },
+      type: "at.invalidated",
+      workspaceId
+    });
+  }, [api, appCenterState.revision, workspaceId]);
+
   const resolvePendingFileSelect = useCallback(
     (refs: WorkspaceFileReference[]) => {
       const pending = pendingFileSelectRef.current;
@@ -177,6 +190,11 @@ export function WorkspaceAppExternalBridge({
         case "at.query":
           return hostService.queryWorkspaceAppExternalAt({
             query: request.input,
+            workspaceId
+          });
+        case "at.resolve":
+          return hostService.resolveWorkspaceAppExternalAt({
+            mention: request.input,
             workspaceId
           });
         case "files.select":

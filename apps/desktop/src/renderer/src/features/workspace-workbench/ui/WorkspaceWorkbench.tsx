@@ -39,6 +39,11 @@ import {
   normalizeDesktopAgentGUIProvider
 } from "@renderer/features/workspace-agent/desktopAgentGUINodeState";
 import { useService } from "@tutti-os/infra/di";
+import { RichTextMentionServiceProvider } from "@tutti-os/ui-rich-text/editor";
+import {
+  createDesktopRichTextMentionService,
+  IDesktopRichTextAtService
+} from "@renderer/features/rich-text-at";
 import { useTranslation } from "@renderer/i18n";
 import { cn } from "@renderer/lib/format";
 import {
@@ -217,7 +222,24 @@ function ReadyWorkspaceWorkbenchWithSession({
 }: ReadyWorkspaceWorkbenchProps & {
   hostSession: WorkspaceWorkbenchHostSessionBinding;
 }) {
-  const { service: appCenterService } = useWorkspaceAppCenterService();
+  const { service: appCenterService, state: appCenterState } =
+    useWorkspaceAppCenterService();
+  const richTextAtService = useService(IDesktopRichTextAtService);
+  const mentionService = useMemo(
+    () =>
+      createDesktopRichTextMentionService({
+        richTextAtService,
+        workspaceId: state.workspace.id
+      }),
+    [richTextAtService, state.workspace.id]
+  );
+  useEffect(() => () => mentionService.dispose(), [mentionService]);
+  useEffect(() => {
+    mentionService.invalidate({
+      providerId: "workspace-app",
+      workspaceId: state.workspace.id
+    });
+  }, [appCenterState.revision, mentionService, state.workspace.id]);
   const agentProviderStatusService = useService(IAgentProviderStatusService);
   const runtime = useWorkspaceWorkbenchShellRuntime({
     enableWindowCloseGuard,
@@ -721,108 +743,112 @@ function ReadyWorkspaceWorkbenchWithSession({
   ]);
 
   return (
-    <main
-      className={cn(
-        "relative h-screen min-h-0 overflow-hidden bg-background",
-        launchpadOpen && "workspace-workbench-shell--launchpad-open"
-      )}
-    >
-      <WorkspaceAppCenterIntegration workspaceId={state.workspace.id} />
-      <WorkbenchHost
-        captureNodePreviewImage={hostInput.captureNodePreviewImage}
-        className="h-full"
-        contributions={contributions}
-        debugDiagnostics={hostInput.debugDiagnostics}
-        dockPreviewCache={hostInput.dockPreviewCache}
-        dockPlacement={runtime.dockPlacement}
-        dockEntries={dockEntries}
-        dockStateSource={hostInput.dockStateSource}
-        externalStateSource={hostInput.externalStateSource}
-        i18n={runtime.appI18n}
-        layoutConstraints={layoutConstraints}
-        missionControl={{
-          mode: runtime.missionControl.mode,
-          nodeIds: runtime.missionControl.nodeIds ?? undefined,
-          onRequestClose: runtime.missionControl.close,
-          onRequestMode: (mode) => runtime.missionControl.open(mode, "button")
-        }}
-        minimizeAnimation={runtime.minimizeAnimation}
-        nodes={hostInput.nodes}
-        onDockEntryAction={onDockEntryAction}
-        onDockEntryClick={onDockEntryClick}
-        onHandleReady={onWorkbenchHostHandleReady}
-        onLaunchRequest={hostInput.onLaunchRequest}
-        onMissionControlAdapterReady={runtime.onMissionControlAdapterReady}
-        onMissionControlRequestOpen={(mode, request) => {
-          runtime.missionControl.open(
-            mode,
-            request
-              ? {
-                  nodeIds: request.nodeIds,
-                  trigger:
-                    request.trigger === "dock-context-menu"
-                      ? "button"
-                      : undefined
-                }
-              : "button"
-          );
-        }}
-        onNodeCloseRequest={hostInput.onNodeCloseRequest}
-        renderTopChrome={(chromeContext) => (
-          <WorkspaceChrome
-            headerSlot={headerSlot}
-            launchNode={chromeContext.launchNode}
-            missionControl={runtime.missionControl}
-            onSelectWallpaper={runtime.selectWallpaper}
-            onSelectWallpaperDisplayMode={runtime.selectWallpaperDisplayMode}
-            platform={state.platform}
-            selectedWallpaperDisplayMode={runtime.selectedWallpaperDisplayMode}
-            selectedWallpaperID={runtime.selectedWallpaperID}
-            wallpaperAppearance={runtime.wallpaper.appearance}
-            workbenchController={chromeContext.controller}
-            workspace={state.workspace}
-          />
+    <RichTextMentionServiceProvider service={mentionService}>
+      <main
+        className={cn(
+          "relative h-screen min-h-0 overflow-hidden bg-background",
+          launchpadOpen && "workspace-workbench-shell--launchpad-open"
         )}
-        snapshotRepository={hostInput.snapshotRepository}
-        shortcutsEnabled={runtime.shortcutsEnabled}
-        wallpaper={runtime.wallpaper}
-        windowManagement={windowManagement}
-        workspaceId={hostInput.workspaceId}
-      />
-      <WorkspaceAppExternalBridge
-        api={workspaceAppExternalApi}
-        openFile={openWorkspaceAppExternalFile}
-        workspaceId={state.workspace.id}
-      />
-      <DesktopAgentProviderManageDialog
-        agentProviderStatusService={agentProviderStatusService}
-        focusedProvider={agentProviderManageFocusedProvider}
-        open={agentProviderManageDialogOpen}
-        workbenchHost={workbenchHost}
-        workspaceId={state.workspace.id}
-        onOpenChange={setAgentProviderManageDialogOpen}
-      />
-      <WorkspaceLaunchpadOverlay
-        dockIconStyle={runtime.dockIconStyle}
-        dockPlacement={runtime.dockPlacement}
-        host={workbenchHost}
-        open={launchpadOpen}
-        openTrigger={launchpadOpenTrigger}
-        themeAppearance={runtime.themeAppearance}
-        workspaceId={state.workspace.id}
-        onClose={closeLaunchpad}
-      />
-      <WorkspaceCloseGuardDialog
-        request={runtime.closeDialog.request}
-        onCancel={runtime.closeDialog.onCancel}
-        onConfirm={runtime.closeDialog.onConfirm}
-      />
-      <AgentEnvPanel
-        agentProviderStatusService={agentProviderStatusService}
-        workspaceId={state.workspace.id}
-        workbenchHost={workbenchHost ?? undefined}
-      />
-    </main>
+      >
+        <WorkspaceAppCenterIntegration workspaceId={state.workspace.id} />
+        <WorkbenchHost
+          captureNodePreviewImage={hostInput.captureNodePreviewImage}
+          className="h-full"
+          contributions={contributions}
+          debugDiagnostics={hostInput.debugDiagnostics}
+          dockPreviewCache={hostInput.dockPreviewCache}
+          dockPlacement={runtime.dockPlacement}
+          dockEntries={dockEntries}
+          dockStateSource={hostInput.dockStateSource}
+          externalStateSource={hostInput.externalStateSource}
+          i18n={runtime.appI18n}
+          layoutConstraints={layoutConstraints}
+          missionControl={{
+            mode: runtime.missionControl.mode,
+            nodeIds: runtime.missionControl.nodeIds ?? undefined,
+            onRequestClose: runtime.missionControl.close,
+            onRequestMode: (mode) => runtime.missionControl.open(mode, "button")
+          }}
+          minimizeAnimation={runtime.minimizeAnimation}
+          nodes={hostInput.nodes}
+          onDockEntryAction={onDockEntryAction}
+          onDockEntryClick={onDockEntryClick}
+          onHandleReady={onWorkbenchHostHandleReady}
+          onLaunchRequest={hostInput.onLaunchRequest}
+          onMissionControlAdapterReady={runtime.onMissionControlAdapterReady}
+          onMissionControlRequestOpen={(mode, request) => {
+            runtime.missionControl.open(
+              mode,
+              request
+                ? {
+                    nodeIds: request.nodeIds,
+                    trigger:
+                      request.trigger === "dock-context-menu"
+                        ? "button"
+                        : undefined
+                  }
+                : "button"
+            );
+          }}
+          onNodeCloseRequest={hostInput.onNodeCloseRequest}
+          renderTopChrome={(chromeContext) => (
+            <WorkspaceChrome
+              headerSlot={headerSlot}
+              launchNode={chromeContext.launchNode}
+              missionControl={runtime.missionControl}
+              onSelectWallpaper={runtime.selectWallpaper}
+              onSelectWallpaperDisplayMode={runtime.selectWallpaperDisplayMode}
+              platform={state.platform}
+              selectedWallpaperDisplayMode={
+                runtime.selectedWallpaperDisplayMode
+              }
+              selectedWallpaperID={runtime.selectedWallpaperID}
+              wallpaperAppearance={runtime.wallpaper.appearance}
+              workbenchController={chromeContext.controller}
+              workspace={state.workspace}
+            />
+          )}
+          snapshotRepository={hostInput.snapshotRepository}
+          shortcutsEnabled={runtime.shortcutsEnabled}
+          wallpaper={runtime.wallpaper}
+          windowManagement={windowManagement}
+          workspaceId={hostInput.workspaceId}
+        />
+        <WorkspaceAppExternalBridge
+          api={workspaceAppExternalApi}
+          openFile={openWorkspaceAppExternalFile}
+          workspaceId={state.workspace.id}
+        />
+        <DesktopAgentProviderManageDialog
+          agentProviderStatusService={agentProviderStatusService}
+          focusedProvider={agentProviderManageFocusedProvider}
+          open={agentProviderManageDialogOpen}
+          workbenchHost={workbenchHost}
+          workspaceId={state.workspace.id}
+          onOpenChange={setAgentProviderManageDialogOpen}
+        />
+        <WorkspaceLaunchpadOverlay
+          dockIconStyle={runtime.dockIconStyle}
+          dockPlacement={runtime.dockPlacement}
+          host={workbenchHost}
+          open={launchpadOpen}
+          openTrigger={launchpadOpenTrigger}
+          themeAppearance={runtime.themeAppearance}
+          workspaceId={state.workspace.id}
+          onClose={closeLaunchpad}
+        />
+        <WorkspaceCloseGuardDialog
+          request={runtime.closeDialog.request}
+          onCancel={runtime.closeDialog.onCancel}
+          onConfirm={runtime.closeDialog.onConfirm}
+        />
+        <AgentEnvPanel
+          agentProviderStatusService={agentProviderStatusService}
+          workspaceId={state.workspace.id}
+          workbenchHost={workbenchHost ?? undefined}
+        />
+      </main>
+    </RichTextMentionServiceProvider>
   );
 }
 

@@ -51,4 +51,38 @@ describe("MentionPill", () => {
       container.querySelector('[data-mention-pill-fallback-icon="true"]')
     ).toBeInTheDocument();
   });
+
+  it("retries image loading when the resolved URL changes", () => {
+    const { container, rerender } = render(
+      <MentionPill
+        iconUrl="https://example.test/old.png"
+        kind="app"
+        label="Weather"
+      />
+    );
+
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.querySelector("img")).not.toBeInTheDocument();
+
+    rerender(
+      <MentionPill
+        iconUrl="https://example.test/new.png"
+        kind="app"
+        label="Weather"
+      />
+    );
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://example.test/new.png"
+    );
+  });
+
+  it("uses a semantic icon when no image URL is available", () => {
+    const { container } = render(<MentionPill kind="issue" label="Issue" />);
+
+    expect(container.querySelector("img")).not.toBeInTheDocument();
+    expect(
+      container.querySelector('[data-mention-pill-fallback-icon="true"]')
+    ).toBeInTheDocument();
+  });
 });
