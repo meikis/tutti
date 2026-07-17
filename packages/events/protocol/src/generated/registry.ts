@@ -37,7 +37,7 @@ export interface BusinessEventDefinition {
   scope: BusinessEventScopeName;
 }
 
-export const businessEventCatalogRevision = "sha256:c781ce05ad1c0a7b" as const;
+export const businessEventCatalogRevision = "sha256:ea32efd4e8950b13" as const;
 
 export const businessEventDefinitions = [
   {
@@ -77,7 +77,7 @@ export const businessEventDefinitions = [
   },
   {
     topic: "user.project.updated",
-    version: 1,
+    version: 2,
     direction: "server->client",
     owner: "core",
     scope: "global"
@@ -150,7 +150,7 @@ export const businessEventDefinitionByTopic = {
   },
   "user.project.updated": {
     topic: "user.project.updated",
-    version: 1,
+    version: 2,
     direction: "server->client",
     owner: "core",
     scope: "global"

@@ -5890,6 +5890,15 @@ aside.workspace-agents-status-panel
   max-width: 100%;
 }
 
+.agent-gui-node__pinned-project-rail-header {
+  min-width: 0;
+  padding: 4px 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+}
+
 .agent-gui-node__conversation-section[data-project-dragging="true"] {
   opacity: 0.42;
 }
@@ -6053,6 +6062,19 @@ button.agent-gui-node__conversation-section-toggle:hover
   height: 12px;
   flex: 0 0 auto;
   transition: opacity 140ms ease;
+}
+
+.agent-gui-node__conversation-section-pinned-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.agent-gui-node__project-drag-image
+  > .agent-gui-node__conversation-section-pinned-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .agent-gui-node__conversation-section[data-kind="project"]

@@ -30,9 +30,11 @@ export function projectDragAutoScrollDelta(
 
 interface ProjectDragState {
   beforeProjectId: string | null;
+  canDrop: boolean;
   indicator: "before" | "after" | null;
   indicatorSectionId: string | null;
   projectId: string;
+  projectPinned: boolean;
 }
 
 interface ProjectDragRuntime {
@@ -127,9 +129,11 @@ export function useAgentGUIProjectDrag(input: {
         null;
       const nextDragState: ProjectDragState = {
         beforeProjectId: projectId,
+        canDrop: false,
         indicator: null,
         indicatorSectionId: null,
-        projectId
+        projectId,
+        projectPinned: (section.project?.pinnedAtUnixMs ?? 0) > 0
       };
       runtime.dragState = nextDragState;
       setDragState(nextDragState);
@@ -141,9 +145,14 @@ export function useAgentGUIProjectDrag(input: {
         "[data-project-drag-icon]"
       );
       const icon = sourceIcon?.cloneNode(true);
+      const sourcePinIcon = event.currentTarget.querySelector(
+        "[data-project-drag-pin-icon]"
+      );
+      const pinIcon = sourcePinIcon?.cloneNode(true);
       const label = document.createElement("span");
       label.textContent = section.label;
       if (icon instanceof SVGElement) image.append(icon);
+      if (pinIcon instanceof SVGElement) image.append(pinIcon);
       image.append(label);
       document.body.append(image);
       runtime.image = image;
@@ -161,17 +170,36 @@ export function useAgentGUIProjectDrag(input: {
       const targetId = section.project?.id?.trim() ?? "";
       const currentDragState = runtime.dragState;
       if (!runtime.active || !currentDragState || !targetId) return;
+      const targetPinned = (section.project?.pinnedAtUnixMs ?? 0) > 0;
+      if (targetPinned !== currentDragState.projectPinned) {
+        event.dataTransfer.dropEffect = "none";
+        const nextDragState: ProjectDragState = {
+          ...currentDragState,
+          beforeProjectId: null,
+          canDrop: false,
+          indicator: null,
+          indicatorSectionId: null
+        };
+        runtime.dragState = nextDragState;
+        setDragState(nextDragState);
+        return;
+      }
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
-      const targetIndex = input.userProjects.findIndex(
+      const partitionProjects = input.userProjects.filter(
+        (project) =>
+          (project.pinnedAtUnixMs ?? 0) > 0 === currentDragState.projectPinned
+      );
+      const targetIndex = partitionProjects.findIndex(
         (project) => project.id === targetId
       );
       const nextDragState: ProjectDragState = {
         ...currentDragState,
+        canDrop: true,
         beforeProjectId:
           edge === "before"
             ? targetId
-            : (input.userProjects[targetIndex + 1]?.id ?? null),
+            : (partitionProjects[targetIndex + 1]?.id ?? null),
         indicator: edge,
         indicatorSectionId: section.id
       };
@@ -186,6 +214,10 @@ export function useAgentGUIProjectDrag(input: {
     async (event: React.DragEvent<HTMLElement>) => {
       const currentDragState = runtime.dragState;
       if (!currentDragState || !runtime.active) return;
+      if (!currentDragState.canDrop) {
+        clear();
+        return;
+      }
       event.preventDefault();
       const { beforeProjectId, projectId } = currentDragState;
       clear();

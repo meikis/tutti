@@ -6,7 +6,7 @@ import "encoding/json"
 
 const (
 	BusinessEventProtocolVersion = 1
-	BusinessEventCatalogRevision = "sha256:c781ce05ad1c0a7b"
+	BusinessEventCatalogRevision = "sha256:ea32efd4e8950b13"
 )
 
 type Topic string
@@ -161,6 +161,7 @@ type UserUserProject struct {
 	CreatedAtUnixMs  int64  `json:"createdAtUnixMs"`
 	UpdatedAtUnixMs  int64  `json:"updatedAtUnixMs"`
 	LastUsedAtUnixMs int64  `json:"lastUsedAtUnixMs"`
+	PinnedAtUnixMs   int64  `json:"pinnedAtUnixMs"`
 }
 
 type WorkspaceWorkspaceAppFactoryJob struct {
@@ -479,7 +480,7 @@ var BusinessEventDefinitions = []EventDefinition{
 	},
 	{
 		Topic:     TopicUserProjectUpdated,
-		Version:   1,
+		Version:   2,
 		Direction: DirectionServerToClient,
 		Owner:     "core",
 		Scope:     ScopeNameGlobal,

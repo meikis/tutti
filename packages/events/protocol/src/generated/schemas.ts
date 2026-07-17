@@ -362,7 +362,8 @@ export const userUserProjectSchema = {
     "sectionKey",
     "createdAtUnixMs",
     "updatedAtUnixMs",
-    "lastUsedAtUnixMs"
+    "lastUsedAtUnixMs",
+    "pinnedAtUnixMs"
   ],
   properties: {
     id: {
@@ -392,6 +393,11 @@ export const userUserProjectSchema = {
       minimum: 0
     },
     lastUsedAtUnixMs: {
+      type: "integer",
+      format: "int64",
+      minimum: 0
+    },
+    pinnedAtUnixMs: {
       type: "integer",
       format: "int64",
       minimum: 0
@@ -2091,7 +2097,8 @@ export const userProjectUpdatedPayloadSchema = {
           "sectionKey",
           "createdAtUnixMs",
           "updatedAtUnixMs",
-          "lastUsedAtUnixMs"
+          "lastUsedAtUnixMs",
+          "pinnedAtUnixMs"
         ],
         properties: {
           id: {
@@ -2121,6 +2128,11 @@ export const userProjectUpdatedPayloadSchema = {
             minimum: 0
           },
           lastUsedAtUnixMs: {
+            type: "integer",
+            format: "int64",
+            minimum: 0
+          },
+          pinnedAtUnixMs: {
             type: "integer",
             format: "int64",
             minimum: 0

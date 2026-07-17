@@ -560,6 +560,7 @@ export function useAgentGUINodeController({
           createdAtUnixMs?: number;
           updatedAtUnixMs?: number;
           lastUsedAtUnixMs?: number | null;
+          pinnedAtUnixMs: number;
         };
       }
     ) => {
