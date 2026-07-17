@@ -58,6 +58,9 @@ func (s *Service) Create(ctx context.Context, workspaceID string, input CreateSe
 	}
 	input.Provider = provider
 	input.ProviderTargetRef = launch.ProviderTargetRef
+	if err := s.applyCreateSessionComposerDefaults(ctx, &input); err != nil {
+		return Session{}, err
+	}
 	input.ConversationDetailMode = preferencesbiz.NormalizeDesktopAgentConversationDetailMode(input.ConversationDetailMode)
 	normalizedPermissionModeID := normalizePermissionModeIDForLaunch(provider, input.ProviderTargetRef, value(input.PermissionModeID))
 	if normalizedPermissionModeID != "" {
@@ -108,6 +111,14 @@ func (s *Service) Create(ctx context.Context, workspaceID string, input CreateSe
 	logAgentSubmitTrace("service.create.cwd_resolved", workspaceID, input.AgentSessionID, input.Metadata, map[string]any{
 		"cwd": cwd,
 	})
+	if providerTargetRefKind(input.ProviderTargetRef) == "agent_extension" {
+		nodeStartedAt = time.Now()
+		if err := s.validateExtensionComposerSettingsForCreate(ctx, workspaceID, cwd, input); err != nil {
+			s.reportAgentServiceNodeFailure(ctx, input.AgentSessionID, "session_create", "settings_validated", provider, nodeStartedAt, err)
+			return Session{}, err
+		}
+		s.reportAgentServiceNodeSuccess(ctx, input.AgentSessionID, "session_create", "settings_validated", provider, nodeStartedAt)
+	}
 	nodeStartedAt = time.Now()
 	prepared, err := s.prepareRuntime(ctx, workspaceID, cwd, input)
 	if err != nil {
@@ -169,6 +180,29 @@ func (s *Service) Create(ctx context.Context, workspaceID string, input CreateSe
 		persistedSession,
 		s.controller().CanResume(runtimeResumeInputFromRuntimeSession(session)),
 	), nil
+}
+
+func (s *Service) applyCreateSessionComposerDefaults(ctx context.Context, input *CreateSessionInput) error {
+	if input == nil || s.AgentComposerDefaultsReader == nil {
+		return nil
+	}
+	defaults, err := s.AgentComposerDefaultsReader.GetAgentComposerDefaultsForTarget(ctx, input.AgentTargetID)
+	if err != nil {
+		return fmt.Errorf("get agent composer defaults for create: %w", err)
+	}
+	if input.Model == nil && strings.TrimSpace(defaults.Model) != "" {
+		input.Model = stringPointer(defaults.Model)
+	}
+	if input.PermissionModeID == nil && strings.TrimSpace(defaults.PermissionModeID) != "" {
+		input.PermissionModeID = stringPointer(defaults.PermissionModeID)
+	}
+	if input.ReasoningEffort == nil && strings.TrimSpace(defaults.ReasoningEffort) != "" {
+		input.ReasoningEffort = stringPointer(defaults.ReasoningEffort)
+	}
+	if input.Speed == nil && strings.TrimSpace(defaults.Speed) != "" {
+		input.Speed = stringPointer(defaults.Speed)
+	}
+	return nil
 }
 
 func normalizePermissionModeIDForLaunch(provider string, providerTargetRef map[string]any, value string) string {

@@ -8,10 +8,7 @@ import {
   parseInlineActivityMessages,
   selectEngineSession
 } from "@tutti-os/agent-activity-core";
-import type {
-  WorkspaceAgentActivityEnsureSessionSynchronizedInput,
-  WorkspaceAgentModelCatalogInvalidatedEvent
-} from "../workspaceAgentActivityService.interface.ts";
+import type { WorkspaceAgentActivityEnsureSessionSynchronizedInput } from "../workspaceAgentActivityService.interface.ts";
 import type { WorkspaceAgentSessionEngineHost } from "./workspaceAgentSessionEngineHost.ts";
 import {
   agentActivitySessionReconcileDiagnosticDetails,
@@ -34,6 +31,7 @@ import type {
   WorkspaceAgentActivityBridgeEvent,
   WorkspaceAgentActivityReconcileDependencies
 } from "./workspaceAgentActivityReconcileTypes.ts";
+import { WorkspaceAgentComposerOptionsInvalidationCoordinator } from "./workspaceAgentComposerOptionsInvalidationCoordinator.ts";
 
 export abstract class WorkspaceAgentActivityReconcileBridge {
   private readonly reconcileDependencies: WorkspaceAgentActivityReconcileDependencies;
@@ -49,9 +47,10 @@ export abstract class WorkspaceAgentActivityReconcileBridge {
     string,
     Set<(event: unknown) => void>
   >();
-  private readonly modelCatalogInvalidatedListeners = new Set<
-    (event: WorkspaceAgentModelCatalogInvalidatedEvent) => void
-  >();
+  private readonly composerOptionsInvalidation =
+    new WorkspaceAgentComposerOptionsInvalidationCoordinator(() =>
+      this.entries.values()
+    );
   private readonly latestStateEventBySessionKey = new Map<
     string,
     { data: unknown; eventType: "state_patch" }
@@ -150,15 +149,14 @@ export abstract class WorkspaceAgentActivityReconcileBridge {
     return () => listeners?.delete(listener);
   }
 
-  onModelCatalogInvalidated(
-    listener: (event: WorkspaceAgentModelCatalogInvalidatedEvent) => void
-  ): () => void {
-    if (this.disposed) {
-      return () => {};
-    }
-    this.modelCatalogInvalidatedListeners.add(listener);
-    return () => this.modelCatalogInvalidatedListeners.delete(listener);
-  }
+  readonly onModelCatalogInvalidated =
+    this.composerOptionsInvalidation.onModelCatalogInvalidated.bind(
+      this.composerOptionsInvalidation
+    );
+  readonly onComposerDefaultsInvalidated =
+    this.composerOptionsInvalidation.onComposerDefaultsInvalidated.bind(
+      this.composerOptionsInvalidation
+    );
 
   dispose(): void {
     if (this.disposed) {
@@ -173,7 +171,7 @@ export abstract class WorkspaceAgentActivityReconcileBridge {
       dispose();
     }
     this.sessionEventListenersByWorkspaceId.clear();
-    this.modelCatalogInvalidatedListeners.clear();
+    this.composerOptionsInvalidation.dispose();
     this.snapshotProjectors.clear();
     this.liveReconcileSessionKeys.clear();
     this.liveReconcileInFlightSessionKeys.clear();
@@ -391,23 +389,6 @@ export abstract class WorkspaceAgentActivityReconcileBridge {
     for (const listener of listeners) listener(event);
   }
 
-  private handleModelCatalogInvalidated(
-    event: WorkspaceAgentModelCatalogInvalidatedEvent
-  ): void {
-    for (const entry of this.entries.values()) {
-      entry.engine.dispatch({
-        providers: event.providers,
-        type: "composerOptions/invalidated"
-      });
-    }
-    for (const listener of this.modelCatalogInvalidatedListeners) {
-      listener({
-        providers: [...event.providers],
-        occurredAtUnixMs: event.occurredAtUnixMs
-      });
-    }
-  }
-
   private subscribeWorkspaceEventStream(workspaceId: string): void {
     const eventStreamClient = this.reconcileDependencies.eventStreamClient;
     if (!eventStreamClient) return;
@@ -429,15 +410,7 @@ export abstract class WorkspaceAgentActivityReconcileBridge {
     if (!eventStreamClient || this.eventStreamStarted) return;
     this.eventStreamStarted = true;
     this.eventStreamDisposables.push(
-      eventStreamClient.subscribe(
-        "agent.model.catalog.invalidated",
-        (event) => {
-          this.handleModelCatalogInvalidated({
-            providers: [...event.payload.providers],
-            occurredAtUnixMs: event.payload.occurredAtUnixMs
-          });
-        }
-      ),
+      ...this.composerOptionsInvalidation.subscribe(eventStreamClient),
       eventStreamClient.subscribeConnectionState((state) => {
         if (state !== "connected" && state !== "disconnected") return;
         const recoveredFromDisconnect =
