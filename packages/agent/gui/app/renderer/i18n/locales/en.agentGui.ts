@@ -1,6 +1,7 @@
 import { enAgentGuiProviderIdentity } from "./en.agentGuiProviderIdentity.ts";
 import { enAgentGuiRuntimeNotices } from "./en.agentGuiRuntimeNotices.ts";
 import { enAgentGuiSlashPalette } from "./en.agentGuiSlashPalette.ts";
+import { enAgentGuiSessionActions } from "./en.agentGuiSessionActions.ts";
 
 export const enAgentGui = {
   initialPlaceholder: "Type @ to reference sessions, files, tasks, and apps",
@@ -610,17 +611,7 @@ export const enAgentGui = {
   showLessConversations: "Show less",
   deleteSession: "Delete session",
   pinSession: "Pin session",
-  moreSessionActions: "More session actions",
-  copyAsMarkdown: "Copy as Markdown",
-  copyAsReference: "Copy as reference",
-  markSessionUnread: "Mark as unread",
-  conversationCopyImage: "Image",
-  conversationCopyMentionPrefix: "@",
-  conversationCopyFile: "File",
-  conversationCopyPreviousMessages: "{{count}} previous messages",
-  conversationCopyImagesOmitted:
-    "{{count}} image(s) were too large to embed — right-click an image in the conversation to copy it separately",
-  sessionActionUnavailable: "Session action is unavailable right now",
+  ...enAgentGuiSessionActions,
   renameSession: "Rename session",
   renameSessionTitle: "Rename conversation",
   renameSessionDescription: "Keep it short and easy to recognize.",

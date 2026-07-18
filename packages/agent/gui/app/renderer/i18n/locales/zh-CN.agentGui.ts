@@ -1,6 +1,7 @@
 import { zhCNAgentGuiProviderIdentity } from "./zh-CN.agentGuiProviderIdentity.ts";
 import { zhCNAgentGuiRuntimeNotices } from "./zh-CN.agentGuiRuntimeNotices.ts";
 import { zhCNAgentGuiSlashPalette } from "./zh-CN.agentGuiSlashPalette.ts";
+import { zhCNAgentGuiSessionActions } from "./zh-CN.agentGuiSessionActions.ts";
 
 export const zhCNAgentGui = {
   initialPlaceholder: "输入 @ 引用会话、文件、任务和应用",
@@ -565,17 +566,7 @@ export const zhCNAgentGui = {
   showLessConversations: "收起",
   deleteSession: "删除会话",
   pinSession: "置顶会话",
-  moreSessionActions: "更多会话操作",
-  copyAsMarkdown: "复制为 Markdown",
-  copyAsReference: "复制为引用",
-  markSessionUnread: "标记为未读",
-  conversationCopyImage: "图片",
-  conversationCopyMentionPrefix: "@",
-  conversationCopyFile: "文件",
-  conversationCopyPreviousMessages: "{{count}} 条先前消息",
-  conversationCopyImagesOmitted:
-    "{{count}} 张图片过大未嵌入副本，可在对话中右键单张图片单独复制",
-  sessionActionUnavailable: "当前无法执行会话操作",
+  ...zhCNAgentGuiSessionActions,
   renameSession: "重命名会话",
   renameSessionTitle: "重命名对话",
   renameSessionDescription: "保持简短且易于识别。",
