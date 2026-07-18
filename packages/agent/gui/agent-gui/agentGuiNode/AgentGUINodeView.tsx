@@ -101,6 +101,7 @@ export function AgentGUINodeView({
   accountMenuState = null,
   previewMode = false,
   onAgentProviderLogin,
+  onAgentEnvPanelOpen,
   actions,
   conversationRailCollapsed,
   conversationRailWidthPx,
@@ -457,6 +458,7 @@ export function AgentGUINodeView({
     activeConversationId: viewModel.rail.activeConversationId,
     agentTargets: viewModel.rail.agentTargets,
     environmentProvider: effectiveRailConfigProvider,
+    openEnvironmentSetup: onAgentEnvPanelOpen,
     selectedAgentTarget: viewModel.rail.selectedAgentTarget
   });
   const openAgentSettings = useCallback(() => {
@@ -584,7 +586,10 @@ export function AgentGUINodeView({
 
   const content = (
     <AgentTargetPresentationProvider agentTargets={agentTargetPresentations}>
-      <AgentTargetSetupRoot controller={targetSetupController}>
+      <AgentTargetSetupRoot
+        controller={targetSetupController}
+        openEnvironmentSetup={onAgentEnvPanelOpen}
+      >
         <div
           ref={layoutElementRef}
           className={styles.layout}

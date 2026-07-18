@@ -835,6 +835,20 @@ install/auth lifecycle, persistence, trust checks, account projection, and ACP
 auth invalidation rules are defined once in
 [Agent Extensions](./agent-extensions.md#target-managed-runtime-setup).
 
+Agent environment setup is a window-scoped desktop workflow, not a React
+effect lifecycle. AgentGUI emits only a host-injected command to open the setup
+panel; it owns no request store. The desktop `AgentEnvService` owns that command
+and subscribes to the provider-status service, while its controller owns one
+setup session identified by request sequence and provider. Status polling may
+advance that session but must not recreate it, reset its presentation state, or
+replay an automatic install/login action. The provider-status service is the
+single action seam for both account-backed and terminal-backed login. Automatic
+login reuses an active attempt; an explicit retry may replace an awaiting
+terminal, but each provider has at most one active authentication poll and one
+current terminal handle. React subscribes to the service snapshot and forwards
+user commands. A host-binding effect is permitted only as an external Workbench
+handle lifecycle adapter and must not contain setup orchestration.
+
 UI-local state may include draft text, selected panel, rail layout, open menus,
 scroll position, and temporary presentation focus. UI-local state must not own
 session lifecycle, turn lifecycle, queue delivery, or durable workflow status.
