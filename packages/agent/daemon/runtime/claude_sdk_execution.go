@@ -141,6 +141,7 @@ func (a *ClaudeCodeSDKAdapter) GuideActiveTurn(
 	if err := a.startClaudeSDKReader(session.AgentSessionID, adapterSession); err != nil {
 		return events, err
 	}
+	clientSubmitID := metadataString(execMetadataFromContext(ctx), "clientSubmitId")
 	ctx, cancel := context.WithTimeout(ctx, claudeSDKGoalCommandTimeout)
 	defer cancel()
 	if err := a.roundTripClaudeSDK(ctx, session.AgentSessionID, adapterSession, claudeSDKSidecarRequest{
@@ -150,6 +151,7 @@ func (a *ClaudeCodeSDKAdapter) GuideActiveTurn(
 			"agentSessionId": session.AgentSessionID,
 			"prompt":         promptTextForClaudeSDK(content, visibleText),
 			"content":        promptContentForClaudeSDK(content, visibleText),
+			"clientSubmitId": clientSubmitID,
 		},
 	}); err != nil {
 		return events, err
