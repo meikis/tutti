@@ -90,6 +90,11 @@ type OperationObservation struct {
 	Result      string
 }
 
+type InteractiveObservation struct {
+	Session     SessionObservation
+	Disposition agenthost.RuntimeInteractiveDisposition
+}
+
 type Metrics struct {
 	StartCalls               int
 	ResumeCalls              int
@@ -120,7 +125,7 @@ type Driver interface {
 	EnsureSession(context.Context, agenthost.SessionRef) (SessionObservation, error)
 	SendInput(context.Context, agenthost.SessionRef, agenthost.SendInput) (SendObservation, error)
 	CancelTurn(context.Context, agenthost.CancelTurnInput) (CancelObservation, error)
-	SubmitInteractive(context.Context, agenthost.SessionRef, string, agenthost.SubmitInteractiveInput) (SessionObservation, error)
+	SubmitInteractive(context.Context, agenthost.SessionRef, string, agenthost.SubmitInteractiveInput) (InteractiveObservation, error)
 	SubmitPlanDecision(context.Context, agenthost.SessionRef, string, string, agenthost.SubmitPlanDecisionInput) (OperationObservation, error)
 	UpdateTitle(context.Context, agenthost.UpdateTitleInput) (SessionObservation, error)
 	GetSession(context.Context, agenthost.SessionRef) (SessionObservation, error)

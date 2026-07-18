@@ -8,6 +8,7 @@ var (
 	duplicateClientSubmitIDScenario   = Scenario{Name: "duplicate client submit id", run: runDuplicateClientSubmitID}
 	exactTurnCancelScenario           = Scenario{Name: "exact turn cancel", run: runExactTurnCancel}
 	interactiveResponseScenario       = Scenario{Name: "interactive response", run: runInteractiveResponse}
+	interactiveResponseRaceScenario   = Scenario{Name: "interactive response race", run: runInteractiveResponseRace}
 	planDecisionScenario              = Scenario{Name: "plan decision", run: runPlanDecision}
 	initialTitleCASScenario           = Scenario{Name: "initial title cas", run: runInitialTitleCAS}
 	getSessionScenario                = Scenario{Name: "get session", run: runGetSession}
@@ -29,6 +30,7 @@ func Scenarios() []Scenario {
 		duplicateClientSubmitIDScenario,
 		exactTurnCancelScenario,
 		interactiveResponseScenario,
+		interactiveResponseRaceScenario,
 		planDecisionScenario,
 		initialTitleCASScenario,
 		getSessionScenario,
@@ -61,6 +63,7 @@ func CoordinatorScenarios() []Scenario {
 	return []Scenario{
 		exactTurnCancelScenario,
 		interactiveResponseScenario,
+		interactiveResponseRaceScenario,
 		planDecisionScenario,
 		{Name: "recover operations before stale turns and worktree sweep", run: runRecoveryOrder},
 		{Name: "worktree sweep failure propagates", run: runWorktreeSweepFailure},

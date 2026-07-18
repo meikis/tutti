@@ -363,11 +363,33 @@ before the historical call row resolves.
 Likewise, a runtime session snapshot may describe provider-local execution
 state but must not enrich a report with an Interaction transition. Runtime
 reports may submit only `pending` and `superseded`; `answered` belongs solely to
-the durable `interactive_response` operation. That operation reads the typed
-runtime disposition (`pending`, `resolving`, `answered`, `superseded`, or
-`interrupted`) and atomically commits the answered/superseded Interaction,
-completed operation, and outbox event. Absence from an in-memory request map is
-not evidence of success.
+the durable `interactive_response` operation. Preparing that operation
+atomically claims the interaction with a `pending` to `answered` transition and
+stores the requested action, option, and payload. Completion still records the
+typed runtime disposition (`pending`, `resolving`, `answered`, `superseded`, or
+`interrupted`) and commits the completed operation and outbox event. Competing
+responders compare against the claimed output and normalize to `answered` or
+`superseded`; absence from an in-memory request map is not evidence of success.
+The claim's provisional Interaction status must not overwrite the terminal
+runtime disposition: the completed operation result follows the runtime even
+when the claim already moved the Interaction to `answered`.
+
+Activity compatibility projection uses a causal, segmented write barrier. It
+scans state patches in provider order. Non-terminal state first creates the
+session, Turn, and Interaction required by message foreign keys; immediately
+before each terminal patch, it flushes that Turn's messages and the session
+audits, then commits the terminal state. Later non-terminal patches are never
+moved ahead of an earlier settlement. A completed root-provider transition is
+also terminal because, when no child remains active, SQLite uses it to settle
+the canonical root Turn. During the first SQLite settlement transaction, the
+store selects the latest already persisted assistant text message for that Turn
+and freezes its ID in the existing completed-command payload. A same-report
+anchor is only a validated fast path; cross-report provider event batches
+derive the same watermark from durable messages. The payload also records an
+explicit resolution marker when settlement found no assistant text, so a late
+message cannot become the result of an already settled Turn. Result readers use
+the exact frozen message, return no message for a resolved-empty watermark, and
+reserve the bounded fallback scan for legacy turns without resolution metadata.
 
 Cancellation of the caller waiting on an interactive-response operation is not
 a provider outcome and must not terminalize the runtime request. Before a
