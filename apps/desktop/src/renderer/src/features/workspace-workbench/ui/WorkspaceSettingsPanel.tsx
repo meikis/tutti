@@ -3511,66 +3511,80 @@ function WorkspaceGeneralSettingsSection({
             )}
           </p>
         </div>
-        <div className="flex w-[220px] min-w-[220px] flex-col gap-2 max-[560px]:w-full max-[560px]:min-w-0">
-          <Select
-            disabled={
-              changingDeletedAgentConversationRetentionDays !== null ||
-              purgingDeletedConversations
-            }
-            value={String(pendingRetentionDays)}
-            onValueChange={(value) =>
-              onDeletedAgentConversationRetentionDaysChange(
-                Number(value) as DeletedAgentConversationRetentionDays
-              )
-            }
-          >
-            <SelectTrigger
-              aria-label={t(
-                "workspace.settings.general.deletedConversationRetentionLabel"
+        <div className="flex w-[220px] min-w-[220px] items-center gap-2 max-[560px]:w-full max-[560px]:min-w-0">
+          <div className="min-w-0 flex-1">
+            <Select
+              disabled={
+                changingDeletedAgentConversationRetentionDays !== null ||
+                purgingDeletedConversations
+              }
+              value={String(pendingRetentionDays)}
+              onValueChange={(value) =>
+                onDeletedAgentConversationRetentionDaysChange(
+                  Number(value) as DeletedAgentConversationRetentionDays
+                )
+              }
+            >
+              <SelectTrigger
+                aria-label={t(
+                  "workspace.settings.general.deletedConversationRetentionLabel"
+                )}
+                className={workspaceSettingsSelectTriggerClass}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                className={workspaceSettingsSelectContentClass}
+                style={{ zIndex: "var(--z-panel-popover)" }}
+              >
+                {deletedAgentConversationRetentionDaysOptions.map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {t(
+                      "workspace.settings.general.deletedConversationRetentionDays",
+                      { count: String(days) }
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={t(
+                  purgingDeletedConversations
+                    ? "workspace.settings.general.deletedConversationPurging"
+                    : "workspace.settings.general.deletedConversationPurgeAction"
+                )}
+                className="size-8 rounded-[6px]"
+                disabled={purgingDeletedConversations}
+                size="icon"
+                variant="destructive-secondary"
+                onClick={() => {
+                  setPurgeConfirmation("");
+                  setPurgeDialogOpen(true);
+                }}
+              >
+                {purgingDeletedConversations ? (
+                  <LoadingIcon className="size-3.5" />
+                ) : (
+                  <DeleteIcon className="size-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {t(
+                purgingDeletedConversations
+                  ? "workspace.settings.general.deletedConversationPurging"
+                  : "workspace.settings.general.deletedConversationPurgeAction"
               )}
-              className={workspaceSettingsSelectTriggerClass}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent
-              className={workspaceSettingsSelectContentClass}
-              style={{ zIndex: "var(--z-panel-popover)" }}
-            >
-              {deletedAgentConversationRetentionDaysOptions.map((days) => (
-                <SelectItem key={days} value={String(days)}>
-                  {t(
-                    "workspace.settings.general.deletedConversationRetentionDays",
-                    { count: String(days) }
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <WorkspaceSettingsActionButton
-            disabled={purgingDeletedConversations}
-            icon={
-              purgingDeletedConversations ? (
-                <LoadingIcon className="size-3.5" />
-              ) : (
-                <DeleteIcon className="size-3.5" />
-              )
-            }
-            label={t(
-              purgingDeletedConversations
-                ? "workspace.settings.general.deletedConversationPurging"
-                : "workspace.settings.general.deletedConversationPurgeAction"
-            )}
-            onClick={() => {
-              setPurgeConfirmation("");
-              setPurgeDialogOpen(true);
-            }}
-            variant="destructive-secondary"
-          />
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
       <Dialog open={purgeDialogOpen} onOpenChange={setPurgeDialogOpen}>
-        <DialogContent style={{ zIndex: "var(--z-modal)" }}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {t("workspace.settings.general.deletedConversationPurgeTitle")}

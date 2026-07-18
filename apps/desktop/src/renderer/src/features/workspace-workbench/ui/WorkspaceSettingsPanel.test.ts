@@ -70,6 +70,11 @@ test("workspace settings requires the exact destructive confirmation before clea
     /purgeConfirmation !== purgeConfirmationPhrase[\s\S]{0,300}variant="destructive"/
   );
   assert.match(source, /deletedConversationPurgeConfirmationPhrase/);
+  assert.match(
+    source,
+    /size="icon"[\s\S]{0,120}variant="destructive-secondary"/
+  );
+  assert.doesNotMatch(source, /var\(--z-modal\)/);
 });
 
 test("workspace settings unlocks developer mode after seven version taps", () => {
