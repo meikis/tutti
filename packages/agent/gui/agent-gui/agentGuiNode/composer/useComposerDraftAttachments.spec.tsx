@@ -241,7 +241,7 @@ describe("useComposerDraftAttachments", () => {
     );
 
     await waitFor(() => expect(reportDiagnostic).toHaveBeenCalledTimes(2));
-    expect(hostToastError).toHaveBeenCalledWith("File exceeds 10 MB");
+    expect(hostToastError).toHaveBeenCalledWith("File exceeds 2 GB");
     expect(reportDiagnostic).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
