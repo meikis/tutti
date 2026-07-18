@@ -422,10 +422,13 @@ async function resolveInitialDesktopPreferences(
   try {
     const response = await options.tuttidClient.getDesktopPreferences();
     if (response.initialized) {
+      const shouldMigrateDefaultUpdateChannel =
+        await shouldMigrateDefaultDesktopUpdateChannel(options);
       const migratedPreferences = await migrateInitializedDesktopPreferences(
         options,
         response.preferences,
-        defaultUpdateChannel
+        defaultUpdateChannel,
+        shouldMigrateDefaultUpdateChannel
       );
       return alignUpdateChannelWithInstalledVersion(
         options,
@@ -556,7 +559,8 @@ async function alignUpdateChannelWithInstalledVersion(
 async function migrateInitializedDesktopPreferences(
   options: CreateDesktopHostPreferencesOptions,
   preferences: PutDesktopPreferencesRequest["preferences"],
-  defaultUpdateChannel: DesktopUpdateChannel
+  defaultUpdateChannel: DesktopUpdateChannel,
+  shouldMigrateDefaultUpdateChannel: boolean
 ): Promise<PutDesktopPreferencesRequest["preferences"]> {
   const normalizedMinimizeAnimation = isDesktopMinimizeAnimation(
     preferences.minimizeAnimation
@@ -576,7 +580,11 @@ async function migrateInitializedDesktopPreferences(
   const normalizedWorkbenchShortcuts = normalizeDesktopWorkbenchShortcuts(
     preferences.workbenchShortcuts
   );
-  if (preferences.updateChannel !== "rc" || defaultUpdateChannel !== "stable") {
+  if (
+    !shouldMigrateDefaultUpdateChannel ||
+    preferences.updateChannel !== "rc" ||
+    defaultUpdateChannel !== "stable"
+  ) {
     if (
       preferences.minimizeAnimation === normalizedMinimizeAnimation &&
       preferences.agentConversationDetailMode ===
@@ -650,6 +658,18 @@ async function migrateInitializedDesktopPreferences(
       workbenchShortcuts: normalizedWorkbenchShortcuts
     };
   }
+}
+
+async function shouldMigrateDefaultDesktopUpdateChannel(
+  options: CreateDesktopHostPreferencesOptions
+): Promise<boolean> {
+  const installedVersion = resolveInstalledDesktopVersion(options);
+  if (!options.isPackaged || !installedVersion) {
+    return true;
+  }
+
+  const statePath = resolveUpdateChannelInstalledVersionStatePath(options);
+  return (await readInstalledDesktopVersion(statePath)) !== installedVersion;
 }
 
 function resolveDefaultDesktopUpdateChannel(
